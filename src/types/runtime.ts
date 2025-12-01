@@ -12,11 +12,16 @@
 // ============================================================================
 
 /**
+ * Represents a Pine Script series (opaque runtime object)
+ */
+export type PineSeries = unknown;
+
+/**
  * Runtime context passed to indicator calculations on each bar
  */
 export interface RuntimeContext {
   /** Create a new persistent variable that maintains state across bars */
-  new_var: (initialValue: any) => any;
+  new_var: (initialValue: unknown) => PineSeries;
 
   /** Symbol information */
   symbol: {
@@ -24,11 +29,13 @@ export interface RuntimeContext {
     currency?: string;
     type?: string;
     timezone?: string;
-    [key: string]: any;
+    minmov?: number;
+    pricescale?: number;
+    [key: string]: unknown;
   };
 
   /** Additional runtime context */
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**
@@ -51,68 +58,128 @@ export interface PineJSStdLibrary {
   // ============================================================================
   // Moving Averages
   // ============================================================================
-  sma: (series: any, length: number, context: RuntimeContext) => number;
-  ema: (series: any, length: number, context: RuntimeContext) => number;
-  wma: (series: any, length: number, context: RuntimeContext) => number;
-  vwma: (series: any, length: number, context: RuntimeContext) => number;
-  rma: (series: any, length: number, context: RuntimeContext) => number;
+  sma: (context: RuntimeContext, series: PineSeries, length: number) => number;
+  ema: (context: RuntimeContext, series: PineSeries, length: number) => number;
+  wma: (context: RuntimeContext, series: PineSeries, length: number) => number;
+  vwma: (context: RuntimeContext, series: PineSeries, length: number) => number;
+  rma: (context: RuntimeContext, series: PineSeries, length: number) => number;
+  swma: (context: RuntimeContext, series: PineSeries) => number;
+  alma: (context: RuntimeContext, series: PineSeries, length: number, offset: number, sigma: number) => number;
+  linreg: (context: RuntimeContext, series: PineSeries, length: number, offset: number) => number;
+  smma: (context: RuntimeContext, series: PineSeries, length: number) => number;
 
   // ============================================================================
   // Momentum Indicators
   // ============================================================================
-  rsi: (series: any, length: number, context: RuntimeContext) => number;
+  rsi: (context: RuntimeContext, series: PineSeries, length: number) => number;
   macd: (
-    series: any,
+    context: RuntimeContext,
+    series: PineSeries,
     fast: number,
     slow: number,
     signal: number,
-    context: RuntimeContext,
   ) => [number, number, number];
   stoch: (
-    source: any,
-    high: any,
-    low: any,
-    length: number,
     context: RuntimeContext,
+    source: PineSeries,
+    high: PineSeries,
+    low: PineSeries,
+    length: number,
   ) => number;
-  cci: (source: any, length: number, context: RuntimeContext) => number;
-  mfi: (series: any, length: number, context: RuntimeContext) => number;
+  cci: (context: RuntimeContext, source: PineSeries, length: number) => number;
+  mfi: (context: RuntimeContext, series: PineSeries, length: number) => number;
+  roc: (context: RuntimeContext, series: PineSeries, length: number) => number;
+  mom: (context: RuntimeContext, series: PineSeries, length: number) => number;
+  tsi: (context: RuntimeContext, series: PineSeries, short: number, long: number) => number;
 
   // ============================================================================
   // Volatility Indicators
   // ============================================================================
-  atr: (length: number, context: RuntimeContext) => number;
+  atr: (context: RuntimeContext, length: number) => number;
   tr: (context: RuntimeContext) => number;
+  stdev: (context: RuntimeContext, series: PineSeries, length: number) => number;
+  variance: (context: RuntimeContext, series: PineSeries, length: number) => number;
+  dev: (context: RuntimeContext, series: PineSeries, length: number) => number;
   bb: (
-    series: any,
+    context: RuntimeContext,
+    series: PineSeries,
     length: number,
     mult: number,
-    context: RuntimeContext,
   ) => [number, number, number];
+  bbw: (
+    context: RuntimeContext,
+    series: PineSeries,
+    length: number,
+    mult: number,
+  ) => number;
   kc: (
-    series: any,
+    context: RuntimeContext,
+    series: PineSeries,
     length: number,
     mult: number,
-    context: RuntimeContext,
   ) => [number, number, number];
+  kcw: (
+    context: RuntimeContext,
+    series: PineSeries,
+    length: number,
+    mult: number,
+  ) => number;
+  donchian: (context: RuntimeContext, length: number) => [number, number, number];
+
+  // ============================================================================
+  // Trend Indicators
+  // ============================================================================
+  adx: (context: RuntimeContext, diLength: number, adxSmoothing: number) => number;
+  dmi: (context: RuntimeContext, diLength: number, adxSmoothing: number) => [number, number, number, number, number];
+  supertrend: (context: RuntimeContext, factor: number, atrPeriod: number) => [number, number];
+  sar: (context: RuntimeContext, start: number, inc: number, max: number) => number;
+  pivothigh: (context: RuntimeContext, series: PineSeries, leftbars: number, rightbars: number) => number;
+  pivotlow: (context: RuntimeContext, series: PineSeries, leftbars: number, rightbars: number) => number;
+
+  // ============================================================================
+  // Cross Detection
+  // ============================================================================
+  cross: (context: RuntimeContext, series1: PineSeries, series2: PineSeries) => boolean;
+  crossover: (context: RuntimeContext, series1: PineSeries, series2: PineSeries) => boolean;
+  crossunder: (context: RuntimeContext, series1: PineSeries, series2: PineSeries) => boolean;
+  rising: (context: RuntimeContext, series: PineSeries, length: number) => boolean;
+  falling: (context: RuntimeContext, series: PineSeries, length: number) => boolean;
 
   // ============================================================================
   // Volume Indicators
   // ============================================================================
   obv: (context: RuntimeContext) => number;
+  vwap: (context: RuntimeContext) => number;
+  accdist: (context: RuntimeContext) => number;
 
   // ============================================================================
-  // Utilities
+  // Utilities & Statistics
   // ============================================================================
-  na: (value: any) => boolean;
-  nz: (value: any, replacement?: number) => number;
-  cum: (series: any, context: RuntimeContext) => number;
+  na: (value: unknown) => boolean;
+  nz: (value: unknown, replacement?: number) => number;
+  cum: (context: RuntimeContext, series: PineSeries) => number;
+  sum: (context: RuntimeContext, series: PineSeries, length: number) => number;
+  change: (context: RuntimeContext, series: PineSeries, length: number) => number;
+  percentrank: (context: RuntimeContext, series: PineSeries, length: number) => number;
+  
+  highest: (context: RuntimeContext, series: PineSeries, length: number) => number;
+  lowest: (context: RuntimeContext, series: PineSeries, length: number) => number;
+  highestbars: (context: RuntimeContext, series: PineSeries, length: number) => number;
+  lowestbars: (context: RuntimeContext, series: PineSeries, length: number) => number;
+  
+  median: (context: RuntimeContext, series: PineSeries, length: number) => number;
+  mode: (context: RuntimeContext, series: PineSeries, length: number) => number;
+  
+  correlation: (context: RuntimeContext, series1: PineSeries, series2: PineSeries, length: number) => number;
+  cov: (context: RuntimeContext, series1: PineSeries, series2: PineSeries, length: number) => number;
+  
   valuewhen: (
-    condition: boolean,
-    source: any,
-    occurrence: number,
     context: RuntimeContext,
+    condition: boolean,
+    source: PineSeries,
+    occurrence: number,
   ) => number;
+  barssince: (context: RuntimeContext, condition: boolean) => number;
 
   // ============================================================================
   // Time Functions
@@ -127,6 +194,14 @@ export interface PineJSStdLibrary {
   hour: (time: number, timezone?: string) => number;
   minute: (time: number, timezone?: string) => number;
   second: (time: number, timezone?: string) => number;
+  
+  period: (context: RuntimeContext) => string;
+  interval: (context: RuntimeContext) => number;
+  isdwm: (context: RuntimeContext) => boolean;
+  isintraday: (context: RuntimeContext) => boolean;
+  isdaily: (context: RuntimeContext) => boolean;
+  isweekly: (context: RuntimeContext) => boolean;
+  ismonthly: (context: RuntimeContext) => boolean;
 
   // ============================================================================
   // Math Functions (mirror JavaScript Math)
@@ -147,7 +222,7 @@ export interface PineJSStdLibrary {
   tan: (value: number) => number;
 
   // Extensibility - add more as needed
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**
@@ -158,7 +233,7 @@ export interface PineJSRuntime {
   Std: PineJSStdLibrary;
 
   /** Additional runtime properties */
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 // ============================================================================
@@ -220,6 +295,9 @@ export interface StudyPlotInfo {
     | 'cross'
     | 'shape'
     | 'hline';
+    
+  /** Optional price for hline */
+  price?: number;
 }
 
 /**
@@ -387,40 +465,3 @@ export interface TranspileToPineJSResult {
   /** Column number where error occurred */
   errorColumn?: number | undefined;
 }
-
-// ============================================================================
-// Compatibility Notes
-// ============================================================================
-
-/**
- * COMPATIBILITY WITH TRADINGVIEW CHARTING LIBRARY
- *
- * These types are designed to be compatible with the official TradingView
- * Charting Library. If you have the charting library installed, you can
- * use the types interchangeably:
- *
- * @example
- * ```typescript
- * // For TradingView Charting Library users:
- * import type { PineJS } from 'charting_library';
- * import { transpileToPineJS } from '@opusaether/pine-transpiler';
- *
- * const result = transpileToPineJS(code, 'my-indicator');
- * if (result.success && result.indicatorFactory) {
- *   // PineJS from charting library is compatible
- *   const indicator = result.indicatorFactory(PineJS as any);
- *
- *   // Use with chart
- *   widget.activeChart().createStudy(
- *     indicator.name,
- *     false,
- *     false,
- *     undefined,
- *     indicator
- *   );
- * }
- * ```
- *
- * For non-TradingView users, you can implement your own PineJSRuntime
- * that matches this interface.
- */
