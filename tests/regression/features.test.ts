@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { transpile } from '../src/index';
+import { transpile } from '../../src/index';
 
 describe('New Features', () => {
   it('should transpile export variable', () => {

@@ -10,9 +10,9 @@ import {
   canTranspilePineScript,
   transpile,
   transpileToPineJS,
-} from '../src/index';
-import { Lexer } from '../src/parser/lexer';
-import { Parser } from '../src/parser/parser';
+} from '../../src/index';
+import { Lexer } from '../../src/parser/lexer';
+import { Parser } from '../../src/parser/parser';
 
 describe('Security Tests', () => {
   describe('Input Size Limits', () => {
