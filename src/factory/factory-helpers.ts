@@ -9,7 +9,7 @@ import type { ParsedInput, ParsedPlot, PlotStyle } from '../types';
 
 /**
  * Map AST plot types to PineJS Runtime plot type constants.
- * 
+ *
  * @param t - The plot type string from the AST
  * @returns The numeric plot type constant for PineJS
  */
@@ -36,7 +36,7 @@ export function mapPlotType(t: string): number {
 
 /**
  * Build the default styles object for plots.
- * 
+ *
  * @param plots - Array of parsed plot definitions
  * @returns Record mapping plot IDs to their style configurations
  */
@@ -62,7 +62,7 @@ export function buildDefaultStyles(
 
 /**
  * Build the default inputs object.
- * 
+ *
  * @param inputs - Array of parsed input definitions
  * @returns Record mapping input IDs to their default values
  */
@@ -80,7 +80,7 @@ export function buildDefaultInputs(
 
 /**
  * Build the styles metadata object.
- * 
+ *
  * @param plots - Array of parsed plot definitions
  * @returns Record mapping plot IDs to their title and histogram base
  */
@@ -98,7 +98,7 @@ export function buildStylesMetadata(
 
 /**
  * Build the plots metadata array.
- * 
+ *
  * @param plots - Array of parsed plot definitions
  * @returns Array of plot info objects for metainfo
  */
@@ -113,16 +113,22 @@ export function buildPlotsMetadata(
 
 /**
  * Build the inputs metadata array.
- * 
+ *
  * @param inputs - Array of parsed input definitions
  * @returns Array of input info objects for metainfo
  */
-export function buildInputsMetadata(
-  inputs: ParsedInput[],
-): Array<{
+export function buildInputsMetadata(inputs: ParsedInput[]): Array<{
   id: string;
   name: string;
-  type: 'text' | 'integer' | 'float' | 'bool' | 'source' | 'session' | 'time' | 'color';
+  type:
+    | 'text'
+    | 'integer'
+    | 'float'
+    | 'bool'
+    | 'source'
+    | 'session'
+    | 'time'
+    | 'color';
   defval: number | boolean | string;
   min?: number;
   max?: number;
@@ -150,7 +156,7 @@ export function buildInputsMetadata(
 /**
  * Sanitize an indicator ID for use in the factory name.
  * Removes all non-alphanumeric characters except underscore.
- * 
+ *
  * @param id - The raw indicator ID
  * @returns Sanitized ID safe for use as an identifier
  */

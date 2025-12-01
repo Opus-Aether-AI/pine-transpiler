@@ -19,11 +19,7 @@ import {
   type StdLibraryInternal,
 } from '../runtime';
 import { STD_PLUS_LIBRARY } from '../stdlib';
-import type {
-  IndicatorFactory,
-  ParsedInput,
-  ParsedPlot,
-} from '../types';
+import type { IndicatorFactory, ParsedInput, ParsedPlot } from '../types';
 import { COLOR_MAP } from '../types';
 import {
   buildDefaultInputs,
