@@ -251,3 +251,11 @@ This project is licensed under the GNU Affero General Public License v3.0. This 
 
 - Inspired by TradingView's Pine Script language
 - Compatible with TradingView Charting Library
+
+## Disclaimer
+
+This project is an independent, open-source initiative and is **not** affiliated with, endorsed by, or connected to TradingView Inc.
+
+- **TradingView** and **Pine Script** are trademarks of TradingView Inc.
+- This transpiler is a clean-room implementation based on public documentation and behavior observation. It does not use or contain any proprietary code from TradingView.
+- Use this tool at your own risk. The authors assume no responsibility for trading decisions or financial losses resulting from the use of this software.
