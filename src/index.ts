@@ -69,6 +69,226 @@ export {
 };
 
 // ============================================================================
+// Runtime Mock Factories
+// ============================================================================
+
+/**
+ * Create the input function mock for runtime
+ */
+function createInputMock(
+  inputCallback: (index: number) => unknown,
+  Std: unknown,
+  context: unknown,
+): InputFunction {
+  let _inputIndex = 0;
+  const stdLib = Std as Record<string, (ctx: unknown) => number>;
+
+  const baseInput = (_defval: unknown, _title: unknown) =>
+    inputCallback(_inputIndex++);
+
+  const input = baseInput as InputFunction;
+
+  input.int = baseInput;
+  input.float = baseInput;
+  input.bool = baseInput;
+  input.string = baseInput;
+  input.time = baseInput;
+  input.symbol = baseInput;
+  input.source = (_defval: unknown, _title: unknown) => {
+    const val = inputCallback(_inputIndex++);
+    if (val === 'close') return stdLib.close(context);
+    if (val === 'open') return stdLib.open(context);
+    if (val === 'high') return stdLib.high(context);
+    if (val === 'low') return stdLib.low(context);
+    if (val === 'volume') return stdLib.volume(context);
+    if (val === 'hl2') return stdLib.hl2(context);
+    if (val === 'hlc3') return stdLib.hlc3(context);
+    if (val === 'ohlc4') return stdLib.ohlc4(context);
+    return stdLib.close(context);
+  };
+
+  return input;
+}
+
+interface InputFunction {
+  (defval: unknown, title: unknown): unknown;
+  int: (defval: unknown, title: unknown) => unknown;
+  float: (defval: unknown, title: unknown) => unknown;
+  bool: (defval: unknown, title: unknown) => unknown;
+  string: (defval: unknown, title: unknown) => unknown;
+  time: (defval: unknown, title: unknown) => unknown;
+  symbol: (defval: unknown, title: unknown) => unknown;
+  source: (defval: unknown, title: unknown) => unknown;
+}
+
+interface PlotFunction {
+  (series: number, title?: string, color?: string): void;
+  style_line: number;
+  style_histogram: number;
+  style_circles: number;
+  style_area: number;
+  style_columns: number;
+  style_cross: number;
+  style_stepline: number;
+}
+
+/**
+ * Create the plot function mock for runtime
+ */
+function createPlotMock(plotValues: number[]): PlotFunction {
+  const basePlot = (series: number, _title?: string, _color?: string) => {
+    plotValues.push(series);
+  };
+
+  const plot = basePlot as PlotFunction;
+
+  plot.style_line = 0;
+  plot.style_histogram = 1;
+  plot.style_circles = 3;
+  plot.style_area = 2;
+  plot.style_columns = 5;
+  plot.style_cross = 4;
+  plot.style_stepline = 0;
+
+  return plot;
+}
+
+/**
+ * Create the math namespace mock
+ */
+function createMathMock(): Record<string, (...args: number[]) => number> {
+  return {
+    abs: Math.abs,
+    acos: Math.acos,
+    asin: Math.asin,
+    atan: Math.atan,
+    ceil: Math.ceil,
+    cos: Math.cos,
+    exp: Math.exp,
+    floor: Math.floor,
+    log: Math.log,
+    log10: Math.log10,
+    max: Math.max,
+    min: Math.min,
+    pow: Math.pow,
+    random: Math.random,
+    round: Math.round,
+    sign: Math.sign,
+    sin: Math.sin,
+    sqrt: Math.sqrt,
+    tan: Math.tan,
+    sum: (...args: number[]) => args.reduce((a, b) => a + b, 0),
+    avg: (...args: number[]) => args.reduce((a, b) => a + b, 0) / args.length,
+    todegrees: (r: number) => (r * 180) / Math.PI,
+    toradians: (d: number) => (d * Math.PI) / 180,
+  };
+}
+
+interface TimeframeMock {
+  period: unknown;
+  isdwm: unknown;
+  isintraday: unknown;
+  isdaily: unknown;
+  isweekly: unknown;
+  ismonthly: unknown;
+  multiplier: unknown;
+}
+
+/**
+ * Create the timeframe namespace mock
+ */
+function createTimeframeMock(
+  Std: Record<string, (ctx: unknown) => unknown>,
+  context: unknown,
+): TimeframeMock {
+  return {
+    period: Std.period(context),
+    isdwm: Std.isdwm(context),
+    isintraday: Std.isintraday(context),
+    isdaily: Std.isdaily(context),
+    isweekly: Std.isweekly(context),
+    ismonthly: Std.ismonthly(context),
+    multiplier: Std.interval(context),
+  };
+}
+
+interface SyminfoMock {
+  ticker: string;
+  tickerid: string;
+  description: string;
+  type: string;
+  pointvalue: number;
+  mintick: number;
+  root: string;
+  session: string;
+  timezone: string;
+}
+
+/**
+ * Create the syminfo namespace mock
+ */
+function createSyminfoMock(context: {
+  symbol: { minmov?: number; pricescale?: number };
+}): SyminfoMock {
+  const minmov = context.symbol.minmov || 1;
+  const pricescale = context.symbol.pricescale || 100;
+
+  return {
+    ticker: 'TICKER',
+    tickerid: 'EXCHANGE:TICKER',
+    description: 'Description',
+    type: 'stock',
+    pointvalue: 1,
+    mintick: minmov / pricescale,
+    root: 'TICKER',
+    session: '0930-1600',
+    timezone: 'America/New_York',
+  };
+}
+
+/**
+ * Create stub namespaces for unsupported features
+ */
+function createStubNamespaces() {
+  return {
+    box: { new: () => {}, delete: () => {}, set_left: () => {} },
+    line: { new: () => {}, delete: () => {} },
+    label: { new: () => {}, delete: () => {} },
+    table: { new: () => {}, cell: () => {} },
+    str: {
+      tostring: (v: unknown) => String(v),
+      length: (v: string) => v.length,
+      contains: (s: string, sub: string) => s.includes(sub),
+    },
+    barstate: {
+      islast: true,
+      isrealtime: true,
+      isnew: false,
+      isconfirmed: true,
+    },
+  };
+}
+
+/**
+ * Create price source values from Std library
+ */
+function createPriceSources(
+  Std: Record<string, (ctx: unknown) => number>,
+  context: unknown,
+) {
+  return {
+    close: Std.close ? Std.close(context) : NaN,
+    open: Std.open ? Std.open(context) : NaN,
+    high: Std.high ? Std.high(context) : NaN,
+    low: Std.low ? Std.low(context) : NaN,
+    volume: Std.volume ? Std.volume(context) : NaN,
+    hl2: Std.hl2 ? Std.hl2(context) : NaN,
+    hlc3: Std.hlc3 ? Std.hlc3(context) : NaN,
+    ohlc4: Std.ohlc4 ? Std.ohlc4(context) : NaN,
+  };
+}
+
+// ============================================================================
 // Main Transpiler Function
 // ============================================================================
 
@@ -271,103 +491,46 @@ export function transpileToPineJS(
               'volume',
               'hl2',
               'hlc3',
-              'ohlc4', // Inject sources directly
+              'ohlc4',
               body,
             );
           } catch (e) {
             // biome-ignore lint/suspicious/noConsole: Runtime error logging
             console.error('Compilation error', e);
-            compiledScript = () => {}; // No-op if compilation fails
+            compiledScript = () => {};
           }
 
           return {
             main: (context, inputCallback) => {
-              // Runtime helpers
+              // Create runtime mocks using factory functions
               const ta = Std;
-              let _inputIndex = 0;
-
-              // Mock input function to grab values from callback
-              // The AST generates 'input(...)'. We need 'input' to be defined.
-              interface InputFunction {
-                (defval: unknown, title: unknown): unknown;
-                int: (defval: unknown, title: unknown) => unknown;
-                float: (defval: unknown, title: unknown) => unknown;
-                bool: (defval: unknown, title: unknown) => unknown;
-                string: (defval: unknown, title: unknown) => unknown;
-                time: (defval: unknown, title: unknown) => unknown;
-                symbol: (defval: unknown, title: unknown) => unknown;
-                source: (defval: unknown, title: unknown) => unknown;
-              }
-
-              const baseInput = (_defval: unknown, _title: unknown) =>
-                inputCallback(_inputIndex++);
-
-              const input = baseInput as InputFunction;
-
-              // Handle input sub-namespaces (input.int, etc)
-              input.int = baseInput;
-              input.float = baseInput;
-              input.bool = baseInput;
-              input.string = baseInput;
-              input.time = baseInput;
-              input.symbol = baseInput;
-              input.source = (_defval: unknown, _title: unknown) => {
-                const val = inputCallback(_inputIndex++);
-                // Source input returns a string like "close".
-                // We need to resolve it to the actual series.
-                if (val === 'close') return Std.close(context);
-                if (val === 'open') return Std.open(context);
-                if (val === 'high') return Std.high(context);
-                if (val === 'low') return Std.low(context);
-                if (val === 'volume') return Std.volume(context);
-                if (val === 'hl2') return Std.hl2(context);
-                if (val === 'hlc3') return Std.hlc3(context);
-                if (val === 'ohlc4') return Std.ohlc4(context);
-                return Std.close(context);
-              };
-
-              // Mock plot function
               const _plotValues: number[] = [];
 
-              interface PlotFunction {
-                (series: number, title?: string, color?: string): void;
-                style_line: number;
-                style_histogram: number;
-                style_circles: number;
-                style_area: number;
-                style_columns: number;
-                style_cross: number;
-                style_stepline: number;
-              }
+              const input = createInputMock(inputCallback, Std, context);
+              const plot = createPlotMock(_plotValues);
+              const math = createMathMock();
+              const timeframe = createTimeframeMock(
+                Std as Record<string, (ctx: unknown) => unknown>,
+                context,
+              );
+              const syminfo = createSyminfoMock(
+                context as { symbol: { minmov?: number; pricescale?: number } },
+              );
+              const stubs = createStubNamespaces();
+              const sources = createPriceSources(
+                Std as Record<string, (ctx: unknown) => number>,
+                context,
+              );
 
-              const basePlot = (
-                series: number,
-                _title?: string,
-                _color?: string,
-              ) => {
-                _plotValues.push(series);
-              };
-
-              const plot = basePlot as PlotFunction;
-
-              // Add properties to plot to avoid crashes if user used plot.style_line etc
-              plot.style_line = 0;
-              plot.style_histogram = 1;
-              plot.style_circles = 3; // Approximate mapping
-              plot.style_area = 2;
-              plot.style_columns = 5;
-              plot.style_cross = 4;
-              plot.style_stepline = 0; // No direct map
-
-              // Mock indicator/study/strategy functions (no-op at runtime)
+              // No-op functions for indicator declarations
               const indicator = () => {};
               const study = () => {};
               const strategy = () => {};
 
-              // Mock plotshape/plotchar/hline (no-op for data, but prevent crash)
+              // Plotting stubs that push NaN for unsupported plot types
               const plotshape = () => {
                 _plotValues.push(NaN);
-              }; // Placeholder?
+              };
               const plotchar = () => {
                 _plotValues.push(NaN);
               };
@@ -377,106 +540,8 @@ export function transpileToPineJS(
               const bgcolor = () => {};
               const fill = () => {};
 
-              // Common namespaces
-              const color = COLOR_MAP; // Map string names to hex
-
-              // Math namespace
-              const math = {
-                abs: Math.abs,
-                acos: Math.acos,
-                asin: Math.asin,
-                atan: Math.atan,
-                ceil: Math.ceil,
-                cos: Math.cos,
-                exp: Math.exp,
-                floor: Math.floor,
-                log: Math.log,
-                log10: Math.log10,
-                max: Math.max,
-                min: Math.min,
-                pow: Math.pow,
-                random: Math.random,
-                round: Math.round,
-                sign: Math.sign,
-                sin: Math.sin,
-                sqrt: Math.sqrt,
-                tan: Math.tan,
-                // Custom mappings to helpers injected in preamble
-                // Note: globalThis._sum depends on runtime env. In strict mode this might fail.
-                // But since we are inside new Function, we can access arguments or scope.
-                // The preamble helper functions are injected as string into 'body', so they are local variables in the compiledScript scope!
-                // They are NOT on globalThis. They are just '_sum', '_avg' etc.
-                // However, 'math' object is defined inside 'main' which is inside 'compiledScript'.
-                // So 'math' can close over '_sum' if '_sum' is defined in 'compiledScript' body.
-                // BUT 'math' is passed AS ARGUMENT to 'compiledScript'.
-                // So 'math' is defined OUTSIDE 'compiledScript'.
-                // So it CANNOT access '_sum' defined inside 'compiledScript'.
-                // This is a problem. The helpers like _sum are inside the generated code.
-                // But the 'math' object is passed IN.
-                // So 'math.sum()' calls a function defined here.
-                // It should likely use Math.sum if available (it's not).
-                sum: (...args: number[]) => args.reduce((a, b) => a + b, 0),
-                avg: (...args: number[]) =>
-                  args.reduce((a, b) => a + b, 0) / args.length,
-                todegrees: (r: number) => (r * 180) / Math.PI,
-                toradians: (d: number) => (d * Math.PI) / 180,
-              };
-
-              const timeframe = {
-                period: Std.period(context),
-                isdwm: Std.isdwm(context),
-                isintraday: Std.isintraday(context),
-                isdaily: Std.isdaily(context),
-                isweekly: Std.isweekly(context),
-                ismonthly: Std.ismonthly(context),
-                multiplier: Std.interval(context),
-              };
-
-              // Stubs for unsupported namespaces to prevent crashes
-              const box = {
-                new: () => {},
-                delete: () => {},
-                set_left: () => {},
-              };
-              const line = { new: () => {}, delete: () => {} };
-              const label = { new: () => {}, delete: () => {} };
-              const table = { new: () => {}, cell: () => {} };
-              const str = {
-                tostring: (v: unknown) => String(v),
-                length: (v: string) => v.length,
-                contains: (s: string, sub: string) => s.includes(sub),
-              };
-              const minmov = context.symbol.minmov || 1;
-              const pricescale = context.symbol.pricescale || 100;
-              const syminfo = {
-                ticker: 'TICKER',
-                tickerid: 'EXCHANGE:TICKER',
-                description: 'Description',
-                type: 'stock',
-                pointvalue: 1,
-                mintick: minmov / pricescale,
-                root: 'TICKER',
-                session: '0930-1600',
-                timezone: 'America/New_York',
-              };
-
-              // Standard variables (Sources)
-              // Note: We handle missing methods gracefully
-              const close = Std.close ? Std.close(context) : NaN;
-              const open = Std.open ? Std.open(context) : NaN;
-              const high = Std.high ? Std.high(context) : NaN;
-              const low = Std.low ? Std.low(context) : NaN;
-              const volume = Std.volume ? Std.volume(context) : NaN;
-              const hl2 = Std.hl2 ? Std.hl2(context) : NaN;
-              const hlc3 = Std.hlc3 ? Std.hlc3(context) : NaN;
-              const ohlc4 = Std.ohlc4 ? Std.ohlc4(context) : NaN;
-
-              const barstate = {
-                islast: true, // Simplified
-                isrealtime: true,
-                isnew: false,
-                isconfirmed: true,
-              };
+              // Color mapping
+              const color = COLOR_MAP;
 
               // Execution
               try {
@@ -497,28 +562,27 @@ export function transpileToPineJS(
                   hline,
                   bgcolor,
                   fill,
-                  box,
-                  line,
-                  label,
-                  table,
-                  str,
+                  stubs.box,
+                  stubs.line,
+                  stubs.label,
+                  stubs.table,
+                  stubs.str,
                   syminfo,
-                  barstate,
-                  close,
-                  open,
-                  high,
-                  low,
-                  volume,
-                  hl2,
-                  hlc3,
-                  ohlc4,
+                  stubs.barstate,
+                  sources.close,
+                  sources.open,
+                  sources.high,
+                  sources.low,
+                  sources.volume,
+                  sources.hl2,
+                  sources.hlc3,
+                  sources.ohlc4,
                 );
 
                 return _plotValues;
               } catch (e) {
                 // biome-ignore lint/suspicious/noConsole: Runtime error logging
                 console.error('Script execution error', e);
-                // Return NaNs matching plot count
                 return visitor.plots.map((_p) => NaN);
               }
             },

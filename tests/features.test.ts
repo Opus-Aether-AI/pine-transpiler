@@ -43,8 +43,8 @@ export type Point
   });
 
   it('should transpile ta.hma correctly', () => {
-      const pine = 'plot(ta.hma(close, 14))';
-      const js = transpile(pine);
-      expect(js).toContain('StdPlus.hma(context, close, 14)');
+    const pine = 'plot(ta.hma(close, 14))';
+    const js = transpile(pine);
+    expect(js).toContain('StdPlus.hma(context, close, 14)');
   });
 });

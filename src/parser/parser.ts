@@ -15,7 +15,6 @@ import type {
   Program,
   Statement,
   SwitchCase,
-  SwitchExpression,
   SwitchStatement,
   TypeAnnotation,
   TypeDefinition,
@@ -797,7 +796,10 @@ export class Parser {
             typeArgs.push(this.parseTypeAnnotation());
           } while (this.match(TokenType.COMMA));
           if (!this.matchOperator('>')) {
-            throw this.error(this.peek(), 'Expected > after generic arguments.');
+            throw this.error(
+              this.peek(),
+              'Expected > after generic arguments.',
+            );
           }
 
           // Wrap current expr in a GenericCall wrapper?
@@ -824,7 +826,10 @@ export class Parser {
           } else {
             // Error? Generic args must be followed by call?
             // Maybe `new array<int>`?
-            throw this.error(this.peek(), 'Expected ( after generic arguments.');
+            throw this.error(
+              this.peek(),
+              'Expected ( after generic arguments.',
+            );
           }
         } else {
           break;
@@ -861,7 +866,10 @@ export class Parser {
     const args: Expression[] = [];
     if (!this.check(TokenType.RPAREN)) {
       do {
-        if (this.check(TokenType.IDENTIFIER) && this.peekNext()?.value === '=') {
+        if (
+          this.check(TokenType.IDENTIFIER) &&
+          this.peekNext()?.value === '='
+        ) {
           const name = this.consume(
             TokenType.IDENTIFIER,
             'Expected argument name.',

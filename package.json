@@ -29,7 +29,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "prepare": "npm run build",
+    "prepare": "pnpm build",
     "build": "vite build",
     "dev": "vite build --watch",
     "typecheck": "tsc --noEmit",

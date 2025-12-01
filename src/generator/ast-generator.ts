@@ -25,6 +25,7 @@ import type {
   FunctionDeclaration,
   Identifier,
   IfStatement,
+  ImportStatement,
   Literal,
   MemberExpression,
   Program,
@@ -35,7 +36,6 @@ import type {
   UnaryExpression,
   VariableDeclaration,
   WhileStatement,
-  ImportStatement,
 } from '../parser/ast';
 
 export class ASTGenerator {
@@ -143,7 +143,7 @@ export class ASTGenerator {
   private generateWhileStatement(stmt: WhileStatement): string {
     const loopVar = `_loop_${this.loopCounter++}`;
     const test = this.generateExpression(stmt.test);
-    
+
     // We need to inject the loop guard into the body
     // The body from generateStatementOrBlock is always wrapped in braces
     // so we can strip them and inject our code
@@ -300,27 +300,27 @@ export class ASTGenerator {
       }
 
       if (varName) {
-          updateStr = `${varName} += ${this.generateExpression(stmt.update)}`;
+        updateStr = `${varName} += ${this.generateExpression(stmt.update)}`;
       } else {
-          // Fallback just in case
-          updateStr = this.generateExpression(stmt.update);
+        // Fallback just in case
+        updateStr = this.generateExpression(stmt.update);
       }
     } else {
-        // Default increment if no step provided? 
-        // Pine default is 1. JS for loop needs explicit update usually unless handled in body
-        // If no update expression in AST, we should probably add i++
-         let varName = '';
-         if (stmt.init.type === 'VariableDeclaration') {
-           const decl = stmt.init as VariableDeclaration;
-           varName = Array.isArray(decl.id) ? decl.id[0].name : decl.id.name;
-         }
-         if (varName) {
-             updateStr = `${varName}++`;
-         }
+      // Default increment if no step provided?
+      // Pine default is 1. JS for loop needs explicit update usually unless handled in body
+      // If no update expression in AST, we should probably add i++
+      let varName = '';
+      if (stmt.init.type === 'VariableDeclaration') {
+        const decl = stmt.init as VariableDeclaration;
+        varName = Array.isArray(decl.id) ? decl.id[0].name : decl.id.name;
+      }
+      if (varName) {
+        updateStr = `${varName}++`;
+      }
     }
 
     const loopVar = `_loop_${this.loopCounter++}`;
-    
+
     let bodyContent = this.generateStatementOrBlock(stmt.body);
     const lines = bodyContent.split('\n');
     if (lines.length >= 2) {
@@ -431,7 +431,9 @@ export class ASTGenerator {
       case 'Literal':
         return this.generateLiteral(expr);
       case 'SwitchExpression':
-        return this.generateSwitchExpression(expr as unknown as SwitchExpression);
+        return this.generateSwitchExpression(
+          expr as unknown as SwitchExpression,
+        );
       default:
         throw new Error(`Unknown expression type: ${(expr as ASTNode).type}`);
     }
@@ -439,89 +441,90 @@ export class ASTGenerator {
 
   private generateSwitchExpression(expr: SwitchExpression): string {
     // switch expression in JS can be IIFE
-    const stmt: SwitchStatement = {
-        type: 'SwitchStatement',
-        discriminant: expr.discriminant,
-        cases: expr.cases.map(c => {
-            // If consequent is expression, wrap in return statement
-            // If it's block, check if last statement is expression or return
-            // For now, assume expression or block with return
-            
-            // If Pine switch returns value, each case must return value.
-            // But generateSwitchStatement expects statements.
-            // We should transform consequent to return statement if it is expression.
-            
-            let cons = c.consequent;
-            if (cons.type !== 'BlockStatement' && !this.isStatement(cons)) {
-                // Expression -> ReturnStatement
-                 // But wait, generateSwitchStatement generates code, not AST.
-                 // I can't easily reuse generateSwitchStatement without AST transformation.
-                 return c;
-            }
-            return c;
-        })
+    const _stmt: SwitchStatement = {
+      type: 'SwitchStatement',
+      discriminant: expr.discriminant,
+      cases: expr.cases.map((c) => {
+        // If consequent is expression, wrap in return statement
+        // If it's block, check if last statement is expression or return
+        // For now, assume expression or block with return
+
+        // If Pine switch returns value, each case must return value.
+        // But generateSwitchStatement expects statements.
+        // We should transform consequent to return statement if it is expression.
+
+        const cons = c.consequent;
+        if (cons.type !== 'BlockStatement' && !this.isStatement(cons)) {
+          // Expression -> ReturnStatement
+          // But wait, generateSwitchStatement generates code, not AST.
+          // I can't easily reuse generateSwitchStatement without AST transformation.
+          return c;
+        }
+        return c;
+      }),
     };
 
     // We construct the body of the IIFE manually since we need to ensure returns
     let result = '(() => {\n';
     this.indentLevel++;
-    
+
     if (expr.discriminant) {
-        result += `${this.indent()}switch (${this.generateExpression(expr.discriminant)}) {\n`;
+      result += `${this.indent()}switch (${this.generateExpression(expr.discriminant)}) {\n`;
+      this.indentLevel++;
+      for (const c of expr.cases) {
+        if (c.test === null) {
+          result += `${this.indent()}default:\n`;
+        } else {
+          result += `${this.indent()}case ${this.generateExpression(c.test)}:\n`;
+        }
         this.indentLevel++;
-        for (const c of expr.cases) {
-             if (c.test === null) {
-                result += `${this.indent()}default:\n`;
-             } else {
-                result += `${this.indent()}case ${this.generateExpression(c.test)}:\n`;
-             }
-             this.indentLevel++;
-             if (c.consequent.type === 'BlockStatement') {
-                 // If block, we hope it has return, or we might need to analyze last stmt
-                 // Pine blocks return last expression value implicitly.
-                 // JS blocks do NOT.
-                 // So we must handle implicit returns in blocks!
-                 // This is a broader issue: Blocks in Pine are expressions?
-                 // Yes, `if` is expression too.
-                 // My `generateBlockStatement` returns string.
-                 // I need `generateBlockExpression`?
-                 
-                 // For now, let's assume simple expression case for switch expression
-                 result += this.generateBlockStatement(c.consequent); 
-                 // Does generateBlockStatement add 'return'? No.
-             } else {
-                 result += `${this.indent()}return ${this.generateExpression(c.consequent as Expression)};\n`;
-             }
-             this.indentLevel--;
+        if (c.consequent.type === 'BlockStatement') {
+          // If block, we hope it has return, or we might need to analyze last stmt
+          // Pine blocks return last expression value implicitly.
+          // JS blocks do NOT.
+          // So we must handle implicit returns in blocks!
+          // This is a broader issue: Blocks in Pine are expressions?
+          // Yes, `if` is expression too.
+          // My `generateBlockStatement` returns string.
+          // I need `generateBlockExpression`?
+
+          // For now, let's assume simple expression case for switch expression
+          result += this.generateBlockStatement(c.consequent);
+          // Does generateBlockStatement add 'return'? No.
+        } else {
+          result += `${this.indent()}return ${this.generateExpression(c.consequent as Expression)};\n`;
+        }
+        this.indentLevel--;
+      }
+      this.indentLevel--;
+      result += `${this.indent()}}\n`;
+    } else {
+      // if-else chain
+      for (let i = 0; i < expr.cases.length; i++) {
+        const c = expr.cases[i];
+        const test = c.test ? this.generateExpression(c.test) : 'true';
+        const prefix = i === 0 ? 'if' : 'else if';
+
+        if (c.test === null && i > 0) {
+          // default/else
+          result += `${this.indent()}else {\n`;
+        } else {
+          result += `${this.indent()}${prefix} (${test}) {\n`;
+        }
+
+        this.indentLevel++;
+        if (c.consequent.type === 'BlockStatement') {
+          // Same implicit return issue
+          // Assuming for now simple expressions
+          result += this.generateBlockStatement(c.consequent);
+        } else {
+          result += `${this.indent()}return ${this.generateExpression(c.consequent as Expression)};\n`;
         }
         this.indentLevel--;
         result += `${this.indent()}}\n`;
-    } else {
-        // if-else chain
-        for (let i = 0; i < expr.cases.length; i++) {
-             const c = expr.cases[i];
-             const test = c.test ? this.generateExpression(c.test) : 'true';
-             const prefix = i === 0 ? 'if' : 'else if';
-             
-             if (c.test === null && i > 0) { // default/else
-                 result += `${this.indent()}else {\n`;
-             } else {
-                 result += `${this.indent()}${prefix} (${test}) {\n`;
-             }
-             
-             this.indentLevel++;
-             if (c.consequent.type === 'BlockStatement') {
-                 // Same implicit return issue
-                 // Assuming for now simple expressions
-                  result += this.generateBlockStatement(c.consequent); 
-             } else {
-                 result += `${this.indent()}return ${this.generateExpression(c.consequent as Expression)};\n`;
-             }
-             this.indentLevel--;
-             result += `${this.indent()}}\n`;
-        }
+      }
     }
-    
+
     this.indentLevel--;
     result += `${this.indent()}})()`;
     return result;
