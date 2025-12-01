@@ -23,15 +23,59 @@ import type {
 } from './ast';
 import { type Token, TokenType } from './lexer';
 
+/**
+ * Structured parse error with location information
+ */
+export class ParseError extends Error {
+  public readonly line: number;
+  public readonly column: number;
+  public readonly tokenValue: string;
+
+  constructor(
+    message: string,
+    line: number,
+    column: number,
+    tokenValue: string,
+  ) {
+    super(`[line ${line}:${column}] Error at '${tokenValue}': ${message}`);
+    this.name = 'ParseError';
+    this.line = line;
+    this.column = column;
+    this.tokenValue = tokenValue;
+  }
+}
+
+/**
+ * Result of parsing with collected errors
+ */
+export interface ParseResult {
+  program: Program;
+  errors: ParseError[];
+  hasErrors: boolean;
+}
+
 export class Parser {
   private tokens: Token[];
   private current = 0;
+  private errors: ParseError[] = [];
 
   constructor(tokens: Token[]) {
     this.tokens = tokens;
   }
 
+  /**
+   * Parse tokens into an AST Program node
+   * Legacy method for backward compatibility
+   */
   public parse(): Program {
+    return this.parseWithErrors().program;
+  }
+
+  /**
+   * Parse tokens and return both the AST and any collected errors
+   */
+  public parseWithErrors(): ParseResult {
+    this.errors = [];
     const body: Statement[] = [];
     const version = 5; // Default
 
@@ -43,17 +87,42 @@ export class Parser {
         const stmt = this.parseStatement();
         if (stmt) body.push(stmt);
       } catch (error) {
-        // biome-ignore lint/suspicious/noConsole: Error recovery
-        console.error('Parse error:', error);
+        if (error instanceof ParseError) {
+          this.errors.push(error);
+        } else if (error instanceof Error) {
+          // Convert generic errors to ParseError
+          const token = this.peek();
+          this.errors.push(
+            new ParseError(
+              error.message,
+              token.line,
+              token.column,
+              token.value,
+            ),
+          );
+        }
         this.synchronize();
       }
     }
 
-    return {
+    const program: Program = {
       type: 'Program',
       body,
       version,
     };
+
+    return {
+      program,
+      errors: this.errors,
+      hasErrors: this.errors.length > 0,
+    };
+  }
+
+  /**
+   * Get collected parse errors
+   */
+  public getErrors(): ParseError[] {
+    return [...this.errors];
   }
 
   // ==========================================================================
@@ -1021,10 +1090,8 @@ export class Parser {
     throw this.error(this.peek(), message);
   }
 
-  private error(token: Token, message: string): Error {
-    return new Error(
-      `[line ${token.line}] Error at '${token.value}': ${message}`,
-    );
+  private error(token: Token, message: string): ParseError {
+    return new ParseError(message, token.line, token.column, token.value);
   }
 
   private synchronize(): void {

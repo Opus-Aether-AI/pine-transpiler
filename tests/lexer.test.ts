@@ -52,7 +52,8 @@ describe('Lexer', () => {
       const tokens = lexer.tokenize();
 
       expect(tokens[0].type).toBe(TokenType.STRING);
-      expect(tokens[0].value).toBe('hellonworld');
+      // The lexer now properly converts \n to an actual newline character
+      expect(tokens[0].value).toBe('hello\nworld');
     });
 
     it('should tokenize booleans', () => {

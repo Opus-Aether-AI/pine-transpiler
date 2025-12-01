@@ -38,6 +38,55 @@ import type {
   WhileStatement,
 } from '../parser/ast';
 
+// ============================================================================
+// Configuration Constants
+// ============================================================================
+
+/** Maximum iterations allowed in while/for loops to prevent infinite loops */
+export const MAX_LOOP_ITERATIONS = 10000;
+
+/** Maximum recursion depth allowed to prevent stack overflow */
+export const MAX_RECURSION_DEPTH = 1000;
+
+// ============================================================================
+// Unified Function Mapping
+// ============================================================================
+
+/** Mapping type for function name resolution */
+interface FunctionMapping {
+  stdName?: string;
+  jsName?: string;
+  contextArg?: boolean;
+}
+
+/**
+ * Unified lookup map for all Pine Script function mappings.
+ * Built once at module load for O(1) lookup instead of O(k) sequential checks.
+ */
+const UNIFIED_FUNCTION_MAP: Map<string, FunctionMapping> = new Map();
+
+// Build unified map at module initialization
+function buildUnifiedFunctionMap(): void {
+  const allMappings: Record<string, FunctionMapping>[] = [
+    TA_FUNCTION_MAPPINGS as Record<string, FunctionMapping>,
+    MATH_FUNCTION_MAPPINGS as Record<string, FunctionMapping>,
+    TIME_FUNCTION_MAPPINGS as Record<string, FunctionMapping>,
+    ALL_UTILITY_MAPPINGS as Record<string, FunctionMapping>,
+    MULTI_OUTPUT_MAPPINGS as Record<string, FunctionMapping>,
+  ];
+
+  for (const mappingGroup of allMappings) {
+    for (const [key, value] of Object.entries(mappingGroup)) {
+      if (!UNIFIED_FUNCTION_MAP.has(key)) {
+        UNIFIED_FUNCTION_MAP.set(key, value);
+      }
+    }
+  }
+}
+
+// Initialize the unified map
+buildUnifiedFunctionMap();
+
 export class ASTGenerator {
   private indentLevel = 0;
   private historicalVars: Set<string>;
@@ -160,7 +209,7 @@ export class ASTGenerator {
     }
 
     this.indentLevel++;
-    const guard = `${this.indent()}if (++${loopVar} > 10000) throw new Error("Loop limit exceeded");`;
+    const guard = `${this.indent()}if (++${loopVar} > ${MAX_LOOP_ITERATIONS}) throw new Error("Loop limit exceeded (max ${MAX_LOOP_ITERATIONS} iterations)");`;
     this.indentLevel--;
 
     return `${this.indent()}let ${loopVar} = 0;\n${this.indent()}while (${test}) {\n${guard}\n${bodyContent}\n${this.indent()}}`;
@@ -330,7 +379,7 @@ export class ASTGenerator {
     }
 
     this.indentLevel++;
-    const guard = `${this.indent()}if (++${loopVar} > 10000) throw new Error("Loop limit exceeded");`;
+    const guard = `${this.indent()}if (++${loopVar} > ${MAX_LOOP_ITERATIONS}) throw new Error("Loop limit exceeded (max ${MAX_LOOP_ITERATIONS} iterations)");`;
     this.indentLevel--;
 
     return `${this.indent()}let ${loopVar} = 0;\n${this.indent()}for (${initStr}; ${testStr}; ${updateStr}) {\n${guard}\n${bodyContent}\n${this.indent()}}`;
@@ -439,32 +488,114 @@ export class ASTGenerator {
     }
   }
 
-  private generateSwitchExpression(expr: SwitchExpression): string {
-    // switch expression in JS can be IIFE
-    const _stmt: SwitchStatement = {
-      type: 'SwitchStatement',
-      discriminant: expr.discriminant,
-      cases: expr.cases.map((c) => {
-        // If consequent is expression, wrap in return statement
-        // If it's block, check if last statement is expression or return
-        // For now, assume expression or block with return
+  /**
+   * Generate a block expression that returns the last expression's value.
+   * Pine Script blocks implicitly return the value of their last expression.
+   * This method handles that by:
+   * 1. Generating all statements except the last normally
+   * 2. If the last statement is an expression statement, it returns that expression
+   * 3. If the last statement is a return, it's already handled
+   */
+  private generateBlockExpressionWithImplicitReturn(
+    block: BlockStatement,
+  ): string {
+    if (block.body.length === 0) {
+      return `${this.indent()}return undefined;`;
+    }
 
-        // If Pine switch returns value, each case must return value.
-        // But generateSwitchStatement expects statements.
-        // We should transform consequent to return statement if it is expression.
+    const statements = block.body;
+    const allButLast = statements.slice(0, -1);
+    const lastStmt = statements[statements.length - 1];
 
-        const cons = c.consequent;
-        if (cons.type !== 'BlockStatement' && !this.isStatement(cons)) {
-          // Expression -> ReturnStatement
-          // But wait, generateSwitchStatement generates code, not AST.
-          // I can't easily reuse generateSwitchStatement without AST transformation.
-          return c;
+    let result = '';
+
+    // Generate all statements except the last
+    this.indentLevel++;
+    for (const stmt of allButLast) {
+      result += `${this.generateStatement(stmt)}\n`;
+    }
+
+    // Handle the last statement specially
+    if (lastStmt.type === 'ExpressionStatement') {
+      // Implicit return of the expression value
+      result += `${this.indent()}return ${this.generateExpression(lastStmt.expression)};\n`;
+    } else if (lastStmt.type === 'ReturnStatement') {
+      // Already a return statement
+      result += `${this.generateStatement(lastStmt)}\n`;
+    } else if (lastStmt.type === 'IfStatement') {
+      // Nested if - needs special handling for implicit returns
+      result += `${this.generateIfExpressionWithImplicitReturn(lastStmt)}\n`;
+    } else {
+      // Other statement types - just generate them (they don't return values)
+      result += `${this.generateStatement(lastStmt)}\n`;
+    }
+
+    this.indentLevel--;
+    return result;
+  }
+
+  /**
+   * Generate an if expression with implicit return handling for the last expression
+   */
+  private generateIfExpressionWithImplicitReturn(stmt: IfStatement): string {
+    const test = this.generateExpression(stmt.test);
+    let result = `${this.indent()}if (${test}) {\n`;
+
+    // Handle consequent
+    if (stmt.consequent.type === 'BlockStatement') {
+      result += this.generateBlockExpressionWithImplicitReturn(stmt.consequent);
+    } else if (this.isStatement(stmt.consequent)) {
+      this.indentLevel++;
+      if (stmt.consequent.type === 'ExpressionStatement') {
+        result += `${this.indent()}return ${this.generateExpression(stmt.consequent.expression)};\n`;
+      } else {
+        result += `${this.generateStatement(stmt.consequent)}\n`;
+      }
+      this.indentLevel--;
+    } else {
+      this.indentLevel++;
+      result += `${this.indent()}return ${this.generateExpression(stmt.consequent)};\n`;
+      this.indentLevel--;
+    }
+
+    result += `${this.indent()}}`;
+
+    // Handle alternate
+    if (stmt.alternate) {
+      if (stmt.alternate.type === 'IfStatement') {
+        result += ` else ${this.generateIfExpressionWithImplicitReturn(stmt.alternate).trim()}`;
+      } else if (stmt.alternate.type === 'BlockStatement') {
+        result += ` else {\n`;
+        result += this.generateBlockExpressionWithImplicitReturn(
+          stmt.alternate,
+        );
+        result += `${this.indent()}}`;
+      } else if (this.isStatement(stmt.alternate)) {
+        result += ` else {\n`;
+        this.indentLevel++;
+        if (stmt.alternate.type === 'ExpressionStatement') {
+          result += `${this.indent()}return ${this.generateExpression(stmt.alternate.expression)};\n`;
+        } else {
+          result += `${this.generateStatement(stmt.alternate)}\n`;
         }
-        return c;
-      }),
-    };
+        this.indentLevel--;
+        result += `${this.indent()}}`;
+      } else {
+        result += ` else {\n`;
+        this.indentLevel++;
+        result += `${this.indent()}return ${this.generateExpression(stmt.alternate)};\n`;
+        this.indentLevel--;
+        result += `${this.indent()}}`;
+      }
+    }
 
-    // We construct the body of the IIFE manually since we need to ensure returns
+    return result;
+  }
+
+  private generateSwitchExpression(expr: SwitchExpression): string {
+    // Switch expression in JS - use IIFE (Immediately Invoked Function Expression)
+    // to properly handle return values from each case
+
     let result = '(() => {\n';
     this.indentLevel++;
 
@@ -479,18 +610,10 @@ export class ASTGenerator {
         }
         this.indentLevel++;
         if (c.consequent.type === 'BlockStatement') {
-          // If block, we hope it has return, or we might need to analyze last stmt
-          // Pine blocks return last expression value implicitly.
-          // JS blocks do NOT.
-          // So we must handle implicit returns in blocks!
-          // This is a broader issue: Blocks in Pine are expressions?
-          // Yes, `if` is expression too.
-          // My `generateBlockStatement` returns string.
-          // I need `generateBlockExpression`?
-
-          // For now, let's assume simple expression case for switch expression
-          result += this.generateBlockStatement(c.consequent);
-          // Does generateBlockStatement add 'return'? No.
+          // Handle implicit returns in blocks
+          result += this.generateBlockExpressionWithImplicitReturn(
+            c.consequent,
+          );
         } else {
           result += `${this.indent()}return ${this.generateExpression(c.consequent as Expression)};\n`;
         }
@@ -499,7 +622,7 @@ export class ASTGenerator {
       this.indentLevel--;
       result += `${this.indent()}}\n`;
     } else {
-      // if-else chain
+      // if-else chain (switch without discriminant)
       for (let i = 0; i < expr.cases.length; i++) {
         const c = expr.cases[i];
         const test = c.test ? this.generateExpression(c.test) : 'true';
@@ -514,9 +637,10 @@ export class ASTGenerator {
 
         this.indentLevel++;
         if (c.consequent.type === 'BlockStatement') {
-          // Same implicit return issue
-          // Assuming for now simple expressions
-          result += this.generateBlockStatement(c.consequent);
+          // Handle implicit returns in blocks
+          result += this.generateBlockExpressionWithImplicitReturn(
+            c.consequent,
+          );
         } else {
           result += `${this.indent()}return ${this.generateExpression(c.consequent as Expression)};\n`;
         }
@@ -554,21 +678,8 @@ export class ASTGenerator {
     let callee = this.generateExpression(expr.callee as Expression); // Cast for simplicity
     const args = expr.arguments.map((a) => this.generateExpression(a));
 
-    // Check if function needs mapping
-    // We check the original Pine Script name (e.g., "ta.sma" or "sma")
-    // The generateExpression above likely returns "ta.sma" or "sma"
-
-    // Combine all mappings for lookup
-    // Note: In a real optimized version, we might want a unified lookup or specific checks
-    // Unified mapping type for lookup
-    type Mapping = { stdName?: string; jsName?: string; contextArg?: boolean };
-
-    const mapping: Mapping | undefined =
-      (TA_FUNCTION_MAPPINGS as Record<string, Mapping>)[callee] ||
-      (MATH_FUNCTION_MAPPINGS as Record<string, Mapping>)[callee] ||
-      (TIME_FUNCTION_MAPPINGS as Record<string, Mapping>)[callee] ||
-      (ALL_UTILITY_MAPPINGS as Record<string, Mapping>)[callee] ||
-      (MULTI_OUTPUT_MAPPINGS as Record<string, Mapping>)[callee];
+    // Use unified function map for O(1) lookup
+    const mapping = UNIFIED_FUNCTION_MAP.get(callee);
 
     if (mapping) {
       // Use the mapped name (e.g., "Std.sma" or "_sum")
@@ -603,7 +714,6 @@ export class ASTGenerator {
     const property = (expr.property as Identifier).name;
     return `${object}.${property}`;
   }
-
   private generateConditionalExpression(expr: ConditionalExpression): string {
     return `(${this.generateExpression(expr.test)} ? ${this.generateExpression(expr.consequent)} : ${this.generateExpression(expr.alternate)})`;
   }

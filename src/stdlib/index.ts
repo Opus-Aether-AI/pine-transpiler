@@ -90,6 +90,15 @@ const StdPlus = {
     /**
      * Hull Moving Average
      * Formula: WMA(2 * WMA(n/2) - WMA(n), sqrt(n))
+     * 
+     * The HMA is computed as:
+     * 1. Calculate WMA with period n/2
+     * 2. Calculate WMA with period n
+     * 3. Create a weighted series: 2 * WMA(n/2) - WMA(n)
+     * 4. Apply WMA with period sqrt(n) to the weighted series
+     * 
+     * Since PineJS requires a series for the final WMA, we use a persistent
+     * variable to track the intermediate values across bars.
      */
     hma: function(ctx, series, length) {
         const len2 = Math.floor(length / 2);
@@ -100,9 +109,26 @@ const StdPlus = {
         
         if (isNaN(wma1) || isNaN(wma2)) return NaN;
         
+        // Calculate the weighted difference for this bar
         const diff = 2 * wma1 - wma2;
         
-        return Std.wma(ctx, diff, sqrtLen);
+        // Create a persistent series for the diff values
+        // This allows the final WMA to work correctly across multiple bars
+        if (!ctx._hma_diff_series) {
+            ctx._hma_diff_series = new Map();
+        }
+        
+        // Use series + length as key to support multiple HMA calls with different params
+        const seriesKey = String(series) + '_' + length;
+        
+        if (!ctx._hma_diff_series.has(seriesKey)) {
+            ctx._hma_diff_series.set(seriesKey, ctx.new_var(diff));
+        }
+        
+        const diffSeries = ctx._hma_diff_series.get(seriesKey);
+        diffSeries.set(diff);
+        
+        return Std.wma(ctx, diffSeries, sqrtLen);
     },
 
     /**
@@ -131,6 +157,8 @@ const StdPlus = {
     /**
      * MACD (Moving Average Convergence/Divergence)
      * @returns {[number, number, number]} [macdLine, signalLine, histogram]
+     * 
+     * Similar to HMA, MACD's signal line needs a series of the MACD line values.
      */
     macd: function(ctx, series, fastLen, slowLen, sigLen) {
         const fastMA = Std.ema(ctx, series, fastLen);
@@ -141,7 +169,22 @@ const StdPlus = {
         }
         
         const macdLine = fastMA - slowMA;
-        const signalLine = Std.ema(ctx, macdLine, sigLen);
+        
+        // Create a persistent series for MACD line values
+        if (!ctx._macd_series) {
+            ctx._macd_series = new Map();
+        }
+        
+        const seriesKey = String(series) + '_' + fastLen + '_' + slowLen + '_' + sigLen;
+        
+        if (!ctx._macd_series.has(seriesKey)) {
+            ctx._macd_series.set(seriesKey, ctx.new_var(macdLine));
+        }
+        
+        const macdSeries = ctx._macd_series.get(seriesKey);
+        macdSeries.set(macdLine);
+        
+        const signalLine = Std.ema(ctx, macdSeries, sigLen);
         const histogram = macdLine - signalLine;
         
         return [macdLine, signalLine, histogram];
