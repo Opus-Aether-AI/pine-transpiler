@@ -54,12 +54,24 @@ export interface ParseResult {
   hasErrors: boolean;
 }
 
+/** Maximum recursion depth to prevent stack overflow from deeply nested expressions */
+const MAX_RECURSION_DEPTH = 500;
+
+/** Maximum number of tokens to prevent DoS from huge inputs */
+const MAX_TOKEN_COUNT = 100000;
+
 export class Parser {
   private tokens: Token[];
   private current = 0;
   private errors: ParseError[] = [];
+  private recursionDepth = 0;
 
   constructor(tokens: Token[]) {
+    if (tokens.length > MAX_TOKEN_COUNT) {
+      throw new Error(
+        `Input too large: ${tokens.length} tokens exceeds maximum of ${MAX_TOKEN_COUNT}`,
+      );
+    }
     this.tokens = tokens;
   }
 
@@ -729,7 +741,18 @@ export class Parser {
   // ==========================================================================
 
   private parseExpression(): Expression {
-    return this.parseTernary();
+    this.recursionDepth++;
+    if (this.recursionDepth > MAX_RECURSION_DEPTH) {
+      throw this.error(
+        this.peek(),
+        `Maximum recursion depth (${MAX_RECURSION_DEPTH}) exceeded. Expression is too deeply nested.`,
+      );
+    }
+    try {
+      return this.parseTernary();
+    } finally {
+      this.recursionDepth--;
+    }
   }
 
   private parseTernary(): Expression {
@@ -978,42 +1001,71 @@ export class Parser {
     }
 
     if (this.match(TokenType.NUMBER)) {
-      return {
-        type: 'Literal',
-        value: Number(this.previous().value),
-        raw: this.previous().value,
-        kind: 'number',
-      };
+      const token = this.previous();
+      return this.withLocation(
+        {
+          type: 'Literal' as const,
+          value: Number(token.value),
+          raw: token.value,
+          kind: 'number' as const,
+        },
+        token,
+      );
     }
     if (this.match(TokenType.STRING)) {
-      return {
-        type: 'Literal',
-        value: this.previous().value,
-        raw: this.previous().value,
-        kind: 'string',
-      };
+      const token = this.previous();
+      return this.withLocation(
+        {
+          type: 'Literal' as const,
+          value: token.value,
+          raw: token.value,
+          kind: 'string' as const,
+        },
+        token,
+      );
     }
     if (this.match(TokenType.BOOLEAN)) {
-      return {
-        type: 'Literal',
-        value: this.previous().value === 'true',
-        raw: this.previous().value,
-        kind: 'boolean',
-      };
+      const token = this.previous();
+      return this.withLocation(
+        {
+          type: 'Literal' as const,
+          value: token.value === 'true',
+          raw: token.value,
+          kind: 'boolean' as const,
+        },
+        token,
+      );
     }
     if (this.match(TokenType.NA)) {
-      return { type: 'Literal', value: null, raw: 'na', kind: 'na' };
+      const token = this.previous();
+      return this.withLocation(
+        {
+          type: 'Literal' as const,
+          value: null,
+          raw: 'na',
+          kind: 'na' as const,
+        },
+        token,
+      );
     }
     if (this.match(TokenType.COLOR)) {
-      return {
-        type: 'Literal',
-        value: this.previous().value,
-        raw: this.previous().value,
-        kind: 'color',
-      };
+      const token = this.previous();
+      return this.withLocation(
+        {
+          type: 'Literal' as const,
+          value: token.value,
+          raw: token.value,
+          kind: 'color' as const,
+        },
+        token,
+      );
     }
     if (this.match(TokenType.IDENTIFIER)) {
-      return { type: 'Identifier', name: this.previous().value };
+      const token = this.previous();
+      return this.withLocation(
+        { type: 'Identifier' as const, name: token.value },
+        token,
+      );
     }
     if (this.match(TokenType.LPAREN)) {
       const expr = this.parseExpression();
@@ -1022,6 +1074,7 @@ export class Parser {
     }
 
     if (this.match(TokenType.LBRACKET)) {
+      const startToken = this.previous();
       const elements: Expression[] = [];
       if (!this.check(TokenType.RBRACKET)) {
         do {
@@ -1029,7 +1082,10 @@ export class Parser {
         } while (this.match(TokenType.COMMA));
       }
       this.consume(TokenType.RBRACKET, 'Expected ] after array elements.');
-      return { type: 'ArrayExpression', elements };
+      return this.withLocation(
+        { type: 'ArrayExpression' as const, elements },
+        startToken,
+      );
     }
 
     throw this.error(this.peek(), 'Expect expression.');
@@ -1094,12 +1150,42 @@ export class Parser {
     return new ParseError(message, token.line, token.column, token.value);
   }
 
+  /**
+   * Add location information to an AST node
+   */
+  private withLocation<T extends object>(
+    node: T,
+    startToken: Token,
+    endToken?: Token,
+  ): T & {
+    start: number;
+    end: number;
+    loc: {
+      start: { line: number; column: number };
+      end: { line: number; column: number };
+    };
+  } {
+    const end = endToken || this.previous();
+    return {
+      ...node,
+      start: startToken.start,
+      end: end.end,
+      loc: {
+        start: { line: startToken.line, column: startToken.column },
+        end: { line: end.line, column: end.column },
+      },
+    };
+  }
+
   private synchronize(): void {
     this.advance();
     while (!this.isAtEnd()) {
       if (this.previous().type === TokenType.NEWLINE) return;
       switch (this.peek().type) {
         case TokenType.KEYWORD:
+        case TokenType.RBRACE:
+        case TokenType.RPAREN:
+        case TokenType.RBRACKET:
           return;
       }
       this.advance();
