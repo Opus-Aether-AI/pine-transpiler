@@ -6,4 +6,4 @@
 
 export * from './ast';
 export { Lexer } from './lexer';
-export { Parser } from './parser';
+export { ParseError, type ParseResult, Parser } from './parser';

@@ -69,6 +69,62 @@ export {
 };
 
 // ============================================================================
+// Runtime Type Definitions
+// ============================================================================
+
+/** Input value types that can be returned from the input callback */
+type InputValue = number | boolean | string;
+
+/** Standard library price/data accessor function signature */
+type StdPriceAccessor = (ctx: RuntimeContextInternal) => number;
+
+/** Standard library function that takes context */
+type StdContextFunction = (
+  ctx: RuntimeContextInternal,
+  ...args: unknown[]
+) => unknown;
+
+/** Internal runtime context type for mock factories */
+interface RuntimeContextInternal {
+  new_var: (initialValue: unknown) => PineSeriesInternal;
+  symbol: {
+    tickerid: string;
+    currency?: string;
+    type?: string;
+    timezone?: string;
+    minmov?: number;
+    pricescale?: number;
+  };
+  [key: string]: unknown;
+}
+
+/** Internal pine series representation */
+interface PineSeriesInternal {
+  get: (offset: number) => number;
+  set: (value: number) => void;
+}
+
+/** Standard library interface for internal use */
+interface StdLibraryInternal {
+  close: StdPriceAccessor;
+  open: StdPriceAccessor;
+  high: StdPriceAccessor;
+  low: StdPriceAccessor;
+  volume: StdPriceAccessor;
+  hl2: StdPriceAccessor;
+  hlc3: StdPriceAccessor;
+  ohlc4: StdPriceAccessor;
+  period: StdContextFunction;
+  isdwm: StdContextFunction;
+  isintraday: StdContextFunction;
+  isdaily: StdContextFunction;
+  isweekly: StdContextFunction;
+  ismonthly: StdContextFunction;
+  interval: StdContextFunction;
+  [key: string]: StdContextFunction | StdPriceAccessor | unknown;
+}
+
+// ============================================================================
 // Runtime Mock Factories
 // ============================================================================
 
@@ -76,14 +132,13 @@ export {
  * Create the input function mock for runtime
  */
 function createInputMock(
-  inputCallback: (index: number) => unknown,
-  Std: unknown,
-  context: unknown,
+  inputCallback: (index: number) => InputValue,
+  Std: StdLibraryInternal,
+  context: RuntimeContextInternal,
 ): InputFunction {
   let _inputIndex = 0;
-  const stdLib = Std as Record<string, (ctx: unknown) => number>;
 
-  const baseInput = (_defval: unknown, _title: unknown) =>
+  const baseInput = (_defval: InputValue, _title?: string) =>
     inputCallback(_inputIndex++);
 
   const input = baseInput as InputFunction;
@@ -94,31 +149,31 @@ function createInputMock(
   input.string = baseInput;
   input.time = baseInput;
   input.symbol = baseInput;
-  input.source = (_defval: unknown, _title: unknown) => {
+  input.source = (_defval: InputValue, _title?: string) => {
     const val = inputCallback(_inputIndex++);
-    if (val === 'close') return stdLib.close(context);
-    if (val === 'open') return stdLib.open(context);
-    if (val === 'high') return stdLib.high(context);
-    if (val === 'low') return stdLib.low(context);
-    if (val === 'volume') return stdLib.volume(context);
-    if (val === 'hl2') return stdLib.hl2(context);
-    if (val === 'hlc3') return stdLib.hlc3(context);
-    if (val === 'ohlc4') return stdLib.ohlc4(context);
-    return stdLib.close(context);
+    if (val === 'close') return Std.close(context);
+    if (val === 'open') return Std.open(context);
+    if (val === 'high') return Std.high(context);
+    if (val === 'low') return Std.low(context);
+    if (val === 'volume') return Std.volume(context);
+    if (val === 'hl2') return Std.hl2(context);
+    if (val === 'hlc3') return Std.hlc3(context);
+    if (val === 'ohlc4') return Std.ohlc4(context);
+    return Std.close(context);
   };
 
   return input;
 }
 
 interface InputFunction {
-  (defval: unknown, title: unknown): unknown;
-  int: (defval: unknown, title: unknown) => unknown;
-  float: (defval: unknown, title: unknown) => unknown;
-  bool: (defval: unknown, title: unknown) => unknown;
-  string: (defval: unknown, title: unknown) => unknown;
-  time: (defval: unknown, title: unknown) => unknown;
-  symbol: (defval: unknown, title: unknown) => unknown;
-  source: (defval: unknown, title: unknown) => unknown;
+  (defval: InputValue, title?: string): InputValue;
+  int: (defval: InputValue, title?: string) => InputValue;
+  float: (defval: InputValue, title?: string) => InputValue;
+  bool: (defval: InputValue, title?: string) => InputValue;
+  string: (defval: InputValue, title?: string) => InputValue;
+  time: (defval: InputValue, title?: string) => InputValue;
+  symbol: (defval: InputValue, title?: string) => InputValue;
+  source: (defval: InputValue, title?: string) => number;
 }
 
 interface PlotFunction {
@@ -185,30 +240,30 @@ function createMathMock(): Record<string, (...args: number[]) => number> {
 }
 
 interface TimeframeMock {
-  period: unknown;
-  isdwm: unknown;
-  isintraday: unknown;
-  isdaily: unknown;
-  isweekly: unknown;
-  ismonthly: unknown;
-  multiplier: unknown;
+  period: string;
+  isdwm: boolean;
+  isintraday: boolean;
+  isdaily: boolean;
+  isweekly: boolean;
+  ismonthly: boolean;
+  multiplier: number;
 }
 
 /**
  * Create the timeframe namespace mock
  */
 function createTimeframeMock(
-  Std: Record<string, (ctx: unknown) => unknown>,
-  context: unknown,
+  Std: StdLibraryInternal,
+  context: RuntimeContextInternal,
 ): TimeframeMock {
   return {
-    period: Std.period(context),
-    isdwm: Std.isdwm(context),
-    isintraday: Std.isintraday(context),
-    isdaily: Std.isdaily(context),
-    isweekly: Std.isweekly(context),
-    ismonthly: Std.ismonthly(context),
-    multiplier: Std.interval(context),
+    period: Std.period(context) as string,
+    isdwm: Std.isdwm(context) as boolean,
+    isintraday: Std.isintraday(context) as boolean,
+    isdaily: Std.isdaily(context) as boolean,
+    isweekly: Std.isweekly(context) as boolean,
+    ismonthly: Std.ismonthly(context) as boolean,
+    multiplier: Std.interval(context) as number,
   };
 }
 
@@ -227,9 +282,7 @@ interface SyminfoMock {
 /**
  * Create the syminfo namespace mock
  */
-function createSyminfoMock(context: {
-  symbol: { minmov?: number; pricescale?: number };
-}): SyminfoMock {
+function createSyminfoMock(context: RuntimeContextInternal): SyminfoMock {
   const minmov = context.symbol.minmov || 1;
   const pricescale = context.symbol.pricescale || 100;
 
@@ -246,10 +299,60 @@ function createSyminfoMock(context: {
   };
 }
 
+/** Stub namespace for box drawing functions */
+interface BoxStub {
+  new: () => void;
+  delete: () => void;
+  set_left: () => void;
+}
+
+/** Stub namespace for line drawing functions */
+interface LineStub {
+  new: () => void;
+  delete: () => void;
+}
+
+/** Stub namespace for label functions */
+interface LabelStub {
+  new: () => void;
+  delete: () => void;
+}
+
+/** Stub namespace for table functions */
+interface TableStub {
+  new: () => void;
+  cell: () => void;
+}
+
+/** Stub namespace for string functions */
+interface StrStub {
+  tostring: (v: unknown) => string;
+  length: (v: string) => number;
+  contains: (s: string, sub: string) => boolean;
+}
+
+/** Stub namespace for bar state information */
+interface BarstateStub {
+  islast: boolean;
+  isrealtime: boolean;
+  isnew: boolean;
+  isconfirmed: boolean;
+}
+
+/** All stub namespaces combined */
+interface StubNamespaces {
+  box: BoxStub;
+  line: LineStub;
+  label: LabelStub;
+  table: TableStub;
+  str: StrStub;
+  barstate: BarstateStub;
+}
+
 /**
  * Create stub namespaces for unsupported features
  */
-function createStubNamespaces() {
+function createStubNamespaces(): StubNamespaces {
   return {
     box: { new: () => {}, delete: () => {}, set_left: () => {} },
     line: { new: () => {}, delete: () => {} },
@@ -269,13 +372,25 @@ function createStubNamespaces() {
   };
 }
 
+/** Price source values object */
+interface PriceSources {
+  close: number;
+  open: number;
+  high: number;
+  low: number;
+  volume: number;
+  hl2: number;
+  hlc3: number;
+  ohlc4: number;
+}
+
 /**
  * Create price source values from Std library
  */
 function createPriceSources(
-  Std: Record<string, (ctx: unknown) => number>,
-  context: unknown,
-) {
+  Std: StdLibraryInternal,
+  context: RuntimeContextInternal,
+): PriceSources {
   return {
     close: Std.close ? Std.close(context) : NaN,
     open: Std.open ? Std.open(context) : NaN,
@@ -506,21 +621,21 @@ export function transpileToPineJS(
               const ta = Std;
               const _plotValues: number[] = [];
 
-              const input = createInputMock(inputCallback, Std, context);
+              // Cast to internal types for type safety
+              const stdLib = Std as StdLibraryInternal;
+              const ctx = context as RuntimeContextInternal;
+
+              const input = createInputMock(
+                inputCallback as (index: number) => InputValue,
+                stdLib,
+                ctx,
+              );
               const plot = createPlotMock(_plotValues);
               const math = createMathMock();
-              const timeframe = createTimeframeMock(
-                Std as Record<string, (ctx: unknown) => unknown>,
-                context,
-              );
-              const syminfo = createSyminfoMock(
-                context as { symbol: { minmov?: number; pricescale?: number } },
-              );
+              const timeframe = createTimeframeMock(stdLib, ctx);
+              const syminfo = createSyminfoMock(ctx);
               const stubs = createStubNamespaces();
-              const sources = createPriceSources(
-                Std as Record<string, (ctx: unknown) => number>,
-                context,
-              );
+              const sources = createPriceSources(stdLib, ctx);
 
               // No-op functions for indicator declarations
               const indicator = () => {};

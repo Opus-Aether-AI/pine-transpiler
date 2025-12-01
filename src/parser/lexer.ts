@@ -130,14 +130,19 @@ export class Lexer {
         continue;
       }
 
-      // 3. Comments
-      if (
-        char === '/' &&
-        this.peek() === '/' &&
-        !this.code.slice(this.pos).startsWith('//version')
-      ) {
-        this.skipComment();
-        continue;
+      // 3. Comments (line and block)
+      if (char === '/') {
+        if (
+          this.peek() === '/' &&
+          !this.code.slice(this.pos).startsWith('//version')
+        ) {
+          this.skipLineComment();
+          continue;
+        }
+        if (this.peek() === '*') {
+          this.skipBlockComment();
+          continue;
+        }
       }
 
       // 4. Numbers
@@ -264,13 +269,53 @@ export class Lexer {
     }
   }
 
-  private skipComment(): void {
+  private skipLineComment(): void {
     while (this.pos < this.code.length && this.code[this.pos] !== '\n') {
       this.pos++;
       // Don't advance column/line here, just skip chars until newline
       // Newline handler will pick up from here
     }
     // Don't consume the newline, let handleNewline take it
+  }
+
+  /**
+   * Skip a block comment (slash-asterisk ... asterisk-slash).
+   * Handles nested block comments and multi-line comments.
+   */
+  private skipBlockComment(): void {
+    this.advance(); // Skip /
+    this.advance(); // Skip *
+
+    let depth = 1; // Track nesting depth for nested block comments
+
+    while (this.pos < this.code.length && depth > 0) {
+      if (this.code[this.pos] === '/' && this.peek() === '*') {
+        // Nested block comment
+        depth++;
+        this.advance();
+        this.advance();
+      } else if (this.code[this.pos] === '*' && this.peek() === '/') {
+        // End of block comment
+        depth--;
+        this.advance();
+        this.advance();
+      } else {
+        // Track line numbers within block comments
+        if (this.code[this.pos] === '\n') {
+          this.line++;
+          this.column = 1;
+          this.pos++;
+        } else {
+          this.advance();
+        }
+      }
+    }
+
+    if (depth > 0) {
+      throw new Error(
+        `Unterminated block comment at ${this.line}:${this.column}`,
+      );
+    }
   }
 
   private readNumber(): void {
@@ -322,7 +367,82 @@ export class Lexer {
     while (this.pos < this.code.length && this.code[this.pos] !== quote) {
       if (this.code[this.pos] === '\\') {
         this.advance(); // Skip backslash
-        // Simple escape handling
+        // Handle escape sequences properly
+        const escapeChar = this.code[this.pos];
+        switch (escapeChar) {
+          case 'n':
+            value += '\n';
+            break;
+          case 't':
+            value += '\t';
+            break;
+          case 'r':
+            value += '\r';
+            break;
+          case '\\':
+            value += '\\';
+            break;
+          case '"':
+            value += '"';
+            break;
+          case "'":
+            value += "'";
+            break;
+          case '0':
+            value += '\0';
+            break;
+          case 'b':
+            value += '\b';
+            break;
+          case 'f':
+            value += '\f';
+            break;
+          case 'v':
+            value += '\v';
+            break;
+          case 'u':
+            // Unicode escape: \uXXXX
+            if (this.pos + 4 < this.code.length) {
+              const hex = this.code.slice(this.pos + 1, this.pos + 5);
+              if (/^[0-9A-Fa-f]{4}$/.test(hex)) {
+                value += String.fromCharCode(Number.parseInt(hex, 16));
+                this.advance(); // Skip u
+                this.advance(); // Skip first hex
+                this.advance(); // Skip second hex
+                this.advance(); // Skip third hex
+                // Fourth hex will be advanced at end of loop
+              } else {
+                // Invalid unicode escape, keep as-is
+                value += '\\u';
+              }
+            } else {
+              value += '\\u';
+            }
+            break;
+          case 'x':
+            // Hex escape: \xXX
+            if (this.pos + 2 < this.code.length) {
+              const hex = this.code.slice(this.pos + 1, this.pos + 3);
+              if (/^[0-9A-Fa-f]{2}$/.test(hex)) {
+                value += String.fromCharCode(Number.parseInt(hex, 16));
+                this.advance(); // Skip x
+                this.advance(); // Skip first hex
+                // Second hex will be advanced at end of loop
+              } else {
+                // Invalid hex escape, keep as-is
+                value += '\\x';
+              }
+            } else {
+              value += '\\x';
+            }
+            break;
+          default:
+            // Unknown escape, keep the character as-is
+            value += escapeChar;
+        }
+      } else if (this.code[this.pos] === '\n') {
+        // Newline in string without escape - error in most languages
+        // but we'll allow it for multi-line strings
         value += this.code[this.pos];
       } else {
         value += this.code[this.pos];

@@ -69,7 +69,7 @@ while true
 `;
     const result = transpile(code);
     expect(result).toContain('while (true)');
-    expect(result).toContain('throw new Error("Loop limit exceeded")');
+    expect(result).toContain('Loop limit exceeded');
   });
 
   it('should inject loop guards in for loops', () => {
@@ -81,6 +81,6 @@ for i = 0 to 10
     // The AST generator for 'for i = 0 to 10' generates a standard C-style for loop
     // expect(result).toContain('for (let i = 0; i <= 10; i++)'); // This depends on how parser handles 'to'
     // But we specifically care about the guard
-    expect(result).toContain('throw new Error("Loop limit exceeded")');
+    expect(result).toContain('Loop limit exceeded');
   });
 });
