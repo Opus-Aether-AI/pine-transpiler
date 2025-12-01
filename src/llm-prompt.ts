@@ -471,7 +471,9 @@ export async function copyLLMPromptToClipboard(): Promise<boolean> {
  * Download the LLM prompt as a markdown file
  */
 export function downloadLLMPrompt(): void {
-  const blob = new Blob([PINESCRIPT_TO_PINEJS_LLM_PROMPT], { type: 'text/markdown' });
+  const blob = new Blob([PINESCRIPT_TO_PINEJS_LLM_PROMPT], {
+    type: 'text/markdown',
+  });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

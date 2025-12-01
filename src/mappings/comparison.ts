@@ -19,7 +19,10 @@ import type { ComparisonFunctionMapping } from '../types';
 /**
  * Functions that return true/false with optional epsilon for floating point comparison
  */
-export const BOOLEAN_COMPARISON_MAPPINGS: Record<string, ComparisonFunctionMapping> = {
+export const BOOLEAN_COMPARISON_MAPPINGS: Record<
+  string,
+  ComparisonFunctionMapping
+> = {
   'Std.greaterOrEqual': {
     stdName: 'Std.greaterOrEqual',
     returnsBoolean: true,
@@ -55,7 +58,10 @@ export const BOOLEAN_COMPARISON_MAPPINGS: Record<string, ComparisonFunctionMappi
  * Functions that return 1 for true, 0 for false
  * These are useful for mathematical operations on boolean results
  */
-export const NUMERIC_COMPARISON_MAPPINGS: Record<string, ComparisonFunctionMapping> = {
+export const NUMERIC_COMPARISON_MAPPINGS: Record<
+  string,
+  ComparisonFunctionMapping
+> = {
   'Std.ge': {
     stdName: 'Std.ge',
     returnsBoolean: false,
@@ -151,7 +157,10 @@ export const COMPARISON_OPERATORS: Record<string, string> = {
 /**
  * All comparison function mappings
  */
-export const COMPARISON_FUNCTION_MAPPINGS: Record<string, ComparisonFunctionMapping> = {
+export const COMPARISON_FUNCTION_MAPPINGS: Record<
+  string,
+  ComparisonFunctionMapping
+> = {
   ...BOOLEAN_COMPARISON_MAPPINGS,
   ...NUMERIC_COMPARISON_MAPPINGS,
 };

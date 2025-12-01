@@ -19,16 +19,19 @@
 /**
  * NA (Not Available / NaN) handling functions
  */
-export const NA_FUNCTION_MAPPINGS: Record<string, { stdName: string; description: string }> = {
-  'na': {
+export const NA_FUNCTION_MAPPINGS: Record<
+  string,
+  { stdName: string; description: string }
+> = {
+  na: {
     stdName: 'Std.na',
     description: 'Check if value is NaN (returns 1 for true, 0 for false)',
   },
-  'nz': {
+  nz: {
     stdName: 'Std.nz',
     description: 'Replace NaN with 0 or specified replacement value',
   },
-  'fixnan': {
+  fixnan: {
     stdName: 'Std.fixnan',
     description: 'Replace NaN with last non-NaN value',
   },
@@ -41,32 +44,35 @@ export const NA_FUNCTION_MAPPINGS: Record<string, { stdName: string; description
 /**
  * Comparison helper functions available in PineJS.Std
  */
-export const COMPARISON_FUNCTION_MAPPINGS: Record<string, { stdName: string; description: string }> = {
-  'ge': {
+export const COMPARISON_FUNCTION_MAPPINGS: Record<
+  string,
+  { stdName: string; description: string }
+> = {
+  ge: {
     stdName: 'Std.ge',
     description: 'Greater than or equal (>=)',
   },
-  'le': {
+  le: {
     stdName: 'Std.le',
     description: 'Less than or equal (<=)',
   },
-  'gt': {
+  gt: {
     stdName: 'Std.gt',
     description: 'Greater than (>)',
   },
-  'lt': {
+  lt: {
     stdName: 'Std.lt',
     description: 'Less than (<)',
   },
-  'eq': {
+  eq: {
     stdName: 'Std.eq',
     description: 'Equal (==)',
   },
-  'neq': {
+  neq: {
     stdName: 'Std.neq',
     description: 'Not equal (!=)',
   },
-  'iff': {
+  iff: {
     stdName: 'Std.iff',
     description: 'Ternary if-then-else: iff(condition, thenValue, elseValue)',
   },
@@ -79,16 +85,19 @@ export const COMPARISON_FUNCTION_MAPPINGS: Record<string, { stdName: string; des
 /**
  * Utility helper functions available in PineJS.Std
  */
-export const UTILITY_FUNCTION_MAPPINGS: Record<string, { stdName: string; description: string }> = {
-  'eps': {
+export const UTILITY_FUNCTION_MAPPINGS: Record<
+  string,
+  { stdName: string; description: string }
+> = {
+  eps: {
     stdName: 'Std.eps',
     description: 'Machine epsilon (smallest difference)',
   },
-  'isZero': {
+  isZero: {
     stdName: 'Std.isZero',
     description: 'Check if value is zero or very close to zero',
   },
-  'toBool': {
+  toBool: {
     stdName: 'Std.toBool',
     description: 'Convert to boolean (0 = false, non-zero = true)',
   },
@@ -101,16 +110,19 @@ export const UTILITY_FUNCTION_MAPPINGS: Record<string, { stdName: string; descri
 /**
  * Type conversion and checking functions
  */
-export const TYPE_FUNCTION_MAPPINGS: Record<string, { stdName: string; description: string }> = {
-  'bool': {
+export const TYPE_FUNCTION_MAPPINGS: Record<
+  string,
+  { stdName: string; description: string }
+> = {
+  bool: {
     stdName: 'Std.toBool',
     description: 'Convert to boolean',
   },
-  'int': {
+  int: {
     stdName: 'Math.floor',
     description: 'Convert to integer (truncate)',
   },
-  'float': {
+  float: {
     stdName: 'Number',
     description: 'Convert to float',
   },
@@ -127,7 +139,10 @@ export const TYPE_FUNCTION_MAPPINGS: Record<string, { stdName: string; descripti
 /**
  * Symbol information accessors
  */
-export const SYMINFO_MAPPINGS: Record<string, { stdName: string; description: string }> = {
+export const SYMINFO_MAPPINGS: Record<
+  string,
+  { stdName: string; description: string }
+> = {
   'syminfo.ticker': {
     stdName: 'Std.ticker',
     description: 'Symbol ticker (e.g., "AAPL")',
@@ -173,7 +188,10 @@ export const SYMINFO_MAPPINGS: Record<string, { stdName: string; description: st
 /**
  * Bar state functions - indicate bar position
  */
-export const BARSTATE_MAPPINGS: Record<string, { stdName: string; description: string }> = {
+export const BARSTATE_MAPPINGS: Record<
+  string,
+  { stdName: string; description: string }
+> = {
   'barstate.isfirst': {
     stdName: '(Std.n(context) === 0)',
     description: 'Is first bar',
@@ -207,7 +225,10 @@ export const BARSTATE_MAPPINGS: Record<string, { stdName: string; description: s
 /**
  * Color manipulation functions
  */
-export const COLOR_FUNCTION_MAPPINGS: Record<string, { stdName: string; description: string }> = {
+export const COLOR_FUNCTION_MAPPINGS: Record<
+  string,
+  { stdName: string; description: string }
+> = {
   'color.rgb': {
     stdName: '_colorRgb',
     description: 'Create color from RGB values',
@@ -241,7 +262,10 @@ export const COLOR_FUNCTION_MAPPINGS: Record<string, { stdName: string; descript
 /**
  * String manipulation functions
  */
-export const STRING_FUNCTION_MAPPINGS: Record<string, { stdName: string; description: string }> = {
+export const STRING_FUNCTION_MAPPINGS: Record<
+  string,
+  { stdName: string; description: string }
+> = {
   'str.length': {
     stdName: '_strLength',
     description: 'String length',
@@ -295,7 +319,10 @@ export const STRING_FUNCTION_MAPPINGS: Record<string, { stdName: string; descrip
 /**
  * Array manipulation functions
  */
-export const ARRAY_FUNCTION_MAPPINGS: Record<string, { stdName: string; description: string }> = {
+export const ARRAY_FUNCTION_MAPPINGS: Record<
+  string,
+  { stdName: string; description: string }
+> = {
   'array.new_float': {
     stdName: '_arrayNewFloat',
     description: 'Create new float array',
@@ -497,7 +524,10 @@ const _arrayJoin = (arr, sep = ',') => arr.join(sep);
 /**
  * All utility function mappings combined
  */
-export const ALL_UTILITY_MAPPINGS: Record<string, { stdName: string; description: string }> = {
+export const ALL_UTILITY_MAPPINGS: Record<
+  string,
+  { stdName: string; description: string }
+> = {
   ...NA_FUNCTION_MAPPINGS,
   ...COMPARISON_FUNCTION_MAPPINGS,
   ...UTILITY_FUNCTION_MAPPINGS,
@@ -520,6 +550,8 @@ export function isUtilityFunction(funcName: string): boolean {
 /**
  * Get a utility function mapping
  */
-export function getUtilityMapping(funcName: string): { stdName: string; description: string } | undefined {
+export function getUtilityMapping(
+  funcName: string,
+): { stdName: string; description: string } | undefined {
   return ALL_UTILITY_MAPPINGS[funcName];
 }

@@ -6,7 +6,12 @@
  */
 
 // Re-export all mapping types
-export type { TAFunctionMapping, MultiOutputFunctionMapping, ComparisonFunctionMapping, TimeFunctionMapping } from '../types';
+export type {
+  TAFunctionMapping,
+  MultiOutputFunctionMapping,
+  ComparisonFunctionMapping,
+  TimeFunctionMapping,
+} from '../types';
 
 // Re-export from each mapping module
 export {
@@ -97,10 +102,17 @@ export {
 // ============================================================================
 
 import { MATH_FUNCTION_MAPPINGS } from './math';
-import { TA_FUNCTION_MAPPINGS, MULTI_OUTPUT_MAPPINGS } from './technical-analysis';
+import {
+  BAR_INDEX_MAPPING,
+  PRICE_SOURCE_MAPPINGS,
+  TIME_SOURCE_MAPPINGS,
+} from './price-sources';
+import {
+  MULTI_OUTPUT_MAPPINGS,
+  TA_FUNCTION_MAPPINGS,
+} from './technical-analysis';
 import { TIME_FUNCTION_MAPPINGS } from './time';
 import { ALL_UTILITY_MAPPINGS } from './utilities';
-import { PRICE_SOURCE_MAPPINGS, TIME_SOURCE_MAPPINGS, BAR_INDEX_MAPPING } from './price-sources';
 
 /**
  * Check if a Pine Script function name has a known mapping
@@ -135,14 +147,18 @@ export function getAllPineFunctionNames(): string[] {
  * Get the category of a Pine Script function
  */
 export function getFunctionCategory(
-  pineFunc: string
+  pineFunc: string,
 ): 'math' | 'ta' | 'time' | 'utility' | 'price' | 'multi-output' | 'unknown' {
   if (pineFunc in MATH_FUNCTION_MAPPINGS) return 'math';
   if (pineFunc in TA_FUNCTION_MAPPINGS) return 'ta';
   if (pineFunc in MULTI_OUTPUT_MAPPINGS) return 'multi-output';
   if (pineFunc in TIME_FUNCTION_MAPPINGS) return 'time';
   if (pineFunc in ALL_UTILITY_MAPPINGS) return 'utility';
-  if (pineFunc in PRICE_SOURCE_MAPPINGS || pineFunc in TIME_SOURCE_MAPPINGS || pineFunc in BAR_INDEX_MAPPING)
+  if (
+    pineFunc in PRICE_SOURCE_MAPPINGS ||
+    pineFunc in TIME_SOURCE_MAPPINGS ||
+    pineFunc in BAR_INDEX_MAPPING
+  )
     return 'price';
   return 'unknown';
 }
@@ -157,7 +173,9 @@ export function getMappingStats(): Record<string, number> {
     multiOutput: Object.keys(MULTI_OUTPUT_MAPPINGS).length,
     time: Object.keys(TIME_FUNCTION_MAPPINGS).length,
     utility: Object.keys(ALL_UTILITY_MAPPINGS).length,
-    priceSources: Object.keys(PRICE_SOURCE_MAPPINGS).length + Object.keys(TIME_SOURCE_MAPPINGS).length,
+    priceSources:
+      Object.keys(PRICE_SOURCE_MAPPINGS).length +
+      Object.keys(TIME_SOURCE_MAPPINGS).length,
     total:
       Object.keys(MATH_FUNCTION_MAPPINGS).length +
       Object.keys(TA_FUNCTION_MAPPINGS).length +

@@ -82,7 +82,10 @@ export const PRICE_SOURCE_MAPPINGS: Record<string, PriceSourceMapping> = {
 /**
  * Time-based sources that return bar time information
  */
-export const TIME_SOURCE_MAPPINGS: Record<string, { stdName: string; description: string }> = {
+export const TIME_SOURCE_MAPPINGS: Record<
+  string,
+  { stdName: string; description: string }
+> = {
   time: {
     stdName: 'Std.time',
     description: 'Current bar UNIX timestamp in milliseconds',
@@ -155,7 +158,11 @@ export function generateSeriesDeclarations(): string[] {
  * Check if a token is a price source
  */
 export function isPriceSource(token: string): boolean {
-  return token in PRICE_SOURCE_MAPPINGS || token in TIME_SOURCE_MAPPINGS || token in BAR_INDEX_MAPPING;
+  return (
+    token in PRICE_SOURCE_MAPPINGS ||
+    token in TIME_SOURCE_MAPPINGS ||
+    token in BAR_INDEX_MAPPING
+  );
 }
 
 /**

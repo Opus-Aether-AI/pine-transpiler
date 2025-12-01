@@ -13,7 +13,7 @@
  * Reference: https://www.tradingview.com/pine-script-reference/v5/#ta
  */
 
-import type { TAFunctionMapping, MultiOutputFunctionMapping } from '../types';
+import type { MultiOutputFunctionMapping, TAFunctionMapping } from '../types';
 
 // ============================================================================
 // Moving Averages
@@ -484,7 +484,8 @@ export const BARSSINCE_MAPPINGS: Record<string, TAFunctionMapping> = {
     needsSeries: false,
     contextArg: true,
     argCount: 3,
-    description: 'Value when condition was true (condition, source, occurrence)',
+    description:
+      'Value when condition was true (condition, source, occurrence)',
   },
 };
 
@@ -496,26 +497,27 @@ export const BARSSINCE_MAPPINGS: Record<string, TAFunctionMapping> = {
  * Functions that return multiple values (tuples)
  * These require special handling for destructuring
  */
-export const MULTI_OUTPUT_MAPPINGS: Record<string, MultiOutputFunctionMapping> = {
-  'ta.macd': {
-    stdName: 'Std.macd',
-    needsSeries: true,
-    contextArg: true,
-    argCount: 4,
-    description: 'MACD (series, fastLen, slowLen, signalLen)',
-    outputCount: 3,
-    outputNames: ['macdLine', 'signalLine', 'histogram'],
-  },
-  'ta.dmi': {
-    stdName: 'Std.dmi',
-    needsSeries: false,
-    contextArg: true,
-    argCount: 2,
-    description: 'Directional Movement Index (diLength, adxSmoothing)',
-    outputCount: 5,
-    outputNames: ['plusDI', 'minusDI', 'dx', 'adx', 'adxr'],
-  },
-};
+export const MULTI_OUTPUT_MAPPINGS: Record<string, MultiOutputFunctionMapping> =
+  {
+    'ta.macd': {
+      stdName: 'Std.macd',
+      needsSeries: true,
+      contextArg: true,
+      argCount: 4,
+      description: 'MACD (series, fastLen, slowLen, signalLen)',
+      outputCount: 3,
+      outputNames: ['macdLine', 'signalLine', 'histogram'],
+    },
+    'ta.dmi': {
+      stdName: 'Std.dmi',
+      needsSeries: false,
+      contextArg: true,
+      argCount: 2,
+      description: 'Directional Movement Index (diLength, adxSmoothing)',
+      outputCount: 5,
+      outputNames: ['plusDI', 'minusDI', 'dx', 'adx', 'adxr'],
+    },
+  };
 
 // ============================================================================
 // Combined Mapping Object
@@ -540,14 +542,18 @@ export const TA_FUNCTION_MAPPINGS: Record<string, TAFunctionMapping> = {
 /**
  * Get a TA function mapping by Pine Script function name
  */
-export function getTAFunctionMapping(pineFunc: string): TAFunctionMapping | undefined {
+export function getTAFunctionMapping(
+  pineFunc: string,
+): TAFunctionMapping | undefined {
   return TA_FUNCTION_MAPPINGS[pineFunc];
 }
 
 /**
  * Get a multi-output function mapping
  */
-export function getMultiOutputMapping(pineFunc: string): MultiOutputFunctionMapping | undefined {
+export function getMultiOutputMapping(
+  pineFunc: string,
+): MultiOutputFunctionMapping | undefined {
   return MULTI_OUTPUT_MAPPINGS[pineFunc];
 }
 

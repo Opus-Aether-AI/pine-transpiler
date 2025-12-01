@@ -6,4 +6,9 @@
 
 export { parsePineScript, validatePineScript } from './pine-parser';
 
-export type { ParsedIndicator, ParsedInput, ParsedPlot, ParsedVariable } from './pine-parser';
+export type {
+  ParsedIndicator,
+  ParsedInput,
+  ParsedPlot,
+  ParsedVariable,
+} from './pine-parser';

@@ -20,42 +20,42 @@ import type { TimeFunctionMapping } from '../types';
  * Functions that extract date/time components from the current bar time
  */
 export const DATE_TIME_MAPPINGS: Record<string, TimeFunctionMapping> = {
-  'year': {
+  year: {
     stdName: 'Std.year',
     needsContext: true,
     description: 'Year of current bar in exchange timezone',
   },
-  'month': {
+  month: {
     stdName: 'Std.month',
     needsContext: true,
     description: 'Month of current bar (1-12)',
   },
-  'weekofyear': {
+  weekofyear: {
     stdName: 'Std.weekofyear',
     needsContext: true,
     description: 'Week number of year',
   },
-  'dayofmonth': {
+  dayofmonth: {
     stdName: 'Std.dayofmonth',
     needsContext: true,
     description: 'Day of month (1-31)',
   },
-  'dayofweek': {
+  dayofweek: {
     stdName: 'Std.dayofweek',
     needsContext: true,
     description: 'Day of week (1=Sunday, 7=Saturday)',
   },
-  'hour': {
+  hour: {
     stdName: 'Std.hour',
     needsContext: true,
     description: 'Hour (0-23)',
   },
-  'minute': {
+  minute: {
     stdName: 'Std.minute',
     needsContext: true,
     description: 'Minute (0-59)',
   },
-  'second': {
+  second: {
     stdName: 'Std.second',
     needsContext: true,
     description: 'Second (0-59)',
@@ -115,17 +115,17 @@ export const RESOLUTION_MAPPINGS: Record<string, TimeFunctionMapping> = {
  * Functions that work with bar time
  */
 export const TIME_FUNCTIONS_MAPPINGS: Record<string, TimeFunctionMapping> = {
-  'time': {
+  time: {
     stdName: 'Std.time',
     needsContext: true,
     description: 'UNIX time of current bar opening',
   },
-  'time_close': {
+  time_close: {
     stdName: 'Std.time', // Need to calculate close time differently
     needsContext: true,
     description: 'UNIX time of current bar closing',
   },
-  'time_tradingday': {
+  time_tradingday: {
     stdName: 'Std.time',
     needsContext: true,
     description: 'UNIX time of trading day start',
@@ -209,7 +209,9 @@ export const TIME_FUNCTION_MAPPINGS: Record<string, TimeFunctionMapping> = {
 /**
  * Get a time function mapping
  */
-export function getTimeFunctionMapping(pineFunc: string): TimeFunctionMapping | undefined {
+export function getTimeFunctionMapping(
+  pineFunc: string,
+): TimeFunctionMapping | undefined {
   return TIME_FUNCTION_MAPPINGS[pineFunc];
 }
 
