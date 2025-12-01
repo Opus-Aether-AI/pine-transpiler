@@ -108,10 +108,10 @@ export interface ForStatement extends ASTNode {
 }
 
 export interface ForInStatement extends ASTNode {
-    type: 'ForInStatement';
-    left: Identifier | Identifier[]; // for x in arr or for [i, x] in arr
-    right: Expression; // The array/iterable
-    body: BlockStatement | Statement;
+  type: 'ForInStatement';
+  left: Identifier | Identifier[]; // for x in arr or for [i, x] in arr
+  right: Expression; // The array/iterable
+  body: BlockStatement | Statement;
 }
 
 export interface WhileStatement extends ASTNode {
@@ -134,21 +134,21 @@ export interface ContinueStatement extends ASTNode {
 }
 
 export interface SwitchStatement extends ASTNode {
-    type: 'SwitchStatement';
-    discriminant?: Expression;
-    cases: SwitchCase[];
+  type: 'SwitchStatement';
+  discriminant?: Expression;
+  cases: SwitchCase[];
 }
 
 export interface SwitchCase extends ASTNode {
-    type: 'SwitchCase';
-    test: Expression | null; // null for default
-    consequent: BlockStatement | Expression;
+  type: 'SwitchCase';
+  test: Expression | null; // null for default
+  consequent: BlockStatement | Expression;
 }
 
 export interface TypeDefinition extends ASTNode {
-    type: 'TypeDefinition';
-    name: string;
-    fields: VariableDeclaration[];
+  type: 'TypeDefinition';
+  name: string;
+  fields: VariableDeclaration[];
 }
 
 // ============================================================================
@@ -208,8 +208,8 @@ export interface AssignmentExpression extends ASTNode {
 }
 
 export interface ArrayExpression extends ASTNode {
-    type: 'ArrayExpression';
-    elements: Expression[];
+  type: 'ArrayExpression';
+  elements: Expression[];
 }
 
 // ============================================================================

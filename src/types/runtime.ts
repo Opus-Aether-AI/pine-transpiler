@@ -64,8 +64,19 @@ export interface PineJSStdLibrary {
   vwma: (context: RuntimeContext, series: PineSeries, length: number) => number;
   rma: (context: RuntimeContext, series: PineSeries, length: number) => number;
   swma: (context: RuntimeContext, series: PineSeries) => number;
-  alma: (context: RuntimeContext, series: PineSeries, length: number, offset: number, sigma: number) => number;
-  linreg: (context: RuntimeContext, series: PineSeries, length: number, offset: number) => number;
+  alma: (
+    context: RuntimeContext,
+    series: PineSeries,
+    length: number,
+    offset: number,
+    sigma: number,
+  ) => number;
+  linreg: (
+    context: RuntimeContext,
+    series: PineSeries,
+    length: number,
+    offset: number,
+  ) => number;
   smma: (context: RuntimeContext, series: PineSeries, length: number) => number;
 
   // ============================================================================
@@ -90,15 +101,28 @@ export interface PineJSStdLibrary {
   mfi: (context: RuntimeContext, series: PineSeries, length: number) => number;
   roc: (context: RuntimeContext, series: PineSeries, length: number) => number;
   mom: (context: RuntimeContext, series: PineSeries, length: number) => number;
-  tsi: (context: RuntimeContext, series: PineSeries, short: number, long: number) => number;
+  tsi: (
+    context: RuntimeContext,
+    series: PineSeries,
+    short: number,
+    long: number,
+  ) => number;
 
   // ============================================================================
   // Volatility Indicators
   // ============================================================================
   atr: (context: RuntimeContext, length: number) => number;
   tr: (context: RuntimeContext) => number;
-  stdev: (context: RuntimeContext, series: PineSeries, length: number) => number;
-  variance: (context: RuntimeContext, series: PineSeries, length: number) => number;
+  stdev: (
+    context: RuntimeContext,
+    series: PineSeries,
+    length: number,
+  ) => number;
+  variance: (
+    context: RuntimeContext,
+    series: PineSeries,
+    length: number,
+  ) => number;
   dev: (context: RuntimeContext, series: PineSeries, length: number) => number;
   bb: (
     context: RuntimeContext,
@@ -124,26 +148,76 @@ export interface PineJSStdLibrary {
     length: number,
     mult: number,
   ) => number;
-  donchian: (context: RuntimeContext, length: number) => [number, number, number];
+  donchian: (
+    context: RuntimeContext,
+    length: number,
+  ) => [number, number, number];
 
   // ============================================================================
   // Trend Indicators
   // ============================================================================
-  adx: (context: RuntimeContext, diLength: number, adxSmoothing: number) => number;
-  dmi: (context: RuntimeContext, diLength: number, adxSmoothing: number) => [number, number, number, number, number];
-  supertrend: (context: RuntimeContext, factor: number, atrPeriod: number) => [number, number];
-  sar: (context: RuntimeContext, start: number, inc: number, max: number) => number;
-  pivothigh: (context: RuntimeContext, series: PineSeries, leftbars: number, rightbars: number) => number;
-  pivotlow: (context: RuntimeContext, series: PineSeries, leftbars: number, rightbars: number) => number;
+  adx: (
+    context: RuntimeContext,
+    diLength: number,
+    adxSmoothing: number,
+  ) => number;
+  dmi: (
+    context: RuntimeContext,
+    diLength: number,
+    adxSmoothing: number,
+  ) => [number, number, number, number, number];
+  supertrend: (
+    context: RuntimeContext,
+    factor: number,
+    atrPeriod: number,
+  ) => [number, number];
+  sar: (
+    context: RuntimeContext,
+    start: number,
+    inc: number,
+    max: number,
+  ) => number;
+  pivothigh: (
+    context: RuntimeContext,
+    series: PineSeries,
+    leftbars: number,
+    rightbars: number,
+  ) => number;
+  pivotlow: (
+    context: RuntimeContext,
+    series: PineSeries,
+    leftbars: number,
+    rightbars: number,
+  ) => number;
 
   // ============================================================================
   // Cross Detection
   // ============================================================================
-  cross: (context: RuntimeContext, series1: PineSeries, series2: PineSeries) => boolean;
-  crossover: (context: RuntimeContext, series1: PineSeries, series2: PineSeries) => boolean;
-  crossunder: (context: RuntimeContext, series1: PineSeries, series2: PineSeries) => boolean;
-  rising: (context: RuntimeContext, series: PineSeries, length: number) => boolean;
-  falling: (context: RuntimeContext, series: PineSeries, length: number) => boolean;
+  cross: (
+    context: RuntimeContext,
+    series1: PineSeries,
+    series2: PineSeries,
+  ) => boolean;
+  crossover: (
+    context: RuntimeContext,
+    series1: PineSeries,
+    series2: PineSeries,
+  ) => boolean;
+  crossunder: (
+    context: RuntimeContext,
+    series1: PineSeries,
+    series2: PineSeries,
+  ) => boolean;
+  rising: (
+    context: RuntimeContext,
+    series: PineSeries,
+    length: number,
+  ) => boolean;
+  falling: (
+    context: RuntimeContext,
+    series: PineSeries,
+    length: number,
+  ) => boolean;
 
   // ============================================================================
   // Volume Indicators
@@ -159,20 +233,58 @@ export interface PineJSStdLibrary {
   nz: (value: unknown, replacement?: number) => number;
   cum: (context: RuntimeContext, series: PineSeries) => number;
   sum: (context: RuntimeContext, series: PineSeries, length: number) => number;
-  change: (context: RuntimeContext, series: PineSeries, length: number) => number;
-  percentrank: (context: RuntimeContext, series: PineSeries, length: number) => number;
-  
-  highest: (context: RuntimeContext, series: PineSeries, length: number) => number;
-  lowest: (context: RuntimeContext, series: PineSeries, length: number) => number;
-  highestbars: (context: RuntimeContext, series: PineSeries, length: number) => number;
-  lowestbars: (context: RuntimeContext, series: PineSeries, length: number) => number;
-  
-  median: (context: RuntimeContext, series: PineSeries, length: number) => number;
+  change: (
+    context: RuntimeContext,
+    series: PineSeries,
+    length: number,
+  ) => number;
+  percentrank: (
+    context: RuntimeContext,
+    series: PineSeries,
+    length: number,
+  ) => number;
+
+  highest: (
+    context: RuntimeContext,
+    series: PineSeries,
+    length: number,
+  ) => number;
+  lowest: (
+    context: RuntimeContext,
+    series: PineSeries,
+    length: number,
+  ) => number;
+  highestbars: (
+    context: RuntimeContext,
+    series: PineSeries,
+    length: number,
+  ) => number;
+  lowestbars: (
+    context: RuntimeContext,
+    series: PineSeries,
+    length: number,
+  ) => number;
+
+  median: (
+    context: RuntimeContext,
+    series: PineSeries,
+    length: number,
+  ) => number;
   mode: (context: RuntimeContext, series: PineSeries, length: number) => number;
-  
-  correlation: (context: RuntimeContext, series1: PineSeries, series2: PineSeries, length: number) => number;
-  cov: (context: RuntimeContext, series1: PineSeries, series2: PineSeries, length: number) => number;
-  
+
+  correlation: (
+    context: RuntimeContext,
+    series1: PineSeries,
+    series2: PineSeries,
+    length: number,
+  ) => number;
+  cov: (
+    context: RuntimeContext,
+    series1: PineSeries,
+    series2: PineSeries,
+    length: number,
+  ) => number;
+
   valuewhen: (
     context: RuntimeContext,
     condition: boolean,
@@ -194,7 +306,7 @@ export interface PineJSStdLibrary {
   hour: (time: number, timezone?: string) => number;
   minute: (time: number, timezone?: string) => number;
   second: (time: number, timezone?: string) => number;
-  
+
   period: (context: RuntimeContext) => string;
   interval: (context: RuntimeContext) => number;
   isdwm: (context: RuntimeContext) => boolean;
@@ -295,7 +407,7 @@ export interface StudyPlotInfo {
     | 'cross'
     | 'shape'
     | 'hline';
-    
+
   /** Optional price for hline */
   price?: number;
 }

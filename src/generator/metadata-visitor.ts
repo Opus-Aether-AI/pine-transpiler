@@ -1,13 +1,10 @@
 import type {
-  Program,
-  Statement,
-  Expression,
   CallExpression,
-  Literal,
+  Expression,
   Identifier,
   MemberExpression,
-  AssignmentExpression,
-  ArrayExpression,
+  Program,
+  Statement,
 } from '../parser/ast';
 import type { ParsedInput, ParsedPlot, ParseWarning } from '../types';
 import { COLOR_MAP } from '../types';
@@ -23,18 +20,19 @@ export class MetadataVisitor {
   // Tracking usage
   public usedSources: Set<string> = new Set();
   public historicalAccess: Set<string> = new Set();
-  
+
   // Internal counter for unique IDs
   private plotCount = 0;
   private inputCount = 0;
 
   private isStatement(node: Statement | Expression): node is Statement {
-      return 'type' in node && (
-          node.type.endsWith('Statement') || 
-          node.type === 'VariableDeclaration' || 
-          node.type === 'FunctionDeclaration' ||
-          node.type === 'TypeDefinition'
-      );
+    return (
+      'type' in node &&
+      (node.type.endsWith('Statement') ||
+        node.type === 'VariableDeclaration' ||
+        node.type === 'FunctionDeclaration' ||
+        node.type === 'TypeDefinition')
+    );
   }
 
   public visit(node: Program): void {
@@ -49,7 +47,7 @@ export class MetadataVisitor {
 
   private visitStatement(stmt: Statement): void {
     if (!stmt) return;
-    
+
     switch (stmt.type) {
       case 'ExpressionStatement':
         this.visitExpression(stmt.expression);
@@ -59,9 +57,9 @@ export class MetadataVisitor {
         break;
       case 'FunctionDeclaration':
         if (stmt.body.type === 'BlockStatement') {
-            this.visitStatement(stmt.body);
+          this.visitStatement(stmt.body);
         } else {
-            this.visitExpression(stmt.body as unknown as Expression);
+          this.visitExpression(stmt.body as unknown as Expression);
         }
         break;
       case 'BlockStatement':
@@ -78,10 +76,10 @@ export class MetadataVisitor {
         break;
       case 'ForStatement':
         if (stmt.init.type === 'VariableDeclaration') {
-             // Handle VariableDeclaration in init
-             if (stmt.init.init) this.visitExpression(stmt.init.init);
+          // Handle VariableDeclaration in init
+          if (stmt.init.init) this.visitExpression(stmt.init.init);
         } else {
-             this.visitExpression(stmt.init as Expression);
+          this.visitExpression(stmt.init as Expression);
         }
         this.visitExpression(stmt.test);
         if (stmt.update) this.visitExpression(stmt.update);
@@ -91,28 +89,28 @@ export class MetadataVisitor {
         if (stmt.argument) this.visitExpression(stmt.argument);
         break;
       case 'SwitchStatement':
-          if (stmt.discriminant) this.visitExpression(stmt.discriminant);
-          for (const c of stmt.cases) {
-              if (c.test) this.visitExpression(c.test);
-              if (this.isStatement(c.consequent)) {
-                  this.visitStatement(c.consequent);
-              } else {
-                  this.visitExpression(c.consequent);
-              }
+        if (stmt.discriminant) this.visitExpression(stmt.discriminant);
+        for (const c of stmt.cases) {
+          if (c.test) this.visitExpression(c.test);
+          if (this.isStatement(c.consequent)) {
+            this.visitStatement(c.consequent);
+          } else {
+            this.visitExpression(c.consequent);
           }
-          break;
+        }
+        break;
     }
   }
 
   private visitExpression(expr: Expression): void {
     if (!expr) return;
-    
+
     switch (expr.type) {
       case 'CallExpression':
         this.visitCallExpression(expr);
         // Visit arguments to find nested usage
         for (const arg of expr.arguments) {
-            this.visitExpression(arg);
+          this.visitExpression(arg);
         }
         break;
       case 'BinaryExpression':
@@ -132,8 +130,11 @@ export class MetadataVisitor {
         break;
       case 'AssignmentExpression':
         // Check left side for computed member access
-        if (!Array.isArray(expr.left) && expr.left.type === 'MemberExpression') {
-            this.visitMemberExpression(expr.left);
+        if (
+          !Array.isArray(expr.left) &&
+          expr.left.type === 'MemberExpression'
+        ) {
+          this.visitMemberExpression(expr.left);
         }
         // Visit right side
         this.visitExpression(expr.right);
@@ -145,66 +146,89 @@ export class MetadataVisitor {
   }
 
   private visitIdentifier(node: Identifier): void {
-      const name = node.name;
-      if (['open', 'close', 'high', 'low', 'volume', 'hl2', 'hlc3', 'ohlc4'].includes(name)) {
-          this.usedSources.add(name);
-      }
+    const name = node.name;
+    if (
+      [
+        'open',
+        'close',
+        'high',
+        'low',
+        'volume',
+        'hl2',
+        'hlc3',
+        'ohlc4',
+      ].includes(name)
+    ) {
+      this.usedSources.add(name);
+    }
   }
 
   private visitMemberExpression(node: MemberExpression): void {
-      this.visitExpression(node.object);
-      if (node.computed) {
-          // This is likely historical access: obj[expr]
-          if (node.object.type === 'Identifier') {
-              const name = node.object.name;
-              this.historicalAccess.add(name);
-              
-              if (['open', 'close', 'high', 'low', 'volume', 'hl2', 'hlc3', 'ohlc4'].includes(name)) {
-                  this.usedSources.add(name);
-              }
-          }
-          // Visit the index expression
-          this.visitExpression(node.property as Expression);
+    this.visitExpression(node.object);
+    if (node.computed) {
+      // This is likely historical access: obj[expr]
+      if (node.object.type === 'Identifier') {
+        const name = node.object.name;
+        this.historicalAccess.add(name);
+
+        if (
+          [
+            'open',
+            'close',
+            'high',
+            'low',
+            'volume',
+            'hl2',
+            'hlc3',
+            'ohlc4',
+          ].includes(name)
+        ) {
+          this.usedSources.add(name);
+        }
       }
-      // Dot access handled by object visit
+      // Visit the index expression
+      this.visitExpression(node.property as Expression);
+    }
+    // Dot access handled by object visit
   }
 
   private visitCallExpression(expr: CallExpression): void {
     const callee = expr.callee;
     // Only interested in direct function calls or method calls
-    if (callee.type !== 'Identifier' && callee.type !== 'MemberExpression') return;
-    
+    if (callee.type !== 'Identifier' && callee.type !== 'MemberExpression')
+      return;
+
     const name = this.getFnName(callee);
-    
+
     if (['indicator', 'study', 'strategy'].includes(name)) {
-        this.extractIndicatorMeta(expr);
+      this.extractIndicatorMeta(expr);
     } else if (name.startsWith('input')) {
-        this.extractInput(expr, name);
+      this.extractInput(expr, name);
     } else if (name === 'plot') {
-        this.extractPlot(expr);
+      this.extractPlot(expr);
     } else if (name === 'plotshape') {
-        this.extractPlotShape(expr);
+      this.extractPlotShape(expr);
     } else if (name === 'plotchar') {
-        this.extractPlotChar(expr);
+      this.extractPlotChar(expr);
     } else if (name === 'hline') {
-        this.extractHline(expr);
+      this.extractHline(expr);
     } else if (['bgcolor', 'fill'].includes(name)) {
-        // Just warning or basic support? 
-        // We don't have visual support for these in simple PineJS yet, but shouldn't crash.
+      // Just warning or basic support?
+      // We don't have visual support for these in simple PineJS yet, but shouldn't crash.
     }
   }
-  
+
   private getFnName(node: Expression): string {
-      if (node.type === 'Identifier') return node.name;
-      if (node.type === 'MemberExpression') {
-           // Handle property name safely
-           let propName = '';
-           if (node.property.type === 'Identifier') {
-               propName = node.property.name;
-           }
-          return `${this.getFnName(node.object)}.${propName}`;
+    if (node.type === 'Identifier') return node.name;
+    if (node.type === 'MemberExpression') {
+      // Handle property name safely
+      let propName = '';
+      if (node.property.type === 'Identifier') {
+        propName = node.property.name;
       }
-      return '';
+      return `${this.getFnName(node.object)}.${propName}`;
+    }
+    return '';
   }
 
   // ==========================================================================
@@ -214,16 +238,24 @@ export class MetadataVisitor {
   /**
    * Get argument value by name or position
    */
-  private getArg(args: Expression[], index: number, name: string): Expression | null {
+  private getArg(
+    args: Expression[],
+    index: number,
+    name: string,
+  ): Expression | null {
     // Check for named argument first
     for (const arg of args) {
-      if (arg.type === 'AssignmentExpression' && !Array.isArray(arg.left) && arg.left.type === 'Identifier') {
+      if (
+        arg.type === 'AssignmentExpression' &&
+        !Array.isArray(arg.left) &&
+        arg.left.type === 'Identifier'
+      ) {
         if (arg.left.name === name) {
           return arg.right;
         }
       }
     }
-    
+
     // Fallback to positional argument if not a named arg
     if (index < args.length) {
       const arg = args[index];
@@ -232,7 +264,7 @@ export class MetadataVisitor {
         return arg;
       }
     }
-    
+
     return null;
   }
 
@@ -250,8 +282,12 @@ export class MetadataVisitor {
       return expr.value;
     }
     // Handle negative numbers (UnaryExpression)
-    if (expr.type === 'UnaryExpression' && expr.operator === '-' && expr.argument.type === 'Literal') {
-        return -(expr.argument.value as number);
+    if (
+      expr.type === 'UnaryExpression' &&
+      expr.operator === '-' &&
+      expr.argument.type === 'Literal'
+    ) {
+      return -(expr.argument.value as number);
     }
     return null;
   }
@@ -263,196 +299,211 @@ export class MetadataVisitor {
     }
     return null;
   }
-  
+
   // ==========================================================================
   // Extraction Logic
   // ==========================================================================
 
   private extractIndicatorMeta(expr: CallExpression): void {
-      // indicator(title, shorttitle, overlay, ...)
-      const args = expr.arguments;
-      
-      const title = this.getStringValue(this.getArg(args, 0, 'title'));
-      if (title) this.name = title;
+    // indicator(title, shorttitle, overlay, ...)
+    const args = expr.arguments;
 
-      const shorttitle = this.getStringValue(this.getArg(args, 1, 'shorttitle'));
-      if (shorttitle) this.shortName = shorttitle;
-      else if (title) this.shortName = title;
+    const title = this.getStringValue(this.getArg(args, 0, 'title'));
+    if (title) this.name = title;
 
-      const overlay = this.getBooleanValue(this.getArg(args, 2, 'overlay'));
-      if (overlay !== null) this.overlay = overlay;
+    const shorttitle = this.getStringValue(this.getArg(args, 1, 'shorttitle'));
+    if (shorttitle) this.shortName = shorttitle;
+    else if (title) this.shortName = title;
+
+    const overlay = this.getBooleanValue(this.getArg(args, 2, 'overlay'));
+    if (overlay !== null) this.overlay = overlay;
   }
 
   private extractInput(expr: CallExpression, fnName: string): void {
-      // input(defval, title, minval, maxval, options, ...)
-      const args = expr.arguments;
-      
-      const defvalExpr = this.getArg(args, 0, 'defval');
-      const titleExpr = this.getArg(args, 1, 'title');
-      
-      let type: ParsedInput['type'] = 'float';
-      let defval: number | boolean | string = 0;
-      
-      // Infer type and value
-      if (fnName === 'input.int') {
-          type = 'integer';
-          defval = this.getNumberValue(defvalExpr) ?? 0;
-      } else if (fnName === 'input.bool') {
-          type = 'bool';
-          defval = this.getBooleanValue(defvalExpr) ?? false;
-      } else if (fnName === 'input.string') {
-          type = 'string';
-          defval = this.getStringValue(defvalExpr) ?? '';
-      } else if (fnName === 'input.source') {
-          type = 'source';
-          // defval for source is identifier (e.g. close)
-          if (defvalExpr?.type === 'Identifier') {
-              defval = defvalExpr.name;
-          } else {
-              defval = 'close';
-          }
-      } else if (fnName === 'input.time') {
-           // Treat time as integer (timestamp)
-           type = 'integer';
-           defval = this.getNumberValue(defvalExpr) ?? Date.now();
-      } else if (fnName === 'input.symbol') {
-          type = 'string'; // Treat symbol as string
-          defval = this.getStringValue(defvalExpr) ?? '';
+    // input(defval, title, minval, maxval, options, ...)
+    const args = expr.arguments;
+
+    const defvalExpr = this.getArg(args, 0, 'defval');
+    const titleExpr = this.getArg(args, 1, 'title');
+
+    let type: ParsedInput['type'] = 'float';
+    let defval: number | boolean | string = 0;
+
+    // Infer type and value
+    if (fnName === 'input.int') {
+      type = 'integer';
+      defval = this.getNumberValue(defvalExpr) ?? 0;
+    } else if (fnName === 'input.bool') {
+      type = 'bool';
+      defval = this.getBooleanValue(defvalExpr) ?? false;
+    } else if (fnName === 'input.string') {
+      type = 'string';
+      defval = this.getStringValue(defvalExpr) ?? '';
+    } else if (fnName === 'input.source') {
+      type = 'source';
+      // defval for source is identifier (e.g. close)
+      if (defvalExpr?.type === 'Identifier') {
+        defval = defvalExpr.name;
       } else {
-          // Generic input(), infer from defval type
-          if (defvalExpr?.type === 'Literal') {
-              if (typeof defvalExpr.value === 'boolean') {
-                  type = 'bool';
-                  defval = defvalExpr.value;
-              } else if (typeof defvalExpr.value === 'string') {
-                  type = 'string';
-                  defval = defvalExpr.value;
-              } else if (typeof defvalExpr.value === 'number') {
-                  type = 'float';
-                  defval = defvalExpr.value;
-              }
-          }
+        defval = 'close';
       }
-
-      const title = this.getStringValue(titleExpr) || `Input ${++this.inputCount}`;
-      const min = this.getNumberValue(this.getArg(args, 2, 'minval'));
-      const max = this.getNumberValue(this.getArg(args, 3, 'maxval'));
-      
-      // Options
-      let options: string[] | undefined;
-      const optionsExpr = this.getArg(args, 4, 'options'); 
-      if (optionsExpr && optionsExpr.type === 'ArrayExpression') {
-          options = optionsExpr.elements
-              .map((e: Expression) => (e.type === 'Literal' ? String(e.value) : null))
-              .filter((s: string | null) => s !== null) as string[];
+    } else if (fnName === 'input.time') {
+      // Treat time as integer (timestamp)
+      type = 'integer';
+      defval = this.getNumberValue(defvalExpr) ?? Date.now();
+    } else if (fnName === 'input.symbol') {
+      type = 'string'; // Treat symbol as string
+      defval = this.getStringValue(defvalExpr) ?? '';
+    } else {
+      // Generic input(), infer from defval type
+      if (defvalExpr?.type === 'Literal') {
+        if (typeof defvalExpr.value === 'boolean') {
+          type = 'bool';
+          defval = defvalExpr.value;
+        } else if (typeof defvalExpr.value === 'string') {
+          type = 'string';
+          defval = defvalExpr.value;
+        } else if (typeof defvalExpr.value === 'number') {
+          type = 'float';
+          defval = defvalExpr.value;
+        }
       }
+    }
 
-      this.inputs.push({
-          id: `in_${this.inputs.length}`,
-          name: title,
-          type,
-          defval,
-          min: min ?? undefined,
-          max: max ?? undefined,
-          options
-      });
+    const title =
+      this.getStringValue(titleExpr) || `Input ${++this.inputCount}`;
+    const min = this.getNumberValue(this.getArg(args, 2, 'minval'));
+    const max = this.getNumberValue(this.getArg(args, 3, 'maxval'));
+
+    // Options
+    let options: string[] | undefined;
+    const optionsExpr = this.getArg(args, 4, 'options');
+    if (optionsExpr && optionsExpr.type === 'ArrayExpression') {
+      options = optionsExpr.elements
+        .map((e: Expression) => (e.type === 'Literal' ? String(e.value) : null))
+        .filter((s: string | null) => s !== null) as string[];
+    }
+
+    this.inputs.push({
+      id: `in_${this.inputs.length}`,
+      name: title,
+      type,
+      defval,
+      min: min ?? undefined,
+      max: max ?? undefined,
+      options,
+    });
   }
 
   private extractPlot(expr: CallExpression): void {
-      // plot(series, title, color, linewidth, style, ...)
-      const args = expr.arguments;
-      
-      const title = this.getStringValue(this.getArg(args, 1, 'title')) || `Plot ${++this.plotCount}`;
-      
-      let color = '#2962FF';
-      const colorExpr = this.getArg(args, 2, 'color');
-      if (colorExpr) {
-          if (colorExpr.type === 'Literal' && typeof colorExpr.value === 'string') {
-              color = colorExpr.value; // hex
-          } else if (colorExpr.type === 'MemberExpression' && colorExpr.object.type === 'Identifier' && colorExpr.object.name === 'color') {
-              // color.red
-              if (colorExpr.property.type === 'Identifier') {
-                  const colorName = colorExpr.property.name;
-                  if (COLOR_MAP[colorName]) color = COLOR_MAP[colorName];
-              }
-          } else if (colorExpr.type === 'Identifier' && COLOR_MAP[colorExpr.name]) {
-              // red (if imported/available directly?)
-              color = COLOR_MAP[colorExpr.name];
-          }
-      }
+    // plot(series, title, color, linewidth, style, ...)
+    const args = expr.arguments;
 
-      const linewidth = this.getNumberValue(this.getArg(args, 3, 'linewidth')) || 1;
-      
-      // Style mapping
-      // plot.style_line = 1
-      // plot.style_histogram = 4
-      // etc. We map to string enum
-      let type: ParsedPlot['type'] = 'line';
-      const styleExpr = this.getArg(args, 4, 'style');
-      if (styleExpr) {
-          // Infer from name like plot.style_histogram
-          const name = this.getFnName(styleExpr);
-          if (name.includes('histogram') || name.includes('columns')) type = 'histogram';
-          else if (name.includes('circles')) type = 'circles';
-          else if (name.includes('area')) type = 'area';
-          else if (name.includes('cross')) type = 'cross';
-          else if (name.includes('stepline')) type = 'stepline';
-      }
+    const title =
+      this.getStringValue(this.getArg(args, 1, 'title')) ||
+      `Plot ${++this.plotCount}`;
 
-      this.plots.push({
-          id: `plot_${this.plots.length}`,
-          title,
-          varName: `plot_${this.plots.length}`, // Not used in simple runtime but good for metadata
-          type,
-          color,
-          linewidth
-      });
+    let color = '#2962FF';
+    const colorExpr = this.getArg(args, 2, 'color');
+    if (colorExpr) {
+      if (colorExpr.type === 'Literal' && typeof colorExpr.value === 'string') {
+        color = colorExpr.value; // hex
+      } else if (
+        colorExpr.type === 'MemberExpression' &&
+        colorExpr.object.type === 'Identifier' &&
+        colorExpr.object.name === 'color'
+      ) {
+        // color.red
+        if (colorExpr.property.type === 'Identifier') {
+          const colorName = colorExpr.property.name;
+          if (COLOR_MAP[colorName]) color = COLOR_MAP[colorName];
+        }
+      } else if (colorExpr.type === 'Identifier' && COLOR_MAP[colorExpr.name]) {
+        // red (if imported/available directly?)
+        color = COLOR_MAP[colorExpr.name];
+      }
+    }
+
+    const linewidth =
+      this.getNumberValue(this.getArg(args, 3, 'linewidth')) || 1;
+
+    // Style mapping
+    // plot.style_line = 1
+    // plot.style_histogram = 4
+    // etc. We map to string enum
+    let type: ParsedPlot['type'] = 'line';
+    const styleExpr = this.getArg(args, 4, 'style');
+    if (styleExpr) {
+      // Infer from name like plot.style_histogram
+      const name = this.getFnName(styleExpr);
+      if (name.includes('histogram') || name.includes('columns'))
+        type = 'histogram';
+      else if (name.includes('circles')) type = 'circles';
+      else if (name.includes('area')) type = 'area';
+      else if (name.includes('cross')) type = 'cross';
+      else if (name.includes('stepline')) type = 'stepline';
+    }
+
+    this.plots.push({
+      id: `plot_${this.plots.length}`,
+      title,
+      varName: `plot_${this.plots.length}`, // Not used in simple runtime but good for metadata
+      type,
+      color,
+      linewidth,
+    });
   }
-  
+
   private extractPlotShape(expr: CallExpression): void {
-      const args = expr.arguments;
-      const title = this.getStringValue(this.getArg(args, 1, 'title')) || `Shape ${++this.plotCount}`;
-      // Treat as 'shape' plot
-      this.plots.push({
-          id: `plot_${this.plots.length}`,
-          title,
-          varName: `plot_${this.plots.length}`,
-          type: 'shape',
-          color: '#000000', // Default
-          linewidth: 1,
-          shape: 'circle', // Default
-          location: 'abovebar' // Default
-      });
+    const args = expr.arguments;
+    const title =
+      this.getStringValue(this.getArg(args, 1, 'title')) ||
+      `Shape ${++this.plotCount}`;
+    // Treat as 'shape' plot
+    this.plots.push({
+      id: `plot_${this.plots.length}`,
+      title,
+      varName: `plot_${this.plots.length}`,
+      type: 'shape',
+      color: '#000000', // Default
+      linewidth: 1,
+      shape: 'circle', // Default
+      location: 'abovebar', // Default
+    });
   }
 
   private extractPlotChar(expr: CallExpression): void {
-       const args = expr.arguments;
-      const title = this.getStringValue(this.getArg(args, 1, 'title')) || `Char ${++this.plotCount}`;
-       this.plots.push({
-          id: `plot_${this.plots.length}`,
-          title,
-          varName: `plot_${this.plots.length}`,
-          type: 'shape', // Treat char as shape for now
-          color: '#000000',
-          linewidth: 1
-      });
+    const args = expr.arguments;
+    const title =
+      this.getStringValue(this.getArg(args, 1, 'title')) ||
+      `Char ${++this.plotCount}`;
+    this.plots.push({
+      id: `plot_${this.plots.length}`,
+      title,
+      varName: `plot_${this.plots.length}`,
+      type: 'shape', // Treat char as shape for now
+      color: '#000000',
+      linewidth: 1,
+    });
   }
 
   private extractHline(expr: CallExpression): void {
-      const args = expr.arguments;
-      const price = this.getNumberValue(this.getArg(args, 0, 'price'));
-      const title = this.getStringValue(this.getArg(args, 1, 'title')) || `HLine ${++this.plotCount}`;
-      
-      if (price !== null) {
-          this.plots.push({
-              id: `plot_${this.plots.length}`,
-              title,
-              varName: `plot_${this.plots.length}`,
-              type: 'hline',
-              color: '#787B86',
-              linewidth: 1,
-              price
-          });
-      }
+    const args = expr.arguments;
+    const price = this.getNumberValue(this.getArg(args, 0, 'price'));
+    const title =
+      this.getStringValue(this.getArg(args, 1, 'title')) ||
+      `HLine ${++this.plotCount}`;
+
+    if (price !== null) {
+      this.plots.push({
+        id: `plot_${this.plots.length}`,
+        title,
+        varName: `plot_${this.plots.length}`,
+        type: 'hline',
+        color: '#787B86',
+        linewidth: 1,
+        price,
+      });
+    }
   }
 }

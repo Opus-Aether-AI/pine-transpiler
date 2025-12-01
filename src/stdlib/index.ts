@@ -1,10 +1,10 @@
 /**
  * StdPlus Polyfill Library
- * 
+ *
  * This file contains the source code for the 'StdPlus' object,
  * which provides implementations for Pine Script functions that are
  * missing from the native PineJS.Std library.
- * 
+ *
  * This string is injected into the transpiled script preamble.
  */
 
