@@ -4,10 +4,17 @@
  * Handles generation of JavaScript expressions from Pine Script AST expression nodes.
  */
 
+import {
+  ALL_UTILITY_MAPPINGS,
+  MATH_FUNCTION_MAPPINGS,
+  MULTI_OUTPUT_MAPPINGS,
+  TA_FUNCTION_MAPPINGS,
+  TIME_FUNCTION_MAPPINGS,
+} from '../mappings';
 import type {
   ArrayExpression,
-  AssignmentExpression,
   ASTNode,
+  AssignmentExpression,
   BinaryExpression,
   BlockStatement,
   CallExpression,
@@ -22,13 +29,11 @@ import type {
   UnaryExpression,
 } from '../parser/ast';
 import {
-  ALL_UTILITY_MAPPINGS,
-  MATH_FUNCTION_MAPPINGS,
-  MULTI_OUTPUT_MAPPINGS,
-  TA_FUNCTION_MAPPINGS,
-  TIME_FUNCTION_MAPPINGS,
-} from '../mappings';
-import { type FunctionMapping, isStatement, sanitizeIdentifier } from './generator-utils';
+  type FunctionMapping,
+  indent,
+  isStatement,
+  sanitizeIdentifier,
+} from './generator-utils';
 
 /**
  * Interface for expression generation, used for dependency injection.
@@ -109,7 +114,9 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
       case 'Literal':
         return this.generateLiteral(expr);
       case 'SwitchExpression':
-        return this.generateSwitchExpression(expr as unknown as SwitchExpression);
+        return this.generateSwitchExpression(
+          expr as unknown as SwitchExpression,
+        );
       default:
         throw new Error(`Unknown expression type: ${(expr as ASTNode).type}`);
     }
@@ -171,7 +178,9 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
   }
 
   private generateArrayExpression(expr: ArrayExpression): string {
-    const elements = expr.elements.map((e) => this.generateExpression(e)).join(', ');
+    const elements = expr.elements
+      .map((e) => this.generateExpression(e))
+      .join(', ');
     return `[${elements}]`;
   }
 
@@ -207,24 +216,26 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
     this.indentLevel++;
 
     if (expr.discriminant) {
-      result += `${this.indent()}switch (${this.generateExpression(expr.discriminant)}) {\n`;
+      result += `${indent(this.indentLevel)}switch (${this.generateExpression(expr.discriminant)}) {\n`;
       this.indentLevel++;
       for (const c of expr.cases) {
         if (c.test === null) {
-          result += `${this.indent()}default:\n`;
+          result += `${indent(this.indentLevel)}default:\n`;
         } else {
-          result += `${this.indent()}case ${this.generateExpression(c.test)}:\n`;
+          result += `${indent(this.indentLevel)}case ${this.generateExpression(c.test)}:\n`;
         }
         this.indentLevel++;
         if (c.consequent.type === 'BlockStatement') {
-          result += this.generateBlockExpressionWithImplicitReturn(c.consequent);
+          result += this.generateBlockExpressionWithImplicitReturn(
+            c.consequent,
+          );
         } else {
-          result += `${this.indent()}return ${this.generateExpression(c.consequent as Expression)};\n`;
+          result += `${indent(this.indentLevel)}return ${this.generateExpression(c.consequent as Expression)};\n`;
         }
         this.indentLevel--;
       }
       this.indentLevel--;
-      result += `${this.indent()}}\n`;
+      result += `${indent(this.indentLevel)}}\n`;
     } else {
       for (let i = 0; i < expr.cases.length; i++) {
         const c = expr.cases[i];
@@ -232,33 +243,37 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
         const prefix = i === 0 ? 'if' : 'else if';
 
         if (c.test === null && i > 0) {
-          result += `${this.indent()}else {\n`;
+          result += `${indent(this.indentLevel)}else {\n`;
         } else {
-          result += `${this.indent()}${prefix} (${test}) {\n`;
+          result += `${indent(this.indentLevel)}${prefix} (${test}) {\n`;
         }
 
         this.indentLevel++;
         if (c.consequent.type === 'BlockStatement') {
-          result += this.generateBlockExpressionWithImplicitReturn(c.consequent);
+          result += this.generateBlockExpressionWithImplicitReturn(
+            c.consequent,
+          );
         } else {
-          result += `${this.indent()}return ${this.generateExpression(c.consequent as Expression)};\n`;
+          result += `${indent(this.indentLevel)}return ${this.generateExpression(c.consequent as Expression)};\n`;
         }
         this.indentLevel--;
-        result += `${this.indent()}}\n`;
+        result += `${indent(this.indentLevel)}}\n`;
       }
     }
 
     this.indentLevel--;
-    result += `${this.indent()}})()`;
+    result += `${indent(this.indentLevel)}})()`;
     return result;
   }
 
   /**
    * Generate a block expression that returns the last expression's value.
    */
-  public generateBlockExpressionWithImplicitReturn(block: BlockStatement): string {
+  public generateBlockExpressionWithImplicitReturn(
+    block: BlockStatement,
+  ): string {
     if (block.body.length === 0) {
-      return `${this.indent()}return undefined;`;
+      return `${indent(this.indentLevel)}return undefined;`;
     }
 
     const statements = block.body;
@@ -275,7 +290,7 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
     }
 
     if (lastStmt.type === 'ExpressionStatement') {
-      result += `${this.indent()}return ${this.generateExpression(lastStmt.expression)};\n`;
+      result += `${indent(this.indentLevel)}return ${this.generateExpression(lastStmt.expression)};\n`;
     } else if (lastStmt.type === 'ReturnStatement') {
       if (this.statementGen) {
         result += `${this.statementGen.generateStatement(lastStmt)}\n`;
@@ -297,57 +312,55 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
    */
   private generateIfExpressionWithImplicitReturn(stmt: IfStatement): string {
     const test = this.generateExpression(stmt.test);
-    let result = `${this.indent()}if (${test}) {\n`;
+    let result = `${indent(this.indentLevel)}if (${test}) {\n`;
 
     if (stmt.consequent.type === 'BlockStatement') {
       result += this.generateBlockExpressionWithImplicitReturn(stmt.consequent);
     } else if (isStatement(stmt.consequent)) {
       this.indentLevel++;
       if (stmt.consequent.type === 'ExpressionStatement') {
-        result += `${this.indent()}return ${this.generateExpression(stmt.consequent.expression)};\n`;
+        result += `${indent(this.indentLevel)}return ${this.generateExpression(stmt.consequent.expression)};\n`;
       } else if (this.statementGen) {
         result += `${this.statementGen.generateStatement(stmt.consequent)}\n`;
       }
       this.indentLevel--;
     } else {
       this.indentLevel++;
-      result += `${this.indent()}return ${this.generateExpression(stmt.consequent)};\n`;
+      result += `${indent(this.indentLevel)}return ${this.generateExpression(stmt.consequent)};\n`;
       this.indentLevel--;
     }
 
-    result += `${this.indent()}}`;
+    result += `${indent(this.indentLevel)}}`;
 
     if (stmt.alternate) {
       if (stmt.alternate.type === 'IfStatement') {
         result += ` else ${this.generateIfExpressionWithImplicitReturn(stmt.alternate).trim()}`;
       } else if (stmt.alternate.type === 'BlockStatement') {
         result += ` else {\n`;
-        result += this.generateBlockExpressionWithImplicitReturn(stmt.alternate);
-        result += `${this.indent()}}`;
+        result += this.generateBlockExpressionWithImplicitReturn(
+          stmt.alternate,
+        );
+        result += `${indent(this.indentLevel)}}`;
       } else if (isStatement(stmt.alternate)) {
         result += ` else {\n`;
         this.indentLevel++;
         if (stmt.alternate.type === 'ExpressionStatement') {
-          result += `${this.indent()}return ${this.generateExpression(stmt.alternate.expression)};\n`;
+          result += `${indent(this.indentLevel)}return ${this.generateExpression(stmt.alternate.expression)};\n`;
         } else if (this.statementGen) {
           result += `${this.statementGen.generateStatement(stmt.alternate)}\n`;
         }
         this.indentLevel--;
-        result += `${this.indent()}}`;
+        result += `${indent(this.indentLevel)}}`;
       } else {
         result += ` else {\n`;
         this.indentLevel++;
-        result += `${this.indent()}return ${this.generateExpression(stmt.alternate)};\n`;
+        result += `${indent(this.indentLevel)}return ${this.generateExpression(stmt.alternate)};\n`;
         this.indentLevel--;
-        result += `${this.indent()}}`;
+        result += `${indent(this.indentLevel)}}`;
       }
     }
 
     return result;
-  }
-
-  private indent(offset = 0): string {
-    return '  '.repeat(Math.max(0, this.indentLevel + offset));
   }
 }
 

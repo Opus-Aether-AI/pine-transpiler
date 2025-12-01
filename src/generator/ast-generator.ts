@@ -22,7 +22,10 @@ export class ASTGenerator {
 
   constructor(historicalVars: Set<string> = new Set()) {
     this.expressionGen = new ExpressionGenerator();
-    this.statementGen = new StatementGenerator(historicalVars, this.expressionGen);
+    this.statementGen = new StatementGenerator(
+      historicalVars,
+      this.expressionGen,
+    );
     // Wire up the bidirectional reference
     this.expressionGen.setStatementGenerator(this.statementGen);
   }
@@ -31,6 +34,8 @@ export class ASTGenerator {
    * Generate JavaScript code from a Pine Script AST Program.
    */
   public generate(node: Program): string {
-    return node.body.map((stmt: Statement) => this.statementGen.generateStatement(stmt)).join('\n');
+    return node.body
+      .map((stmt: Statement) => this.statementGen.generateStatement(stmt))
+      .join('\n');
   }
 }

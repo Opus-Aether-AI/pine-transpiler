@@ -19,7 +19,12 @@ import type {
   Statement,
 } from '../parser/ast';
 import type { ParsedInput, ParsedPlot, ParseWarning } from '../types';
-import { getArg, getBooleanValue, getFnName, getStringValue } from './call-expression-helper';
+import {
+  getArg,
+  getBooleanValue,
+  getFnName,
+  getStringValue,
+} from './call-expression-helper';
 import { InputExtractor } from './input-extractor';
 import { PlotExtractor } from './plot-extractor';
 
@@ -188,7 +193,10 @@ export class MetadataVisitor {
         this.visitExpression(expr.alternate);
         break;
       case 'AssignmentExpression':
-        if (!Array.isArray(expr.left) && expr.left.type === 'MemberExpression') {
+        if (
+          !Array.isArray(expr.left) &&
+          expr.left.type === 'MemberExpression'
+        ) {
           this.visitMemberExpression(expr.left);
         }
         this.visitExpression(expr.right);
@@ -202,7 +210,16 @@ export class MetadataVisitor {
   private visitIdentifier(node: Identifier): void {
     const name = node.name;
     if (
-      ['open', 'close', 'high', 'low', 'volume', 'hl2', 'hlc3', 'ohlc4'].includes(name)
+      [
+        'open',
+        'close',
+        'high',
+        'low',
+        'volume',
+        'hl2',
+        'hlc3',
+        'ohlc4',
+      ].includes(name)
     ) {
       this.usedSources.add(name);
     }
@@ -216,7 +233,16 @@ export class MetadataVisitor {
         this.historicalAccess.add(name);
 
         if (
-          ['open', 'close', 'high', 'low', 'volume', 'hl2', 'hlc3', 'ohlc4'].includes(name)
+          [
+            'open',
+            'close',
+            'high',
+            'low',
+            'volume',
+            'hl2',
+            'hlc3',
+            'ohlc4',
+          ].includes(name)
         ) {
           this.usedSources.add(name);
         }
@@ -227,7 +253,8 @@ export class MetadataVisitor {
 
   private visitCallExpression(expr: CallExpression): void {
     const callee = expr.callee;
-    if (callee.type !== 'Identifier' && callee.type !== 'MemberExpression') return;
+    if (callee.type !== 'Identifier' && callee.type !== 'MemberExpression')
+      return;
 
     const name = getFnName(callee);
 

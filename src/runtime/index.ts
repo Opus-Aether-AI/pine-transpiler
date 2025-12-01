@@ -4,6 +4,16 @@
  * Re-exports all runtime mock factories, stub namespaces, and helper functions.
  */
 
+// Re-export runtime helper functions
+export {
+  avg,
+  MATH_HELPER_FUNCTIONS,
+  roundToMintick,
+  STD_PLUS_LIBRARY,
+  sum,
+  toDegrees,
+  toRadians,
+} from './helpers';
 export {
   createInputMock,
   createMathMock,
@@ -23,7 +33,6 @@ export {
   type SyminfoMock,
   type TimeframeMock,
 } from './mock-factories';
-
 export {
   type BarstateStub,
   type BoxStub,
@@ -35,14 +44,3 @@ export {
   type StubNamespaces,
   type TableStub,
 } from './stub-namespaces';
-
-// Re-export runtime helper functions
-export {
-  avg,
-  MATH_HELPER_FUNCTIONS,
-  roundToMintick,
-  STD_PLUS_LIBRARY,
-  sum,
-  toDegrees,
-  toRadians,
-} from './helpers';

@@ -7,7 +7,12 @@
 import type { CallExpression, Expression } from '../parser/ast';
 import type { ParsedPlot } from '../types';
 import { COLOR_MAP } from '../types';
-import { getArg, getFnName, getNumberValue, getStringValue } from './call-expression-helper';
+import {
+  getArg,
+  getFnName,
+  getNumberValue,
+  getStringValue,
+} from './call-expression-helper';
 
 /**
  * Extracts plot declarations from Pine Script.
@@ -37,7 +42,8 @@ export class PlotExtractor {
     const styleExpr = getArg(args, 4, 'style');
     if (styleExpr) {
       const name = getFnName(styleExpr);
-      if (name.includes('histogram') || name.includes('columns')) type = 'histogram';
+      if (name.includes('histogram') || name.includes('columns'))
+        type = 'histogram';
       else if (name.includes('circles')) type = 'circles';
       else if (name.includes('area')) type = 'area';
       else if (name.includes('cross')) type = 'cross';

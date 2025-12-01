@@ -6,7 +6,12 @@
 
 import type { CallExpression, Expression } from '../parser/ast';
 import type { ParsedInput } from '../types';
-import { getArg, getBooleanValue, getNumberValue, getStringValue } from './call-expression-helper';
+import {
+  getArg,
+  getBooleanValue,
+  getNumberValue,
+  getStringValue,
+} from './call-expression-helper';
 
 /**
  * Extracts input declarations from Pine Script.

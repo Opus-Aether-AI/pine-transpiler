@@ -4,9 +4,9 @@
  * Handles the 'transpile' CLI command for converting Pine Script to JavaScript.
  */
 
+import { transpile, transpileToPineJS } from '../../index.js';
 import type { CLIOptions } from '../types';
 import { deriveIndicatorId, readInput, writeOutput } from '../utils';
-import { transpile, transpileToPineJS } from '../../index.js';
 
 /**
  * Generate PineJS factory code for module export

@@ -4,9 +4,9 @@
  * Handles the 'validate' CLI command for checking Pine Script syntax.
  */
 
+import { canTranspilePineScript } from '../../index.js';
 import type { CLIOptions } from '../types';
 import { readInput } from '../utils';
-import { canTranspilePineScript } from '../../index.js';
 
 /**
  * Execute the validate command

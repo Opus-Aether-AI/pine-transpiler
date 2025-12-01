@@ -11,6 +11,7 @@ import type {
   Expression,
   FunctionDeclaration,
   Identifier,
+  MemberExpression,
   Program,
   Statement,
   SwitchCase,
@@ -21,7 +22,7 @@ import type {
 } from './ast';
 import { ExpressionParser } from './expression-parser';
 import { TokenType } from './lexer';
-import { ParseError, TYPE_KEYWORDS } from './parser-base';
+import { ParseError } from './parser-base';
 
 /**
  * Result of parsing with collected errors
@@ -536,7 +537,7 @@ export class Parser extends ExpressionParser {
         expression: {
           type: 'AssignmentExpression',
           operator: operator === ':=' ? ':=' : '=',
-          left: id as Identifier | Expression,
+          left: id as Identifier | MemberExpression,
           right: init,
         },
       };

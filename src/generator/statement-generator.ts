@@ -13,15 +13,19 @@ import type {
   Identifier,
   IfStatement,
   ImportStatement,
-  MemberExpression,
   Statement,
   SwitchStatement,
   TypeDefinition,
   VariableDeclaration,
   WhileStatement,
 } from '../parser/ast';
-import { isStatement, MAX_LOOP_ITERATIONS, sanitizeIdentifier } from './generator-utils';
 import type { ExpressionGeneratorInterface } from './expression-generator';
+import {
+  indent,
+  isStatement,
+  MAX_LOOP_ITERATIONS,
+  sanitizeIdentifier,
+} from './generator-utils';
 
 /**
  * Interface for statement generation, allowing dependency injection
@@ -65,7 +69,7 @@ export class StatementGenerator implements StatementGeneratorInterface {
       case 'FunctionDeclaration':
         return this.generateFunctionDeclaration(stmt);
       case 'ExpressionStatement':
-        return `${this.indent()}${this.expressionGen.generateExpression(stmt.expression)};`;
+        return `${indent(this.indentLevel)}${this.expressionGen.generateExpression(stmt.expression)};`;
       case 'BlockStatement':
         return this.generateBlockStatement(stmt);
       case 'IfStatement':
@@ -77,11 +81,11 @@ export class StatementGenerator implements StatementGeneratorInterface {
       case 'WhileStatement':
         return this.generateWhileStatement(stmt);
       case 'ReturnStatement':
-        return `${this.indent()}return ${stmt.argument ? this.expressionGen.generateExpression(stmt.argument) : ''};`;
+        return `${indent(this.indentLevel)}return ${stmt.argument ? this.expressionGen.generateExpression(stmt.argument) : ''};`;
       case 'BreakStatement':
-        return `${this.indent()}break;`;
+        return `${indent(this.indentLevel)}break;`;
       case 'ContinueStatement':
-        return `${this.indent()}continue;`;
+        return `${indent(this.indentLevel)}continue;`;
       case 'SwitchStatement':
         return this.generateSwitchStatement(stmt);
       case 'TypeDefinition':
@@ -97,7 +101,7 @@ export class StatementGenerator implements StatementGeneratorInterface {
     this.indentLevel++;
     const body = stmt.body.map((s) => this.generateStatement(s)).join('\n');
     this.indentLevel--;
-    return `{\n${body}\n${this.indent()}}`;
+    return `{\n${body}\n${indent(this.indentLevel)}}`;
   }
 
   public generateStatementOrBlock(stmt: Statement | Expression): string {
@@ -110,16 +114,16 @@ export class StatementGenerator implements StatementGeneratorInterface {
     if (isStatement(stmt)) {
       s = this.generateStatement(stmt);
     } else {
-      s = `${this.indent()}${this.expressionGen.generateExpression(stmt)};`;
+      s = `${indent(this.indentLevel)}${this.expressionGen.generateExpression(stmt)};`;
     }
     this.indentLevel--;
-    return `{\n${s}\n${this.indent()}}`;
+    return `{\n${s}\n${indent(this.indentLevel)}}`;
   }
 
   private generateIfStatement(stmt: IfStatement): string {
     const test = this.expressionGen.generateExpression(stmt.test);
     const consequent = this.generateStatementOrBlock(stmt.consequent);
-    let result = `${this.indent()}if (${test}) ${consequent}`;
+    let result = `${indent(this.indentLevel)}if (${test}) ${consequent}`;
 
     if (stmt.alternate) {
       const alternate = this.generateStatementOrBlock(stmt.alternate);
@@ -145,10 +149,10 @@ export class StatementGenerator implements StatementGeneratorInterface {
     }
 
     this.indentLevel++;
-    const guard = `${this.indent()}if (++${loopVar} > ${MAX_LOOP_ITERATIONS}) throw new Error("Loop limit exceeded (max ${MAX_LOOP_ITERATIONS} iterations)");`;
+    const guard = `${indent(this.indentLevel)}if (++${loopVar} > ${MAX_LOOP_ITERATIONS}) throw new Error("Loop limit exceeded (max ${MAX_LOOP_ITERATIONS} iterations)");`;
     this.indentLevel--;
 
-    return `${this.indent()}let ${loopVar} = 0;\n${this.indent()}while (${test}) {\n${guard}\n${bodyContent}\n${this.indent()}}`;
+    return `${indent(this.indentLevel)}let ${loopVar} = 0;\n${indent(this.indentLevel)}while (${test}) {\n${guard}\n${bodyContent}\n${indent(this.indentLevel)}}`;
   }
 
   private generateSwitchStatement(stmt: SwitchStatement): string {
@@ -159,7 +163,7 @@ export class StatementGenerator implements StatementGeneratorInterface {
 
         if (i === 0) {
           if (c.test) {
-            result += `${this.indent()}if (${this.expressionGen.generateExpression(c.test)}) ${this.generateStatementOrBlock(c.consequent)}`;
+            result += `${indent(this.indentLevel)}if (${this.expressionGen.generateExpression(c.test)}) ${this.generateStatementOrBlock(c.consequent)}`;
           } else {
             result += this.generateStatementOrBlock(c.consequent);
           }
@@ -175,29 +179,29 @@ export class StatementGenerator implements StatementGeneratorInterface {
     }
 
     const disc = this.expressionGen.generateExpression(stmt.discriminant);
-    let result = `${this.indent()}switch (${disc}) {\n`;
+    let result = `${indent(this.indentLevel)}switch (${disc}) {\n`;
     this.indentLevel++;
 
     for (const c of stmt.cases) {
       if (c.test === null) {
-        result += `${this.indent()}default:\n`;
+        result += `${indent(this.indentLevel)}default:\n`;
       } else {
-        result += `${this.indent()}case ${this.expressionGen.generateExpression(c.test)}:\n`;
+        result += `${indent(this.indentLevel)}case ${this.expressionGen.generateExpression(c.test)}:\n`;
       }
 
       this.indentLevel++;
       if (c.consequent.type === 'BlockStatement') {
         const block = this.generateBlockStatement(c.consequent);
-        result += `${this.indent()}${block}\n`;
+        result += `${indent(this.indentLevel)}${block}\n`;
       } else {
-        result += `${this.indent()}${this.expressionGen.generateExpression(c.consequent as Expression)};\n`;
+        result += `${indent(this.indentLevel)}${this.expressionGen.generateExpression(c.consequent as Expression)};\n`;
       }
-      result += `${this.indent()}break;\n`;
+      result += `${indent(this.indentLevel)}break;\n`;
       this.indentLevel--;
     }
 
     this.indentLevel--;
-    result += `${this.indent()}}`;
+    result += `${indent(this.indentLevel)}}`;
     return result;
   }
 
@@ -213,7 +217,7 @@ export class StatementGenerator implements StatementGeneratorInterface {
     constructorBody = fields
       .map((f) => {
         const fname = (f.id as Identifier).name;
-        return `${this.indent()}this.${fname} = ${fname};`;
+        return `${indent(this.indentLevel)}this.${fname} = ${fname};`;
       })
       .join('\n');
 
@@ -230,7 +234,7 @@ export class StatementGenerator implements StatementGeneratorInterface {
       })
       .join(', ');
 
-    return `${this.indent()}${prefix}class ${name} {\n${this.indent(1)}constructor(${paramsWithDefaults}) {\n${this.indent(2)}${constructorBody.trim()}\n${this.indent(1)}}\n${this.indent()}}`;
+    return `${indent(this.indentLevel)}${prefix}class ${name} {\n${indent(this.indentLevel, 1)}constructor(${paramsWithDefaults}) {\n${indent(this.indentLevel, 2)}${constructorBody.trim()}\n${indent(this.indentLevel, 1)}}\n${indent(this.indentLevel)}}`;
   }
 
   private generateForStatement(stmt: ForStatement): string {
@@ -238,11 +242,15 @@ export class StatementGenerator implements StatementGeneratorInterface {
     if (stmt.init.type === 'VariableDeclaration') {
       const decl = stmt.init as VariableDeclaration;
       const kind = 'let';
-      const init = decl.init ? ` = ${this.expressionGen.generateExpression(decl.init)}` : '';
+      const init = decl.init
+        ? ` = ${this.expressionGen.generateExpression(decl.init)}`
+        : '';
       const name = Array.isArray(decl.id) ? decl.id[0].name : decl.id.name;
       initStr = `${kind} ${name}${init}`;
     } else {
-      initStr = this.expressionGen.generateAssignmentExpression(stmt.init as AssignmentExpression);
+      initStr = this.expressionGen.generateAssignmentExpression(
+        stmt.init as AssignmentExpression,
+      );
     }
 
     const testStr = this.expressionGen.generateExpression(stmt.test);
@@ -290,10 +298,10 @@ export class StatementGenerator implements StatementGeneratorInterface {
     }
 
     this.indentLevel++;
-    const guard = `${this.indent()}if (++${loopVar} > ${MAX_LOOP_ITERATIONS}) throw new Error("Loop limit exceeded (max ${MAX_LOOP_ITERATIONS} iterations)");`;
+    const guard = `${indent(this.indentLevel)}if (++${loopVar} > ${MAX_LOOP_ITERATIONS}) throw new Error("Loop limit exceeded (max ${MAX_LOOP_ITERATIONS} iterations)");`;
     this.indentLevel--;
 
-    return `${this.indent()}let ${loopVar} = 0;\n${this.indent()}for (${initStr}; ${testStr}; ${updateStr}) {\n${guard}\n${bodyContent}\n${this.indent()}}`;
+    return `${indent(this.indentLevel)}let ${loopVar} = 0;\n${indent(this.indentLevel)}for (${initStr}; ${testStr}; ${updateStr}) {\n${guard}\n${bodyContent}\n${indent(this.indentLevel)}}`;
   }
 
   private generateForInStatement(stmt: ForInStatement): string {
@@ -302,36 +310,38 @@ export class StatementGenerator implements StatementGeneratorInterface {
 
     if (Array.isArray(stmt.left)) {
       const ids = stmt.left.map((id) => sanitizeIdentifier(id.name)).join(', ');
-      return `${this.indent()}for (const [${ids}] of ${right}.entries()) ${body}`;
+      return `${indent(this.indentLevel)}for (const [${ids}] of ${right}.entries()) ${body}`;
     }
     const name = sanitizeIdentifier(stmt.left.name);
-    return `${this.indent()}for (const ${name} of ${right}) ${body}`;
+    return `${indent(this.indentLevel)}for (const ${name} of ${right}) ${body}`;
   }
 
   private generateVariableDeclaration(stmt: VariableDeclaration): string {
     const kind = stmt.kind === 'const' ? 'const' : 'let';
-    const init = stmt.init ? ` = ${this.expressionGen.generateExpression(stmt.init)}` : '';
+    const init = stmt.init
+      ? ` = ${this.expressionGen.generateExpression(stmt.init)}`
+      : '';
     const prefix = stmt.export ? 'export ' : '';
 
     let code = '';
 
     if (Array.isArray(stmt.id)) {
       const ids = stmt.id.map((id) => sanitizeIdentifier(id.name)).join(', ');
-      code = `${this.indent()}${prefix}${kind} [${ids}]${init};`;
+      code = `${indent(this.indentLevel)}${prefix}${kind} [${ids}]${init};`;
 
       for (const id of stmt.id) {
         const safeName = sanitizeIdentifier(id.name);
         if (this.historicalVars.has(id.name)) {
-          code += `\n${this.indent()}const _series_${safeName} = context.new_var(${safeName});`;
-          code += `\n${this.indent()}_getHistorical_${safeName} = (offset) => _series_${safeName}.get(offset);`;
+          code += `\n${indent(this.indentLevel)}const _series_${safeName} = context.new_var(${safeName});`;
+          code += `\n${indent(this.indentLevel)}_getHistorical_${safeName} = (offset) => _series_${safeName}.get(offset);`;
         }
       }
     } else {
       const safeName = sanitizeIdentifier(stmt.id.name);
-      code = `${this.indent()}${prefix}${kind} ${safeName}${init};`;
+      code = `${indent(this.indentLevel)}${prefix}${kind} ${safeName}${init};`;
       if (this.historicalVars.has(stmt.id.name)) {
-        code += `\n${this.indent()}const _series_${safeName} = context.new_var(${safeName});`;
-        code += `\n${this.indent()}_getHistorical_${safeName} = (offset) => _series_${safeName}.get(offset);`;
+        code += `\n${indent(this.indentLevel)}const _series_${safeName} = context.new_var(${safeName});`;
+        code += `\n${indent(this.indentLevel)}_getHistorical_${safeName} = (offset) => _series_${safeName}.get(offset);`;
       }
     }
 
@@ -343,7 +353,9 @@ export class StatementGenerator implements StatementGeneratorInterface {
       throw new Error('Expected FunctionDeclaration');
     }
     const name = sanitizeIdentifier(stmt.id.name);
-    const params = stmt.params.map((p) => sanitizeIdentifier(p.name)).join(', ');
+    const params = stmt.params
+      .map((p) => sanitizeIdentifier(p.name))
+      .join(', ');
     const prefix = stmt.export ? 'export ' : '';
 
     let body = '';
@@ -351,20 +363,16 @@ export class StatementGenerator implements StatementGeneratorInterface {
       body = this.generateBlockStatement(stmt.body);
     } else {
       this.indentLevel++;
-      body = `{\n${this.indent()}return ${this.expressionGen.generateExpression(stmt.body as Expression)};\n${this.indent(-1)}}`;
+      body = `{\n${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(stmt.body as Expression)};\n${indent(this.indentLevel, -1)}}`;
     }
 
-    return `${this.indent()}${prefix}function ${name}(${params}) ${body}`;
+    return `${indent(this.indentLevel)}${prefix}function ${name}(${params}) ${body}`;
   }
 
   private generateImportStatement(stmt: ImportStatement): string {
     if (stmt.as) {
-      return `${this.indent()}import * as ${stmt.as} from ${JSON.stringify(stmt.source)};`;
+      return `${indent(this.indentLevel)}import * as ${stmt.as} from ${JSON.stringify(stmt.source)};`;
     }
-    return `${this.indent()}import ${JSON.stringify(stmt.source)};`;
-  }
-
-  private indent(offset = 0): string {
-    return '  '.repeat(Math.max(0, this.indentLevel + offset));
+    return `${indent(this.indentLevel)}import ${JSON.stringify(stmt.source)};`;
   }
 }

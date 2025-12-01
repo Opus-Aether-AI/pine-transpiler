@@ -42,4 +42,3 @@ function main(): void {
 }
 
 main();
-
