@@ -41,7 +41,9 @@ export function parse(code: string): Program {
 /**
  * Parse Pine Script code and return result with errors
  */
-export function parseWithErrors(code: string): ReturnType<Parser['parseWithErrors']> {
+export function parseWithErrors(
+  code: string,
+): ReturnType<Parser['parseWithErrors']> {
   const lexer = new Lexer(code);
   const tokens = lexer.tokenize();
   const parser = new Parser(tokens);

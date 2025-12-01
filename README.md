@@ -294,14 +294,15 @@ While the transpiler covers a significant portion of Pine Script, there are inhe
 
 ### Test Coverage
 
-| Component | Coverage | Notes |
-|-----------|----------|-------|
-| Lexer | ✅ Comprehensive | 35+ test cases |
-| Parser | ✅ Comprehensive | 50+ test cases |
-| TA Functions | ✅ Good | 60+ test cases |
-| MetadataVisitor | ⚠️ Indirect | Via transpiler tests |
-| Time/Utility Mappings | ⚠️ Limited | Basic coverage |
-| LLM Prompt | ❌ Missing | Not tested |
+| Component | Coverage | Tests | Notes |
+|-----------|----------|-------|-------|
+| Lexer | ✅ Comprehensive | 85+ | Tokens, operators, indentation |
+| Parser | ✅ Comprehensive | 150+ | Expressions, statements |
+| Generator | ✅ Comprehensive | 200+ | AST generation, metadata visitor |
+| Mappings | ✅ Comprehensive | 250+ | TA, math, time, utilities |
+| CLI | ✅ Good | 15+ | Command-line interface |
+| StdPlus | ✅ Good | 50+ | Polyfill functions |
+| Integration | ✅ Good | 50+ | End-to-end transpilation |
 
 ## Development
 
