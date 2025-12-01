@@ -25,12 +25,14 @@ export type NodeType =
   | 'ConditionalExpression' // ternary ?:
   | 'AssignmentExpression'
   | 'SwitchStatement'
+  | 'SwitchExpression'
   | 'SwitchCase'
   | 'TypeDefinition'
   | 'Identifier'
   | 'Literal'
   | 'TypeAnnotation'
-  | 'ArrayExpression';
+  | 'ArrayExpression'
+  | 'ImportStatement';
 
 export interface ASTNode {
   type: NodeType;
@@ -65,7 +67,8 @@ export type Statement =
   | BreakStatement
   | ContinueStatement
   | SwitchStatement
-  | TypeDefinition;
+  | TypeDefinition
+  | ImportStatement;
 
 export interface VariableDeclaration extends ASTNode {
   type: 'VariableDeclaration';
@@ -73,6 +76,7 @@ export interface VariableDeclaration extends ASTNode {
   init: Expression | null;
   kind: 'var' | 'const' | 'let'; // 'var' is persistent, others are standard
   typeAnnotation?: TypeAnnotation;
+  export?: boolean;
 }
 
 export interface FunctionDeclaration extends ASTNode {
@@ -80,6 +84,8 @@ export interface FunctionDeclaration extends ASTNode {
   id: Identifier;
   params: Identifier[];
   body: BlockStatement | Expression; // Multi-line or single-line
+  export?: boolean;
+  isMethod?: boolean;
 }
 
 export interface ExpressionStatement extends ASTNode {
@@ -149,6 +155,13 @@ export interface TypeDefinition extends ASTNode {
   type: 'TypeDefinition';
   name: string;
   fields: VariableDeclaration[];
+  export?: boolean;
+}
+
+export interface ImportStatement extends ASTNode {
+  type: 'ImportStatement';
+  source: string; // "username/repo/version"
+  as?: string; // alias
 }
 
 // ============================================================================
@@ -163,8 +176,15 @@ export type Expression =
   | ConditionalExpression
   | AssignmentExpression
   | ArrayExpression
+  | SwitchExpression
   | Identifier
   | Literal;
+
+export interface SwitchExpression extends ASTNode {
+  type: 'SwitchExpression';
+  discriminant?: Expression;
+  cases: SwitchCase[];
+}
 
 export interface BinaryExpression extends ASTNode {
   type: 'BinaryExpression';
@@ -184,6 +204,7 @@ export interface CallExpression extends ASTNode {
   type: 'CallExpression';
   callee: Expression | Identifier | MemberExpression;
   arguments: Expression[];
+  typeArguments?: TypeAnnotation[];
 }
 
 export interface MemberExpression extends ASTNode {
@@ -219,6 +240,7 @@ export interface ArrayExpression extends ASTNode {
 export interface Identifier extends ASTNode {
   type: 'Identifier';
   name: string;
+  typeAnnotation?: TypeAnnotation;
 }
 
 export interface Literal extends ASTNode {
@@ -230,6 +252,7 @@ export interface Literal extends ASTNode {
 
 export interface TypeAnnotation extends ASTNode {
   type: 'TypeAnnotation';
-  name: string; // int, float, bool, etc.
-  isArray?: boolean; // series/array
+  name: string; // int, float, bool, array, etc.
+  arguments?: TypeAnnotation[]; // For generic types like array<int>
+  isArray?: boolean; // Deprecated/Legacy
 }

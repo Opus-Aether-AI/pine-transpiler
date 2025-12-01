@@ -73,6 +73,27 @@ export {
 // ============================================================================
 
 /**
+ * Transpile Pine Script to JavaScript string (internal helper)
+ */
+export function transpile(code: string): string {
+  // 1. Tokenize
+  const lexer = new Lexer(code);
+  const tokens = lexer.tokenize();
+
+  // 2. Parse
+  const parser = new Parser(tokens);
+  const ast = parser.parse();
+
+  // 3. Extract Metadata
+  const visitor = new MetadataVisitor();
+  visitor.visit(ast);
+
+  // 4. Generate Code
+  const generator = new ASTGenerator(visitor.historicalAccess);
+  return generator.generate(ast);
+}
+
+/**
  * Transpile Pine Script v5/v6 code to a TradingView CustomIndicator
  *
  * @param code - Pine Script source code
