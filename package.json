@@ -23,7 +23,11 @@
       "require": "./dist/llm-prompt.cjs"
     }
   },
-  "files": ["dist", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "prepare": "npm run build",
     "build": "tsup",
@@ -31,7 +35,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "test": "vitest run"
   },
   "keywords": [
     "pine-script",
@@ -50,8 +55,9 @@
     "url": "https://github.com/Opus-Aether-AI/pine-transpiler"
   },
   "devDependencies": {
-    "@biomejs/biome": "1.9.4",
+    "@biomejs/biome": "2.3.8",
     "tsup": "^8.3.5",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.14"
   }
 }

@@ -65,6 +65,7 @@ const KEYWORDS = new Set([
   'import',
   'type',
   'method',
+  'in',
 ]);
 
 const OPERATORS = [
