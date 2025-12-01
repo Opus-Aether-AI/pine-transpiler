@@ -4,7 +4,7 @@
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL%203.0-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![npm version](https://img.shields.io/npm/v/@opusaether/pine-transpiler.svg)](https://www.npmjs.com/package/@opusaether/pine-transpiler)
-[![Build Status](https://github.com/opusaether/pine-transpiler/actions/workflows/pine-transpiler.yml/badge.svg)](https://github.com/opusaether/pine-transpiler/actions)
+[![Build Status](https://github.com/Opus-Aether-AI/pine-transpiler/actions/workflows/pine-transpiler.yml/badge.svg)](https://github.com/Opus-Aether-AI/pine-transpiler/actions)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)](https://www.typescriptlang.org/)
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-green)](package.json)
 

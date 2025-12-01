@@ -50,10 +50,10 @@
     ],
     "repository": {
         "type": "git",
-        "url": "https://github.com/opusaether/pine-transpiler"
+        "url": "https://github.com/Opus-Aether-AI/pine-transpiler"
     },
     "devDependencies": {
-        "@opusaether/config": "workspace:*",
+        "@biomejs/biome": "1.9.4",
         "tsup": "^8.3.5",
         "typescript": "^5.9.2"
     }

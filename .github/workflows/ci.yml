@@ -1,0 +1,64 @@
+name: Pine Transpiler CI
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'packages/pine-transpiler/**'
+  pull_request:
+    branches: [ main, master ]
+    paths:
+      - 'packages/pine-transpiler/**'
+
+jobs:
+  check:
+    name: Quality Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 10
+          
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          
+      - name: Install Dependencies
+        run: pnpm install
+        
+      - name: Build
+        run: pnpm --filter pine-transpiler build
+        
+      - name: Type Check
+        run: pnpm --filter pine-transpiler typecheck
+        
+      - name: Lint
+        run: pnpm --filter pine-transpiler lint
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: check
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 10
+          
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          
+      - name: Install Dependencies
+        run: pnpm install
+        
+      # Uncomment when tests are added
+      # - name: Run Tests
+      #   run: pnpm --filter pine-transpiler test
