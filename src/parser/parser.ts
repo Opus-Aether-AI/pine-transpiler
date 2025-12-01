@@ -21,29 +21,8 @@ import type {
   VariableDeclaration,
   WhileStatement,
 } from './ast';
-import { type Token, TokenType } from './lexer';
-
-/**
- * Structured parse error with location information
- */
-export class ParseError extends Error {
-  public readonly line: number;
-  public readonly column: number;
-  public readonly tokenValue: string;
-
-  constructor(
-    message: string,
-    line: number,
-    column: number,
-    tokenValue: string,
-  ) {
-    super(`[line ${line}:${column}] Error at '${tokenValue}': ${message}`);
-    this.name = 'ParseError';
-    this.line = line;
-    this.column = column;
-    this.tokenValue = tokenValue;
-  }
-}
+import { TokenType } from './lexer';
+import { MAX_RECURSION_DEPTH, ParseError, ParserBase } from './parser-base';
 
 /**
  * Result of parsing with collected errors
@@ -54,27 +33,7 @@ export interface ParseResult {
   hasErrors: boolean;
 }
 
-/** Maximum recursion depth to prevent stack overflow from deeply nested expressions */
-const MAX_RECURSION_DEPTH = 500;
-
-/** Maximum number of tokens to prevent DoS from huge inputs */
-const MAX_TOKEN_COUNT = 100000;
-
-export class Parser {
-  private tokens: Token[];
-  private current = 0;
-  private errors: ParseError[] = [];
-  private recursionDepth = 0;
-
-  constructor(tokens: Token[]) {
-    if (tokens.length > MAX_TOKEN_COUNT) {
-      throw new Error(
-        `Input too large: ${tokens.length} tokens exceeds maximum of ${MAX_TOKEN_COUNT}`,
-      );
-    }
-    this.tokens = tokens;
-  }
-
+export class Parser extends ParserBase {
   /**
    * Parse tokens into an AST Program node
    * Legacy method for backward compatibility
@@ -697,25 +656,6 @@ export class Parser {
     return node;
   }
 
-  private checkTypeAnnotation(): boolean {
-    if (!this.check(TokenType.IDENTIFIER)) return false;
-    const val = this.peek().value;
-    return [
-      'int',
-      'float',
-      'bool',
-      'string',
-      'color',
-      'line',
-      'label',
-      'box',
-      'table',
-      'array',
-      'map',
-      'matrix',
-    ].includes(val);
-  }
-
   private parseTypeAnnotation(): TypeAnnotation {
     const name = this.consume(
       TokenType.IDENTIFIER,
@@ -933,24 +873,6 @@ export class Parser {
     return expr;
   }
 
-  // Helper to check if a token is a start of type annotation
-  private checkTypeAnnotationWithToken(token: Token): boolean {
-    return [
-      'int',
-      'float',
-      'bool',
-      'string',
-      'color',
-      'line',
-      'label',
-      'box',
-      'table',
-      'array',
-      'map',
-      'matrix',
-    ].includes(token.value);
-  }
-
   private finishCall(
     callee: Expression,
     typeArguments?: TypeAnnotation[],
@@ -1094,103 +1016,6 @@ export class Parser {
   // ==========================================================================
   // Helpers
   // ==========================================================================
-
-  private match(...types: TokenType[]): boolean {
-    for (const type of types) {
-      if (this.check(type)) {
-        this.advance();
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private matchOperator(...ops: string[]): boolean {
-    if (this.check(TokenType.OPERATOR) || this.check(TokenType.KEYWORD)) {
-      if (ops.includes(this.peek().value)) {
-        this.advance();
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private check(type: TokenType): boolean {
-    if (this.isAtEnd()) return false;
-    return this.peek().type === type;
-  }
-
-  private advance(): Token {
-    if (!this.isAtEnd()) this.current++;
-    return this.previous();
-  }
-
-  private isAtEnd(): boolean {
-    return this.peek().type === TokenType.EOF;
-  }
-
-  private peek(): Token {
-    return this.tokens[this.current];
-  }
-
-  private peekNext(): Token | undefined {
-    return this.tokens[this.current + 1];
-  }
-
-  private previous(): Token {
-    return this.tokens[this.current - 1];
-  }
-
-  private consume(type: TokenType, message: string): Token {
-    if (this.check(type)) return this.advance();
-    throw this.error(this.peek(), message);
-  }
-
-  private error(token: Token, message: string): ParseError {
-    return new ParseError(message, token.line, token.column, token.value);
-  }
-
-  /**
-   * Add location information to an AST node
-   */
-  private withLocation<T extends object>(
-    node: T,
-    startToken: Token,
-    endToken?: Token,
-  ): T & {
-    start: number;
-    end: number;
-    loc: {
-      start: { line: number; column: number };
-      end: { line: number; column: number };
-    };
-  } {
-    const end = endToken || this.previous();
-    return {
-      ...node,
-      start: startToken.start,
-      end: end.end,
-      loc: {
-        start: { line: startToken.line, column: startToken.column },
-        end: { line: end.line, column: end.column },
-      },
-    };
-  }
-
-  private synchronize(): void {
-    this.advance();
-    while (!this.isAtEnd()) {
-      if (this.previous().type === TokenType.NEWLINE) return;
-      switch (this.peek().type) {
-        case TokenType.KEYWORD:
-        case TokenType.RBRACE:
-        case TokenType.RPAREN:
-        case TokenType.RBRACKET:
-          return;
-      }
-      this.advance();
-    }
-  }
 
   private isFunctionDeclaration(): boolean {
     let temp = this.current + 1;

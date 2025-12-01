@@ -6,4 +6,11 @@
 
 export * from './ast';
 export { Lexer } from './lexer';
-export { ParseError, type ParseResult, Parser } from './parser';
+export { type ParseResult, Parser } from './parser';
+export {
+  MAX_RECURSION_DEPTH,
+  MAX_TOKEN_COUNT,
+  ParseError,
+  ParserBase,
+  TYPE_KEYWORDS,
+} from './parser-base';
