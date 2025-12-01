@@ -8,6 +8,7 @@ export default defineConfig({
       entry: {
         index: resolve(__dirname, 'src/index.ts'),
         'llm-prompt': resolve(__dirname, 'src/llm-prompt.ts'),
+        'cli/index': resolve(__dirname, 'src/cli/index.ts'),
       },
       formats: ['es', 'cjs'],
       fileName: (format, entryName) => {
@@ -18,6 +19,9 @@ export default defineConfig({
     sourcemap: true,
     minify: false,
     target: 'esnext',
+    rollupOptions: {
+      external: ['node:fs', 'node:path', 'node:util'],
+    },
   },
   plugins: [dts({ rollupTypes: true })],
 });

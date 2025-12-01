@@ -11,6 +11,9 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "pine-transpiler": "./dist/cli/index.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -21,6 +24,10 @@
       "types": "./dist/llm-prompt.d.ts",
       "import": "./dist/llm-prompt.js",
       "require": "./dist/llm-prompt.cjs"
+    },
+    "./cli": {
+      "types": "./dist/cli/index.d.ts",
+      "import": "./dist/cli/index.js"
     }
   },
   "files": [
@@ -32,6 +39,7 @@
     "prepare": "pnpm build",
     "build": "vite build",
     "dev": "vite build --watch",
+    "start": "node ./dist/cli/index.js",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
