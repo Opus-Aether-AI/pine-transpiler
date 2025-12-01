@@ -1,6 +1,6 @@
 {
   "name": "@opusaether/pine-transpiler",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Transpile Pine Script v5/v6 to executable JavaScript. Zero dependencies.",
   "author": "Opus Aether AI",
   "license": "AGPL-3.0",
