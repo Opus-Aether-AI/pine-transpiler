@@ -5,12 +5,15 @@
  */
 
 import type {
+  ArrayExpression,
   AssignmentExpression,
+  ASTNode,
   BinaryExpression,
   BlockStatement,
   CallExpression,
   ConditionalExpression,
   Expression,
+  ForInStatement,
   ForStatement,
   FunctionDeclaration,
   Identifier,
@@ -60,6 +63,8 @@ export class ASTGenerator {
         return this.generateIfStatement(stmt);
       case 'ForStatement':
         return this.generateForStatement(stmt);
+      case 'ForInStatement':
+        return this.generateForInStatement(stmt);
       case 'WhileStatement':
         return this.generateWhileStatement(stmt);
       case 'ReturnStatement':
@@ -73,7 +78,8 @@ export class ASTGenerator {
       case 'TypeDefinition':
         return this.generateTypeDefinition(stmt);
       default:
-        throw new Error(`Unknown statement type: ${(stmt as any).type}`);
+        // Cast to ASTNode to access type property in case of exhaustive switch fallback
+        throw new Error(`Unknown statement type: ${(stmt as ASTNode).type}`);
     }
   }
 
@@ -251,6 +257,23 @@ export class ASTGenerator {
     return `${this.indent()}for (${initStr}; ${testStr}; ${updateStr}) ${body}`;
   }
 
+  private generateForInStatement(stmt: ForInStatement): string {
+      const right = this.generateExpression(stmt.right);
+      const body = this.generateStatementOrBlock(stmt.body);
+
+      if (Array.isArray(stmt.left)) {
+          // Tuple destructuring: for [i, x] in arr
+          // In JS: for (const [i, x] of arr.entries())
+          const ids = stmt.left.map(id => id.name).join(', ');
+          return `${this.indent()}for (const [${ids}] of ${right}.entries()) ${body}`;
+      } else {
+          // Single identifier: for x in arr
+          // In JS: for (const x of arr)
+          const name = stmt.left.name;
+          return `${this.indent()}for (const ${name} of ${right}) ${body}`;
+      }
+  }
+
   private generateVariableDeclaration(stmt: VariableDeclaration): string {
     const kind = stmt.kind === 'const' ? 'const' : 'let';
     const init = stmt.init ? ` = ${this.generateExpression(stmt.init)}` : '';
@@ -313,13 +336,15 @@ export class ASTGenerator {
         return this.generateConditionalExpression(expr);
       case 'AssignmentExpression':
         return this.generateAssignmentExpression(expr);
+      case 'ArrayExpression':
+        return this.generateArrayExpression(expr as ArrayExpression);
       case 'Identifier':
         return expr.name;
       case 'Literal':
         return this.generateLiteral(expr);
       default:
         // @ts-ignore - Exhaustive check might fail if new types added
-        throw new Error(`Unknown expression type: ${expr.type}`);
+        throw new Error(`Unknown expression type: ${(expr as ASTNode).type}`);
     }
   }
 
@@ -401,6 +426,11 @@ export class ASTGenerator {
     return `(${this.generateExpression(expr.test)} ? ${this.generateExpression(expr.consequent)} : ${this.generateExpression(expr.alternate)})`;
   }
   
+  private generateArrayExpression(expr: ArrayExpression): string {
+    const elements = expr.elements.map(e => this.generateExpression(e)).join(', ');
+    return `[${elements}]`;
+  }
+
   private generateAssignmentExpression(expr: AssignmentExpression): string {
       if (Array.isArray(expr.left)) {
           // Tuple reassignment: [a, b] = functionCall()
@@ -423,7 +453,7 @@ export class ASTGenerator {
 
   private generateLiteral(expr: Literal): string {
     if (expr.kind === 'string' || expr.kind === 'color') {
-      return `"${expr.value}"`;
+      return JSON.stringify(expr.value);
     }
     if (expr.kind === 'na') {
         return 'NaN'; // or null, or undefined. Pine uses NaN for math usually.

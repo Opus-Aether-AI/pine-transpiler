@@ -235,18 +235,39 @@ export function getTimeFunctionNames(): string[] {
  */
 export const SESSION_HELPER_FUNCTIONS = `
 // Session helper functions
+// These now attempt to use symbol info from context if available, falling back to US equity defaults
 const _isMarketSession = (context) => {
-  const hour = Std.hour(context);
-  // Simplified: 9:30 AM - 4:00 PM
-  return hour >= 9 && hour < 16;
+    // Check if context has custom session logic or symbol info
+    if (context.symbol && context.symbol.session_regular) {
+        return _isInSession(context, context.symbol.session_regular);
+    }
+    // Default: 09:30 - 16:00 (US Equities)
+    const hour = Std.hour(context);
+    const minute = Std.minute(context);
+    const t = hour * 60 + minute;
+    return t >= 570 && t < 960; // 9*60+30 = 570, 16*60 = 960
 };
+
 const _isPremarket = (context) => {
-  const hour = Std.hour(context);
-  return hour >= 4 && hour < 9;
+    if (context.symbol && context.symbol.session_premarket) {
+        return _isInSession(context, context.symbol.session_premarket);
+    }
+    // Default: 04:00 - 09:30
+    const hour = Std.hour(context);
+    const minute = Std.minute(context);
+    const t = hour * 60 + minute;
+    return t >= 240 && t < 570;
 };
+
 const _isPostmarket = (context) => {
-  const hour = Std.hour(context);
-  return hour >= 16 && hour < 20;
+    if (context.symbol && context.symbol.session_postmarket) {
+        return _isInSession(context, context.symbol.session_postmarket);
+    }
+    // Default: 16:00 - 20:00
+    const hour = Std.hour(context);
+    const minute = Std.minute(context);
+    const t = hour * 60 + minute;
+    return t >= 960 && t < 1200;
 };
 
 /**
@@ -275,10 +296,12 @@ const _isInSession = (context, sessionStr, timezone) => {
   
   if (isNaN(startHour) || isNaN(endHour)) return NaN;
   
-  // Get current bar's hour and minute (simplified - ignores timezone for now)
-  const hour = Std.hour(context);
-  const minute = Std.minute(context);
-  const dayOfWeek = Std.dayofweek(context); // 1=Sunday, 7=Saturday
+  // Get current bar's hour and minute respecting timezone
+  // Note: Std.hour/minute/dayofweek should handle timezone if provided,
+  // but if the runtime Std implementation doesn't support it, we might fall back to exchange time.
+  const hour = Std.hour(context, timezone);
+  const minute = Std.minute(context, timezone);
+  const dayOfWeek = Std.dayofweek(context, timezone); // 1=Sunday, 7=Saturday
   
   // Check day of week
   if (!daysStr.includes(String(dayOfWeek))) return NaN;

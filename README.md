@@ -102,9 +102,11 @@ Executes native PineJS code (for advanced users).
 
 ### Core Language
 - **Structure:** `indicator()` declaration, variable assignments, tuple destructuring (`[a, b] = func()`)
+- **Data Types:** Primitive types (int, float, bool, string, color) and **Arrays** (creation, access, modification, iteration)
 - **Inputs:** Full support for `input.int`, `input.float`, `input.bool`, `input.source`, `input.string`, `input.color`, `input.time`, `input.price`, `input.session`
 - **Functions:** Custom function definitions (single-line and multi-line)
-- **Control Flow:** `if`, `for`, `while`, `switch` statements
+- **Control Flow:** `if`, `while`, `switch`, and `for` loops (including `for...in` and tuple iteration)
+- **Security:** Robust string escaping and sanitization to prevent code injection vulnerabilities
 
 ### Technical Analysis (TA)
 - **Moving Averages:** SMA, EMA, WMA, RMA, VWMA, SWMA, ALMA, HMA, SMMA, LinReg
@@ -133,7 +135,7 @@ The following features are **not yet supported** or are skipped during transpila
 - ❌ **Alerts:** `alertcondition()`
 - ❌ **External Data:** `request.*` (security, financial, seeds, etc.)
 - ❌ **Strategy Execution:** `strategy.*` functions (parsed as indicators only)
-- ❌ **Advanced Types:** Arrays, Matrices, Maps, and User-Defined Types (Objects)
+- ❌ **Advanced Types:** Matrices, Maps, and User-Defined Types (Objects)
 
 ## Examples
 
@@ -220,11 +222,13 @@ pine-transpiler/
 └── index.ts        Main API
 ```
 
-## Performance
+## Performance & Security
 
 - **Zero runtime dependencies** - Minimal bundle size
 - **Fast transpilation** - Optimized parsing and generation
 - **Type-safe** - No runtime type checking overhead
+- **Secure** - String literal escaping prevents injection attacks
+- **Robust Session Logic** - Improved handling of market sessions and timezones
 
 ## Contributing
 

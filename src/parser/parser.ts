@@ -200,52 +200,107 @@ export class Parser {
   private parseForStatement(): Statement {
     // for i = 0 to 10
     // for x in array
-    const id = this.consume(TokenType.IDENTIFIER, 'Expected variable name after for.').value;
-    
-    // Check for 'in' vs '='
-    // Our lexer marks 'in' as IDENTIFIER or KEYWORD depending on set. 
-    // Let's handle both cases.
-    if (this.check(TokenType.OPERATOR) && this.peek().value === '=') {
-      this.advance(); // eat '='
-      const startExpr = this.parseExpression();
-      
-      const toToken = this.consume(TokenType.IDENTIFIER, 'Expected "to" in for loop.');
-      if (toToken.value !== 'to') throw this.error(toToken, 'Expected "to".');
-      
-      const endExpr = this.parseExpression();
-      
-      let step: Expression | undefined;
-      if (this.check(TokenType.IDENTIFIER) && this.peek().value === 'by') {
-        this.advance();
-        step = this.parseExpression();
-      }
+    // for [i, x] in array
 
-      if (this.match(TokenType.NEWLINE)) {
-         const body = this.parseBlock();
-         // Convert to ForStatement AST node
-         return {
-             type: 'ForStatement',
-             init: { 
-                 type: 'AssignmentExpression', 
-                 operator: '=', 
-                 left: { type: 'Identifier', name: id }, 
-                 right: startExpr 
-             },
-             test: {
-                 type: 'BinaryExpression',
-                 operator: '<=',
-                 left: { type: 'Identifier', name: id },
-                 right: endExpr
-             },
-             update: step,
-             body
+    let id: Identifier | Identifier[];
+
+    // Check for tuple destructuring: [i, x]
+    if (this.match(TokenType.LBRACKET)) {
+         const ids: Identifier[] = [];
+         do {
+             const name = this.consume(TokenType.IDENTIFIER, 'Expected identifier in tuple.').value;
+             ids.push({ type: 'Identifier', name });
+         } while (this.match(TokenType.COMMA));
+         this.consume(TokenType.RBRACKET, 'Expected ]');
+         id = ids;
+
+         // Must be 'in'. Since 'in' is a KEYWORD now.
+         if (this.check(TokenType.KEYWORD) && this.peek().value === 'in') {
+             this.advance();
+         } else {
+             throw this.error(this.peek(), 'Expected "in" after tuple in for loop.');
          }
-      }
-      throw this.error(this.peek(), 'Expected newline before loop body.');
+         
+         const right = this.parseExpression();
+         
+         let body: BlockStatement | Statement;
+         if (this.match(TokenType.NEWLINE)) {
+            body = this.parseBlock();
+         } else {
+             throw this.error(this.peek(), 'Expected newline before loop body.');
+         }
+
+         return {
+             type: 'ForInStatement',
+             left: id,
+             right,
+             body
+         };
+
     } else {
-        // for x in array
-        // TODO: Support foreach loops if needed (Pine v5 supports arrays)
-        throw this.error(this.peek(), 'For-in loops not fully implemented yet.');
+        // Single identifier
+        const name = this.consume(TokenType.IDENTIFIER, 'Expected variable name after for.').value;
+        const idNode: Identifier = { type: 'Identifier', name };
+
+        // Check for 'in'
+        if (this.check(TokenType.KEYWORD) && this.peek().value === 'in') {
+            this.advance(); // eat 'in'
+            const right = this.parseExpression();
+             
+            let body: BlockStatement | Statement;
+            if (this.match(TokenType.NEWLINE)) {
+                body = this.parseBlock();
+            } else {
+                throw this.error(this.peek(), 'Expected newline before loop body.');
+            }
+
+            return {
+                type: 'ForInStatement',
+                left: idNode,
+                right,
+                body
+            };
+        } else if (this.check(TokenType.OPERATOR) && this.peek().value === '=') {
+             // Existing logic for for-to loop
+             this.advance(); // eat '='
+             const startExpr = this.parseExpression();
+              
+             const toToken = this.consume(TokenType.IDENTIFIER, 'Expected "to" in for loop.');
+             if (toToken.value !== 'to') throw this.error(toToken, 'Expected "to".');
+              
+             const endExpr = this.parseExpression();
+              
+             let step: Expression | undefined;
+             if (this.check(TokenType.IDENTIFIER) && this.peek().value === 'by') {
+                this.advance();
+                step = this.parseExpression();
+             }
+
+             if (this.match(TokenType.NEWLINE)) {
+                 const body = this.parseBlock();
+                 // Convert to ForStatement AST node
+                 return {
+                     type: 'ForStatement',
+                     init: { 
+                         type: 'AssignmentExpression', 
+                         operator: '=', 
+                         left: idNode, 
+                         right: startExpr 
+                     },
+                     test: {
+                         type: 'BinaryExpression',
+                         operator: '<=',
+                         left: idNode,
+                         right: endExpr
+                     },
+                     update: step,
+                     body
+                 }
+              }
+              throw this.error(this.peek(), 'Expected newline before loop body.');
+        } else {
+            throw this.error(this.peek(), 'Expected "=" or "in" in for loop.');
+        }
     }
   }
   
@@ -657,6 +712,18 @@ export class Parser {
           const expr = this.parseExpression();
           this.consume(TokenType.RPAREN, 'Expected ) after expression.');
           return expr;
+      }
+
+      if (this.match(TokenType.LBRACKET)) {
+          // Array literal: [1, 2, 3]
+          const elements: Expression[] = [];
+          if (!this.check(TokenType.RBRACKET)) {
+              do {
+                  elements.push(this.parseExpression());
+              } while (this.match(TokenType.COMMA));
+          }
+          this.consume(TokenType.RBRACKET, 'Expected ] after array elements.');
+          return { type: 'ArrayExpression', elements };
       }
 
       throw this.error(this.peek(), 'Expect expression.');

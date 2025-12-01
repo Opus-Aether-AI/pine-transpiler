@@ -13,6 +13,7 @@ export type NodeType =
   | 'BlockStatement'
   | 'IfStatement'
   | 'ForStatement'
+  | 'ForInStatement'
   | 'WhileStatement'
   | 'ReturnStatement'
   | 'BreakStatement'
@@ -58,6 +59,7 @@ export type Statement =
   | BlockStatement
   | IfStatement
   | ForStatement
+  | ForInStatement
   | WhileStatement
   | ReturnStatement
   | BreakStatement
@@ -103,6 +105,13 @@ export interface ForStatement extends ASTNode {
   test: Expression; // usually counter < end
   update?: Expression; // usually counter++
   body: BlockStatement | Statement;
+}
+
+export interface ForInStatement extends ASTNode {
+    type: 'ForInStatement';
+    left: Identifier | Identifier[]; // for x in arr or for [i, x] in arr
+    right: Expression; // The array/iterable
+    body: BlockStatement | Statement;
 }
 
 export interface WhileStatement extends ASTNode {
