@@ -407,10 +407,20 @@ function createPriceSources(
 // Main Transpiler Function
 // ============================================================================
 
+/** Maximum input size in characters to prevent DoS attacks */
+const MAX_INPUT_SIZE = 1_000_000; // 1MB
+
 /**
  * Transpile Pine Script to JavaScript string (internal helper)
  */
 export function transpile(code: string): string {
+  // 0. Validate input size
+  if (code.length > MAX_INPUT_SIZE) {
+    throw new Error(
+      `Input too large: ${code.length} characters exceeds maximum of ${MAX_INPUT_SIZE}`,
+    );
+  }
+
   // 1. Tokenize
   const lexer = new Lexer(code);
   const tokens = lexer.tokenize();
@@ -441,6 +451,14 @@ export function transpileToPineJS(
   indicatorName?: string,
 ): TranspileToPineJSResult {
   try {
+    // 0. Validate input size
+    if (code.length > MAX_INPUT_SIZE) {
+      return {
+        success: false,
+        error: `Input too large: ${code.length} characters exceeds maximum of ${MAX_INPUT_SIZE}`,
+      };
+    }
+
     // 1. Tokenize
     const lexer = new Lexer(code);
     const tokens = lexer.tokenize();

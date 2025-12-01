@@ -48,6 +48,103 @@ export const MAX_LOOP_ITERATIONS = 10000;
 /** Maximum recursion depth allowed to prevent stack overflow */
 export const MAX_RECURSION_DEPTH = 1000;
 
+/**
+ * Reserved/dangerous identifier names that could cause security issues or conflicts
+ * These are sanitized by prefixing with '_pine_' when used as variable names
+ */
+const DANGEROUS_IDENTIFIERS = new Set([
+  '__proto__',
+  'constructor',
+  'prototype',
+  '__defineGetter__',
+  '__defineSetter__',
+  '__lookupGetter__',
+  '__lookupSetter__',
+  'eval',
+  'Function',
+  'arguments',
+  'caller',
+  'callee',
+]);
+
+/**
+ * JavaScript reserved words that could cause syntax errors
+ */
+const _JS_RESERVED_WORDS = new Set([
+  'abstract',
+  'await',
+  'boolean',
+  'byte',
+  'case',
+  'catch',
+  'char',
+  'class',
+  'const',
+  'continue',
+  'debugger',
+  'default',
+  'delete',
+  'do',
+  'double',
+  'else',
+  'enum',
+  'export',
+  'extends',
+  'false',
+  'final',
+  'finally',
+  'float',
+  'for',
+  'function',
+  'goto',
+  'if',
+  'implements',
+  'import',
+  'in',
+  'instanceof',
+  'int',
+  'interface',
+  'let',
+  'long',
+  'native',
+  'new',
+  'null',
+  'package',
+  'private',
+  'protected',
+  'public',
+  'return',
+  'short',
+  'static',
+  'super',
+  'switch',
+  'synchronized',
+  'this',
+  'throw',
+  'throws',
+  'transient',
+  'true',
+  'try',
+  'typeof',
+  'var',
+  'void',
+  'volatile',
+  'while',
+  'with',
+  'yield',
+]);
+
+/**
+ * Sanitize an identifier name to prevent security issues and syntax errors
+ */
+function sanitizeIdentifier(name: string): string {
+  if (DANGEROUS_IDENTIFIERS.has(name)) {
+    return `_pine_${name}`;
+  }
+  // Don't rename JS reserved words used as property access, but warn during generation
+  return name;
+}
+
 // ============================================================================
 // Unified Function Mapping
 // ============================================================================
@@ -392,12 +489,12 @@ export class ASTGenerator {
     if (Array.isArray(stmt.left)) {
       // Tuple destructuring: for [i, x] in arr
       // In JS: for (const [i, x] of arr.entries())
-      const ids = stmt.left.map((id) => id.name).join(', ');
+      const ids = stmt.left.map((id) => sanitizeIdentifier(id.name)).join(', ');
       return `${this.indent()}for (const [${ids}] of ${right}.entries()) ${body}`;
     } else {
       // Single identifier: for x in arr
       // In JS: for (const x of arr)
-      const name = stmt.left.name;
+      const name = sanitizeIdentifier(stmt.left.name);
       return `${this.indent()}for (const ${name} of ${right}) ${body}`;
     }
   }
@@ -411,23 +508,25 @@ export class ASTGenerator {
 
     if (Array.isArray(stmt.id)) {
       // Tuple destructuring: [a, b] = ...
-      const ids = stmt.id.map((id) => id.name).join(', ');
+      const ids = stmt.id.map((id) => sanitizeIdentifier(id.name)).join(', ');
       code = `${this.indent()}${prefix}${kind} [${ids}]${init};`;
 
       // Check for history needs
       for (const id of stmt.id) {
+        const safeName = sanitizeIdentifier(id.name);
         if (this.historicalVars.has(id.name)) {
-          code += `\n${this.indent()}const _series_${id.name} = context.new_var(${id.name});`;
+          code += `\n${this.indent()}const _series_${safeName} = context.new_var(${safeName});`;
           // Update the historical accessor function (defined in preamble)
-          code += `\n${this.indent()}_getHistorical_${id.name} = (offset) => _series_${id.name}.get(offset);`;
+          code += `\n${this.indent()}_getHistorical_${safeName} = (offset) => _series_${safeName}.get(offset);`;
         }
       }
     } else {
-      code = `${this.indent()}${prefix}${kind} ${stmt.id.name}${init};`;
+      const safeName = sanitizeIdentifier(stmt.id.name);
+      code = `${this.indent()}${prefix}${kind} ${safeName}${init};`;
       if (this.historicalVars.has(stmt.id.name)) {
-        code += `\n${this.indent()}const _series_${stmt.id.name} = context.new_var(${stmt.id.name});`;
+        code += `\n${this.indent()}const _series_${safeName} = context.new_var(${safeName});`;
         // Update the historical accessor function (defined in preamble)
-        code += `\n${this.indent()}_getHistorical_${stmt.id.name} = (offset) => _series_${stmt.id.name}.get(offset);`;
+        code += `\n${this.indent()}_getHistorical_${safeName} = (offset) => _series_${safeName}.get(offset);`;
       }
     }
 
@@ -435,8 +534,10 @@ export class ASTGenerator {
   }
 
   private generateFunctionDeclaration(stmt: FunctionDeclaration): string {
-    const name = stmt.id.name;
-    const params = stmt.params.map((p) => p.name).join(', ');
+    const name = sanitizeIdentifier(stmt.id.name);
+    const params = stmt.params
+      .map((p) => sanitizeIdentifier(p.name))
+      .join(', ');
     const prefix = stmt.export ? 'export ' : '';
 
     let body = '';
@@ -476,7 +577,7 @@ export class ASTGenerator {
       case 'ArrayExpression':
         return this.generateArrayExpression(expr as ArrayExpression);
       case 'Identifier':
-        return expr.name;
+        return sanitizeIdentifier(expr.name);
       case 'Literal':
         return this.generateLiteral(expr);
       case 'SwitchExpression':

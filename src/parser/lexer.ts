@@ -362,11 +362,26 @@ export class Lexer {
   private readString(quote: string): void {
     let value = '';
     const start = this.pos;
+    const startLine = this.line;
+    const startColumn = this.column;
     this.advance(); // Skip opening quote
 
     while (this.pos < this.code.length && this.code[this.pos] !== quote) {
+      // Check for unescaped newline (unterminated string on this line)
+      if (this.code[this.pos] === '\n') {
+        throw new Error(
+          `Unterminated string literal at ${startLine}:${startColumn}. String contains unescaped newline.`,
+        );
+      }
+
       if (this.code[this.pos] === '\\') {
         this.advance(); // Skip backslash
+        // Check if we hit EOF after backslash
+        if (this.pos >= this.code.length) {
+          throw new Error(
+            `Unterminated string literal at ${startLine}:${startColumn}. Unexpected end of input after escape character.`,
+          );
+        }
         // Handle escape sequences properly
         const escapeChar = this.code[this.pos];
         switch (escapeChar) {
@@ -440,14 +455,17 @@ export class Lexer {
             // Unknown escape, keep the character as-is
             value += escapeChar;
         }
-      } else if (this.code[this.pos] === '\n') {
-        // Newline in string without escape - error in most languages
-        // but we'll allow it for multi-line strings
-        value += this.code[this.pos];
       } else {
         value += this.code[this.pos];
       }
       this.advance();
+    }
+
+    // Check for unterminated string (reached EOF without closing quote)
+    if (this.pos >= this.code.length) {
+      throw new Error(
+        `Unterminated string literal at ${startLine}:${startColumn}. Missing closing quote.`,
+      );
     }
 
     this.advance(); // Skip closing quote
