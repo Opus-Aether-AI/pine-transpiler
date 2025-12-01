@@ -7,13 +7,11 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  assertTranspiles,
+  codeContainsAll,
+  countOccurrences,
   generateCode,
   generateCodeWithHistory,
-  transpile,
-  codeContains,
-  codeContainsAll,
-  assertTranspiles,
-  countOccurrences,
 } from '../utils';
 
 describe('AST Generator', () => {
@@ -602,7 +600,9 @@ plot(smaValue)
 plot(emaValue)
 `;
       const js = assertTranspiles(code);
-      expect(codeContainsAll(js, ['Std.sma', 'Std.ema', 'Std.plot'])).toBe(true);
+      expect(codeContainsAll(js, ['Std.sma', 'Std.ema', 'Std.plot'])).toBe(
+        true,
+      );
     });
 
     it('should handle nested function calls', () => {

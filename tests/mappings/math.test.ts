@@ -5,16 +5,16 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { transpile } from '../utils';
 import {
-  MATH_FUNCTION_MAPPINGS,
   BASIC_MATH_MAPPINGS,
-  POWER_LOG_MAPPINGS,
-  TRIG_MAPPINGS,
+  MATH_FUNCTION_MAPPINGS,
   MINMAX_MAPPINGS,
+  POWER_LOG_MAPPINGS,
   RANDOM_MAPPINGS,
+  TRIG_MAPPINGS,
   transpileMathFunction,
 } from '../../src/mappings/math';
+import { transpile } from '../utils';
 
 describe('Math Mappings', () => {
   describe('Mapping Structure', () => {

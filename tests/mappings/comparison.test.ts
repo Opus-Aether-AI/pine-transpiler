@@ -6,46 +6,60 @@
 
 import { describe, expect, it } from 'vitest';
 import {
-  COMPARISON_FUNCTION_MAPPINGS,
   BOOLEAN_COMPARISON_MAPPINGS,
-  NUMERIC_COMPARISON_MAPPINGS,
   COMPARE_MAPPING,
-  IFF_MAPPING,
-  EPSILON_MAPPING,
-  LOGICAL_OPERATORS,
+  COMPARISON_FUNCTION_MAPPINGS,
   COMPARISON_OPERATORS,
-  transpileLogicalOperators,
-  transpileComparisonOperators,
+  EPSILON_MAPPING,
+  IFF_MAPPING,
   isComparisonFunction,
+  LOGICAL_OPERATORS,
+  NUMERIC_COMPARISON_MAPPINGS,
+  transpileComparisonOperators,
+  transpileLogicalOperators,
 } from '../../src/mappings/comparison';
 
 describe('Comparison Mappings', () => {
   describe('Boolean Comparison Mappings', () => {
     it('should have greaterOrEqual mapping with epsilon support', () => {
       expect(BOOLEAN_COMPARISON_MAPPINGS['Std.greaterOrEqual']).toBeDefined();
-      expect(BOOLEAN_COMPARISON_MAPPINGS['Std.greaterOrEqual'].returnsBoolean).toBe(true);
-      expect(BOOLEAN_COMPARISON_MAPPINGS['Std.greaterOrEqual'].supportsEpsilon).toBe(true);
+      expect(
+        BOOLEAN_COMPARISON_MAPPINGS['Std.greaterOrEqual'].returnsBoolean,
+      ).toBe(true);
+      expect(
+        BOOLEAN_COMPARISON_MAPPINGS['Std.greaterOrEqual'].supportsEpsilon,
+      ).toBe(true);
     });
 
     it('should have lessOrEqual mapping with epsilon support', () => {
       expect(BOOLEAN_COMPARISON_MAPPINGS['Std.lessOrEqual']).toBeDefined();
-      expect(BOOLEAN_COMPARISON_MAPPINGS['Std.lessOrEqual'].returnsBoolean).toBe(true);
-      expect(BOOLEAN_COMPARISON_MAPPINGS['Std.lessOrEqual'].supportsEpsilon).toBe(true);
+      expect(
+        BOOLEAN_COMPARISON_MAPPINGS['Std.lessOrEqual'].returnsBoolean,
+      ).toBe(true);
+      expect(
+        BOOLEAN_COMPARISON_MAPPINGS['Std.lessOrEqual'].supportsEpsilon,
+      ).toBe(true);
     });
 
     it('should have equal mapping with epsilon support', () => {
       expect(BOOLEAN_COMPARISON_MAPPINGS['Std.equal']).toBeDefined();
-      expect(BOOLEAN_COMPARISON_MAPPINGS['Std.equal'].supportsEpsilon).toBe(true);
+      expect(BOOLEAN_COMPARISON_MAPPINGS['Std.equal'].supportsEpsilon).toBe(
+        true,
+      );
     });
 
     it('should have greater mapping with epsilon support', () => {
       expect(BOOLEAN_COMPARISON_MAPPINGS['Std.greater']).toBeDefined();
-      expect(BOOLEAN_COMPARISON_MAPPINGS['Std.greater'].supportsEpsilon).toBe(true);
+      expect(BOOLEAN_COMPARISON_MAPPINGS['Std.greater'].supportsEpsilon).toBe(
+        true,
+      );
     });
 
     it('should have less mapping with epsilon support', () => {
       expect(BOOLEAN_COMPARISON_MAPPINGS['Std.less']).toBeDefined();
-      expect(BOOLEAN_COMPARISON_MAPPINGS['Std.less'].supportsEpsilon).toBe(true);
+      expect(BOOLEAN_COMPARISON_MAPPINGS['Std.less'].supportsEpsilon).toBe(
+        true,
+      );
     });
   });
 

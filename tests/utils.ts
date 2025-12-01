@@ -5,13 +5,17 @@
  * Extracted to reduce duplication across test files.
  */
 
-import type { Token } from '../src/parser/lexer';
-import { Lexer } from '../src/parser/lexer';
-import type { Program } from '../src/parser/ast';
-import { Parser } from '../src/parser/parser';
 import { ASTGenerator } from '../src/generator/ast-generator';
 import { MetadataVisitor } from '../src/generator/metadata-visitor';
-import { transpile, transpileToPineJS, canTranspilePineScript } from '../src/index';
+import {
+  canTranspilePineScript,
+  transpile,
+  transpileToPineJS,
+} from '../src/index';
+import type { Program } from '../src/parser/ast';
+import type { Token } from '../src/parser/lexer';
+import { Lexer } from '../src/parser/lexer';
+import { Parser } from '../src/parser/parser';
 
 // Re-export main functions for convenience
 export { transpile, transpileToPineJS, canTranspilePineScript };
@@ -37,11 +41,7 @@ export function parse(code: string): Program {
 /**
  * Parse Pine Script code and return result with errors
  */
-export function parseWithErrors(code: string): {
-  ast: Program;
-  errors: Array<{ message: string; line?: number; column?: number }>;
-  hasErrors: boolean;
-} {
+export function parseWithErrors(code: string): ReturnType<Parser['parseWithErrors']> {
   const lexer = new Lexer(code);
   const tokens = lexer.tokenize();
   const parser = new Parser(tokens);
@@ -61,7 +61,10 @@ export function generateCode(code: string): string {
 /**
  * Generate JavaScript code with historical variable tracking
  */
-export function generateCodeWithHistory(code: string, historicalVars: Set<string>): string {
+export function generateCodeWithHistory(
+  code: string,
+  historicalVars: Set<string>,
+): string {
   const ast = parse(code);
   const generator = new ASTGenerator(historicalVars);
   return generator.generate(ast);
@@ -95,7 +98,11 @@ export function transpileWithMetadata(code: string): {
 /**
  * Check if generated code contains a specific pattern (case-insensitive option)
  */
-export function codeContains(code: string, pattern: string, caseInsensitive = false): boolean {
+export function codeContains(
+  code: string,
+  pattern: string,
+  caseInsensitive = false,
+): boolean {
   if (caseInsensitive) {
     return code.toLowerCase().includes(pattern.toLowerCase());
   }
@@ -128,7 +135,11 @@ ${body}`;
 /**
  * Create a Pine Script function template for testing
  */
-export function createFunction(name: string, params: string[], body: string): string {
+export function createFunction(
+  name: string,
+  params: string[],
+  body: string,
+): string {
   return `${name}(${params.join(', ')}) =>
     ${body}`;
 }
@@ -141,7 +152,9 @@ export function assertTranspiles(code: string): string {
   try {
     result = transpile(code);
   } catch (e) {
-    throw new Error(`Transpilation failed: ${e instanceof Error ? e.message : e}`);
+    throw new Error(
+      `Transpilation failed: ${e instanceof Error ? e.message : e}`,
+    );
   }
   return result;
 }
@@ -149,7 +162,10 @@ export function assertTranspiles(code: string): string {
 /**
  * Helper to assert that transpilation fails with a specific error
  */
-export function assertTranspileFails(code: string, expectedError?: string | RegExp): void {
+export function assertTranspileFails(
+  code: string,
+  expectedError?: string | RegExp,
+): void {
   let error: Error | undefined;
   try {
     transpile(code);

@@ -5,16 +5,16 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { transpile } from '../utils';
 import {
-  PRICE_SOURCE_MAPPINGS,
-  TIME_SOURCE_MAPPINGS,
   BAR_INDEX_MAPPING,
-  isPriceSource,
-  getPriceSourceNames,
   generatePriceSourceDeclarations,
   generateSeriesDeclarations,
+  getPriceSourceNames,
+  isPriceSource,
+  PRICE_SOURCE_MAPPINGS,
+  TIME_SOURCE_MAPPINGS,
 } from '../../src/mappings/price-sources';
+import { transpile } from '../utils';
 
 describe('Price Source Mappings', () => {
   describe('OHLCV Price Sources', () => {
@@ -54,28 +54,36 @@ describe('Price Source Mappings', () => {
       expect(PRICE_SOURCE_MAPPINGS.hl2).toBeDefined();
       expect(PRICE_SOURCE_MAPPINGS.hl2.stdName).toBe('Std.hl2');
       expect(PRICE_SOURCE_MAPPINGS.hl2.isCalculated).toBe(true);
-      expect(PRICE_SOURCE_MAPPINGS.hl2.description).toContain('(high + low) / 2');
+      expect(PRICE_SOURCE_MAPPINGS.hl2.description).toContain(
+        '(high + low) / 2',
+      );
     });
 
     it('should have hlc3 mapping as calculated', () => {
       expect(PRICE_SOURCE_MAPPINGS.hlc3).toBeDefined();
       expect(PRICE_SOURCE_MAPPINGS.hlc3.stdName).toBe('Std.hlc3');
       expect(PRICE_SOURCE_MAPPINGS.hlc3.isCalculated).toBe(true);
-      expect(PRICE_SOURCE_MAPPINGS.hlc3.description).toContain('(high + low + close) / 3');
+      expect(PRICE_SOURCE_MAPPINGS.hlc3.description).toContain(
+        '(high + low + close) / 3',
+      );
     });
 
     it('should have ohlc4 mapping as calculated', () => {
       expect(PRICE_SOURCE_MAPPINGS.ohlc4).toBeDefined();
       expect(PRICE_SOURCE_MAPPINGS.ohlc4.stdName).toBe('Std.ohlc4');
       expect(PRICE_SOURCE_MAPPINGS.ohlc4.isCalculated).toBe(true);
-      expect(PRICE_SOURCE_MAPPINGS.ohlc4.description).toContain('(open + high + low + close) / 4');
+      expect(PRICE_SOURCE_MAPPINGS.ohlc4.description).toContain(
+        '(open + high + low + close) / 4',
+      );
     });
 
     it('should have hlcc4 mapping as calculated (custom)', () => {
       expect(PRICE_SOURCE_MAPPINGS.hlcc4).toBeDefined();
       expect(PRICE_SOURCE_MAPPINGS.hlcc4.stdName).toBe('_hlcc4');
       expect(PRICE_SOURCE_MAPPINGS.hlcc4.isCalculated).toBe(true);
-      expect(PRICE_SOURCE_MAPPINGS.hlcc4.description).toContain('(high + low + close + close) / 4');
+      expect(PRICE_SOURCE_MAPPINGS.hlcc4.description).toContain(
+        '(high + low + close + close) / 4',
+      );
     });
   });
 
@@ -226,7 +234,9 @@ describe('Price Source Mappings', () => {
     it('should include hlcc4 manual calculation', () => {
       const declarations = generatePriceSourceDeclarations();
       const joined = declarations.join('\n');
-      expect(joined).toContain('const _hlcc4 = (_high + _low + _close + _close) / 4;');
+      expect(joined).toContain(
+        'const _hlcc4 = (_high + _low + _close + _close) / 4;',
+      );
     });
 
     it('should include time and bar_index declarations', () => {
@@ -252,11 +262,15 @@ describe('Price Source Mappings', () => {
     it('should include OHLCV series declarations', () => {
       const declarations = generateSeriesDeclarations();
       const joined = declarations.join('\n');
-      expect(joined).toContain('const _series_close = context.new_var(_close);');
+      expect(joined).toContain(
+        'const _series_close = context.new_var(_close);',
+      );
       expect(joined).toContain('const _series_open = context.new_var(_open);');
       expect(joined).toContain('const _series_high = context.new_var(_high);');
       expect(joined).toContain('const _series_low = context.new_var(_low);');
-      expect(joined).toContain('const _series_volume = context.new_var(_volume);');
+      expect(joined).toContain(
+        'const _series_volume = context.new_var(_volume);',
+      );
     });
 
     it('should include calculated series declarations', () => {
@@ -264,7 +278,9 @@ describe('Price Source Mappings', () => {
       const joined = declarations.join('\n');
       expect(joined).toContain('const _series_hl2 = context.new_var(_hl2);');
       expect(joined).toContain('const _series_hlc3 = context.new_var(_hlc3);');
-      expect(joined).toContain('const _series_ohlc4 = context.new_var(_ohlc4);');
+      expect(joined).toContain(
+        'const _series_ohlc4 = context.new_var(_ohlc4);',
+      );
     });
 
     it('should include time series declaration', () => {
@@ -277,20 +293,29 @@ describe('Price Source Mappings', () => {
   describe('Description Coverage', () => {
     it('should have descriptions for all price sources', () => {
       for (const [name, mapping] of Object.entries(PRICE_SOURCE_MAPPINGS)) {
-        expect(mapping.description, `${name} missing description`).toBeDefined();
+        expect(
+          mapping.description,
+          `${name} missing description`,
+        ).toBeDefined();
         expect(mapping.description.length).toBeGreaterThan(0);
       }
     });
 
     it('should have descriptions for all time sources', () => {
       for (const [name, mapping] of Object.entries(TIME_SOURCE_MAPPINGS)) {
-        expect(mapping.description, `${name} missing description`).toBeDefined();
+        expect(
+          mapping.description,
+          `${name} missing description`,
+        ).toBeDefined();
       }
     });
 
     it('should have descriptions for bar index mappings', () => {
       for (const [name, mapping] of Object.entries(BAR_INDEX_MAPPING)) {
-        expect(mapping.description, `${name} missing description`).toBeDefined();
+        expect(
+          mapping.description,
+          `${name} missing description`,
+        ).toBeDefined();
       }
     });
   });
