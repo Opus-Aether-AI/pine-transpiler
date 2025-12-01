@@ -15,7 +15,9 @@ import type {
   Program,
   Statement,
   SwitchCase,
+  SwitchExpression,
   SwitchStatement,
+  TypeAnnotation,
   TypeDefinition,
   VariableDeclaration,
   WhileStatement,
@@ -33,9 +35,6 @@ export class Parser {
   public parse(): Program {
     const body: Statement[] = [];
     const version = 5; // Default
-
-    // Check for version directive (special case handled in Lexer usually, but we check first token if it's a comment/directive)
-    // Our Lexer skips comments, so we assume version 5 or extracted elsewhere.
 
     while (!this.isAtEnd()) {
       // Skip empty newlines at top level
@@ -86,8 +85,14 @@ export class Parser {
           return this.parseSwitchStatement();
         case 'type':
           return this.parseTypeDefinition();
+        case 'import':
+          return this.parseImportStatement();
+        case 'export':
+          return this.parseExportDeclaration();
+        case 'method':
+          return this.parseMethodDeclaration();
       }
-      // Backtrack if it wasn't a statement keyword (e.g. 'na' is a keyword in some contexts but handled as literal)
+      // Backtrack if it wasn't a statement keyword
       this.current--;
     }
 
@@ -96,9 +101,6 @@ export class Parser {
       this.check(TokenType.IDENTIFIER) &&
       this.peekNext()?.type === TokenType.LPAREN
     ) {
-      // It could be a function call or declaration.
-      // Declaration has '=>' after parens.
-      // Scan ahead to find '=>'
       if (this.isFunctionDeclaration()) {
         return this.parseFunctionDeclaration();
       }
@@ -109,13 +111,12 @@ export class Parser {
     if (
       this.check(TokenType.IDENTIFIER) ||
       this.check(TokenType.LBRACKET) ||
-      this.isTypeAnnotation()
+      this.checkTypeAnnotation()
     ) {
       const start = this.current;
       try {
         return this.parseVariableOrAssignment();
       } catch (_e) {
-        // console.log('Backtracking from var/assign', e);
         this.current = start; // Backtrack on fail
       }
     }
@@ -130,7 +131,6 @@ export class Parser {
   }
 
   private parseBlock(): BlockStatement {
-    // Expect INDENT
     this.consume(TokenType.INDENT, 'Expected indentation for block.');
 
     const body: Statement[] = [];
@@ -147,17 +147,11 @@ export class Parser {
   private parseIfStatement(): IfStatement {
     const condition = this.parseExpression();
 
-    // Check for block vs single line
     let consequent: BlockStatement | Statement;
-
     if (this.check(TokenType.NEWLINE)) {
-      this.advance(); // Eat newline
+      this.advance();
       consequent = this.parseBlock();
     } else {
-      // Inline if? Pine mostly uses blocks for if statements unless ternary
-      // But `if cond \n stmt` is valid without indent if inside another block?
-      // Pine strictly requires indentation for if body.
-      // We'll assume block parsing logic handles the indentation check.
       consequent = this.parseBlock();
     }
 
@@ -167,8 +161,7 @@ export class Parser {
         this.advance();
         alternate = this.parseBlock();
       } else if (this.check(TokenType.KEYWORD) && this.peek().value === 'if') {
-        // else if ...
-        this.advance(); // eat 'if'
+        this.advance();
         alternate = this.parseIfStatement();
       } else {
         alternate = this.parseBlock();
@@ -184,19 +177,13 @@ export class Parser {
       const body = this.parseBlock();
       return { type: 'WhileStatement', test, body };
     }
-    // Attempt to parse block anyway (it handles the indent check)
     const body = this.parseBlock();
     return { type: 'WhileStatement', test, body };
   }
 
   private parseForStatement(): Statement {
-    // for i = 0 to 10
-    // for x in array
-    // for [i, x] in array
-
     let id: Identifier | Identifier[];
 
-    // Check for tuple destructuring: [i, x]
     if (this.match(TokenType.LBRACKET)) {
       const ids: Identifier[] = [];
       do {
@@ -209,7 +196,6 @@ export class Parser {
       this.consume(TokenType.RBRACKET, 'Expected ]');
       id = ids;
 
-      // Must be 'in'. Since 'in' is a KEYWORD now.
       if (this.check(TokenType.KEYWORD) && this.peek().value === 'in') {
         this.advance();
       } else {
@@ -217,7 +203,6 @@ export class Parser {
       }
 
       const right = this.parseExpression();
-
       let body: BlockStatement | Statement;
       if (this.match(TokenType.NEWLINE)) {
         body = this.parseBlock();
@@ -232,18 +217,15 @@ export class Parser {
         body,
       };
     } else {
-      // Single identifier
       const name = this.consume(
         TokenType.IDENTIFIER,
         'Expected variable name after for.',
       ).value;
       const idNode: Identifier = { type: 'Identifier', name };
 
-      // Check for 'in'
       if (this.check(TokenType.KEYWORD) && this.peek().value === 'in') {
-        this.advance(); // eat 'in'
+        this.advance();
         const right = this.parseExpression();
-
         let body: BlockStatement | Statement;
         if (this.match(TokenType.NEWLINE)) {
           body = this.parseBlock();
@@ -258,8 +240,7 @@ export class Parser {
           body,
         };
       } else if (this.check(TokenType.OPERATOR) && this.peek().value === '=') {
-        // Existing logic for for-to loop
-        this.advance(); // eat '='
+        this.advance();
         const startExpr = this.parseExpression();
 
         const toToken = this.consume(
@@ -278,7 +259,6 @@ export class Parser {
 
         if (this.match(TokenType.NEWLINE)) {
           const body = this.parseBlock();
-          // Convert to ForStatement AST node
           return {
             type: 'ForStatement',
             init: {
@@ -305,8 +285,6 @@ export class Parser {
   }
 
   private parseReturnStatement(): Statement {
-    // Can be 'return' or 'return expr'
-    // Or tuple return: [a, b]
     if (this.check(TokenType.NEWLINE)) {
       return { type: 'ReturnStatement' };
     }
@@ -326,18 +304,13 @@ export class Parser {
     }
 
     this.consume(TokenType.INDENT, 'Expected indentation for switch body.');
-
     const cases: SwitchCase[] = [];
 
     while (!this.check(TokenType.DEDENT) && !this.isAtEnd()) {
       if (this.match(TokenType.NEWLINE)) continue;
 
-      // Case: expression => block
-      // Default: => block
-
       let test: Expression | null = null;
       if (this.match(TokenType.OPERATOR) && this.previous().value === '=>') {
-        // Default case
         test = null;
       } else {
         test = this.parseExpression();
@@ -352,28 +325,15 @@ export class Parser {
       if (this.match(TokenType.NEWLINE)) {
         consequent = this.parseBlock();
       } else {
-        // Inline block or expression
-        // In Pine switch, usually expression or block
-        // We can use parseExpression? But if it's a block of code?
-        // Pine switch returns value usually.
-        // If inline, it's expression.
         consequent = this.parseExpression();
-        // consume newline if present?
-        // Loop will handle newline.
       }
 
       cases.push({ type: 'SwitchCase', test, consequent });
-      // Consume optional newline after case
       this.match(TokenType.NEWLINE);
     }
 
     this.consume(TokenType.DEDENT, 'Expected dedent after switch.');
-
-    return {
-      type: 'SwitchStatement',
-      discriminant,
-      cases,
-    };
+    return { type: 'SwitchStatement', discriminant, cases };
   }
 
   private parseTypeDefinition(): TypeDefinition {
@@ -389,13 +349,9 @@ export class Parser {
     while (!this.check(TokenType.DEDENT) && !this.isAtEnd()) {
       if (this.match(TokenType.NEWLINE)) continue;
 
-      // field: type name [= default]
-      // or name [= default] (implicit type?) No, Pine requires type usually or infer?
-      // UDT fields: <type> <name> [= <default>]
-
-      let typeName: string | undefined;
-      if (this.isTypeAnnotation()) {
-        typeName = this.advance().value;
+      let typeAnnotation: TypeAnnotation | undefined;
+      if (this.checkTypeAnnotation()) {
+        typeAnnotation = this.parseTypeAnnotation();
       }
 
       const fieldName = this.consume(
@@ -412,26 +368,18 @@ export class Parser {
         type: 'VariableDeclaration',
         id: { type: 'Identifier', name: fieldName },
         init,
-        kind: 'let', // Fields are properties
-        typeAnnotation: typeName
-          ? { type: 'TypeAnnotation', name: typeName }
-          : undefined,
+        kind: 'let',
+        typeAnnotation,
       });
 
       this.match(TokenType.NEWLINE);
     }
 
     this.consume(TokenType.DEDENT, 'Expected dedent after type definition.');
-
-    return {
-      type: 'TypeDefinition',
-      name,
-      fields,
-    };
+    return { type: 'TypeDefinition', name, fields };
   }
 
   private parseFunctionDeclaration(): FunctionDeclaration {
-    // We already matched the name potentially in peek
     const name = this.consume(
       TokenType.IDENTIFIER,
       'Expected function name.',
@@ -441,15 +389,58 @@ export class Parser {
     const params: Identifier[] = [];
     if (!this.check(TokenType.RPAREN)) {
       do {
+        // Check for optional type annotation: Type Name
+        // Logic: If current is ID and next is ID (or next is < implying generic type)
+        // then parse type.
+        let typeAnnotation: TypeAnnotation | undefined;
+        if (this.check(TokenType.IDENTIFIER)) {
+          const next = this.peekNext();
+          if (
+            next?.type === TokenType.IDENTIFIER ||
+            next?.value === '<' ||
+            this.checkTypeAnnotation()
+          ) {
+            // Be careful not to parse the param name as type if it's just a name.
+            // If it's `int x`, `int` is type. `checkTypeAnnotation` matches.
+            // If it's `MyType x`, `MyType` is ID. `next` is `x` (ID).
+            // If it's `x`, `next` is `,` or `)`.
+            // So:
+            if (
+              this.checkTypeAnnotation() ||
+              (next?.type === TokenType.IDENTIFIER &&
+                !['=', ',', ')'].includes(next.value))
+            ) {
+              try {
+                const saved = this.current;
+                typeAnnotation = this.parseTypeAnnotation();
+                // Verify we still have an identifier for the name
+                if (!this.check(TokenType.IDENTIFIER)) {
+                  // If we consumed the name as type, backtrack?
+                  // This happens if I write `f(x)` and `x` matches `checkTypeAnnotation` (unlikely unless x is `int`)
+                  // or if I write `f(Type)` without name (invalid).
+                  this.current = saved;
+                  typeAnnotation = undefined;
+                }
+              } catch (_e) {
+                typeAnnotation = undefined;
+              }
+            }
+          }
+        }
+
         const paramName = this.consume(
           TokenType.IDENTIFIER,
           'Expected parameter name.',
         ).value;
-        params.push({ type: 'Identifier', name: paramName });
-        // Handle default values? f(x = 1) => ...
+        params.push({
+          type: 'Identifier',
+          name: paramName,
+          typeAnnotation,
+        });
+
+        // Default value
         if (this.match(TokenType.OPERATOR) && this.previous().value === '=') {
-          this.parseExpression(); // Consume default value but ignore for AST for now?
-          // Ideally AST should support default params
+          this.parseExpression();
         }
       } while (this.match(TokenType.COMMA));
     }
@@ -475,16 +466,13 @@ export class Parser {
   }
 
   private parseVariableOrAssignment(): Statement {
-    // 1. Check for Type Annotation (int x = ...)
-    let typeAnnotation: string | undefined;
-    if (this.isTypeAnnotation()) {
-      typeAnnotation = this.advance().value;
+    let typeAnnotation: TypeAnnotation | undefined;
+    if (this.checkTypeAnnotation()) {
+      typeAnnotation = this.parseTypeAnnotation();
     }
 
-    // 2. Identifier or Tuple
     let id: Identifier | MemberExpression | Identifier[];
     if (this.match(TokenType.LBRACKET)) {
-      // Tuple: [a, b]
       const ids: Identifier[] = [];
       do {
         const name = this.consume(
@@ -517,13 +505,10 @@ export class Parser {
       id = expr;
     }
 
-    // 3. Operator (= or :=)
     const operatorToken = this.consume(TokenType.OPERATOR, 'Expected = or :=');
     const operator = operatorToken.value;
-
     const init = this.parseExpression();
 
-    // Reassignment (:=) or Field Assignment (member = val)
     if (
       operator === ':=' ||
       (operator === '=' && !Array.isArray(id) && id.type === 'MemberExpression')
@@ -539,10 +524,7 @@ export class Parser {
       };
     }
 
-    // Declaration
-    // Must be Identifier or Identifier[]
     if (!Array.isArray(id) && id.type === 'MemberExpression') {
-      // This should be unreachable due to the check above, unless we have member declaration which is invalid
       throw new Error('Invalid variable declaration with member expression.');
     }
 
@@ -550,25 +532,22 @@ export class Parser {
       type: 'VariableDeclaration',
       id: id as Identifier | Identifier[],
       init,
-      kind: 'let', // Default
-      typeAnnotation: typeAnnotation
-        ? { type: 'TypeAnnotation', name: typeAnnotation }
-        : undefined,
+      kind: 'let',
+      typeAnnotation,
     };
   }
 
   private parseVariableDeclaration(kind: string): VariableDeclaration {
-    // var int x = 1
-    let typeAnnotation: string | undefined;
-    if (this.isTypeAnnotation()) {
-      typeAnnotation = this.advance().value;
+    let typeAnnotation: TypeAnnotation | undefined;
+    if (this.checkTypeAnnotation()) {
+      typeAnnotation = this.parseTypeAnnotation();
     }
 
     const name = this.consume(
       TokenType.IDENTIFIER,
       'Expected variable name.',
     ).value;
-    this.consume(TokenType.OPERATOR, 'Expected ='); // var declarations always use =
+    this.consume(TokenType.OPERATOR, 'Expected =');
 
     const init = this.parseExpression();
 
@@ -577,10 +556,104 @@ export class Parser {
       id: { type: 'Identifier', name },
       init,
       kind: kind as 'var' | 'const' | 'let',
-      typeAnnotation: typeAnnotation
-        ? { type: 'TypeAnnotation', name: typeAnnotation }
-        : undefined,
+      typeAnnotation,
     };
+  }
+
+  private parseImportStatement(): Statement {
+    const source = this.consume(
+      TokenType.STRING,
+      'Expected library path string.',
+    ).value;
+    let as: string | undefined;
+    if (
+      (this.check(TokenType.KEYWORD) || this.check(TokenType.IDENTIFIER)) &&
+      this.peek().value === 'as'
+    ) {
+      this.advance();
+      as = this.consume(TokenType.IDENTIFIER, 'Expected alias name.').value;
+    }
+    return { type: 'ImportStatement', source, as };
+  }
+
+  private parseExportDeclaration(): Statement {
+    if (this.check(TokenType.KEYWORD)) {
+      const keyword = this.peek().value;
+      if (keyword === 'type') {
+        this.advance();
+        const node = this.parseTypeDefinition();
+        node.export = true;
+        return node;
+      } else if (['var', 'const', 'let'].includes(keyword)) {
+        this.advance();
+        const node = this.parseVariableDeclaration(keyword);
+        node.export = true;
+        return node;
+      } else if (keyword === 'method') {
+        this.advance();
+        const node = this.parseMethodDeclaration();
+        node.export = true;
+        return node;
+      }
+    }
+
+    if (
+      this.check(TokenType.IDENTIFIER) &&
+      this.peekNext()?.type === TokenType.LPAREN
+    ) {
+      if (this.isFunctionDeclaration()) {
+        const node = this.parseFunctionDeclaration();
+        node.export = true;
+        return node;
+      }
+    }
+
+    throw this.error(this.peek(), 'Unexpected export target.');
+  }
+
+  private parseMethodDeclaration(): FunctionDeclaration {
+    const node = this.parseFunctionDeclaration();
+    node.isMethod = true;
+    return node;
+  }
+
+  private checkTypeAnnotation(): boolean {
+    if (!this.check(TokenType.IDENTIFIER)) return false;
+    const val = this.peek().value;
+    return [
+      'int',
+      'float',
+      'bool',
+      'string',
+      'color',
+      'line',
+      'label',
+      'box',
+      'table',
+      'array',
+      'map',
+      'matrix',
+    ].includes(val);
+  }
+
+  private parseTypeAnnotation(): TypeAnnotation {
+    const name = this.consume(
+      TokenType.IDENTIFIER,
+      'Expected type name.',
+    ).value;
+    let args: TypeAnnotation[] | undefined;
+
+    if (this.matchOperator('<')) {
+      args = [];
+      do {
+        args.push(this.parseTypeAnnotation());
+      } while (this.match(TokenType.COMMA));
+      if (!this.matchOperator('>')) {
+        throw this.error(this.peek(), 'Expected > after generic arguments.');
+      }
+    }
+
+    return { type: 'TypeAnnotation', name, arguments: args };
   }
 
   // ==========================================================================
@@ -596,11 +669,9 @@ export class Parser {
 
     if (this.match(TokenType.OPERATOR) && this.previous().value === '?') {
       const consequent = this.parseExpression();
-
       if (!this.match(TokenType.COLON)) {
         throw this.error(this.peek(), 'Expected : in ternary.');
       }
-
       const alternate = this.parseExpression();
       return {
         type: 'ConditionalExpression',
@@ -683,7 +754,6 @@ export class Parser {
 
   private parseCallOrMember(): Expression {
     let expr = this.parsePrimary();
-    // console.log('After primary, next is', this.peek());
 
     while (true) {
       if (this.match(TokenType.LPAREN)) {
@@ -703,14 +773,62 @@ export class Parser {
         const index = this.parseExpression();
         this.consume(TokenType.RBRACKET, 'Expected ]');
         expr = {
-          // In Pine, close[1] is a history access.
-          // Let's treat it as MemberExpression for now or specialized HistoryAccess?
-          // AST def has MemberExpression.
           type: 'MemberExpression',
           object: expr,
           property: index,
           computed: true,
         };
+      } else if (this.check(TokenType.OPERATOR) && this.peek().value === '<') {
+        // Potential generic type arguments: f<int>() or obj.method<int>()
+        // We need to distinguish from 'less than' operator.
+        // Heuristic: If followed by known type keyword, assume generics.
+        // Or if pattern is < ID > (
+        const next = this.peekNext();
+        const isGeneric =
+          next &&
+          (this.checkTypeAnnotationWithToken(next) ||
+            (next.type === TokenType.IDENTIFIER &&
+              this.tokens[this.current + 2]?.value === '>'));
+
+        if (isGeneric) {
+          this.advance(); // eat <
+          const typeArgs: TypeAnnotation[] = [];
+          do {
+            typeArgs.push(this.parseTypeAnnotation());
+          } while (this.match(TokenType.COMMA));
+          if (!this.matchOperator('>')) {
+            throw this.error(this.peek(), 'Expected > after generic arguments.');
+          }
+
+          // Wrap current expr in a GenericCall wrapper?
+          // Or attach to next call?
+          // AST definition for CallExpression has typeArguments.
+          // But we haven't parsed the CallExpression yet (the parens).
+          // If we just parsed `f<int>`, `expr` is `f`.
+          // We are inside loop. Next iteration should see `(`.
+          // If we see `(`, we call `finishCall`.
+          // We need to pass `typeArgs` to `finishCall`.
+          // But `finishCall` takes `callee`.
+          // We can temporarily attach typeArgs to `expr`?
+          // Or change `finishCall` signature?
+          // Or use a temporary node type?
+          // Let's return a customized object or store it.
+          // But we are in a loop.
+          // If I have `f<T>.g`, `f<T>` is not valid in Pine?
+          // Generics are on function calls.
+          // So we expect `(` immediately after `>`.
+          if (this.check(TokenType.LPAREN)) {
+            this.advance(); // eat (
+            const call = this.finishCall(expr, typeArgs); // Need to modify finishCall
+            expr = call;
+          } else {
+            // Error? Generic args must be followed by call?
+            // Maybe `new array<int>`?
+            throw this.error(this.peek(), 'Expected ( after generic arguments.');
+          }
+        } else {
+          break;
+        }
       } else {
         break;
       }
@@ -718,22 +836,38 @@ export class Parser {
     return expr;
   }
 
-  private finishCall(callee: Expression): CallExpression {
+  // Helper to check if a token is a start of type annotation
+  private checkTypeAnnotationWithToken(token: Token): boolean {
+    return [
+      'int',
+      'float',
+      'bool',
+      'string',
+      'color',
+      'line',
+      'label',
+      'box',
+      'table',
+      'array',
+      'map',
+      'matrix',
+    ].includes(token.value);
+  }
+
+  private finishCall(
+    callee: Expression,
+    typeArguments?: TypeAnnotation[],
+  ): CallExpression {
     const args: Expression[] = [];
     if (!this.check(TokenType.RPAREN)) {
       do {
-        // Check for named arguments: name = value
-        if (
-          this.check(TokenType.IDENTIFIER) &&
-          this.peekNext()?.value === '='
-        ) {
+        if (this.check(TokenType.IDENTIFIER) && this.peekNext()?.value === '=') {
           const name = this.consume(
             TokenType.IDENTIFIER,
             'Expected argument name.',
           ).value;
-          this.advance(); // consume '='
+          this.advance();
           const value = this.parseExpression();
-          // Treat as AssignmentExpression for representation
           args.push({
             type: 'AssignmentExpression',
             operator: '=',
@@ -751,11 +885,21 @@ export class Parser {
       type: 'CallExpression',
       callee,
       arguments: args,
+      typeArguments,
     };
   }
 
   private parsePrimary(): Expression {
-    // console.log('Parsing primary at', this.peek());
+    if (this.check(TokenType.KEYWORD) && this.peek().value === 'switch') {
+      this.advance(); // consume switch
+      const stmt = this.parseSwitchStatement();
+      return {
+        type: 'SwitchExpression',
+        discriminant: stmt.discriminant,
+        cases: stmt.cases,
+      };
+    }
+
     if (this.match(TokenType.NUMBER)) {
       return {
         type: 'Literal',
@@ -801,7 +945,6 @@ export class Parser {
     }
 
     if (this.match(TokenType.LBRACKET)) {
-      // Array literal: [1, 2, 3]
       const elements: Expression[] = [];
       if (!this.check(TokenType.RBRACKET)) {
         do {
@@ -831,9 +974,7 @@ export class Parser {
 
   private matchOperator(...ops: string[]): boolean {
     if (this.check(TokenType.OPERATOR) || this.check(TokenType.KEYWORD)) {
-      // 'and'/'or' are keywords/operators
       if (ops.includes(this.peek().value)) {
-        // console.log('Matched operator', this.peek().value);
         this.advance();
         return true;
       }
@@ -884,7 +1025,6 @@ export class Parser {
       if (this.previous().type === TokenType.NEWLINE) return;
       switch (this.peek().type) {
         case TokenType.KEYWORD:
-          // if/for/while starts a statement
           return;
       }
       this.advance();
@@ -892,11 +1032,8 @@ export class Parser {
   }
 
   private isFunctionDeclaration(): boolean {
-    // Scan ahead: ID ( params ) =>
-    let temp = this.current + 1; // Skip ID
+    let temp = this.current + 1;
     if (this.tokens[temp].type !== TokenType.LPAREN) return false;
-
-    // Skip params
     while (
       temp < this.tokens.length &&
       this.tokens[temp].type !== TokenType.RPAREN
@@ -904,24 +1041,7 @@ export class Parser {
       temp++;
     }
     if (temp >= this.tokens.length) return false;
-    temp++; // Skip RPAREN
-
+    temp++;
     return this.tokens[temp]?.value === '=>';
-  }
-
-  private isTypeAnnotation(): boolean {
-    if (!this.check(TokenType.IDENTIFIER)) return false;
-    const val = this.peek().value;
-    return [
-      'int',
-      'float',
-      'bool',
-      'string',
-      'color',
-      'line',
-      'label',
-      'box',
-      'table',
-    ].includes(val);
   }
 }

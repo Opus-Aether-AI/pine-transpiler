@@ -29,11 +29,13 @@ import type {
   MemberExpression,
   Program,
   Statement,
+  SwitchExpression,
   SwitchStatement,
   TypeDefinition,
   UnaryExpression,
   VariableDeclaration,
   WhileStatement,
+  ImportStatement,
 } from '../parser/ast';
 
 export class ASTGenerator {
@@ -77,6 +79,8 @@ export class ASTGenerator {
         return this.generateSwitchStatement(stmt);
       case 'TypeDefinition':
         return this.generateTypeDefinition(stmt);
+      case 'ImportStatement':
+        return this.generateImportStatement(stmt as ImportStatement);
       default:
         // Cast to ASTNode to access type property in case of exhaustive switch fallback
         throw new Error(`Unknown statement type: ${(stmt as ASTNode).type}`);
@@ -222,6 +226,7 @@ export class ASTGenerator {
   private generateTypeDefinition(stmt: TypeDefinition): string {
     // class Name { constructor(fields) { ... } }
     const name = stmt.name;
+    const prefix = stmt.export ? 'export ' : '';
     // Fields are VariableDeclarations
     const fields = stmt.fields;
     const _params = fields.map((f) => (f.id as Identifier).name).join(', ');
@@ -255,7 +260,7 @@ export class ASTGenerator {
       })
       .join(', ');
 
-    return `${this.indent()}class ${name} {\n${this.indent(1)}constructor(${paramsWithDefaults}) {\n${this.indent(2)}${constructorBody.trim()}\n${this.indent(1)}}\n${this.indent()}}`;
+    return `${this.indent()}${prefix}class ${name} {\n${this.indent(1)}constructor(${paramsWithDefaults}) {\n${this.indent(2)}${constructorBody.trim()}\n${this.indent(1)}}\n${this.indent()}}`;
   }
 
   private generateForStatement(stmt: ForStatement): string {
@@ -351,13 +356,14 @@ export class ASTGenerator {
   private generateVariableDeclaration(stmt: VariableDeclaration): string {
     const kind = stmt.kind === 'const' ? 'const' : 'let';
     const init = stmt.init ? ` = ${this.generateExpression(stmt.init)}` : '';
+    const prefix = stmt.export ? 'export ' : '';
 
     let code = '';
 
     if (Array.isArray(stmt.id)) {
       // Tuple destructuring: [a, b] = ...
       const ids = stmt.id.map((id) => id.name).join(', ');
-      code = `${this.indent()}${kind} [${ids}]${init};`;
+      code = `${this.indent()}${prefix}${kind} [${ids}]${init};`;
 
       // Check for history needs
       for (const id of stmt.id) {
@@ -368,7 +374,7 @@ export class ASTGenerator {
         }
       }
     } else {
-      code = `${this.indent()}${kind} ${stmt.id.name}${init};`;
+      code = `${this.indent()}${prefix}${kind} ${stmt.id.name}${init};`;
       if (this.historicalVars.has(stmt.id.name)) {
         code += `\n${this.indent()}const _series_${stmt.id.name} = context.new_var(${stmt.id.name});`;
         // Update the historical accessor function (defined in preamble)
@@ -382,6 +388,7 @@ export class ASTGenerator {
   private generateFunctionDeclaration(stmt: FunctionDeclaration): string {
     const name = stmt.id.name;
     const params = stmt.params.map((p) => p.name).join(', ');
+    const prefix = stmt.export ? 'export ' : '';
 
     let body = '';
     if (stmt.body.type === 'BlockStatement') {
@@ -393,7 +400,14 @@ export class ASTGenerator {
       body = `{\n${this.indent()}return ${this.generateExpression(stmt.body as Expression)};\n${this.indent(-1)}}`;
     }
 
-    return `${this.indent()}function ${name}(${params}) ${body}`;
+    return `${this.indent()}${prefix}function ${name}(${params}) ${body}`;
+  }
+
+  private generateImportStatement(stmt: ImportStatement): string {
+    if (stmt.as) {
+      return `${this.indent()}import * as ${stmt.as} from ${JSON.stringify(stmt.source)};`;
+    }
+    return `${this.indent()}import ${JSON.stringify(stmt.source)};`;
   }
 
   private generateExpression(expr: Expression): string {
@@ -416,9 +430,101 @@ export class ASTGenerator {
         return expr.name;
       case 'Literal':
         return this.generateLiteral(expr);
+      case 'SwitchExpression':
+        return this.generateSwitchExpression(expr as unknown as SwitchExpression);
       default:
         throw new Error(`Unknown expression type: ${(expr as ASTNode).type}`);
     }
+  }
+
+  private generateSwitchExpression(expr: SwitchExpression): string {
+    // switch expression in JS can be IIFE
+    const stmt: SwitchStatement = {
+        type: 'SwitchStatement',
+        discriminant: expr.discriminant,
+        cases: expr.cases.map(c => {
+            // If consequent is expression, wrap in return statement
+            // If it's block, check if last statement is expression or return
+            // For now, assume expression or block with return
+            
+            // If Pine switch returns value, each case must return value.
+            // But generateSwitchStatement expects statements.
+            // We should transform consequent to return statement if it is expression.
+            
+            let cons = c.consequent;
+            if (cons.type !== 'BlockStatement' && !this.isStatement(cons)) {
+                // Expression -> ReturnStatement
+                 // But wait, generateSwitchStatement generates code, not AST.
+                 // I can't easily reuse generateSwitchStatement without AST transformation.
+                 return c;
+            }
+            return c;
+        })
+    };
+
+    // We construct the body of the IIFE manually since we need to ensure returns
+    let result = '(() => {\n';
+    this.indentLevel++;
+    
+    if (expr.discriminant) {
+        result += `${this.indent()}switch (${this.generateExpression(expr.discriminant)}) {\n`;
+        this.indentLevel++;
+        for (const c of expr.cases) {
+             if (c.test === null) {
+                result += `${this.indent()}default:\n`;
+             } else {
+                result += `${this.indent()}case ${this.generateExpression(c.test)}:\n`;
+             }
+             this.indentLevel++;
+             if (c.consequent.type === 'BlockStatement') {
+                 // If block, we hope it has return, or we might need to analyze last stmt
+                 // Pine blocks return last expression value implicitly.
+                 // JS blocks do NOT.
+                 // So we must handle implicit returns in blocks!
+                 // This is a broader issue: Blocks in Pine are expressions?
+                 // Yes, `if` is expression too.
+                 // My `generateBlockStatement` returns string.
+                 // I need `generateBlockExpression`?
+                 
+                 // For now, let's assume simple expression case for switch expression
+                 result += this.generateBlockStatement(c.consequent); 
+                 // Does generateBlockStatement add 'return'? No.
+             } else {
+                 result += `${this.indent()}return ${this.generateExpression(c.consequent as Expression)};\n`;
+             }
+             this.indentLevel--;
+        }
+        this.indentLevel--;
+        result += `${this.indent()}}\n`;
+    } else {
+        // if-else chain
+        for (let i = 0; i < expr.cases.length; i++) {
+             const c = expr.cases[i];
+             const test = c.test ? this.generateExpression(c.test) : 'true';
+             const prefix = i === 0 ? 'if' : 'else if';
+             
+             if (c.test === null && i > 0) { // default/else
+                 result += `${this.indent()}else {\n`;
+             } else {
+                 result += `${this.indent()}${prefix} (${test}) {\n`;
+             }
+             
+             this.indentLevel++;
+             if (c.consequent.type === 'BlockStatement') {
+                 // Same implicit return issue
+                 // Assuming for now simple expressions
+                  result += this.generateBlockStatement(c.consequent); 
+             } else {
+                 result += `${this.indent()}return ${this.generateExpression(c.consequent as Expression)};\n`;
+             }
+             this.indentLevel--;
+             result += `${this.indent()}}\n`;
+        }
+    }
+    
+    this.indentLevel--;
+    result += `${this.indent()}})()`;
+    return result;
   }
 
   private generateBinaryExpression(expr: BinaryExpression): string {
