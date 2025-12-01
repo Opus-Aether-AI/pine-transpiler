@@ -5,14 +5,14 @@
  * Command-line interface for transpiling Pine Script to JavaScript/PineJS format.
  */
 
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import {
-  transpile,
-  transpileToPineJS,
   canTranspilePineScript,
   getMappingStats,
+  transpile,
+  transpileToPineJS,
 } from '../index.js';
 
 const VERSION = '0.1.3';
@@ -62,7 +62,11 @@ interface CLIOptions {
   version?: boolean;
 }
 
-function parseArguments(): { command: string; file?: string; options: CLIOptions } {
+function parseArguments(): {
+  command: string;
+  file?: string;
+  options: CLIOptions;
+} {
   const { values, positionals } = parseArgs({
     options: {
       output: { type: 'string', short: 'o' },
@@ -123,7 +127,10 @@ function commandTranspile(file: string | undefined, options: CLIOptions): void {
       const result = transpile(code);
       writeOutput(result, options.output);
     } catch (error) {
-      console.error('Transpilation error:', error instanceof Error ? error.message : error);
+      console.error(
+        'Transpilation error:',
+        error instanceof Error ? error.message : error,
+      );
       process.exit(1);
     }
   } else if (format === 'pinejs') {
@@ -138,7 +145,11 @@ function commandTranspile(file: string | undefined, options: CLIOptions): void {
     }
 
     // Generate the factory code as a string
-    const factoryCode = generatePineJSFactoryCode(code, indicatorId, indicatorName);
+    const factoryCode = generatePineJSFactoryCode(
+      code,
+      indicatorId,
+      indicatorName,
+    );
     writeOutput(factoryCode, options.output);
   } else {
     console.error(`Error: Unknown format '${format}'. Use 'js' or 'pinejs'.`);

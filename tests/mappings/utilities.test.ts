@@ -12,21 +12,21 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { transpile } from '../utils';
 import {
   ALL_UTILITY_MAPPINGS,
-  NA_FUNCTION_MAPPINGS,
-  COMPARISON_FUNCTION_MAPPINGS,
-  UTILITY_FUNCTION_MAPPINGS,
-  TYPE_FUNCTION_MAPPINGS,
-  SYMINFO_MAPPINGS,
+  ARRAY_FUNCTION_MAPPINGS,
   BARSTATE_MAPPINGS,
   COLOR_FUNCTION_MAPPINGS,
-  STRING_FUNCTION_MAPPINGS,
-  ARRAY_FUNCTION_MAPPINGS,
-  isUtilityFunction,
+  COMPARISON_FUNCTION_MAPPINGS,
   getUtilityMapping,
+  isUtilityFunction,
+  NA_FUNCTION_MAPPINGS,
+  STRING_FUNCTION_MAPPINGS,
+  SYMINFO_MAPPINGS,
+  TYPE_FUNCTION_MAPPINGS,
+  UTILITY_FUNCTION_MAPPINGS,
 } from '../../src/mappings/utilities';
+import { transpile } from '../utils';
 
 describe('Utility Mappings', () => {
   describe('NA Function Mappings', () => {

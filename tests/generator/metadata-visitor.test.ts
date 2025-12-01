@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { extractMetadata, createIndicator } from '../utils';
+import { createIndicator, extractMetadata } from '../utils';
 
 describe('MetadataVisitor', () => {
   describe('Indicator Metadata', () => {
@@ -148,7 +148,8 @@ describe('MetadataVisitor', () => {
       });
 
       it('should extract options array', () => {
-        const code = 'maType = input("SMA", "MA Type", options=["SMA", "EMA", "WMA"])';
+        const code =
+          'maType = input("SMA", "MA Type", options=["SMA", "EMA", "WMA"])';
         const metadata = extractMetadata(code);
         expect(metadata.inputs[0].options).toEqual(['SMA', 'EMA', 'WMA']);
       });
@@ -350,27 +351,37 @@ z = high[3]
     it('should warn on unsupported function request.security', () => {
       const code = 'x = request.security("AAPL", "D", close)';
       const metadata = extractMetadata(code);
-      expect(metadata.warnings.some((w) => w.functionName === 'request.security')).toBe(true);
-      expect(metadata.warnings.some((w) => w.type === 'unsupported')).toBe(true);
+      expect(
+        metadata.warnings.some((w) => w.functionName === 'request.security'),
+      ).toBe(true);
+      expect(metadata.warnings.some((w) => w.type === 'unsupported')).toBe(
+        true,
+      );
     });
 
     it('should warn on unsupported function alert', () => {
       const code = 'alert("Test alert")';
       const metadata = extractMetadata(code);
-      expect(metadata.warnings.some((w) => w.functionName === 'alert')).toBe(true);
+      expect(metadata.warnings.some((w) => w.functionName === 'alert')).toBe(
+        true,
+      );
     });
 
     it('should warn on partially supported function plotshape', () => {
       const code = 'plotshape(true, "Shape")';
       const metadata = extractMetadata(code);
-      expect(metadata.warnings.some((w) => w.functionName === 'plotshape')).toBe(true);
+      expect(
+        metadata.warnings.some((w) => w.functionName === 'plotshape'),
+      ).toBe(true);
       expect(metadata.warnings.some((w) => w.type === 'partial')).toBe(true);
     });
 
     it('should warn on deprecated function study', () => {
       const code = 'study("Test")';
       const metadata = extractMetadata(code);
-      expect(metadata.warnings.some((w) => w.functionName === 'study')).toBe(true);
+      expect(metadata.warnings.some((w) => w.functionName === 'study')).toBe(
+        true,
+      );
       expect(metadata.warnings.some((w) => w.type === 'deprecated')).toBe(true);
     });
 
@@ -381,7 +392,9 @@ alert("Test 2")
 alert("Test 3")
 `;
       const metadata = extractMetadata(code);
-      const alertWarnings = metadata.warnings.filter((w) => w.functionName === 'alert');
+      const alertWarnings = metadata.warnings.filter(
+        (w) => w.functionName === 'alert',
+      );
       expect(alertWarnings.length).toBe(1);
     });
   });

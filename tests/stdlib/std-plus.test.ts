@@ -27,7 +27,9 @@ describe('StdPlus Library', () => {
 
   describe('Bollinger Bands (bb)', () => {
     it('should define bb function', () => {
-      expect(STD_PLUS_LIBRARY).toContain('bb: function(ctx, series, length, mult)');
+      expect(STD_PLUS_LIBRARY).toContain(
+        'bb: function(ctx, series, length, mult)',
+      );
     });
 
     it('should compute basis using SMA', () => {
@@ -58,7 +60,9 @@ describe('StdPlus Library', () => {
 
   describe('Bollinger Bands Width (bbw)', () => {
     it('should define bbw function', () => {
-      expect(STD_PLUS_LIBRARY).toContain('bbw: function(ctx, series, length, mult)');
+      expect(STD_PLUS_LIBRARY).toContain(
+        'bbw: function(ctx, series, length, mult)',
+      );
     });
 
     it('should compute width as (upper - lower) / basis', () => {
@@ -72,7 +76,9 @@ describe('StdPlus Library', () => {
 
   describe('Keltner Channels (kc)', () => {
     it('should define kc function', () => {
-      expect(STD_PLUS_LIBRARY).toContain('kc: function(ctx, series, length, mult, useTrueRange)');
+      expect(STD_PLUS_LIBRARY).toContain(
+        'kc: function(ctx, series, length, mult, useTrueRange)',
+      );
     });
 
     it('should use EMA for basis', () => {
@@ -95,7 +101,9 @@ describe('StdPlus Library', () => {
 
   describe('Keltner Channels Width (kcw)', () => {
     it('should define kcw function', () => {
-      expect(STD_PLUS_LIBRARY).toContain('kcw: function(ctx, series, length, mult, useTrueRange)');
+      expect(STD_PLUS_LIBRARY).toContain(
+        'kcw: function(ctx, series, length, mult, useTrueRange)',
+      );
     });
   });
 
@@ -164,7 +172,9 @@ momValue = ta.mom(close, 10)`;
     });
 
     it('should check cross and greater than', () => {
-      expect(STD_PLUS_LIBRARY).toContain('Std.cross(ctx, a, b) && Std.gt(ctx, a, b)');
+      expect(STD_PLUS_LIBRARY).toContain(
+        'Std.cross(ctx, a, b) && Std.gt(ctx, a, b)',
+      );
     });
 
     it('should transpile ta.crossover call', () => {
@@ -185,7 +195,9 @@ crossed = ta.crossover(sma14, sma28)`;
     });
 
     it('should check cross and less than', () => {
-      expect(STD_PLUS_LIBRARY).toContain('Std.cross(ctx, a, b) && Std.lt(ctx, a, b)');
+      expect(STD_PLUS_LIBRARY).toContain(
+        'Std.cross(ctx, a, b) && Std.lt(ctx, a, b)',
+      );
     });
 
     it('should transpile ta.crossunder call', () => {
@@ -228,7 +240,9 @@ crossed = ta.crossunder(sma14, sma28)`;
     });
 
     it('should return tuple [macdLine, signalLine, histogram]', () => {
-      expect(STD_PLUS_LIBRARY).toContain('return [macdLine, signalLine, histogram]');
+      expect(STD_PLUS_LIBRARY).toContain(
+        'return [macdLine, signalLine, histogram]',
+      );
     });
 
     it('should create persistent series for MACD values', () => {
@@ -296,7 +310,9 @@ plot(middle)`;
     });
 
     it('should check for NaN in hma', () => {
-      expect(STD_PLUS_LIBRARY).toContain('if (isNaN(wma1) || isNaN(wma2)) return NaN');
+      expect(STD_PLUS_LIBRARY).toContain(
+        'if (isNaN(wma1) || isNaN(wma2)) return NaN',
+      );
     });
   });
 

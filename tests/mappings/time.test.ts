@@ -8,19 +8,19 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { transpile } from '../utils';
 import {
-  TIME_FUNCTION_MAPPINGS,
   DATE_TIME_MAPPINGS,
-  RESOLUTION_MAPPINGS,
-  TIME_FUNCTIONS_MAPPINGS,
-  SESSION_MAPPINGS,
-  TIMEZONE_CONSTANTS,
   DAYOFWEEK_CONSTANTS,
   getTimeFunctionMapping,
-  isTimeFunction,
   getTimeFunctionNames,
+  isTimeFunction,
+  RESOLUTION_MAPPINGS,
+  SESSION_MAPPINGS,
+  TIME_FUNCTION_MAPPINGS,
+  TIME_FUNCTIONS_MAPPINGS,
+  TIMEZONE_CONSTANTS,
 } from '../../src/mappings/time';
+import { transpile } from '../utils';
 
 describe('Time Mappings', () => {
   describe('Date/Time Component Mappings', () => {
@@ -69,7 +69,9 @@ describe('Time Mappings', () => {
   describe('Resolution/Timeframe Mappings', () => {
     it('should have timeframe.period mapping', () => {
       expect(RESOLUTION_MAPPINGS['timeframe.period']).toBeDefined();
-      expect(RESOLUTION_MAPPINGS['timeframe.period'].stdName).toBe('Std.period');
+      expect(RESOLUTION_MAPPINGS['timeframe.period'].stdName).toBe(
+        'Std.period',
+      );
     });
 
     it('should have timeframe.isdwm mapping', () => {
@@ -79,27 +81,37 @@ describe('Time Mappings', () => {
 
     it('should have timeframe.isintraday mapping', () => {
       expect(RESOLUTION_MAPPINGS['timeframe.isintraday']).toBeDefined();
-      expect(RESOLUTION_MAPPINGS['timeframe.isintraday'].stdName).toBe('Std.isintraday');
+      expect(RESOLUTION_MAPPINGS['timeframe.isintraday'].stdName).toBe(
+        'Std.isintraday',
+      );
     });
 
     it('should have timeframe.isdaily mapping', () => {
       expect(RESOLUTION_MAPPINGS['timeframe.isdaily']).toBeDefined();
-      expect(RESOLUTION_MAPPINGS['timeframe.isdaily'].stdName).toBe('Std.isdaily');
+      expect(RESOLUTION_MAPPINGS['timeframe.isdaily'].stdName).toBe(
+        'Std.isdaily',
+      );
     });
 
     it('should have timeframe.isweekly mapping', () => {
       expect(RESOLUTION_MAPPINGS['timeframe.isweekly']).toBeDefined();
-      expect(RESOLUTION_MAPPINGS['timeframe.isweekly'].stdName).toBe('Std.isweekly');
+      expect(RESOLUTION_MAPPINGS['timeframe.isweekly'].stdName).toBe(
+        'Std.isweekly',
+      );
     });
 
     it('should have timeframe.ismonthly mapping', () => {
       expect(RESOLUTION_MAPPINGS['timeframe.ismonthly']).toBeDefined();
-      expect(RESOLUTION_MAPPINGS['timeframe.ismonthly'].stdName).toBe('Std.ismonthly');
+      expect(RESOLUTION_MAPPINGS['timeframe.ismonthly'].stdName).toBe(
+        'Std.ismonthly',
+      );
     });
 
     it('should have timeframe.multiplier mapping', () => {
       expect(RESOLUTION_MAPPINGS['timeframe.multiplier']).toBeDefined();
-      expect(RESOLUTION_MAPPINGS['timeframe.multiplier'].stdName).toBe('Std.interval');
+      expect(RESOLUTION_MAPPINGS['timeframe.multiplier'].stdName).toBe(
+        'Std.interval',
+      );
     });
   });
 
@@ -121,17 +133,23 @@ describe('Time Mappings', () => {
   describe('Session Mappings', () => {
     it('should have session.ismarket mapping', () => {
       expect(SESSION_MAPPINGS['session.ismarket']).toBeDefined();
-      expect(SESSION_MAPPINGS['session.ismarket'].stdName).toBe('_isMarketSession');
+      expect(SESSION_MAPPINGS['session.ismarket'].stdName).toBe(
+        '_isMarketSession',
+      );
     });
 
     it('should have session.ispremarket mapping', () => {
       expect(SESSION_MAPPINGS['session.ispremarket']).toBeDefined();
-      expect(SESSION_MAPPINGS['session.ispremarket'].stdName).toBe('_isPremarket');
+      expect(SESSION_MAPPINGS['session.ispremarket'].stdName).toBe(
+        '_isPremarket',
+      );
     });
 
     it('should have session.ispostmarket mapping', () => {
       expect(SESSION_MAPPINGS['session.ispostmarket']).toBeDefined();
-      expect(SESSION_MAPPINGS['session.ispostmarket'].stdName).toBe('_isPostmarket');
+      expect(SESSION_MAPPINGS['session.ispostmarket'].stdName).toBe(
+        '_isPostmarket',
+      );
     });
   });
 
@@ -141,7 +159,9 @@ describe('Time Mappings', () => {
     });
 
     it('should have New York timezone', () => {
-      expect(TIMEZONE_CONSTANTS['timezone.new_york']).toBe('"America/New_York"');
+      expect(TIMEZONE_CONSTANTS['timezone.new_york']).toBe(
+        '"America/New_York"',
+      );
     });
 
     it('should have London timezone', () => {
@@ -161,7 +181,9 @@ describe('Time Mappings', () => {
     });
 
     it('should have Los Angeles timezone', () => {
-      expect(TIMEZONE_CONSTANTS['timezone.los_angeles']).toBe('"America/Los_Angeles"');
+      expect(TIMEZONE_CONSTANTS['timezone.los_angeles']).toBe(
+        '"America/Los_Angeles"',
+      );
     });
   });
 
@@ -260,7 +282,10 @@ describe('Time Mappings', () => {
 
     it('should have descriptions for all mappings', () => {
       for (const [name, mapping] of Object.entries(TIME_FUNCTION_MAPPINGS)) {
-        expect(mapping.description, `${name} missing description`).toBeDefined();
+        expect(
+          mapping.description,
+          `${name} missing description`,
+        ).toBeDefined();
       }
     });
 

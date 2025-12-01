@@ -5,12 +5,12 @@
  * Uses mocking to avoid actual file system and process operations.
  */
 
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-  transpile,
-  transpileToPineJS,
   canTranspilePineScript,
   getMappingStats,
+  transpile,
+  transpileToPineJS,
 } from '../../src/index';
 
 describe('CLI Functionality', () => {
@@ -227,7 +227,8 @@ y = f(5)`;
       const stats = getMappingStats();
 
       // Total should be at least the sum of named categories
-      const namedSum = stats.ta + stats.math + (stats.time || 0) + (stats.multiOutput || 0);
+      const namedSum =
+        stats.ta + stats.math + (stats.time || 0) + (stats.multiOutput || 0);
       expect(stats.total).toBeGreaterThanOrEqual(namedSum / 2); // Approximate check
     });
   });
