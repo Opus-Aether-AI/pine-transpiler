@@ -55,6 +55,5 @@ jobs:
       - name: Install Dependencies
         run: pnpm install
         
-      # Uncomment when tests are added
-      # - name: Run Tests
-      #   run: pnpm --filter pine-transpiler test
+      - name: Run Tests
+        run: pnpm test

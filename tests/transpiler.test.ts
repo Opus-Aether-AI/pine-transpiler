@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { ASTGenerator } from '../src/generator/ast-generator';
 import { Lexer } from '../src/parser/lexer';
 import { Parser } from '../src/parser/parser';
-import { ASTGenerator } from '../src/generator/ast-generator';
 
 function transpile(code: string): string {
   const lexer = new Lexer(code);
@@ -43,22 +43,22 @@ describe('Pine Script Transpiler', () => {
   });
 
   it('should transpile for...in loops', () => {
-      const code = `
+    const code = `
 var arr = [1, 2, 3]
 for x in arr
     plot(x)
 `;
-      const result = transpile(code);
-      expect(result).toContain('for (const x of arr)');
+    const result = transpile(code);
+    expect(result).toContain('for (const x of arr)');
   });
-  
+
   it('should transpile for...in tuple loops', () => {
-      const code = `
+    const code = `
 var arr = [1, 2, 3]
 for [i, x] in arr
     plot(x)
 `;
-      const result = transpile(code);
-      expect(result).toContain('for (const [i, x] of arr.entries())');
+    const result = transpile(code);
+    expect(result).toContain('for (const [i, x] of arr.entries())');
   });
 });

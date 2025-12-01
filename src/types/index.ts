@@ -10,18 +10,18 @@
 export type {
   // Core runtime types
   CustomIndicator,
-  PineJSRuntime,
-  PineJSStdLibrary,
-  RuntimeContext,
+  IndicatorConstructor,
   IndicatorFactory,
   InputCallback,
-  IndicatorConstructor,
-  TranspileToPineJSResult,
+  PineJSRuntime,
+  PineJSStdLibrary,
+  PlotStyle,
+  RuntimeContext,
+  StudyInputInfo,
   // Metadata types
   StudyMetaInfo,
-  StudyInputInfo,
   StudyPlotInfo,
-  PlotStyle,
+  TranspileToPineJSResult,
 } from './runtime';
 
 // ============================================================================
@@ -41,9 +41,9 @@ export interface ParseWarning {
  * Error during transpilation runtime
  */
 export interface TranspilerRuntimeError {
-    message: string;
-    line?: number;
-    column?: number;
+  message: string;
+  line?: number;
+  column?: number;
 }
 
 /**

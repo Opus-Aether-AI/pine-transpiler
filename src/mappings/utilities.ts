@@ -454,23 +454,23 @@ export const PLOT_MAPPINGS: Record<
     stdName: 'Std.plot',
     description: 'Plot series on chart',
   },
-  'plotshape': {
+  plotshape: {
     stdName: 'Std.plotshape',
     description: 'Plot shape on chart',
   },
-  'plotchar': {
+  plotchar: {
     stdName: 'Std.plotchar',
     description: 'Plot char on chart',
   },
-  'plotarrow': {
+  plotarrow: {
     stdName: 'Std.plotarrow',
     description: 'Plot arrow on chart',
   },
-  'bgcolor': {
+  bgcolor: {
     stdName: 'Std.bgcolor',
     description: 'Fill background color',
   },
-  'fill': {
+  fill: {
     stdName: 'Std.fill',
     description: 'Fill area between plots',
   },

@@ -169,10 +169,9 @@ export class Lexer {
       }
 
       // Unknown character
-      console.warn(
+      throw new Error(
         `Unexpected character: '${char}' at ${this.line}:${this.column}`,
       );
-      this.advance();
     }
 
     // Emit remaining DEDENTs at EOF
@@ -252,7 +251,7 @@ export class Lexer {
       }
       // Safety check: indentLevel should match a previous level now
       if (indentLevel !== this.indentStack[this.indentStack.length - 1]) {
-        console.warn(
+        throw new Error(
           `Indentation error at ${this.line}:${this.column}. Expected ${this.indentStack[this.indentStack.length - 1]}, got ${indentLevel}`,
         );
       }
@@ -406,7 +405,10 @@ export class Lexer {
     const start = this.pos;
     this.advance(); // Skip #
 
-    while (this.pos < this.code.length && /[0-9A-Fa-f]/.test(this.code[this.pos])) {
+    while (
+      this.pos < this.code.length &&
+      /[0-9A-Fa-f]/.test(this.code[this.pos])
+    ) {
       value += this.code[this.pos];
       this.advance();
     }
