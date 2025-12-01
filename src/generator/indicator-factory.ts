@@ -298,46 +298,44 @@ export function createIndicatorFactory(
         inputs: generateInputInfos(parsed),
       } as StudyMetaInfo,
 
-      constructor: function () {
-        return {
-          // Build the main function dynamically using the transpiled code
-          main: (context: RuntimeContext, inputCallback: InputCallback) => {
-            try {
-              // Execute the transpiled code
-              // We create a function with all the necessary variables in scope
-              const executeMain = new Function(
-                'Std',
-                'context',
-                'inputCallback',
-                'isNaN',
-                'NaN',
-                'Math',
-                mainFunctionBody,
-              );
+      constructor: () => ({
+        // Build the main function dynamically using the transpiled code
+        main: (context: RuntimeContext, inputCallback: InputCallback) => {
+          try {
+            // Execute the transpiled code
+            // We create a function with all the necessary variables in scope
+            const executeMain = new Function(
+              'Std',
+              'context',
+              'inputCallback',
+              'isNaN',
+              'NaN',
+              'Math',
+              mainFunctionBody,
+            );
 
-              return executeMain(
-                Std,
-                context,
-                inputCallback,
-                Number.isNaN,
-                Number.NaN,
-                Math,
-              );
-            } catch (error) {
-              // Emit error event for UI to catch
-              emitRuntimeError({
-                indicatorId,
-                indicatorName: displayName,
-                error: error instanceof Error ? error : String(error),
-                generatedCode: mainFunctionBody,
-                timestamp: Date.now(),
-              });
-              // Return NaN for all plots on error to avoid breaking the chart
-              return parsed.plots.map(() => Number.NaN);
-            }
-          },
-        };
-      },
+            return executeMain(
+              Std,
+              context,
+              inputCallback,
+              Number.isNaN,
+              Number.NaN,
+              Math,
+            );
+          } catch (error) {
+            // Emit error event for UI to catch
+            emitRuntimeError({
+              indicatorId,
+              indicatorName: displayName,
+              error: error instanceof Error ? error : String(error),
+              generatedCode: mainFunctionBody,
+              timestamp: Date.now(),
+            });
+            // Return NaN for all plots on error to avoid breaking the chart
+            return parsed.plots.map(() => Number.NaN);
+          }
+        },
+      }),
     };
   };
 
