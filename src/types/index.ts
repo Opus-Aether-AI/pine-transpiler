@@ -38,6 +38,15 @@ export interface ParseWarning {
 }
 
 /**
+ * Error during transpilation runtime
+ */
+export interface TranspilerRuntimeError {
+    message: string;
+    line?: number;
+    column?: number;
+}
+
+/**
  * Parsed indicator metadata from Pine Script code
  */
 export interface ParsedIndicator {

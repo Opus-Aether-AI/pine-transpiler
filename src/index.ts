@@ -4,41 +4,42 @@
  * Converts Pine Script v5/v6 code to TradingView's PineJS CustomIndicator format.
  * This allows user-written Pine Script indicators to be rendered on the TradingView chart.
  *
- * Terminology:
- * - Pine Script: TradingView's user-facing scripting language (ta.sma, plot, etc.)
- * - PineJS: TradingView's JavaScript runtime API (PineJS.Std.sma, context.new_var, etc.)
- *
- * The transpilation process:
- * 1. Parses Pine Script v5/v6 code to extract indicator metadata (name, inputs, plots)
- * 2. Parses variable assignments and expressions
- * 3. Converts Pine Script ta.* functions to PineJS.Std.* equivalents
- * 4. Generates a TradingView CustomIndicator with proper runtime calculations
- *
- * Supported Pine Script features:
- * - indicator() declaration with name, overlay, etc.
- * - input.int(), input.float(), input.bool(), input.source()
- * - 40+ ta.* functions (sma, ema, rsi, macd, atr, stoch, etc.)
- * - 18+ math.* functions (abs, max, min, round, pow, sqrt, etc.)
- * - Time functions (year, month, hour, etc.)
- * - close, open, high, low, volume, hl2, hlc3, ohlc4
- * - plot() with color and linewidth options
- * - Basic arithmetic operators (+, -, *, /)
- * - Comparison operators (>, <, >=, <=, ==, !=)
- * - Logical operators (and, or, not)
- * - Ternary expressions (condition ? true : false)
- * - NA handling (na, nz)
- *
- * File Structure:
- * - types/           - Type definitions
- * - mappings/        - Function mapping tables (ta.*, math.*, time, etc.)
- * - parser/          - Pine Script parsing
- * - generator/       - JavaScript/PineJS code generation
- *
  * Reference: https://www.tradingview.com/charting-library-docs/latest/custom_studies/
  */
 
+import { Lexer, Parser } from './parser';
+import { MetadataVisitor } from './generator/metadata-visitor';
+import { ASTGenerator } from './generator/ast-generator';
+import { STD_PLUS_LIBRARY } from './stdlib';
+import { 
+  MATH_HELPER_FUNCTIONS, 
+  SESSION_HELPER_FUNCTIONS,
+  MATH_FUNCTION_MAPPINGS,
+  TIME_FUNCTION_MAPPINGS,
+  TA_FUNCTION_MAPPINGS,
+  MULTI_OUTPUT_MAPPINGS,
+  getMappingStats,
+  getAllPineFunctionNames
+} from './mappings';
+import { COLOR_MAP, PRICE_SOURCES } from './types';
+import type { 
+  IndicatorFactory, 
+  TranspileToPineJSResult, 
+  ParsedIndicator,
+  ParsedInput,
+  ParsedPlot,
+  ParsedVariable,
+  ParsedFunction,
+  TAFunctionMapping,
+  MultiOutputFunctionMapping,
+  ComparisonFunctionMapping,
+  TimeFunctionMapping,
+  TranspilerRuntimeError,
+  PlotStyle
+} from './types';
+
 // ============================================================================
-// Type Exports
+// Exports
 // ============================================================================
 
 export type {
@@ -53,77 +54,30 @@ export type {
   MultiOutputFunctionMapping,
   ComparisonFunctionMapping,
   TimeFunctionMapping,
-} from './types';
+  TranspilerRuntimeError
+};
 
-export { COLOR_MAP, PRICE_SOURCES } from './types';
-
-// Re-export runtime error type for UI consumption
-export type { TranspilerRuntimeError } from './generator';
-
-// ============================================================================
-// Mapping Exports (for debugging/inspection)
-// ============================================================================
-
-export {
+export { 
+  COLOR_MAP, 
+  PRICE_SOURCES,
   TA_FUNCTION_MAPPINGS,
   MULTI_OUTPUT_MAPPINGS,
   MATH_FUNCTION_MAPPINGS,
   TIME_FUNCTION_MAPPINGS,
   getMappingStats,
-  getAllPineFunctionNames,
-} from './mappings';
-
-// ============================================================================
-// Parser Exports
-// ============================================================================
-
-export { parsePineScript, validatePineScript } from './parser';
-
-// ============================================================================
-// Generator Exports
-// ============================================================================
-
-export {
-  transpileExpression,
-  generateMainFunction,
-  createIndicatorFactory,
-  generateIndicatorSummary,
-  emitTranspilerWarning,
-} from './generator';
-
-export type { TranspilerWarning } from './generator/indicator-factory';
+  getAllPineFunctionNames
+};
 
 // ============================================================================
 // Main Transpiler Function
 // ============================================================================
 
-import { createIndicatorFactory, emitTranspilerWarning } from './generator';
-import { parsePineScript, validatePineScript } from './parser';
-import type { IndicatorFactory, TranspileToPineJSResult } from './types';
-
 /**
  * Transpile Pine Script v5/v6 code to a TradingView CustomIndicator
  *
  * @param code - Pine Script source code
- * @param indicatorId - Unique identifier for this indicator (usually from DB)
- * @param indicatorName - Optional display name override
- * @returns TranspileToPineJSResult with the compiled indicator or error
- *
- * @example
- * ```typescript
- * const result = transpileToPineJS(`
- *   //@version=5
- *   indicator("My SMA", overlay=true)
- *   length = input.int(14, "Length")
- *   smaValue = ta.sma(close, length)
- *   plot(smaValue, "SMA", color=color.blue)
- * `, 'my-sma-indicator');
- *
- * if (result.success && result.indicatorFactory) {
- *   const indicator = result.indicatorFactory(PineJS);
- *   // Use indicator in TradingView chart
- * }
- * ```
+ * @param indicatorId - Unique identifier
+ * @param indicatorName - Display name
  */
 export function transpileToPineJS(
   code: string,
@@ -131,116 +85,362 @@ export function transpileToPineJS(
   indicatorName?: string,
 ): TranspileToPineJSResult {
   try {
-    // Parse the Pine Script code
-    const parsed = parsePineScript(code);
+     // 1. Tokenize
+    const lexer = new Lexer(code);
+    const tokens = lexer.tokenize();
 
-    // Use provided name or parsed name
-    const displayName = indicatorName || parsed.name;
+    // 2. Parse
+    const parser = new Parser(tokens);
+    const ast = parser.parse();
 
-    // Emit warnings for unsupported features
-    if (parsed.warnings.length > 0) {
-      for (const warning of parsed.warnings) {
-        emitTranspilerWarning({
-          indicatorName: displayName,
-          message: warning.message,
-          feature: warning.feature,
-          line: warning.line,
-          timestamp: Date.now(),
-        });
-      }
+    // 3. Extract Metadata
+    const visitor = new MetadataVisitor();
+    visitor.visit(ast);
+
+    // 4. Generate Code
+    const generator = new ASTGenerator(visitor.historicalAccess);
+    const mainBody = generator.generate(ast);
+
+    // Generate Preamble based on metadata
+    let preamble = '';
+
+    // Historical helpers for sources
+    for (const source of visitor.usedSources) {
+        preamble += `const _series_${source} = context.new_var(${source});\n`;
+        preamble += `const _getHistorical_${source} = (offset) => _series_${source}.get(offset);\n`;
     }
 
-    // Create the indicator factory
-    const indicatorFactory = createIndicatorFactory(
-      parsed,
-      indicatorId,
-      displayName,
-    );
+    // Historical helpers for other variables (initialized to NaN, updated by VariableDeclaration logic in ASTGenerator)
+    for (const v of visitor.historicalAccess) {
+        if (!visitor.usedSources.has(v)) {
+             preamble += `let _getHistorical_${v} = (offset) => NaN;\n`;
+        }
+    }
+    
+    // Inject Helpers
+    preamble += MATH_HELPER_FUNCTIONS + '\n';
+    preamble += SESSION_HELPER_FUNCTIONS + '\n';
+    preamble += STD_PLUS_LIBRARY + '\n';
+    
+    const body = preamble + mainBody;
+
+    // 5. Create Indicator Factory
+    const indicatorFactory: IndicatorFactory = (PineJS) => {
+        const Std = PineJS.Std;
+        const safeId = indicatorId.replace(/[^a-zA-Z0-9_]/g, '_');
+        
+        // Helper to map AST types to Runtime types
+        const mapPlotType = (t: string) => {
+            switch(t) {
+                case 'line': return 0;
+                case 'histogram': return 1;
+                case 'area': return 3;
+                case 'circles': return 4;
+                case 'columns': return 5;
+                // Mapping other types to closest match or 0
+                case 'cross': return 4; 
+                case 'stepline': return 0;
+                default: return 0;
+            }
+        };
+
+        return {
+            name: `User_${safeId}`,
+            metainfo: {
+                id: `User_${safeId}@tv-basicstudies-1`,
+                description: indicatorName || visitor.name,
+                shortDescription: visitor.shortName,
+                is_price_study: visitor.overlay,
+                isCustomIndicator: true,
+                format: { type: 'inherit' },
+                plots: visitor.plots.map(p => ({ 
+                    id: p.id, 
+                    type: p.type === 'line' || p.type === 'histogram' ? p.type : 'line' // Simplified
+                })),
+                defaults: {
+                    styles: visitor.plots.reduce((acc, p) => {
+                        acc[p.id] = {
+                            linestyle: 0,
+                            visible: true,
+                            linewidth: p.linewidth,
+                            plottype: mapPlotType(p.type),
+                            color: p.color,
+                            transparency: 0,
+                            trackPrice: p.type === 'hline' // hline might need specific handling
+                        };
+                        return acc;
+                    }, {} as Record<string, PlotStyle>),
+                    inputs: visitor.inputs.reduce((acc, i) => {
+                        acc[i.id] = i.defval;
+                        return acc;
+                    }, {} as Record<string, number | boolean | string>)
+                },
+                styles: visitor.plots.reduce((acc, p) => {
+                    acc[p.id] = { title: p.title, histogramBase: 0 };
+                    return acc;
+                }, {} as Record<string, { title: string; histogramBase?: number }>),
+                inputs: visitor.inputs.map(i => ({
+                    id: i.id,
+                    name: i.name,
+                    type: (i.type === 'string' ? 'text' : i.type) as 'text' | 'integer' | 'float' | 'bool' | 'source' | 'session' | 'time' | 'color',
+                    defval: i.defval,
+                    min: i.min,
+                    max: i.max,
+                    options: i.options
+                }))
+            },
+            constructor: function() {
+                // Compile the script once during initialization
+                let compiledScript: Function;
+                try {
+                    compiledScript = new Function(
+                        'Std', 'context', 'input', 'plot', 'indicator', 'study', 'strategy', 'color',
+                        'ta', 'math', 'timeframe', 'plotshape', 'plotchar', 'hline', 'bgcolor', 'fill',
+                        'box', 'line', 'label', 'table', 'str', 'syminfo', 'barstate',
+                        'close', 'open', 'high', 'low', 'volume', 'hl2', 'hlc3', 'ohlc4', // Inject sources directly
+                        body
+                    );
+                } catch (e) {
+                    console.error("Compilation error", e);
+                    compiledScript = () => {}; // No-op if compilation fails
+                }
+
+                return {
+                    main: function(context, inputCallback) {
+                        // Runtime helpers
+                        const ta = Std;
+                        let _inputIndex = 0;
+                        
+                        // Mock input function to grab values from callback
+                        // The AST generates 'input(...)'. We need 'input' to be defined.
+                        interface InputFunction {
+                            (defval: unknown, title: unknown): unknown;
+                            int: (defval: unknown, title: unknown) => unknown;
+                            float: (defval: unknown, title: unknown) => unknown;
+                            bool: (defval: unknown, title: unknown) => unknown;
+                            string: (defval: unknown, title: unknown) => unknown;
+                            time: (defval: unknown, title: unknown) => unknown;
+                            symbol: (defval: unknown, title: unknown) => unknown;
+                            source: (defval: unknown, title: unknown) => unknown;
+                        }
+
+                        const baseInput = (defval: unknown, title: unknown) => inputCallback(_inputIndex++);
+                        
+                        const input = baseInput as InputFunction;
+
+                        // Handle input sub-namespaces (input.int, etc)
+                        input.int = baseInput;
+                        input.float = baseInput;
+                        input.bool = baseInput;
+                        input.string = baseInput;
+                        input.time = baseInput;
+                        input.symbol = baseInput;
+                        input.source = (defval: unknown, title: unknown) => {
+                             const val = inputCallback(_inputIndex++);
+                             // Source input returns a string like "close".
+                             // We need to resolve it to the actual series.
+                             if (val === "close") return Std.close(context);
+                             if (val === "open") return Std.open(context);
+                             if (val === "high") return Std.high(context);
+                             if (val === "low") return Std.low(context);
+                             if (val === "volume") return Std.volume(context);
+                             if (val === "hl2") return Std.hl2(context);
+                             if (val === "hlc3") return Std.hlc3(context);
+                             if (val === "ohlc4") return Std.ohlc4(context);
+                             return Std.close(context);
+                        };
+
+                        // Mock plot function
+                        const _plotValues: number[] = [];
+                        
+                        interface PlotFunction {
+                            (series: number, title?: string, color?: string): void;
+                            style_line: number;
+                            style_histogram: number;
+                            style_circles: number;
+                            style_area: number;
+                            style_columns: number;
+                            style_cross: number;
+                            style_stepline: number;
+                        }
+
+                        const basePlot = (series: number, title?: string, color?: string) => {
+                            _plotValues.push(series);
+                        };
+                        
+                        const plot = basePlot as PlotFunction;
+
+                        // Add properties to plot to avoid crashes if user used plot.style_line etc
+                        plot.style_line = 0;
+                        plot.style_histogram = 1;
+                        plot.style_circles = 3; // Approximate mapping
+                        plot.style_area = 2;
+                        plot.style_columns = 5;
+                        plot.style_cross = 4;
+                        plot.style_stepline = 0; // No direct map
+
+                        // Mock indicator/study/strategy functions (no-op at runtime)
+                        const indicator = () => {};
+                        const study = () => {};
+                        const strategy = () => {};
+                        
+                        // Mock plotshape/plotchar/hline (no-op for data, but prevent crash)
+                        const plotshape = () => { _plotValues.push(NaN); }; // Placeholder?
+                        const plotchar = () => { _plotValues.push(NaN); };
+                        const hline = () => { _plotValues.push(NaN); };
+                        const bgcolor = () => {};
+                        const fill = () => {};
+
+                        // Common namespaces
+                        const color = COLOR_MAP; // Map string names to hex
+
+                        // Math namespace
+                        const math = {
+                            abs: Math.abs,
+                            acos: Math.acos,
+                            asin: Math.asin,
+                            atan: Math.atan,
+                            ceil: Math.ceil,
+                            cos: Math.cos,
+                            exp: Math.exp,
+                            floor: Math.floor,
+                            log: Math.log,
+                            log10: Math.log10,
+                            max: Math.max,
+                            min: Math.min,
+                            pow: Math.pow,
+                            random: Math.random,
+                            round: Math.round,
+                            sign: Math.sign,
+                            sin: Math.sin,
+                            sqrt: Math.sqrt,
+                            tan: Math.tan,
+                            // Custom mappings to helpers injected in preamble
+                            // Note: globalThis._sum depends on runtime env. In strict mode this might fail.
+                            // But since we are inside new Function, we can access arguments or scope.
+                            // The preamble helper functions are injected as string into 'body', so they are local variables in the compiledScript scope!
+                            // They are NOT on globalThis. They are just '_sum', '_avg' etc.
+                            // However, 'math' object is defined inside 'main' which is inside 'compiledScript'.
+                            // So 'math' can close over '_sum' if '_sum' is defined in 'compiledScript' body.
+                            // BUT 'math' is passed AS ARGUMENT to 'compiledScript'.
+                            // So 'math' is defined OUTSIDE 'compiledScript'.
+                            // So it CANNOT access '_sum' defined inside 'compiledScript'.
+                            // This is a problem. The helpers like _sum are inside the generated code.
+                            // But the 'math' object is passed IN.
+                            // So 'math.sum()' calls a function defined here.
+                            // It should likely use Math.sum if available (it's not).
+                            sum: (...args: number[]) => args.reduce((a, b) => a + b, 0),
+                            avg: (...args: number[]) => args.reduce((a, b) => a + b, 0) / args.length,
+                            todegrees: (r: number) => r * 180 / Math.PI,
+                            toradians: (d: number) => d * Math.PI / 180,
+                        };
+
+                        const timeframe = {
+                            period: Std.period(context),
+                            isdwm: Std.isdwm(context),
+                            isintraday: Std.isintraday(context),
+                            isdaily: Std.isdaily(context),
+                            isweekly: Std.isweekly(context),
+                            ismonthly: Std.ismonthly(context),
+                            multiplier: Std.interval(context)
+                        };
+                        
+                        // Stubs for unsupported namespaces to prevent crashes
+                        const box = { new: () => {}, delete: () => {}, set_left: () => {} };
+                        const line = { new: () => {}, delete: () => {} };
+                        const label = { new: () => {}, delete: () => {} };
+                        const table = { new: () => {}, cell: () => {} };
+                        const str = { 
+                            tostring: (v: unknown) => String(v), 
+                            length: (v: string) => v.length,
+                            contains: (s: string, sub: string) => s.includes(sub)
+                        };
+                        const minmov = context.symbol.minmov || 1;
+                        const pricescale = context.symbol.pricescale || 100;
+                        const syminfo = {
+                            ticker: "TICKER",
+                            tickerid: "EXCHANGE:TICKER",
+                            description: "Description",
+                            type: "stock",
+                            pointvalue: 1,
+                            mintick: minmov / pricescale,
+                            root: "TICKER",
+                            session: "0930-1600",
+                            timezone: "America/New_York"
+                        };
+
+                        // Standard variables (Sources)
+                        // Note: We handle missing methods gracefully
+                        const close = Std.close ? Std.close(context) : NaN;
+                        const open = Std.open ? Std.open(context) : NaN;
+                        const high = Std.high ? Std.high(context) : NaN;
+                        const low = Std.low ? Std.low(context) : NaN;
+                        const volume = Std.volume ? Std.volume(context) : NaN;
+                        const hl2 = Std.hl2 ? Std.hl2(context) : NaN;
+                        const hlc3 = Std.hlc3 ? Std.hlc3(context) : NaN;
+                        const ohlc4 = Std.ohlc4 ? Std.ohlc4(context) : NaN;
+                        
+                        const barstate = {
+                            islast: true, // Simplified
+                            isrealtime: true,
+                            isnew: false,
+                            isconfirmed: true
+                        };
+                        
+                        // Execution
+                        try {
+                           compiledScript(
+                               Std, context, input, plot, indicator, study, strategy, color,
+                               ta, math, timeframe, plotshape, plotchar, hline, bgcolor, fill,
+                               box, line, label, table, str, syminfo, barstate,
+                               close, open, high, low, volume, hl2, hlc3, ohlc4
+                           );
+                           
+                           return _plotValues;
+                        } catch (e) {
+                            console.error("Script execution error", e);
+                            // Return NaNs matching plot count
+                            return visitor.plots.map(p => NaN);
+                        }
+                    }
+                };
+            }
+        };
+    };
 
     return {
-      success: true,
-      indicatorFactory,
+        success: true,
+        indicatorFactory
     };
+
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Unknown transpilation error';
-
-    // Try to extract line number from error
-    let errorLine: number | undefined;
-    let errorColumn: number | undefined;
-
-    if (error instanceof Error) {
-      const lineMatch = error.message.match(/(?:line|Line)\s*(\d+)/i);
-      if (lineMatch?.[1]) {
-        errorLine = Number.parseInt(lineMatch[1], 10);
-      }
-      const colMatch = error.message.match(/(?:column|col)\s*(\d+)/i);
-      if (colMatch?.[1]) {
-        errorColumn = Number.parseInt(colMatch[1], 10);
-      }
-    }
-
-    return {
-      success: false,
-      error: errorMessage,
-      errorLine,
-      errorColumn,
-    };
+      return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error)
+      };
   }
 }
 
 /**
  * Check if Pine Script code can be transpiled
- * Performs basic validation without full transpilation
- *
- * @param code - Pine Script source code
- * @returns Validation result with valid flag and optional reason
  */
 export function canTranspilePineScript(code: string): {
   valid: boolean;
   reason?: string | undefined;
 } {
-  const { valid, errors } = validatePineScript(code);
-
-  if (!valid && errors.length > 0) {
-    return { valid: false, reason: errors[0] ?? 'Unknown error' };
+  try {
+      const lexer = new Lexer(code);
+      const tokens = lexer.tokenize();
+      const parser = new Parser(tokens);
+      parser.parse();
+      return { valid: true };
+  } catch (error) {
+      return { valid: false, reason: error instanceof Error ? error.message : String(error) };
   }
-
-  return { valid: true };
 }
-
-// ============================================================================
-// PineJS Execution (for native PineJS code)
-// ============================================================================
 
 /**
  * Execute native PineJS code and return an IndicatorFactory
- *
- * PineJS code is JavaScript that defines a `createIndicator` function.
- * This function extracts and wraps that function as an IndicatorFactory.
- *
- * @param code - PineJS JavaScript source code
- * @param indicatorId - Unique identifier for this indicator
- * @param indicatorName - Optional display name override
- * @returns TranspileToPineJSResult with the indicator factory or error
- *
- * @example
- * ```typescript
- * const result = executePineJS(`
- *   function createIndicator(PineJS) {
- *     return {
- *       name: 'My Indicator',
- *       metainfo: { ... },
- *       constructor: function() { ... }
- *     };
- *   }
- *   export { createIndicator };
- * `, 'my-indicator');
- *
- * if (result.success && result.indicatorFactory) {
- *   // Use indicator in TradingView chart
- * }
- * ```
  */
 export function executePineJS(
   code: string,
@@ -248,23 +448,16 @@ export function executePineJS(
   indicatorName?: string,
 ): TranspileToPineJSResult {
   try {
-    // The PineJS code should define a createIndicator function
-    // We need to extract it and convert it to an IndicatorFactory
-
-    // Remove ES module syntax (export { createIndicator })
-    // since we can't use ES modules with Function constructor
     const processedCode = code
       .replace(/export\s*\{\s*createIndicator\s*\}\s*;?/g, '')
       .replace(/export\s+default\s+createIndicator\s*;?/g, '')
-      .replace(/export\s+/g, ''); // Remove any remaining export keywords
+      .replace(/export\s+/g, '');
 
-    // Wrap the code to capture the createIndicator function
     const wrappedCode = `
       ${processedCode}
       return typeof createIndicator === 'function' ? createIndicator : null;
     `;
 
-    // Create and execute the function
     const extractCreateIndicator = new Function(wrappedCode);
     const createIndicator = extractCreateIndicator();
 
@@ -275,25 +468,19 @@ export function executePineJS(
       };
     }
 
-    // Create the indicator factory that wraps createIndicator
     const indicatorFactory: IndicatorFactory = (PineJS) => {
       const indicator = createIndicator(PineJS);
-
-      // Override name and ID if provided
       if (indicatorName) {
         indicator.name = indicatorName;
         if (indicator.metainfo) {
-          indicator.metainfo.description = indicatorName;
-          indicator.metainfo.shortDescription = indicatorName;
+            indicator.metainfo.description = indicatorName;
+            indicator.metainfo.shortDescription = indicatorName;
         }
       }
-
-      // Update the indicator ID to ensure uniqueness
       if (indicator.metainfo) {
         const rawId = `${indicatorId}@tv-basicstudies-1`;
         indicator.metainfo.id = rawId;
       }
-
       return indicator;
     };
 
@@ -302,41 +489,15 @@ export function executePineJS(
       indicatorFactory,
     };
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Unknown PineJS execution error';
-
-    // Try to extract line number from error
-    let errorLine: number | undefined;
-    let errorColumn: number | undefined;
-
-    if (error instanceof Error) {
-      const lineMatch = error.message.match(/(?:line|Line)\s*(\d+)/i);
-      if (lineMatch?.[1]) {
-        errorLine = Number.parseInt(lineMatch[1], 10);
-      }
-      const colMatch = error.message.match(/(?:column|col)\s*(\d+)/i);
-      if (colMatch?.[1]) {
-        errorColumn = Number.parseInt(colMatch[1], 10);
-      }
-    }
-
     return {
       success: false,
-      error: errorMessage,
-      errorLine,
-      errorColumn,
+      error: error instanceof Error ? error.message : 'Unknown PineJS execution error',
     };
   }
 }
 
-// ============================================================================
-// Default Export
-// ============================================================================
-
 export default {
   transpileToPineJS,
   executePineJS,
-  canTranspilePineScript,
-  parsePineScript,
-  validatePineScript,
+  canTranspilePineScript
 };
