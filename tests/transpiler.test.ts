@@ -61,4 +61,26 @@ for [i, x] in arr
     const result = transpile(code);
     expect(result).toContain('for (const [i, x] of arr.entries())');
   });
+
+  it('should inject loop guards in while loops', () => {
+    const code = `
+while true
+    plot(close)
+`;
+    const result = transpile(code);
+    expect(result).toContain('while (true)');
+    expect(result).toContain('throw new Error("Loop limit exceeded")');
+  });
+
+  it('should inject loop guards in for loops', () => {
+    const code = `
+for i = 0 to 10
+    plot(i)
+`;
+    const result = transpile(code);
+    // The AST generator for 'for i = 0 to 10' generates a standard C-style for loop
+    // expect(result).toContain('for (let i = 0; i <= 10; i++)'); // This depends on how parser handles 'to'
+    // But we specifically care about the guard
+    expect(result).toContain('throw new Error("Loop limit exceeded")');
+  });
 });

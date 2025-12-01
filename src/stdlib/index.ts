@@ -88,6 +88,24 @@ const StdPlus = {
     },
     
     /**
+     * Hull Moving Average
+     * Formula: WMA(2 * WMA(n/2) - WMA(n), sqrt(n))
+     */
+    hma: function(ctx, series, length) {
+        const len2 = Math.floor(length / 2);
+        const sqrtLen = Math.round(Math.sqrt(length));
+        
+        const wma1 = Std.wma(ctx, series, len2);
+        const wma2 = Std.wma(ctx, series, length);
+        
+        if (isNaN(wma1) || isNaN(wma2)) return NaN;
+        
+        const diff = 2 * wma1 - wma2;
+        
+        return Std.wma(ctx, diff, sqrtLen);
+    },
+
+    /**
      * Momentum
      */
     mom: function(ctx, source, length) {
@@ -123,13 +141,10 @@ const StdPlus = {
         }
         
         const macdLine = fastMA - slowMA;
+        const signalLine = Std.ema(ctx, macdLine, sigLen);
+        const histogram = macdLine - signalLine;
         
-        // Signal line requires EMA of macdLine. 
-        // Since macdLine is calculated on the fly and not a series, 
-        // we cannot easily use Std.ema(ctx, macdLine, sigLen).
-        // This requires stateful calculation which is not currently supported in this polyfill.
-        
-        return [macdLine, NaN, NaN];
+        return [macdLine, signalLine, histogram];
     },
     
     /**

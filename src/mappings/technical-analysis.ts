@@ -74,11 +74,11 @@ export const MOVING_AVERAGE_MAPPINGS: Record<string, TAFunctionMapping> = {
     description: 'Arnaud Legoux Moving Average (series, length, offset, sigma)',
   },
   'ta.hma': {
-    stdName: 'Std.wma', // HMA is calculated using WMA internally
+    stdName: 'StdPlus.hma',
     needsSeries: true,
     contextArg: true,
     argCount: 2,
-    description: 'Hull Moving Average (implemented via WMA)',
+    description: 'Hull Moving Average',
   },
   'ta.linreg': {
     stdName: 'Std.linreg',
