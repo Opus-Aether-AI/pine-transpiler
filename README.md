@@ -4,7 +4,7 @@
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL%203.0-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![npm version](https://img.shields.io/npm/v/@opusaether/pine-transpiler.svg)](https://www.npmjs.com/package/@opusaether/pine-transpiler)
-[![Build Status](https://github.com/Opus-Aether-AI/pine-transpiler/actions/workflows/pine-transpiler.yml/badge.svg)](https://github.com/Opus-Aether-AI/pine-transpiler/actions)
+[![Build Status](https://github.com/Opus-Aether-AI/pine-transpiler/actions/workflows/ci.yml/badge.svg)](https://github.com/Opus-Aether-AI/pine-transpiler/actions/workflows/ci.yml)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)](https://www.typescriptlang.org/)
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-green)](package.json)
 
@@ -100,36 +100,40 @@ Executes native PineJS code (for advanced users).
 
 ## Supported Pine Script Features
 
-### Indicator Declaration
-- `indicator(name, overlay, ...)`
-- Input types: `input.int()`, `input.float()`, `input.bool()`, `input.source()`
+### Core Language
+- **Structure:** `indicator()` declaration, variable assignments, tuple destructuring (`[a, b] = func()`)
+- **Inputs:** Full support for `input.int`, `input.float`, `input.bool`, `input.source`, `input.string`, `input.color`, `input.time`, `input.price`, `input.session`
+- **Functions:** Custom function definitions (single-line and multi-line)
+- **Control Flow:** `if`, `for`, `while`, `switch` statements
 
-### Technical Analysis Functions
-- **Moving Averages:** `ta.sma()`, `ta.ema()`, `ta.wma()`, `ta.vwma()`, `ta.rma()`
-- **Momentum:** `ta.rsi()`, `ta.macd()`, `ta.stoch()`, `ta.cci()`, `ta.mfi()`
-- **Volatility:** `ta.atr()`, `ta.tr()`, `ta.bb()`, `ta.kc()`
-- **Volume:** `ta.obv()`
-- **And more:** See [full list](./docs/supported-functions.md)
+### Technical Analysis (TA)
+- **Moving Averages:** SMA, EMA, WMA, RMA, VWMA, SWMA, ALMA, HMA, SMMA, LinReg
+- **Oscillators:** RSI, Stochastic, CCI, MFI, ROC, Momentum, TSI, Percent Rank
+- **Volatility & Trend:** ATR, Bollinger Bands, Keltner Channels, MACD, Supertrend, Parabolic SAR, ADX, DMI
+- **Cross Detection:** `cross`, `crossover`, `crossunder`, `rising`, `falling`
+- **Volume:** OBV, Accumulation/Distribution, VWAP
+- **Range:** Highest/Lowest (bars & values), Median, Mode, Pivot Points
 
-### Math Functions
-`math.abs()`, `math.ceil()`, `math.floor()`, `math.round()`, `math.max()`, `math.min()`, `math.pow()`, `math.sqrt()`, `math.exp()`, `math.log()`, `math.sin()`, `math.cos()`, `math.tan()`
-
-### Time Functions
-`year()`, `month()`, `dayofmonth()`, `dayofweek()`, `hour()`, `minute()`, `second()`
-
-### Price Data
-`close`, `open`, `high`, `low`, `volume`, `hl2`, `hlc3`, `ohlc4`
-
-### Operators
-- Arithmetic: `+`, `-`, `*`, `/`
-- Comparison: `>`, `<`, `>=`, `<=`, `==`, `!=`
-- Logical: `and`, `or`, `not`
-- Ternary: `condition ? true : false`
+### Math & Statistics
+- **Basic:** `math.abs`, `math.log`, `math.round`, `math.floor`, `math.ceil`, `math.pow`, `math.sqrt`
+- **Trigonometry:** `math.sin`, `math.cos`, `math.tan`, `math.asin`, `math.acos`, `math.atan`
+- **Statistics:** `math.max`, `math.min`, `math.avg`, `math.sum`, `ta.correlation`, `ta.cov`, `ta.stdev`, `ta.variance`
 
 ### Plotting
-- `plot()` - Line plots with color and width
-- `plotshape()` - Shape markers
-- `hline()` - Horizontal lines
+- `plot()` - Line, Histogram, Cross, Circles, Area, Columns
+- `plotshape()` - Shape markers (circle, triangle, diamond, etc.)
+- `hline()` - Horizontal reference lines
+
+## Current Limitations
+
+The following features are **not yet supported** or are skipped during transpilation:
+
+- ❌ **Visuals:** `bgcolor()`, `barcolor()`, `fill()`
+- ❌ **Drawing Objects:** `line.*`, `label.*`, `box.*`, `table.*`
+- ❌ **Alerts:** `alertcondition()`
+- ❌ **External Data:** `request.*` (security, financial, seeds, etc.)
+- ❌ **Strategy Execution:** `strategy.*` functions (parsed as indicators only)
+- ❌ **Advanced Types:** Arrays, Matrices, Maps, and User-Defined Types (Objects)
 
 ## Examples
 
@@ -224,7 +228,14 @@ pine-transpiler/
 
 ## Contributing
 
-Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md).
+Contributions are welcome! We are actively looking for help in the following areas:
+
+- **Drawing Library:** Implementing `line`, `label`, and `box` drawing objects
+- **External Data:** Adding support for `request.security` and multi-timeframe analysis
+- **Expanded TA:** Implementing more complex technical indicators
+- **Strategy Engine:** Adding execution logic for `strategy.*` functions
+
+Please read our [Contributing Guide](CONTRIBUTING.md) to get started.
 
 ## License
 
