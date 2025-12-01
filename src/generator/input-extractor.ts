@@ -41,6 +41,9 @@ export class InputExtractor {
     } else if (fnName === 'input.string') {
       type = 'string';
       defval = getStringValue(defvalExpr) ?? '';
+    } else if (fnName === 'input.session') {
+      type = 'session';
+      defval = getStringValue(defvalExpr) ?? '0930-1600:23456';
     } else if (fnName === 'input.source') {
       type = 'source';
       if (defvalExpr?.type === 'Identifier') {
