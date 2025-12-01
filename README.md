@@ -1,34 +1,24 @@
-# Pine Script Transpiler
+# Pine Script to PineJS Transpiler
 
-> Transpile Pine Script v5/v6 to executable JavaScript with zero dependencies
+A robust transpiler that converts TradingView **Pine Script (v5/v6)** into JavaScript code compatible with the **TradingView Charting Library's Custom Indicators (`PineJS`)** API.
 
-[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL%203.0-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
-[![npm version](https://img.shields.io/npm/v/@opusaether/pine-transpiler.svg)](https://www.npmjs.com/package/@opusaether/pine-transpiler)
-[![Build Status](https://github.com/Opus-Aether-AI/pine-transpiler/actions/workflows/ci.yml/badge.svg)](https://github.com/Opus-Aether-AI/pine-transpiler/actions/workflows/ci.yml)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)](https://www.typescriptlang.org/)
-[![Zero Dependencies](https://img.shields.io/badge/dependencies-0-green)](package.json)
+This tool allows you to run Pine Script indicators directly within the Charting Library by transpiling them into standard JavaScript objects that implement the `PineJS` interface.
 
 ## Features
 
-✅ **Zero Dependencies** - Completely standalone, no external runtime dependencies  
-✅ **Full TypeScript** - Complete type safety with comprehensive type definitions  
-✅ **TradingView Compatible** - Works seamlessly with TradingView Charting Library  
-✅ **Pine Script v5/v6** - Supports latest Pine Script versions  
-✅ **40+ TA Functions** - Technical analysis indicators (SMA, EMA, RSI, MACD, etc.)  
-✅ **18+ Math Functions** - Complete math library support  
-✅ **Time Functions** - Full date/time manipulation  
-✅ **Custom Functions** - Define and use custom Pine Script functions  
+-   **Pine Script v5/v6 Syntax Support**: Handles variable declarations (`var`, `varip`), types, control flow (`if`, `for`, `while`, `switch`), and functions.
+-   **Standard Library Mapping**: Automatically maps Pine Script's `ta.*`, `math.*`, `time.*`, and `str.*` functions to their `PineJS.Std` equivalents.
+-   **StdPlus Polyfills**: Includes a built-in `StdPlus` library to support Pine Script functions that are missing from the native `PineJS.Std` (e.g., `bb`, `kc`, `crossover`, `hma`).
+-   **Zero Dependencies**: The core transpiler logic is dependency-free and runs in any JavaScript environment.
+-   **TypeScript First**: Full TypeScript support with strict mode enabled and comprehensive type definitions.
 
 ## Installation
 
 ```bash
-# pnpm
-pnpm add @opusaether/pine-transpiler
-
-# npm
 npm install @opusaether/pine-transpiler
-
-# yarn
+# or
+pnpm add @opusaether/pine-transpiler
+# or
 yarn add @opusaether/pine-transpiler
 ```
 
@@ -39,203 +29,315 @@ import { transpileToPineJS } from '@opusaether/pine-transpiler';
 
 const pineScript = `
 //@version=5
-indicator("My SMA", overlay=true)
-length = input.int(14, "Length")
-smaValue = ta.sma(close, length)
-plot(smaValue, "SMA", color=color.blue)
+indicator("My Custom SMA", overlay=true)
+len = input.int(14, "Length")
+out = ta.sma(close, len)
+plot(out, color=color.blue)
 `;
 
-const result = transpileToPineJS(pineScript, 'my-sma-indicator');
+const result = transpileToPineJS(pineScript, 'my-sma-indicator', 'My SMA');
 
-if (result.success && result.indicatorFactory) {
-  // For TradingView users:
+if (result.success) {
+  // Use with TradingView Charting Library
   const indicator = result.indicatorFactory(PineJS);
-  
-  // Add to chart
-  widget.activeChart().createStudy(
-    indicator.name,
-    false,
-    false,
-    undefined,
-    indicator
-  );
+  // Register indicator with chart...
+} else {
+  console.error("Transpilation Failed:", result.error);
 }
 ```
 
 ## API Reference
 
-### `transpileToPineJS(code, indicatorId, indicatorName?)`
+### Core Functions
 
-Transpiles Pine Script code to a TradingView CustomIndicator.
+#### `transpileToPineJS(code, indicatorId, indicatorName?)`
 
-**Parameters:**
-- `code: string` - Pine Script source code
-- `indicatorId: string` - Unique identifier for the indicator
-- `indicatorName?: string` - Optional display name override
-
-**Returns:** `TranspileToPineJSResult`
+Transpile Pine Script to a TradingView CustomIndicator factory.
 
 ```typescript
+function transpileToPineJS(
+  code: string,           // Pine Script source code
+  indicatorId: string,    // Unique identifier for the indicator
+  indicatorName?: string  // Optional display name
+): TranspileToPineJSResult;
+
+// Returns:
 interface TranspileToPineJSResult {
   success: boolean;
-  indicatorFactory?: IndicatorFactory;
-  error?: string;
-  errorLine?: number;
-  errorColumn?: number;
+  indicatorFactory?: IndicatorFactory;  // When success=true
+  error?: string;                       // When success=false
 }
 ```
 
-### `canTranspilePineScript(code)`
+#### `transpile(code)`
 
-Validates Pine Script code without full transpilation.
-
-**Parameters:**
-- `code: string` - Pine Script source code
-
-**Returns:** `{ valid: boolean; reason?: string }`
-
-### `executePineJS(code, indicatorId, indicatorName?)`
-
-Executes native PineJS code (for advanced users).
-
-## Supported Pine Script Features
-
-### Core Language
-- **Structure:** `indicator()` declaration, variable assignments, tuple destructuring (`[a, b] = func()`)
-- **Inputs:** Full support for `input.int`, `input.float`, `input.bool`, `input.source`, `input.string`, `input.color`, `input.time`, `input.price`, `input.session`
-- **Functions:** Custom function definitions (single-line and multi-line)
-- **Control Flow:** `if`, `for`, `while`, `switch` statements
-
-### Technical Analysis (TA)
-- **Moving Averages:** SMA, EMA, WMA, RMA, VWMA, SWMA, ALMA, HMA, SMMA, LinReg
-- **Oscillators:** RSI, Stochastic, CCI, MFI, ROC, Momentum, TSI, Percent Rank
-- **Volatility & Trend:** ATR, Bollinger Bands, Keltner Channels, MACD, Supertrend, Parabolic SAR, ADX, DMI
-- **Cross Detection:** `cross`, `crossover`, `crossunder`, `rising`, `falling`
-- **Volume:** OBV, Accumulation/Distribution, VWAP
-- **Range:** Highest/Lowest (bars & values), Median, Mode, Pivot Points
-
-### Math & Statistics
-- **Basic:** `math.abs`, `math.log`, `math.round`, `math.floor`, `math.ceil`, `math.pow`, `math.sqrt`
-- **Trigonometry:** `math.sin`, `math.cos`, `math.tan`, `math.asin`, `math.acos`, `math.atan`
-- **Statistics:** `math.max`, `math.min`, `math.avg`, `math.sum`, `ta.correlation`, `ta.cov`, `ta.stdev`, `ta.variance`
-
-### Plotting
-- `plot()` - Line, Histogram, Cross, Circles, Area, Columns
-- `plotshape()` - Shape markers (circle, triangle, diamond, etc.)
-- `hline()` - Horizontal reference lines
-
-## Current Limitations
-
-The following features are **not yet supported** or are skipped during transpilation:
-
-- ❌ **Visuals:** `bgcolor()`, `barcolor()`, `fill()`
-- ❌ **Drawing Objects:** `line.*`, `label.*`, `box.*`, `table.*`
-- ❌ **Alerts:** `alertcondition()`
-- ❌ **External Data:** `request.*` (security, financial, seeds, etc.)
-- ❌ **Strategy Execution:** `strategy.*` functions (parsed as indicators only)
-- ❌ **Advanced Types:** Arrays, Matrices, Maps, and User-Defined Types (Objects)
-
-## Examples
-
-### RSI Indicator
+Low-level function that returns raw JavaScript string (for advanced use cases).
 
 ```typescript
-const rsiCode = `
-//@version=5
-indicator("RSI", overlay=false)
-length = input.int(14, "Length", minval=1)
-source = input.source(close, "Source")
-
-rsiValue = ta.rsi(source, length)
-
-plot(rsiValue, "RSI", color=color.blue)
-hline(70, "Overbought", color=color.red)
-hline(30, "Oversold", color=color.green)
-`;
-
-const result = transpileToPineJS(rsiCode, 'rsi-14');
+function transpile(code: string): string;
 ```
 
-### MACD Indicator
+#### `canTranspilePineScript(code)`
+
+Validate if Pine Script code can be transpiled without executing.
 
 ```typescript
-const macdCode = `
-//@version=5
-indicator("MACD", overlay=false)
-
-[macdLine, signalLine, histLine] = ta.macd(close, 12, 26, 9)
-
-plot(macdLine, "MACD", color=color.blue)
-plot(signalLine, "Signal", color=color.orange)
-plot(histLine, "Histogram", color=color.gray, style=plot.style_histogram)
-`;
-
-const result = transpileToPineJS(macdCode, 'macd');
+function canTranspilePineScript(code: string): {
+  valid: boolean;
+  reason?: string;
+};
 ```
 
-## TypeScript Support
+#### `executePineJS(code, indicatorId, indicatorName?)`
 
-The package is fully typed with comprehensive TypeScript definitions:
+Execute native PineJS JavaScript code and return an indicator factory.
 
 ```typescript
-import type {
-  IndicatorFactory,
-  CustomIndicator,
-  PineJSRuntime,
-  TranspileToPineJSResult,
+function executePineJS(
+  code: string,
+  indicatorId: string,
+  indicatorName?: string
+): TranspileToPineJSResult;
+```
+
+### Exports
+
+#### Main Entry Point
+```typescript
+import { 
+  transpileToPineJS,
+  transpile,
+  canTranspilePineScript,
+  executePineJS,
+  // Mappings
+  TA_FUNCTION_MAPPINGS,
+  MULTI_OUTPUT_MAPPINGS,
+  MATH_FUNCTION_MAPPINGS,
+  TIME_FUNCTION_MAPPINGS,
+  // Utilities
+  getMappingStats,
+  getAllPineFunctionNames,
+  // Types
+  COLOR_MAP,
+  PRICE_SOURCES
 } from '@opusaether/pine-transpiler';
 ```
 
-## TradingView Integration
-
-This transpiler is designed to work with the TradingView Charting Library:
-
+#### LLM Prompt Module
 ```typescript
-import { widget } from 'charting_library';
-import { transpileToPineJS } from '@opusaether/pine-transpiler';
-
-const tvWidget = new widget({
-  // ... widget options
-  custom_indicators_getter: async (PineJS) => {
-    const result = transpileToPineJS(yourPineScript, 'indicator-id');
-    
-    if (result.success && result.indicatorFactory) {
-      const indicator = result.indicatorFactory(PineJS as any);
-      return [indicator];
-    }
-    
-    return [];
-  },
-});
+import { getLLMPrompt } from '@opusaether/pine-transpiler/llm-prompt';
 ```
+
+## Supported Features
+
+### Language Constructs
+-   **Variables**: `x = 1`, `var x = 1`, `varip x = 1`, tuple assignments `[a, b] = f()`.
+-   **Types**: `int`, `float`, `bool`, `string`, `color`, `array<T>`.
+-   **Control Flow**: `if`, `for`, `for...in`, `while`, `switch` statements and expressions.
+-   **User-Defined Functions**: `f(x) => x * 2`, multi-line with block syntax.
+-   **Inputs**: `input()`, `input.int()`, `input.float()`, `input.bool()`, `input.string()`, `input.color()`, `input.source()`.
+-   **Exports/Imports**: `export var`, `export function`, `import "lib" as Lib`.
+-   **Type Definitions**: `type Point` with fields and methods.
+
+### Standard Library
+
+#### Technical Analysis (`ta.*`)
+
+| Category | Functions |
+|----------|-----------|
+| **Moving Averages** | `sma`, `ema`, `wma`, `rma`, `vwma`, `swma`, `alma`, `hma`, `linreg`, `smma` |
+| **Oscillators** | `rsi`, `stoch`, `tsi`, `cci`, `mfi`, `roc`, `mom`, `change`, `percentrank` |
+| **Volatility** | `atr`, `tr`, `stdev`, `variance`, `dev` |
+| **Bands** | `bb`, `bbw`, `kc`, `kcw`, `donchian` |
+| **Trend** | `adx`, `supertrend`, `sar`, `pivothigh`, `pivotlow` |
+| **Cross Detection** | `cross`, `crossover`, `crossunder`, `rising`, `falling` |
+| **Volume** | `obv`, `cum`, `accdist`, `vwap` |
+| **Range** | `highest`, `lowest`, `highestbars`, `lowestbars`, `median`, `mode` |
+| **Multi-output** | `macd` → `[macdLine, signalLine, histogram]`, `dmi` → `[plusDI, minusDI, dx, adx, adxr]` |
+
+#### Math (`math.*`)
+`abs`, `acos`, `asin`, `atan`, `ceil`, `cos`, `exp`, `floor`, `log`, `log10`, `max`, `min`, `pow`, `random`, `round`, `sign`, `sin`, `sqrt`, `tan`, `sum`, `avg`, `todegrees`, `toradians`
+
+#### Time
+`time`, `year`, `month`, `dayofweek`, `dayofmonth`, `hour`, `minute`, `second`, `timeframe.*`
+
+#### Arrays
+Basic `array.*` support mapped to JavaScript arrays with type preservation.
 
 ## Architecture
 
+The transpiler follows a classic compiler pipeline with four distinct phases:
+
 ```
-pine-transpiler/
-├── types/          Type definitions
-├── parser/         Pine Script parser
-├── mappings/       Function mapping tables
-├── generator/      JavaScript code generator
-└── index.ts        Main API
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           Pine Script Source                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  1. LEXER (src/parser/lexer.ts)                                             │
+│     • Tokenizes Pine Script input                                           │
+│     • Handles significant whitespace (INDENT/DEDENT)                        │
+│     • Tab normalization (4 spaces)                                          │
+│     • 16 token types: IDENTIFIER, NUMBER, STRING, OPERATOR, etc.            │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  2. PARSER (src/parser/parser.ts)                                           │
+│     • Recursive descent parser with precedence climbing                     │
+│     • Builds Abstract Syntax Tree (30 node types)                           │
+│     • Supports named arguments, generics, destructuring                     │
+│     • Error recovery via synchronize()                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  3. AST (src/parser/ast.ts)                                                 │
+│                                                                             │
+│     Program                                                                 │
+│     ├── VariableDeclaration { name, value, modifier, typeAnnotation }       │
+│     ├── FunctionDeclaration { name, params, body }                          │
+│     ├── IfStatement { condition, consequent, alternate }                    │
+│     ├── ForStatement { iterator, start, end, step, body }                   │
+│     ├── CallExpression { callee, arguments }                                │
+│     └── ... 24 more node types                                              │
+│                                                                             │
+│  Node Types:                                                                │
+│  • Statements: VariableDeclaration, FunctionDeclaration, IfStatement,       │
+│    ForStatement, WhileStatement, ReturnStatement, SwitchStatement, etc.     │
+│  • Expressions: BinaryExpression, UnaryExpression, CallExpression,          │
+│    MemberExpression, ConditionalExpression, Identifier, Literal, etc.       │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  4. GENERATOR (src/generator/)                                              │
+│     • MetadataVisitor: Extracts inputs, plots, sources, historical access   │
+│     • ASTGenerator: Converts AST to JavaScript string                       │
+│     • Function Mappings: Resolves ta.*/math.*/time.* to PineJS.Std          │
+│     • StdPlus Injection: Polyfills for missing Std functions                │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         JavaScript / PineJS Output                          │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Performance
+### Source Structure
 
-- **Zero runtime dependencies** - Minimal bundle size
-- **Fast transpilation** - Optimized parsing and generation
-- **Type-safe** - No runtime type checking overhead
+```
+src/
+├── index.ts              # Main entry, transpileToPineJS, runtime mocks
+├── llm-prompt.ts         # LLM prompt generation for Pine Script assistance
+├── parser/
+│   ├── lexer.ts          # Tokenizer with indentation handling
+│   ├── parser.ts         # Recursive descent parser
+│   └── ast.ts            # AST node type definitions
+├── generator/
+│   ├── ast-generator.ts  # AST to JavaScript code generation
+│   └── metadata-visitor.ts # AST visitor for metadata extraction
+├── mappings/
+│   ├── technical-analysis.ts # ta.* function mappings (50+ functions)
+│   ├── math.ts           # math.* function mappings
+│   ├── time.ts           # time.* and timeframe.* mappings
+│   ├── comparison.ts     # Comparison operators
+│   ├── utilities.ts      # Utility functions
+│   └── price-sources.ts  # Price source mappings
+├── stdlib/
+│   └── index.ts          # StdPlus polyfill library
+└── types/
+    ├── index.ts          # Type exports
+    └── runtime.ts        # Runtime type definitions
+```
+
+## Environment Support
+
+| Environment | Support |
+|-------------|---------|
+| Node.js 18+ | ✅ Full support (ESM & CJS) |
+| Browsers | ✅ Full support (ESM) |
+| Deno | ✅ Via npm specifier |
+| Bun | ✅ Full support |
+
+### Module Formats
+
+The package ships with dual format support:
+- **ESM**: `dist/index.js` (default for `import`)
+- **CJS**: `dist/index.cjs` (for `require()`)
+- **Types**: `dist/index.d.ts`
+
+## Limitations & Known Issues
+
+While the transpiler covers a significant portion of Pine Script, there are inherent limitations due to the differences between the Pine Script runtime and the Charting Library's JS API:
+
+### Unsupported Features
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| `strategy.*` | ❌ Not Supported | Indicators only; no backtesting |
+| `request.security` | ❌ Not Supported | Requires async data fetching |
+| `request.financial` | ❌ Not Supported | External data sources |
+| `matrix.*` | ❌ Not Supported | Parsed but not implemented |
+| `line.*`, `label.*`, `box.*`, `table.*` | ⚠️ Parsed | No-op stubs; no drawing output |
+
+### Known Limitations
+
+1.  **Recursive Calculations**: The `StdPlus` polyfill is stateless. Functions requiring recursive historical state may have incomplete implementations.
+    -   `ta.macd`: Returns correct MACD/signal lines; histogram may show `NaN`
+    -   Custom recursive indicators may not work correctly
+
+2.  **Historical Access**: Variables with `[offset]` syntax require pre-declaration tracking. Complex nested historical access patterns may not resolve correctly.
+
+3.  **No Source Maps**: Generated JavaScript cannot be mapped back to Pine Script lines for debugging.
+
+### Test Coverage
+
+| Component | Coverage | Tests | Notes |
+|-----------|----------|-------|-------|
+| Lexer | ✅ Comprehensive | 85+ | Tokens, operators, indentation |
+| Parser | ✅ Comprehensive | 150+ | Expressions, statements |
+| Generator | ✅ Comprehensive | 200+ | AST generation, metadata visitor |
+| Mappings | ✅ Comprehensive | 250+ | TA, math, time, utilities |
+| CLI | ✅ Good | 15+ | Command-line interface |
+| StdPlus | ✅ Good | 50+ | Polyfill functions |
+| Integration | ✅ Good | 50+ | End-to-end transpilation |
+
+## Development
+
+```bash
+# Install dependencies
+pnpm install
+
+# Run tests
+pnpm test
+
+# Run tests in watch mode
+pnpm test -- --watch
+
+# Build
+pnpm build
+
+# Type check
+pnpm typecheck
+
+# Lint
+pnpm lint
+
+# Lint with auto-fix
+pnpm lint:fix
+```
 
 ## Contributing
 
-Contributions are welcome! We are actively looking for help in the following areas:
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-- **Drawing Library:** Implementing `line`, `label`, and `box` drawing objects
-- **External Data:** Adding support for `request.security` and multi-timeframe analysis
-- **Expanded TA:** Implementing more complex technical indicators
-- **Strategy Engine:** Adding execution logic for `strategy.*` functions
-
-Please read our [Contributing Guide](CONTRIBUTING.md) to get started.
+Key areas for contribution:
+- Adding missing `ta.*` function implementations to StdPlus
+- Improving test coverage for edge cases
+- Adding source map generation
+- Documentation improvements
 
 ## License
 
@@ -259,3 +361,4 @@ This project is an independent, open-source initiative and is **not** affiliated
 - **TradingView** and **Pine Script** are trademarks of TradingView Inc.
 - This transpiler is a clean-room implementation based on public documentation and behavior observation. It does not use or contain any proprietary code from TradingView.
 - Use this tool at your own risk. The authors assume no responsibility for trading decisions or financial losses resulting from the use of this software.
+

@@ -440,6 +440,43 @@ export const RUNTIME_ERROR_MAPPING = {
 };
 
 // ============================================================================
+// Plotting Functions
+// ============================================================================
+
+/**
+ * Plotting functions
+ */
+export const PLOT_MAPPINGS: Record<
+  string,
+  { stdName: string; description: string }
+> = {
+  plot: {
+    stdName: 'Std.plot',
+    description: 'Plot series on chart',
+  },
+  plotshape: {
+    stdName: 'Std.plotshape',
+    description: 'Plot shape on chart',
+  },
+  plotchar: {
+    stdName: 'Std.plotchar',
+    description: 'Plot char on chart',
+  },
+  plotarrow: {
+    stdName: 'Std.plotarrow',
+    description: 'Plot arrow on chart',
+  },
+  bgcolor: {
+    stdName: 'Std.bgcolor',
+    description: 'Fill background color',
+  },
+  fill: {
+    stdName: 'Std.fill',
+    description: 'Fill area between plots',
+  },
+};
+
+// ============================================================================
 // Helper Function Implementations
 // ============================================================================
 
@@ -538,6 +575,7 @@ export const ALL_UTILITY_MAPPINGS: Record<
   ...STRING_FUNCTION_MAPPINGS,
   ...ARRAY_FUNCTION_MAPPINGS,
   ...RUNTIME_ERROR_MAPPING,
+  ...PLOT_MAPPINGS,
 };
 
 /**

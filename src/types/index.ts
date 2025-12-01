@@ -10,18 +10,18 @@
 export type {
   // Core runtime types
   CustomIndicator,
-  PineJSRuntime,
-  PineJSStdLibrary,
-  RuntimeContext,
+  IndicatorConstructor,
   IndicatorFactory,
   InputCallback,
-  IndicatorConstructor,
-  TranspileToPineJSResult,
+  PineJSRuntime,
+  PineJSStdLibrary,
+  PlotStyle,
+  RuntimeContext,
+  StudyInputInfo,
   // Metadata types
   StudyMetaInfo,
-  StudyInputInfo,
   StudyPlotInfo,
-  PlotStyle,
+  TranspileToPineJSResult,
 } from './runtime';
 
 // ============================================================================
@@ -32,9 +32,25 @@ export type {
  * Warning about unsupported feature during parsing
  */
 export interface ParseWarning {
+  /** Warning type category */
+  type: 'unsupported' | 'partial' | 'deprecated' | 'info';
+  /** Human-readable warning message */
   message: string;
-  feature: string;
+  /** Feature or function name that triggered the warning */
+  feature?: string;
+  /** Function name if warning is about a specific function */
+  functionName?: string;
+  /** Line number in source code (if available) */
   line?: number | undefined;
+}
+
+/**
+ * Error during transpilation runtime
+ */
+export interface TranspilerRuntimeError {
+  message: string;
+  line?: number;
+  column?: number;
 }
 
 /**

@@ -7,94 +7,90 @@
 
 // Re-export all mapping types
 export type {
-  TAFunctionMapping,
-  MultiOutputFunctionMapping,
   ComparisonFunctionMapping,
+  MultiOutputFunctionMapping,
+  TAFunctionMapping,
   TimeFunctionMapping,
 } from '../types';
-
-// Re-export from each mapping module
 export {
-  PRICE_SOURCE_MAPPINGS,
-  TIME_SOURCE_MAPPINGS,
-  BAR_INDEX_MAPPING,
-  generatePriceSourceDeclarations,
-  generateSeriesDeclarations,
-  isPriceSource,
-  getPriceSourceNames,
-} from './price-sources';
-
-export {
-  MATH_FUNCTION_MAPPINGS,
-  BASIC_MATH_MAPPINGS,
-  POWER_LOG_MAPPINGS,
-  TRIG_MAPPINGS,
-  MINMAX_MAPPINGS,
-  MATH_HELPER_FUNCTIONS,
-  STD_MATH_MAPPINGS,
-  transpileMathFunction,
-} from './math';
-
-export {
-  TA_FUNCTION_MAPPINGS,
-  MOVING_AVERAGE_MAPPINGS,
-  OSCILLATOR_MAPPINGS,
-  VOLATILITY_MAPPINGS,
-  RANGE_MAPPINGS,
-  TREND_MAPPINGS,
-  CROSS_MAPPINGS,
-  VOLUME_MAPPINGS,
-  BAND_MAPPINGS,
-  STATISTICAL_MAPPINGS,
-  BARSSINCE_MAPPINGS,
-  MULTI_OUTPUT_MAPPINGS,
-  getTAFunctionMapping,
-  getMultiOutputMapping,
-  isMultiOutputFunction,
-  getTAFunctionNames,
-} from './technical-analysis';
-
-export {
-  TIME_FUNCTION_MAPPINGS,
-  DATE_TIME_MAPPINGS,
-  RESOLUTION_MAPPINGS,
-  TIME_FUNCTIONS_MAPPINGS,
-  SESSION_MAPPINGS,
-  TIMEZONE_CONSTANTS,
-  DAYOFWEEK_CONSTANTS,
-  getTimeFunctionMapping,
-  isTimeFunction,
-  getTimeFunctionNames,
-  SESSION_HELPER_FUNCTIONS,
-} from './time';
-
-export {
-  COMPARISON_FUNCTION_MAPPINGS,
   BOOLEAN_COMPARISON_MAPPINGS,
-  NUMERIC_COMPARISON_MAPPINGS,
   COMPARE_MAPPING,
-  IFF_MAPPING,
-  EPSILON_MAPPING,
-  LOGICAL_OPERATORS,
+  COMPARISON_FUNCTION_MAPPINGS,
   COMPARISON_OPERATORS,
-  transpileLogicalOperators,
-  transpileComparisonOperators,
+  EPSILON_MAPPING,
+  IFF_MAPPING,
   isComparisonFunction,
+  LOGICAL_OPERATORS,
+  NUMERIC_COMPARISON_MAPPINGS,
+  transpileComparisonOperators,
+  transpileLogicalOperators,
 } from './comparison';
 
 export {
+  BASIC_MATH_MAPPINGS,
+  MATH_FUNCTION_MAPPINGS,
+  MATH_HELPER_FUNCTIONS,
+  MINMAX_MAPPINGS,
+  POWER_LOG_MAPPINGS,
+  STD_MATH_MAPPINGS,
+  TRIG_MAPPINGS,
+  transpileMathFunction,
+} from './math';
+// Re-export from each mapping module
+export {
+  BAR_INDEX_MAPPING,
+  generatePriceSourceDeclarations,
+  generateSeriesDeclarations,
+  getPriceSourceNames,
+  isPriceSource,
+  PRICE_SOURCE_MAPPINGS,
+  TIME_SOURCE_MAPPINGS,
+} from './price-sources';
+export {
+  BAND_MAPPINGS,
+  BARSSINCE_MAPPINGS,
+  CROSS_MAPPINGS,
+  getMultiOutputMapping,
+  getTAFunctionMapping,
+  getTAFunctionNames,
+  isMultiOutputFunction,
+  MOVING_AVERAGE_MAPPINGS,
+  MULTI_OUTPUT_MAPPINGS,
+  OSCILLATOR_MAPPINGS,
+  RANGE_MAPPINGS,
+  STATISTICAL_MAPPINGS,
+  TA_FUNCTION_MAPPINGS,
+  TREND_MAPPINGS,
+  VOLATILITY_MAPPINGS,
+  VOLUME_MAPPINGS,
+} from './technical-analysis';
+export {
+  DATE_TIME_MAPPINGS,
+  DAYOFWEEK_CONSTANTS,
+  getTimeFunctionMapping,
+  getTimeFunctionNames,
+  isTimeFunction,
+  RESOLUTION_MAPPINGS,
+  SESSION_HELPER_FUNCTIONS,
+  SESSION_MAPPINGS,
+  TIME_FUNCTION_MAPPINGS,
+  TIME_FUNCTIONS_MAPPINGS,
+  TIMEZONE_CONSTANTS,
+} from './time';
+
+export {
   ALL_UTILITY_MAPPINGS,
-  NA_FUNCTION_MAPPINGS,
-  TYPE_FUNCTION_MAPPINGS,
-  SYMINFO_MAPPINGS,
+  ARRAY_FUNCTION_MAPPINGS,
   BARSTATE_MAPPINGS,
   COLOR_FUNCTION_MAPPINGS,
-  STRING_FUNCTION_MAPPINGS,
-  ARRAY_FUNCTION_MAPPINGS,
-  RUNTIME_ERROR_MAPPING,
-  UTILITY_HELPER_FUNCTIONS,
-  isUtilityFunction,
   getUtilityMapping,
+  isUtilityFunction,
+  NA_FUNCTION_MAPPINGS,
+  RUNTIME_ERROR_MAPPING,
+  STRING_FUNCTION_MAPPINGS,
+  SYMINFO_MAPPINGS,
+  TYPE_FUNCTION_MAPPINGS,
+  UTILITY_HELPER_FUNCTIONS,
 } from './utilities';
 
 // ============================================================================
