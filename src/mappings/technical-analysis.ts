@@ -74,11 +74,11 @@ export const MOVING_AVERAGE_MAPPINGS: Record<string, TAFunctionMapping> = {
     description: 'Arnaud Legoux Moving Average (series, length, offset, sigma)',
   },
   'ta.hma': {
-    stdName: 'Std.wma', // HMA is calculated using WMA internally
+    stdName: 'StdPlus.hma',
     needsSeries: true,
     contextArg: true,
     argCount: 2,
-    description: 'Hull Moving Average (implemented via WMA)',
+    description: 'Hull Moving Average',
   },
   'ta.linreg': {
     stdName: 'Std.linreg',
@@ -93,6 +93,13 @@ export const MOVING_AVERAGE_MAPPINGS: Record<string, TAFunctionMapping> = {
     contextArg: true,
     argCount: 2,
     description: 'Smoothed Moving Average (SMMA)',
+  },
+  'ta.sum': {
+    stdName: 'Std.sum',
+    needsSeries: true,
+    contextArg: true,
+    argCount: 2,
+    description: 'Sliding sum of last y values of x',
   },
 };
 
@@ -147,7 +154,7 @@ export const OSCILLATOR_MAPPINGS: Record<string, TAFunctionMapping> = {
     description: 'Rate of Change',
   },
   'ta.mom': {
-    stdName: 'Std.mom',
+    stdName: 'StdPlus.mom',
     needsSeries: true,
     contextArg: true,
     argCount: 2,
@@ -328,14 +335,14 @@ export const CROSS_MAPPINGS: Record<string, TAFunctionMapping> = {
     description: 'Two series crossed each other',
   },
   'ta.crossover': {
-    stdName: 'Std.crossover',
+    stdName: 'StdPlus.crossover',
     needsSeries: false,
     contextArg: true,
     argCount: 2,
     description: 'First series crossed above second',
   },
   'ta.crossunder': {
-    stdName: 'Std.crossunder',
+    stdName: 'StdPlus.crossunder',
     needsSeries: false,
     contextArg: true,
     argCount: 2,
@@ -404,28 +411,28 @@ export const VOLUME_MAPPINGS: Record<string, TAFunctionMapping> = {
  */
 export const BAND_MAPPINGS: Record<string, TAFunctionMapping> = {
   'ta.bb': {
-    stdName: 'Std.bb',
+    stdName: 'StdPlus.bb',
     needsSeries: true,
     contextArg: true,
     argCount: 3,
     description: 'Bollinger Bands (series, length, mult)',
   },
   'ta.bbw': {
-    stdName: 'Std.bbw',
+    stdName: 'StdPlus.bbw',
     needsSeries: true,
     contextArg: true,
     argCount: 3,
     description: 'Bollinger Bands Width',
   },
   'ta.kc': {
-    stdName: 'Std.kc',
+    stdName: 'StdPlus.kc',
     needsSeries: true,
     contextArg: true,
     argCount: 4,
     description: 'Keltner Channels (series, length, mult, useTrueRange)',
   },
   'ta.kcw': {
-    stdName: 'Std.kcw',
+    stdName: 'StdPlus.kcw',
     needsSeries: true,
     contextArg: true,
     argCount: 4,
@@ -500,7 +507,7 @@ export const BARSSINCE_MAPPINGS: Record<string, TAFunctionMapping> = {
 export const MULTI_OUTPUT_MAPPINGS: Record<string, MultiOutputFunctionMapping> =
   {
     'ta.macd': {
-      stdName: 'Std.macd',
+      stdName: 'StdPlus.macd',
       needsSeries: true,
       contextArg: true,
       argCount: 4,

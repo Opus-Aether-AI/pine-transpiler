@@ -4,11 +4,6 @@
  * Re-exports the pine parser and validation functions
  */
 
-export { parsePineScript, validatePineScript } from './pine-parser';
-
-export type {
-  ParsedIndicator,
-  ParsedInput,
-  ParsedPlot,
-  ParsedVariable,
-} from './pine-parser';
+export * from './ast';
+export { Lexer } from './lexer';
+export { ParseError, type ParseResult, Parser } from './parser';
