@@ -5,7 +5,16 @@
  * This is the main entry point for transpiler to find mappings.
  */
 
-// Re-export all mapping types
+// Re-export all mapping types from the shared types module
+export type {
+  BaseFunctionMapping,
+  ContextAwareFunctionMapping,
+  MultiOutputMapping,
+  NativeFunctionMapping,
+  SeriesFunctionMapping,
+} from './types';
+
+// Re-export legacy types from main types module for backward compatibility
 export type {
   ComparisonFunctionMapping,
   MultiOutputFunctionMapping,

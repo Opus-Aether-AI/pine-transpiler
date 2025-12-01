@@ -25,6 +25,7 @@ import {
   getFnName,
   getStringValue,
 } from './call-expression-helper';
+import { isStatement } from './generator-utils';
 import { InputExtractor } from './input-extractor';
 import { PlotExtractor } from './plot-extractor';
 
@@ -91,16 +92,6 @@ export class MetadataVisitor {
   // Track warned functions to avoid duplicates
   private warnedFunctions: Set<string> = new Set();
 
-  private isStatement(node: Statement | Expression): node is Statement {
-    return (
-      'type' in node &&
-      (node.type.endsWith('Statement') ||
-        node.type === 'VariableDeclaration' ||
-        node.type === 'FunctionDeclaration' ||
-        node.type === 'TypeDefinition')
-    );
-  }
-
   public visit(node: Program): void {
     this.visitStatements(node.body);
   }
@@ -157,7 +148,7 @@ export class MetadataVisitor {
         if (stmt.discriminant) this.visitExpression(stmt.discriminant);
         for (const c of stmt.cases) {
           if (c.test) this.visitExpression(c.test);
-          if (this.isStatement(c.consequent)) {
+          if (isStatement(c.consequent)) {
             this.visitStatement(c.consequent);
           } else {
             this.visitExpression(c.consequent);

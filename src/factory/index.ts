@@ -5,6 +5,16 @@
  */
 
 export {
+  buildDefaultInputs,
+  buildDefaultStyles,
+  buildInputsMetadata,
+  buildPlotsMetadata,
+  buildStylesMetadata,
+  mapPlotType,
+  sanitizeIndicatorId,
+} from './factory-helpers';
+
+export {
   buildIndicatorFactory,
   generatePreamble,
   type IndicatorFactoryOptions,

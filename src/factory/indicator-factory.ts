@@ -23,33 +23,16 @@ import type {
   IndicatorFactory,
   ParsedInput,
   ParsedPlot,
-  PlotStyle,
 } from '../types';
 import { COLOR_MAP } from '../types';
-
-/**
- * Map AST plot types to PineJS Runtime plot type constants
- */
-function mapPlotType(t: string): number {
-  switch (t) {
-    case 'line':
-      return 0;
-    case 'histogram':
-      return 1;
-    case 'area':
-      return 3;
-    case 'circles':
-      return 4;
-    case 'columns':
-      return 5;
-    case 'cross':
-      return 4;
-    case 'stepline':
-      return 0;
-    default:
-      return 0;
-  }
-}
+import {
+  buildDefaultInputs,
+  buildDefaultStyles,
+  buildInputsMetadata,
+  buildPlotsMetadata,
+  buildStylesMetadata,
+  sanitizeIndicatorId,
+} from './factory-helpers';
 
 /**
  * Options for building an indicator factory
@@ -122,7 +105,7 @@ export function buildIndicatorFactory(
 
   const indicatorFactory: IndicatorFactory = (PineJS) => {
     const Std = PineJS.Std;
-    const safeId = indicatorId.replace(/[^a-zA-Z0-9_]/g, '_');
+    const safeId = sanitizeIndicatorId(indicatorId);
 
     return {
       name: `User_${safeId}`,
@@ -133,58 +116,13 @@ export function buildIndicatorFactory(
         is_price_study: overlay,
         isCustomIndicator: true,
         format: { type: 'inherit' },
-        plots: plots.map((p) => ({
-          id: p.id,
-          type: p.type === 'line' || p.type === 'histogram' ? p.type : 'line',
-        })),
+        plots: buildPlotsMetadata(plots),
         defaults: {
-          styles: plots.reduce(
-            (acc, p) => {
-              acc[p.id] = {
-                linestyle: 0,
-                visible: true,
-                linewidth: p.linewidth,
-                plottype: mapPlotType(p.type),
-                color: p.color,
-                transparency: 0,
-                trackPrice: p.type === 'hline',
-              };
-              return acc;
-            },
-            {} as Record<string, PlotStyle>,
-          ),
-          inputs: inputs.reduce(
-            (acc, i) => {
-              acc[i.id] = i.defval;
-              return acc;
-            },
-            {} as Record<string, number | boolean | string>,
-          ),
+          styles: buildDefaultStyles(plots),
+          inputs: buildDefaultInputs(inputs),
         },
-        styles: plots.reduce(
-          (acc, p) => {
-            acc[p.id] = { title: p.title, histogramBase: 0 };
-            return acc;
-          },
-          {} as Record<string, { title: string; histogramBase?: number }>,
-        ),
-        inputs: inputs.map((i) => ({
-          id: i.id,
-          name: i.name,
-          type: (i.type === 'string' ? 'text' : i.type) as
-            | 'text'
-            | 'integer'
-            | 'float'
-            | 'bool'
-            | 'source'
-            | 'session'
-            | 'time'
-            | 'color',
-          defval: i.defval,
-          min: i.min,
-          max: i.max,
-          options: i.options,
-        })),
+        styles: buildStylesMetadata(plots),
+        inputs: buildInputsMetadata(inputs),
       },
       constructor: () => {
         // Compile the script once during initialization
