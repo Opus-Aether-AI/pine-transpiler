@@ -4,6 +4,22 @@ A robust transpiler that converts TradingView **Pine Script (v5/v6)** into JavaS
 
 This tool allows you to run Pine Script indicators directly within the Charting Library by transpiling them into standard JavaScript objects that implement the `PineJS` interface.
 
+## Table of Contents
+
+- [Features](#features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [API Reference](#api-reference)
+- [Transpiled Output Example](#transpiled-output-example)
+- [Supported Features](#supported-features)
+- [Architecture](#architecture)
+- [Environment Support](#environment-support)
+- [Limitations & Known Issues](#limitations--known-issues)
+- [Development](#development)
+- [Changelog](#changelog)
+- [Contributing](#contributing)
+- [License](#license)
+
 ## Features
 
 -   **Pine Script v5/v6 Syntax Support**: Handles variable declarations (`var`, `varip`), types, control flow (`if`, `for`, `while`, `switch`), and functions.
@@ -123,10 +139,38 @@ import {
 } from '@opusaether/pine-transpiler';
 ```
 
-#### LLM Prompt Module
-```typescript
-import { getLLMPrompt } from '@opusaether/pine-transpiler/llm-prompt';
+## Transpiled Output Example
+
+Here's what the transpiler produces from a simple Pine Script:
+
+**Input (Pine Script):**
+```pine
+//@version=5
+indicator("Simple SMA", overlay=true)
+len = input.int(14, "Length")
+src = close
+out = ta.sma(src, len)
+plot(out, color=color.blue)
 ```
+
+**Output (JavaScript):**
+```javascript
+// Generated preamble (historical access, helpers)
+const _series_close = context.new_var(close);
+const _getHistorical_close = (offset) => _series_close.get(offset);
+
+// User code transpiled
+let len = input(0);
+let src = close;
+let out = Std.sma(src, len, context);
+plot(out);
+```
+
+The transpiler:
+1. Converts `input.int()` to indexed `input()` calls
+2. Maps `ta.sma()` to `Std.sma()` with context injection
+3. Resolves `color.blue` to the hex color value
+4. Generates historical access helpers for price sources
 
 ## Supported Features
 
@@ -230,7 +274,6 @@ The transpiler follows a classic compiler pipeline with four distinct phases:
 ```
 src/
 ├── index.ts              # Main entry, transpileToPineJS, runtime mocks
-├── llm-prompt.ts         # LLM prompt generation for Pine Script assistance
 ├── parser/
 │   ├── lexer.ts          # Tokenizer with indentation handling
 │   ├── parser.ts         # Recursive descent parser
@@ -328,6 +371,10 @@ pnpm lint
 # Lint with auto-fix
 pnpm lint:fix
 ```
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for a detailed history of changes, new features, and bug fixes.
 
 ## Contributing
 
