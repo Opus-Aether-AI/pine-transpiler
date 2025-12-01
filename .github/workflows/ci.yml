@@ -3,12 +3,8 @@ name: Pine Transpiler CI
 on:
   push:
     branches: [ main, master ]
-    paths:
-      - 'packages/pine-transpiler/**'
   pull_request:
     branches: [ main, master ]
-    paths:
-      - 'packages/pine-transpiler/**'
 
 jobs:
   check:
@@ -31,13 +27,13 @@ jobs:
         run: pnpm install
         
       - name: Build
-        run: pnpm --filter pine-transpiler build
+        run: pnpm build
         
       - name: Type Check
-        run: pnpm --filter pine-transpiler typecheck
+        run: pnpm typecheck
         
       - name: Lint
-        run: pnpm --filter pine-transpiler lint
+        run: pnpm lint
 
   test:
     name: Test
