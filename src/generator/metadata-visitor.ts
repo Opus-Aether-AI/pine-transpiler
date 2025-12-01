@@ -9,6 +9,50 @@ import type {
 import type { ParsedInput, ParsedPlot, ParseWarning } from '../types';
 import { COLOR_MAP } from '../types';
 
+/**
+ * Unsupported function categories for warning generation
+ */
+const UNSUPPORTED_FUNCTIONS = new Set([
+  'request.security',
+  'request.financial',
+  'request.quandl',
+  'request.seed',
+  'request.economic',
+  'request.dividends',
+  'request.earnings',
+  'request.splits',
+  'ticker.new',
+  'ticker.modify',
+  'alert',
+  'alertcondition',
+  'runtime.error',
+  'log.info',
+  'log.warning',
+  'log.error',
+]);
+
+/**
+ * Partially supported functions that may have limited functionality
+ */
+const PARTIALLY_SUPPORTED_FUNCTIONS = new Set([
+  'plotshape',
+  'plotchar',
+  'plotarrow',
+  'bgcolor',
+  'fill',
+  'barcolor',
+  'box.new',
+  'line.new',
+  'label.new',
+  'table.new',
+  'table.cell',
+]);
+
+/**
+ * Deprecated functions that should be migrated
+ */
+const DEPRECATED_FUNCTIONS = new Set(['study', 'security']);
+
 export class MetadataVisitor {
   public inputs: ParsedInput[] = [];
   public plots: ParsedPlot[] = [];
@@ -24,6 +68,9 @@ export class MetadataVisitor {
   // Internal counter for unique IDs
   private plotCount = 0;
   private inputCount = 0;
+
+  // Track warned functions to avoid duplicates
+  private warnedFunctions: Set<string> = new Set();
 
   private isStatement(node: Statement | Expression): node is Statement {
     return (
@@ -200,6 +247,9 @@ export class MetadataVisitor {
 
     const name = this.getFnName(callee);
 
+    // Check for unsupported functions and add warnings
+    this.checkFunctionSupport(name, expr);
+
     if (['indicator', 'study', 'strategy'].includes(name)) {
       this.extractIndicatorMeta(expr);
     } else if (name.startsWith('input')) {
@@ -216,6 +266,49 @@ export class MetadataVisitor {
       // Just warning or basic support?
       // We don't have visual support for these in simple PineJS yet, but shouldn't crash.
     }
+  }
+
+  /**
+   * Check if a function is supported and add appropriate warnings
+   */
+  private checkFunctionSupport(fnName: string, expr: CallExpression): void {
+    // Avoid duplicate warnings for the same function
+    if (this.warnedFunctions.has(fnName)) return;
+
+    if (UNSUPPORTED_FUNCTIONS.has(fnName)) {
+      this.warnedFunctions.add(fnName);
+      this.warnings.push({
+        type: 'unsupported',
+        message: `Function '${fnName}' is not supported and will be ignored at runtime`,
+        functionName: fnName,
+        line: this.getExpressionLine(expr),
+      });
+    } else if (PARTIALLY_SUPPORTED_FUNCTIONS.has(fnName)) {
+      this.warnedFunctions.add(fnName);
+      this.warnings.push({
+        type: 'partial',
+        message: `Function '${fnName}' has limited support - some features may not work as expected`,
+        functionName: fnName,
+        line: this.getExpressionLine(expr),
+      });
+    } else if (DEPRECATED_FUNCTIONS.has(fnName)) {
+      this.warnedFunctions.add(fnName);
+      this.warnings.push({
+        type: 'deprecated',
+        message: `Function '${fnName}' is deprecated - consider using the recommended alternative`,
+        functionName: fnName,
+        line: this.getExpressionLine(expr),
+      });
+    }
+  }
+
+  /**
+   * Get line number from expression (if available from AST)
+   */
+  private getExpressionLine(expr: CallExpression): number | undefined {
+    // Note: Line info would need to be added to AST nodes
+    // For now, return undefined
+    return undefined;
   }
 
   private getFnName(node: Expression): string {

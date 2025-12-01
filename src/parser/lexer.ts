@@ -95,6 +95,12 @@ const OPERATORS = [
   '=',
 ];
 
+// Pre-sorted operators by length (descending) for efficient matching
+// Excludes word operators (and/or/not) which are handled in readIdentifier
+const SORTED_SYMBOL_OPERATORS = OPERATORS.filter(
+  (op) => !/[a-z]/.test(op),
+).sort((a, b) => b.length - a.length);
+
 export class Lexer {
   private code: string;
   private pos = 0;
@@ -424,6 +430,11 @@ export class Lexer {
   }
 
   private handlePunctuation(char: string): boolean {
+    // Don't match ':' if followed by '=' (it's the := operator)
+    if (char === ':' && this.peek() === '=') {
+      return false;
+    }
+
     const map: Record<string, TokenType> = {
       '(': TokenType.LPAREN,
       ')': TokenType.RPAREN,
@@ -445,14 +456,9 @@ export class Lexer {
   }
 
   private handleOperator(): boolean {
-    // Sort operators by length descending to match '==' before '='
-    const sortedOps = [...OPERATORS].sort((a, b) => b.length - a.length);
-
-    for (const op of sortedOps) {
-      // Don't match word operators here (and/or/not), they are handled in readIdentifier
-      if (/[a-z]/.test(op)) continue;
-
-      if (this.code.substr(this.pos, op.length) === op) {
+    // Use pre-sorted operators (symbol operators only, word operators handled in readIdentifier)
+    for (const op of SORTED_SYMBOL_OPERATORS) {
+      if (this.code.slice(this.pos, this.pos + op.length) === op) {
         this.addToken(TokenType.OPERATOR, op, op.length);
         this.advance(op.length);
         return true;

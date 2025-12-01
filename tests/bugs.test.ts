@@ -46,7 +46,7 @@ p.x = 3.0
     // Let's check what it maps to.
     // Assuming TA_FUNCTION_MAPPINGS has 'ta.sma' -> 'Std.sma' or similar.
     // If not, it will output 'ta.sma(close, 14)'.
-    expect(result).not.toContain('ta . sma'); 
+    expect(result).not.toContain('ta . sma');
     // Should be valid JS: ta.sma or Std.sma
   });
 });
