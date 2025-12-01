@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { transpile } from '../src/index';
+import { transpile } from '../../src/index';
 
 describe('HMA Transpilation', () => {
   test('should transpile ta.hma correctly', () => {

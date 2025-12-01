@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { transpile } from '../src/index';
+import { transpile } from '../../src/index';
 import {
   BAND_MAPPINGS,
   CROSS_MAPPINGS,
@@ -21,7 +21,7 @@ import {
   TREND_MAPPINGS,
   VOLATILITY_MAPPINGS,
   VOLUME_MAPPINGS,
-} from '../src/mappings/technical-analysis';
+} from '../../src/mappings/technical-analysis';
 
 describe('Technical Analysis Mappings', () => {
   describe('Mapping Retrieval Functions', () => {

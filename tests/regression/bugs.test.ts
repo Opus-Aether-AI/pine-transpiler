@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { ASTGenerator } from '../src/generator/ast-generator';
-import { Lexer } from '../src/parser/lexer';
-import { Parser } from '../src/parser/parser';
+import { ASTGenerator } from '../../src/generator/ast-generator';
+import { Lexer } from '../../src/parser/lexer';
+import { Parser } from '../../src/parser/parser';
 
 function transpile(code: string): string {
   const lexer = new Lexer(code);
