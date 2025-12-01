@@ -68,80 +68,12 @@ const DANGEROUS_IDENTIFIERS = new Set([
 ]);
 
 /**
- * JavaScript reserved words that could cause syntax errors
- */
-const _JS_RESERVED_WORDS = new Set([
-  'abstract',
-  'await',
-  'boolean',
-  'byte',
-  'case',
-  'catch',
-  'char',
-  'class',
-  'const',
-  'continue',
-  'debugger',
-  'default',
-  'delete',
-  'do',
-  'double',
-  'else',
-  'enum',
-  'export',
-  'extends',
-  'false',
-  'final',
-  'finally',
-  'float',
-  'for',
-  'function',
-  'goto',
-  'if',
-  'implements',
-  'import',
-  'in',
-  'instanceof',
-  'int',
-  'interface',
-  'let',
-  'long',
-  'native',
-  'new',
-  'null',
-  'package',
-  'private',
-  'protected',
-  'public',
-  'return',
-  'short',
-  'static',
-  'super',
-  'switch',
-  'synchronized',
-  'this',
-  'throw',
-  'throws',
-  'transient',
-  'true',
-  'try',
-  'typeof',
-  'var',
-  'void',
-  'volatile',
-  'while',
-  'with',
-  'yield',
-]);
-
-/**
- * Sanitize an identifier name to prevent security issues and syntax errors
+ * Sanitize an identifier name to prevent security issues
  */
 function sanitizeIdentifier(name: string): string {
   if (DANGEROUS_IDENTIFIERS.has(name)) {
     return `_pine_${name}`;
   }
-  // Don't rename JS reserved words used as property access, but warn during generation
   return name;
 }
 

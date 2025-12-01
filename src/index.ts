@@ -349,25 +349,103 @@ interface StubNamespaces {
   barstate: BarstateStub;
 }
 
+/** Track if we've already warned about stub usage to avoid console spam */
+let _stubWarningsShown: Set<string> | null = null;
+
+/**
+ * Log a warning once per stub type
+ */
+function warnOnceAboutStub(stubName: string, message: string): void {
+  if (!_stubWarningsShown) {
+    _stubWarningsShown = new Set();
+  }
+  if (!_stubWarningsShown.has(stubName)) {
+    _stubWarningsShown.add(stubName);
+    // biome-ignore lint/suspicious/noConsole: Intentional warning for unsupported features
+    console.warn(`[pine-transpiler] ${message}`);
+  }
+}
+
 /**
  * Create stub namespaces for unsupported features
+ * Drawing functions (box, line, label, table) are no-ops with warnings
+ * barstate properties return sensible defaults with warnings
  */
 function createStubNamespaces(): StubNamespaces {
   return {
-    box: { new: () => {}, delete: () => {}, set_left: () => {} },
-    line: { new: () => {}, delete: () => {} },
-    label: { new: () => {}, delete: () => {} },
-    table: { new: () => {}, cell: () => {} },
+    box: {
+      new: () => {
+        warnOnceAboutStub(
+          'box.new',
+          'box.new() is not supported - drawing functions are stubs',
+        );
+      },
+      delete: () => {},
+      set_left: () => {},
+    },
+    line: {
+      new: () => {
+        warnOnceAboutStub(
+          'line.new',
+          'line.new() is not supported - drawing functions are stubs',
+        );
+      },
+      delete: () => {},
+    },
+    label: {
+      new: () => {
+        warnOnceAboutStub(
+          'label.new',
+          'label.new() is not supported - drawing functions are stubs',
+        );
+      },
+      delete: () => {},
+    },
+    table: {
+      new: () => {
+        warnOnceAboutStub(
+          'table.new',
+          'table.new() is not supported - table functions are stubs',
+        );
+      },
+      cell: () => {},
+    },
     str: {
       tostring: (v: unknown) => String(v),
       length: (v: string) => v.length,
       contains: (s: string, sub: string) => s.includes(sub),
     },
     barstate: {
-      islast: true,
-      isrealtime: true,
-      isnew: false,
-      isconfirmed: true,
+      // These return hardcoded values since we can't determine actual bar state
+      // without deeper integration with the charting runtime
+      get islast() {
+        warnOnceAboutStub(
+          'barstate.islast',
+          'barstate.islast returns hardcoded true - actual bar state detection not implemented',
+        );
+        return true;
+      },
+      get isrealtime() {
+        warnOnceAboutStub(
+          'barstate.isrealtime',
+          'barstate.isrealtime returns hardcoded true - actual bar state detection not implemented',
+        );
+        return true;
+      },
+      get isnew() {
+        warnOnceAboutStub(
+          'barstate.isnew',
+          'barstate.isnew returns hardcoded false - actual bar state detection not implemented',
+        );
+        return false;
+      },
+      get isconfirmed() {
+        warnOnceAboutStub(
+          'barstate.isconfirmed',
+          'barstate.isconfirmed returns hardcoded true - actual bar state detection not implemented',
+        );
+        return true;
+      },
     },
   };
 }

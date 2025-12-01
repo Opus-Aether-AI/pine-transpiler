@@ -6,7 +6,8 @@
  */
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import {
   canTranspilePineScript,
@@ -15,7 +16,16 @@ import {
   transpileToPineJS,
 } from '../index.js';
 
-const VERSION = '0.1.3';
+// Read version from package.json to avoid duplication
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const packageJsonPath = join(__dirname, '..', '..', 'package.json');
+let VERSION = '0.1.3'; // fallback
+try {
+  const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+  VERSION = pkg.version || VERSION;
+} catch {
+  // Use fallback version if package.json cannot be read
+}
 
 const HELP = `
 Pine Script Transpiler v${VERSION}

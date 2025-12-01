@@ -174,6 +174,27 @@ export const OSCILLATOR_MAPPINGS: Record<string, TAFunctionMapping> = {
     argCount: 2,
     description: 'Percent Rank',
   },
+  'ta.wpr': {
+    stdName: 'StdPlus.wpr',
+    needsSeries: false,
+    contextArg: true,
+    argCount: 1,
+    description: 'Williams %R oscillator (-100 to 0 range)',
+  },
+  'ta.cmo': {
+    stdName: 'StdPlus.cmo',
+    needsSeries: true,
+    contextArg: true,
+    argCount: 2,
+    description: 'Chande Momentum Oscillator',
+  },
+  'ta.ao': {
+    stdName: 'StdPlus.ao',
+    needsSeries: false,
+    contextArg: true,
+    argCount: 0,
+    description: 'Awesome Oscillator (Bill Williams)',
+  },
 };
 
 // ============================================================================

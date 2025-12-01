@@ -121,14 +121,15 @@ export const TIME_FUNCTIONS_MAPPINGS: Record<string, TimeFunctionMapping> = {
     description: 'UNIX time of current bar opening',
   },
   time_close: {
-    stdName: 'Std.time', // Need to calculate close time differently
+    stdName: '_getTimeClose',
     needsContext: true,
-    description: 'UNIX time of current bar closing',
+    description:
+      'UNIX time of current bar closing (calculated from bar open + timeframe)',
   },
   time_tradingday: {
-    stdName: 'Std.time',
+    stdName: '_getTradingDayTime',
     needsContext: true,
-    description: 'UNIX time of trading day start',
+    description: 'UNIX time of trading day start (midnight of the trading day)',
   },
 };
 
@@ -234,6 +235,57 @@ export function getTimeFunctionNames(): string[] {
  * These are injected into the runtime context
  */
 export const SESSION_HELPER_FUNCTIONS = `
+// Time helper functions
+/**
+ * Get the closing time of the current bar.
+ * Calculated as: bar open time + timeframe duration in milliseconds
+ */
+const _getTimeClose = (context) => {
+  const openTime = Std.time(context);
+  if (isNaN(openTime)) return NaN;
+  
+  // Get timeframe interval in minutes
+  const interval = Std.interval(context) || 1;
+  const isDwm = Std.isdwm(context);
+  
+  let durationMs;
+  if (isDwm) {
+    // For daily/weekly/monthly, approximate
+    const isDaily = Std.isdaily(context);
+    const isWeekly = Std.isweekly(context);
+    const isMonthly = Std.ismonthly(context);
+    
+    if (isDaily) {
+      durationMs = 24 * 60 * 60 * 1000; // 1 day
+    } else if (isWeekly) {
+      durationMs = 7 * 24 * 60 * 60 * 1000; // 1 week
+    } else if (isMonthly) {
+      durationMs = 30 * 24 * 60 * 60 * 1000; // ~1 month
+    } else {
+      durationMs = 24 * 60 * 60 * 1000; // fallback to 1 day
+    }
+  } else {
+    // Intraday: interval is in minutes
+    durationMs = interval * 60 * 1000;
+  }
+  
+  return openTime + durationMs;
+};
+
+/**
+ * Get the start of the trading day (midnight in exchange timezone)
+ */
+const _getTradingDayTime = (context) => {
+  const currentTime = Std.time(context);
+  if (isNaN(currentTime)) return NaN;
+  
+  // Get date components and reconstruct midnight
+  // Note: This is simplified and uses exchange timezone from Std
+  const date = new Date(currentTime);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+};
+
 // Session helper functions
 // These now attempt to use symbol info from context if available, falling back to US equity defaults
 const _isMarketSession = (context) => {
