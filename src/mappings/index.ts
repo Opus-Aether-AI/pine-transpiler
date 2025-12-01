@@ -5,7 +5,7 @@
  * This is the main entry point for transpiler to find mappings.
  */
 
-// Re-export all mapping types
+// Re-export legacy types from main types module for backward compatibility
 export type {
   ComparisonFunctionMapping,
   MultiOutputFunctionMapping,
@@ -25,7 +25,6 @@ export {
   transpileComparisonOperators,
   transpileLogicalOperators,
 } from './comparison';
-
 export {
   BASIC_MATH_MAPPINGS,
   MATH_FUNCTION_MAPPINGS,
@@ -77,17 +76,30 @@ export {
   TIME_FUNCTIONS_MAPPINGS,
   TIMEZONE_CONSTANTS,
 } from './time';
+// Re-export all mapping types from the shared types module
+export type {
+  BaseFunctionMapping,
+  ContextAwareFunctionMapping,
+  MultiOutputMapping,
+  NativeFunctionMapping,
+  SeriesFunctionMapping,
+} from './types';
 
 export {
   ALL_UTILITY_MAPPINGS,
   ARRAY_FUNCTION_MAPPINGS,
+  ARRAY_HELPER_FUNCTIONS,
+  BARSTATE_HELPER_FUNCTIONS,
   BARSTATE_MAPPINGS,
   COLOR_FUNCTION_MAPPINGS,
+  COLOR_HELPER_FUNCTIONS,
   getUtilityMapping,
   isUtilityFunction,
   NA_FUNCTION_MAPPINGS,
   RUNTIME_ERROR_MAPPING,
   STRING_FUNCTION_MAPPINGS,
+  STRING_HELPER_FUNCTIONS,
+  SYMINFO_HELPER_FUNCTIONS,
   SYMINFO_MAPPINGS,
   TYPE_FUNCTION_MAPPINGS,
   UTILITY_HELPER_FUNCTIONS,

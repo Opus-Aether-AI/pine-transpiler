@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2025-12-02
+
+### Changed
+- **Refactored indicator factory**: Extracted helper functions (`mapPlotType`, `buildDefaultStyles`, `buildDefaultInputs`, `buildStylesMetadata`, `buildPlotsMetadata`, `buildInputsMetadata`, `sanitizeIndicatorId`) into `factory-helpers.ts` for better maintainability
+- **Consolidated duplicate code**: Removed duplicate `isStatement()` function from `metadata-visitor.ts`, now imports from `generator-utils.ts`
+- **Added shared mapping types**: Created `src/mappings/types.ts` with `BaseFunctionMapping`, `ContextAwareFunctionMapping`, `SeriesFunctionMapping`, `NativeFunctionMapping`, and `MultiOutputMapping` interfaces for standardized mapping definitions
+
+### Documentation
+- Added Table of Contents to README for easier navigation
+- Added "Transpiled Output Example" section showing Pine Script → JavaScript transformation
+- Added "Changelog" section with link to CHANGELOG.md
+- Improved code organization documentation
+
 ## [0.1.3] - 2025-12-02
 
 ### Added
