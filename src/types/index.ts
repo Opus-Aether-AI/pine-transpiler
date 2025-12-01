@@ -99,9 +99,12 @@ export interface ParsedPlot {
     | 'stepline'
     | 'cross'
     | 'shape'
-    | 'hline';
+    | 'hline'
+    | 'bg_colorer';
   color: string;
   linewidth: number;
+  /** The value expression to plot (variable name or expression) */
+  valueExpr?: string | undefined;
   /** For hline - horizontal line price level */
   price?: number | undefined;
   /** For plotshape - the shape style */
@@ -123,6 +126,24 @@ export interface ParsedPlot {
     | 'bottom'
     | 'absolute'
     | undefined;
+  /** For bg_colorer - palette name */
+  palette?: string | undefined;
+}
+
+/**
+ * Parsed bgcolor() call from Pine Script
+ */
+export interface ParsedBgcolor {
+  /** Index in the order of bgcolor() calls */
+  index: number;
+  /** The condition expression (transpiled JS) */
+  condition: string;
+  /** Color name or hex value */
+  color: string;
+  /** Transparency (0-100) */
+  transparency: number;
+  /** Original color expression for reference */
+  colorExpr?: string;
 }
 
 /**

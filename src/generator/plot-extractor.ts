@@ -21,10 +21,46 @@ export class PlotExtractor {
   private plotCount = 0;
 
   /**
+   * Convert an expression to a string representation for code generation
+   */
+  private exprToString(expr: Expression): string {
+    switch (expr.type) {
+      case 'Identifier':
+        return expr.name;
+      case 'Literal':
+        if (typeof expr.value === 'string') return `"${expr.value}"`;
+        return String(expr.value);
+      case 'MemberExpression':
+        if (
+          expr.object.type === 'Identifier' &&
+          expr.property.type === 'Identifier'
+        ) {
+          return `${expr.object.name}.${expr.property.name}`;
+        }
+        return '';
+      case 'CallExpression': {
+        const fnName = getFnName(expr.callee);
+        const args = expr.arguments.map((a) => this.exprToString(a)).join(', ');
+        return `${fnName}(${args})`;
+      }
+      case 'BinaryExpression':
+        return `(${this.exprToString(expr.left)} ${expr.operator} ${this.exprToString(expr.right)})`;
+      case 'UnaryExpression':
+        return `${expr.operator}${this.exprToString(expr.argument)}`;
+      default:
+        return '';
+    }
+  }
+
+  /**
    * Extract a plot() call
    */
   public extractPlot(expr: CallExpression): ParsedPlot {
     const args = expr.arguments;
+
+    // First argument is the value to plot
+    const valueArg = getArg(args, 0, 'series');
+    const valueExpr = valueArg ? this.exprToString(valueArg) : '';
 
     const title =
       getStringValue(getArg(args, 1, 'title')) || `Plot ${++this.plotCount}`;
@@ -57,6 +93,7 @@ export class PlotExtractor {
       type,
       color,
       linewidth,
+      valueExpr,
     };
   }
 
@@ -65,6 +102,11 @@ export class PlotExtractor {
    */
   public extractPlotShape(expr: CallExpression): ParsedPlot {
     const args = expr.arguments;
+
+    // First argument is the condition/series
+    const valueArg = getArg(args, 0, 'series');
+    const valueExpr = valueArg ? this.exprToString(valueArg) : '';
+
     const title =
       getStringValue(getArg(args, 1, 'title')) || `Shape ${++this.plotCount}`;
 
@@ -75,6 +117,7 @@ export class PlotExtractor {
       type: 'shape',
       color: '#000000',
       linewidth: 1,
+      valueExpr,
       shape: 'circle',
       location: 'abovebar',
     };
