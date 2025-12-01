@@ -5,6 +5,7 @@
  */
 
 export * from './ast';
+export { ExpressionParser } from './expression-parser';
 export { Lexer } from './lexer';
 export { type ParseResult, Parser } from './parser';
 export {
@@ -14,3 +15,10 @@ export {
   ParserBase,
   TYPE_KEYWORDS,
 } from './parser-base';
+export {
+  KEYWORDS,
+  OPERATORS,
+  SORTED_SYMBOL_OPERATORS,
+  type Token,
+  TokenType,
+} from './token-types';

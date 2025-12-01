@@ -37,56 +37,19 @@ import type {
   VariableDeclaration,
   WhileStatement,
 } from '../parser/ast';
+import {
+  type FunctionMapping,
+  isStatement,
+  MAX_LOOP_ITERATIONS,
+  sanitizeIdentifier,
+} from './generator-utils';
 
-// ============================================================================
-// Configuration Constants
-// ============================================================================
-
-/** Maximum iterations allowed in while/for loops to prevent infinite loops */
-export const MAX_LOOP_ITERATIONS = 10000;
-
-/** Maximum recursion depth allowed to prevent stack overflow */
-export const MAX_RECURSION_DEPTH = 1000;
-
-/**
- * Reserved/dangerous identifier names that could cause security issues or conflicts
- * These are sanitized by prefixing with '_pine_' when used as variable names
- */
-const DANGEROUS_IDENTIFIERS = new Set([
-  '__proto__',
-  'constructor',
-  'prototype',
-  '__defineGetter__',
-  '__defineSetter__',
-  '__lookupGetter__',
-  '__lookupSetter__',
-  'eval',
-  'Function',
-  'arguments',
-  'caller',
-  'callee',
-]);
-
-/**
- * Sanitize an identifier name to prevent security issues
- */
-function sanitizeIdentifier(name: string): string {
-  if (DANGEROUS_IDENTIFIERS.has(name)) {
-    return `_pine_${name}`;
-  }
-  return name;
-}
+// Re-export for backward compatibility
+export { MAX_LOOP_ITERATIONS, MAX_RECURSION_DEPTH } from './generator-utils';
 
 // ============================================================================
 // Unified Function Mapping
 // ============================================================================
-
-/** Mapping type for function name resolution */
-interface FunctionMapping {
-  stdName?: string;
-  jsName?: string;
-  contextArg?: boolean;
-}
 
 /**
  * Unified lookup map for all Pine Script function mappings.
@@ -198,7 +161,7 @@ export class ASTGenerator {
     this.indentLevel++;
     let s: string;
     // Check if it's a statement (has statement types)
-    if (this.isStatement(stmt)) {
+    if (isStatement(stmt)) {
       s = this.generateStatement(stmt);
     } else {
       // Expression used as body (e.g. in switch case or short function)
@@ -206,16 +169,6 @@ export class ASTGenerator {
     }
     this.indentLevel--;
     return `{\n${s}\n${this.indent()}}`;
-  }
-
-  private isStatement(node: Statement | Expression): node is Statement {
-    return (
-      'type' in node &&
-      (node.type.endsWith('Statement') ||
-        node.type === 'VariableDeclaration' ||
-        node.type === 'FunctionDeclaration' ||
-        node.type === 'TypeDefinition')
-    );
   }
 
   private generateWhileStatement(stmt: WhileStatement): string {
@@ -577,7 +530,7 @@ export class ASTGenerator {
     // Handle consequent
     if (stmt.consequent.type === 'BlockStatement') {
       result += this.generateBlockExpressionWithImplicitReturn(stmt.consequent);
-    } else if (this.isStatement(stmt.consequent)) {
+    } else if (isStatement(stmt.consequent)) {
       this.indentLevel++;
       if (stmt.consequent.type === 'ExpressionStatement') {
         result += `${this.indent()}return ${this.generateExpression(stmt.consequent.expression)};\n`;
@@ -603,7 +556,7 @@ export class ASTGenerator {
           stmt.alternate,
         );
         result += `${this.indent()}}`;
-      } else if (this.isStatement(stmt.alternate)) {
+      } else if (isStatement(stmt.alternate)) {
         result += ` else {\n`;
         this.indentLevel++;
         if (stmt.alternate.type === 'ExpressionStatement') {

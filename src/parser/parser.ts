@@ -2,11 +2,11 @@
  * Recursive Descent Parser for Pine Script
  *
  * Converts a stream of tokens into an Abstract Syntax Tree (AST).
+ * Extends ExpressionParser which handles all expression parsing.
  */
 
 import type {
   BlockStatement,
-  CallExpression,
   Expression,
   FunctionDeclaration,
   Identifier,
@@ -21,8 +21,9 @@ import type {
   VariableDeclaration,
   WhileStatement,
 } from './ast';
+import { ExpressionParser } from './expression-parser';
 import { TokenType } from './lexer';
-import { MAX_RECURSION_DEPTH, ParseError, ParserBase } from './parser-base';
+import { ParseError } from './parser-base';
 
 /**
  * Result of parsing with collected errors
@@ -33,7 +34,7 @@ export interface ParseResult {
   hasErrors: boolean;
 }
 
-export class Parser extends ParserBase {
+export class Parser extends ExpressionParser {
   /**
    * Parse tokens into an AST Program node
    * Legacy method for backward compatibility
@@ -656,7 +657,10 @@ export class Parser extends ParserBase {
     return node;
   }
 
-  private parseTypeAnnotation(): TypeAnnotation {
+  /**
+   * Parse a type annotation (implements abstract method from ExpressionParser)
+   */
+  protected parseTypeAnnotation(): TypeAnnotation {
     const name = this.consume(
       TokenType.IDENTIFIER,
       'Expected type name.',
@@ -676,242 +680,10 @@ export class Parser extends ParserBase {
     return { type: 'TypeAnnotation', name, arguments: args };
   }
 
-  // ==========================================================================
-  // Expressions (Precedence Climbing)
-  // ==========================================================================
-
-  private parseExpression(): Expression {
-    this.recursionDepth++;
-    if (this.recursionDepth > MAX_RECURSION_DEPTH) {
-      throw this.error(
-        this.peek(),
-        `Maximum recursion depth (${MAX_RECURSION_DEPTH}) exceeded. Expression is too deeply nested.`,
-      );
-    }
-    try {
-      return this.parseTernary();
-    } finally {
-      this.recursionDepth--;
-    }
-  }
-
-  private parseTernary(): Expression {
-    const expr = this.parseLogicalOr();
-
-    if (this.match(TokenType.OPERATOR) && this.previous().value === '?') {
-      const consequent = this.parseExpression();
-      if (!this.match(TokenType.COLON)) {
-        throw this.error(this.peek(), 'Expected : in ternary.');
-      }
-      const alternate = this.parseExpression();
-      return {
-        type: 'ConditionalExpression',
-        test: expr,
-        consequent,
-        alternate,
-      };
-    }
-    return expr;
-  }
-
-  private parseLogicalOr(): Expression {
-    let expr = this.parseLogicalAnd();
-    while (this.matchOperator('or')) {
-      const operator = 'or';
-      const right = this.parseLogicalAnd();
-      expr = { type: 'BinaryExpression', operator, left: expr, right };
-    }
-    return expr;
-  }
-
-  private parseLogicalAnd(): Expression {
-    let expr = this.parseEquality();
-    while (this.matchOperator('and')) {
-      const operator = 'and';
-      const right = this.parseEquality();
-      expr = { type: 'BinaryExpression', operator, left: expr, right };
-    }
-    return expr;
-  }
-
-  private parseEquality(): Expression {
-    let expr = this.parseComparison();
-    while (this.matchOperator('==', '!=')) {
-      const operator = this.previous().value;
-      const right = this.parseComparison();
-      expr = { type: 'BinaryExpression', operator, left: expr, right };
-    }
-    return expr;
-  }
-
-  private parseComparison(): Expression {
-    let expr = this.parseTerm();
-    while (this.matchOperator('>', '<', '>=', '<=')) {
-      const operator = this.previous().value;
-      const right = this.parseTerm();
-      expr = { type: 'BinaryExpression', operator, left: expr, right };
-    }
-    return expr;
-  }
-
-  private parseTerm(): Expression {
-    let expr = this.parseFactor();
-    while (this.matchOperator('+', '-')) {
-      const operator = this.previous().value;
-      const right = this.parseFactor();
-      expr = { type: 'BinaryExpression', operator, left: expr, right };
-    }
-    return expr;
-  }
-
-  private parseFactor(): Expression {
-    let expr = this.parseUnary();
-    while (this.matchOperator('*', '/', '%')) {
-      const operator = this.previous().value;
-      const right = this.parseUnary();
-      expr = { type: 'BinaryExpression', operator, left: expr, right };
-    }
-    return expr;
-  }
-
-  private parseUnary(): Expression {
-    if (this.matchOperator('not', '-', '+')) {
-      const operator = this.previous().value;
-      const argument = this.parseUnary();
-      return { type: 'UnaryExpression', operator, argument, prefix: true };
-    }
-    return this.parseCallOrMember();
-  }
-
-  private parseCallOrMember(): Expression {
-    let expr = this.parsePrimary();
-
-    while (true) {
-      if (this.match(TokenType.LPAREN)) {
-        expr = this.finishCall(expr);
-      } else if (this.match(TokenType.DOT)) {
-        const name = this.consume(
-          TokenType.IDENTIFIER,
-          'Expected property name after .',
-        );
-        expr = {
-          type: 'MemberExpression',
-          object: expr,
-          property: { type: 'Identifier', name: name.value },
-          computed: false,
-        };
-      } else if (this.match(TokenType.LBRACKET)) {
-        const index = this.parseExpression();
-        this.consume(TokenType.RBRACKET, 'Expected ]');
-        expr = {
-          type: 'MemberExpression',
-          object: expr,
-          property: index,
-          computed: true,
-        };
-      } else if (this.check(TokenType.OPERATOR) && this.peek().value === '<') {
-        // Potential generic type arguments: f<int>() or obj.method<int>()
-        // We need to distinguish from 'less than' operator.
-        // Heuristic: If followed by known type keyword, assume generics.
-        // Or if pattern is < ID > (
-        const next = this.peekNext();
-        const isGeneric =
-          next &&
-          (this.checkTypeAnnotationWithToken(next) ||
-            (next.type === TokenType.IDENTIFIER &&
-              this.tokens[this.current + 2]?.value === '>'));
-
-        if (isGeneric) {
-          this.advance(); // eat <
-          const typeArgs: TypeAnnotation[] = [];
-          do {
-            typeArgs.push(this.parseTypeAnnotation());
-          } while (this.match(TokenType.COMMA));
-          if (!this.matchOperator('>')) {
-            throw this.error(
-              this.peek(),
-              'Expected > after generic arguments.',
-            );
-          }
-
-          // Wrap current expr in a GenericCall wrapper?
-          // Or attach to next call?
-          // AST definition for CallExpression has typeArguments.
-          // But we haven't parsed the CallExpression yet (the parens).
-          // If we just parsed `f<int>`, `expr` is `f`.
-          // We are inside loop. Next iteration should see `(`.
-          // If we see `(`, we call `finishCall`.
-          // We need to pass `typeArgs` to `finishCall`.
-          // But `finishCall` takes `callee`.
-          // We can temporarily attach typeArgs to `expr`?
-          // Or change `finishCall` signature?
-          // Or use a temporary node type?
-          // Let's return a customized object or store it.
-          // But we are in a loop.
-          // If I have `f<T>.g`, `f<T>` is not valid in Pine?
-          // Generics are on function calls.
-          // So we expect `(` immediately after `>`.
-          if (this.check(TokenType.LPAREN)) {
-            this.advance(); // eat (
-            const call = this.finishCall(expr, typeArgs); // Need to modify finishCall
-            expr = call;
-          } else {
-            // Error? Generic args must be followed by call?
-            // Maybe `new array<int>`?
-            throw this.error(
-              this.peek(),
-              'Expected ( after generic arguments.',
-            );
-          }
-        } else {
-          break;
-        }
-      } else {
-        break;
-      }
-    }
-    return expr;
-  }
-
-  private finishCall(
-    callee: Expression,
-    typeArguments?: TypeAnnotation[],
-  ): CallExpression {
-    const args: Expression[] = [];
-    if (!this.check(TokenType.RPAREN)) {
-      do {
-        if (
-          this.check(TokenType.IDENTIFIER) &&
-          this.peekNext()?.value === '='
-        ) {
-          const name = this.consume(
-            TokenType.IDENTIFIER,
-            'Expected argument name.',
-          ).value;
-          this.advance();
-          const value = this.parseExpression();
-          args.push({
-            type: 'AssignmentExpression',
-            operator: '=',
-            left: { type: 'Identifier', name },
-            right: value,
-          });
-        } else {
-          args.push(this.parseExpression());
-        }
-      } while (this.match(TokenType.COMMA));
-    }
-    this.consume(TokenType.RPAREN, 'Expected ) after arguments.');
-
-    return {
-      type: 'CallExpression',
-      callee,
-      arguments: args,
-      typeArguments,
-    };
-  }
-
-  private parsePrimary(): Expression {
+  /**
+   * Parse primary expression (implements abstract method from ExpressionParser)
+   */
+  protected parsePrimary(): Expression {
     if (this.check(TokenType.KEYWORD) && this.peek().value === 'switch') {
       this.advance(); // consume switch
       const stmt = this.parseSwitchStatement();
