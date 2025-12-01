@@ -1,7 +1,7 @@
 /**
  * Runtime Module
  *
- * Re-exports all runtime mock factories and stub namespaces.
+ * Re-exports all runtime mock factories, stub namespaces, and helper functions.
  */
 
 export {
@@ -35,3 +35,14 @@ export {
   type StubNamespaces,
   type TableStub,
 } from './stub-namespaces';
+
+// Re-export runtime helper functions
+export {
+  avg,
+  MATH_HELPER_FUNCTIONS,
+  roundToMintick,
+  STD_PLUS_LIBRARY,
+  sum,
+  toDegrees,
+  toRadians,
+} from './helpers';

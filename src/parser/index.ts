@@ -5,6 +5,7 @@
  */
 
 export * from './ast';
+export { DeclarationParserMixin } from './declaration-parser';
 export { ExpressionParser } from './expression-parser';
 export { Lexer } from './lexer';
 export { type ParseResult, Parser } from './parser';
@@ -15,6 +16,7 @@ export {
   ParserBase,
   TYPE_KEYWORDS,
 } from './parser-base';
+export { StatementParserMixin } from './statement-parser';
 export {
   KEYWORDS,
   OPERATORS,

@@ -20,11 +20,6 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
-    "./llm-prompt": {
-      "types": "./dist/llm-prompt.d.ts",
-      "import": "./dist/llm-prompt.js",
-      "require": "./dist/llm-prompt.cjs"
-    },
     "./cli": {
       "types": "./dist/cli/index.d.ts",
       "import": "./dist/cli/index.js"

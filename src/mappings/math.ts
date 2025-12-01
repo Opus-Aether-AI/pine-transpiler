@@ -7,6 +7,9 @@
  * Reference: https://www.tradingview.com/pine-script-reference/v5/#fun_math
  */
 
+// Re-export helper functions from runtime module
+export { MATH_HELPER_FUNCTIONS } from '../runtime/helpers';
+
 /**
  * Math function mapping configuration
  */
@@ -207,22 +210,6 @@ export const MATH_FUNCTION_MAPPINGS: Record<string, MathFunctionMapping> = {
   ...MINMAX_MAPPINGS,
   ...RANDOM_MAPPINGS,
 };
-
-/**
- * Custom helper function implementations needed for math operations
- * These are injected into the runtime context
- */
-export const MATH_HELPER_FUNCTIONS = `
-// Custom math helpers
-const _avg = (...args) => args.reduce((a, b) => a + b, 0) / args.length;
-const _sum = (...args) => args.reduce((a, b) => a + b, 0);
-const _toDegrees = (radians) => radians * (180 / Math.PI);
-const _toRadians = (degrees) => degrees * (Math.PI / 180);
-const _roundToMintick = (value) => {
-  const mintick = context.symbol.minmov / context.symbol.pricescale;
-  return Math.round(value / mintick) * mintick;
-};
-`;
 
 /**
  * PineJS.Std math-related functions (different from JavaScript Math)

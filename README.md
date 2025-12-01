@@ -123,11 +123,6 @@ import {
 } from '@opusaether/pine-transpiler';
 ```
 
-#### LLM Prompt Module
-```typescript
-import { getLLMPrompt } from '@opusaether/pine-transpiler/llm-prompt';
-```
-
 ## Supported Features
 
 ### Language Constructs
@@ -230,7 +225,6 @@ The transpiler follows a classic compiler pipeline with four distinct phases:
 ```
 src/
 ├── index.ts              # Main entry, transpileToPineJS, runtime mocks
-├── llm-prompt.ts         # LLM prompt generation for Pine Script assistance
 ├── parser/
 │   ├── lexer.ts          # Tokenizer with indentation handling
 │   ├── parser.ts         # Recursive descent parser

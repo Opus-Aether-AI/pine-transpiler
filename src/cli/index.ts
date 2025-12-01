@@ -5,269 +5,22 @@
  * Command-line interface for transpiling Pine Script to JavaScript/PineJS format.
  */
 
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { parseArgs } from 'node:util';
-import {
-  canTranspilePineScript,
-  getMappingStats,
-  transpile,
-  transpileToPineJS,
-} from '../index.js';
+import { commandInfo, commandTranspile, commandValidate } from './commands';
+import { getHelpText, getVersion, parseArguments } from './utils';
 
-// Read version from package.json to avoid duplication
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const packageJsonPath = join(__dirname, '..', '..', 'package.json');
-let VERSION = '0.1.3'; // fallback
-try {
-  const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-  VERSION = pkg.version || VERSION;
-} catch {
-  // Use fallback version if package.json cannot be read
-}
-
-const HELP = `
-Pine Script Transpiler v${VERSION}
-
-USAGE:
-  pine-transpiler <command> [options] [file]
-
-COMMANDS:
-  transpile <file>   Transpile a Pine Script file to JavaScript
-  validate <file>    Validate Pine Script syntax without transpiling
-  info               Show supported features and mapping statistics
-
-OPTIONS:
-  -o, --output <file>   Output file path (default: stdout)
-  -f, --format <type>   Output format: 'js' or 'pinejs' (default: js)
-  -n, --name <name>     Indicator name (for pinejs format)
-  -i, --id <id>         Indicator ID (for pinejs format, default: derived from filename)
-  -h, --help            Show this help message
-  -v, --version         Show version number
-
-EXAMPLES:
-  # Transpile to JavaScript (stdout)
-  pine-transpiler transpile script.pine
-
-  # Transpile to file
-  pine-transpiler transpile script.pine -o output.js
-
-  # Transpile to PineJS factory format
-  pine-transpiler transpile script.pine -f pinejs -o indicator.js
-
-  # Validate syntax
-  pine-transpiler validate script.pine
-
-  # Show supported features
-  pine-transpiler info
-`;
-
-interface CLIOptions {
-  output?: string;
-  format?: string;
-  name?: string;
-  id?: string;
-  help?: boolean;
-  version?: boolean;
-}
-
-function parseArguments(): {
-  command: string;
-  file?: string;
-  options: CLIOptions;
-} {
-  const { values, positionals } = parseArgs({
-    options: {
-      output: { type: 'string', short: 'o' },
-      format: { type: 'string', short: 'f', default: 'js' },
-      name: { type: 'string', short: 'n' },
-      id: { type: 'string', short: 'i' },
-      help: { type: 'boolean', short: 'h', default: false },
-      version: { type: 'boolean', short: 'v', default: false },
-    },
-    allowPositionals: true,
-    strict: false,
-  });
-
-  const [command, file] = positionals;
-
-  return {
-    command: command || '',
-    file,
-    options: values as CLIOptions,
-  };
-}
-
-function readInput(filePath: string): string {
-  const resolvedPath = resolve(filePath);
-  if (!existsSync(resolvedPath)) {
-    console.error(`Error: File not found: ${filePath}`);
-    process.exit(1);
-  }
-  return readFileSync(resolvedPath, 'utf-8');
-}
-
-function writeOutput(content: string, outputPath?: string): void {
-  if (outputPath) {
-    writeFileSync(resolve(outputPath), content, 'utf-8');
-    console.error(`Written to: ${outputPath}`);
-  } else {
-    console.log(content);
-  }
-}
-
-function deriveIndicatorId(filePath: string): string {
-  const name = basename(filePath, '.pine');
-  return name.replace(/[^a-zA-Z0-9_]/g, '_');
-}
-
-function commandTranspile(file: string | undefined, options: CLIOptions): void {
-  if (!file) {
-    console.error('Error: No input file specified');
-    console.error('Usage: pine-transpiler transpile <file>');
-    process.exit(1);
-  }
-
-  const code = readInput(file);
-  const format = options.format || 'js';
-
-  if (format === 'js') {
-    try {
-      const result = transpile(code);
-      writeOutput(result, options.output);
-    } catch (error) {
-      console.error(
-        'Transpilation error:',
-        error instanceof Error ? error.message : error,
-      );
-      process.exit(1);
-    }
-  } else if (format === 'pinejs') {
-    const indicatorId = options.id || deriveIndicatorId(file);
-    const indicatorName = options.name;
-
-    const result = transpileToPineJS(code, indicatorId, indicatorName);
-
-    if (!result.success) {
-      console.error('Transpilation error:', result.error);
-      process.exit(1);
-    }
-
-    // Generate the factory code as a string
-    const factoryCode = generatePineJSFactoryCode(
-      code,
-      indicatorId,
-      indicatorName,
-    );
-    writeOutput(factoryCode, options.output);
-  } else {
-    console.error(`Error: Unknown format '${format}'. Use 'js' or 'pinejs'.`);
-    process.exit(1);
-  }
-}
-
-function generatePineJSFactoryCode(
-  pineCode: string,
-  indicatorId: string,
-  indicatorName?: string,
-): string {
-  // For pinejs format, we generate a module that exports the factory
-  const escapedCode = JSON.stringify(pineCode);
-  const nameStr = indicatorName ? JSON.stringify(indicatorName) : 'undefined';
-
-  return `/**
- * PineJS Indicator Factory
- * Generated by pine-transpiler
- *
- * Usage:
- *   import { createIndicator } from './output.js';
- *   const indicator = createIndicator(PineJS);
+/**
+ * Main CLI entry point
  */
-
-import { transpileToPineJS } from '@opusaether/pine-transpiler';
-
-const pineCode = ${escapedCode};
-const indicatorId = ${JSON.stringify(indicatorId)};
-const indicatorName = ${nameStr};
-
-export function createIndicator(PineJS) {
-  const result = transpileToPineJS(pineCode, indicatorId, indicatorName);
-  if (!result.success) {
-    throw new Error('Transpilation failed: ' + result.error);
-  }
-  return result.indicatorFactory(PineJS);
-}
-
-export default createIndicator;
-`;
-}
-
-function commandValidate(file: string | undefined, _options: CLIOptions): void {
-  if (!file) {
-    console.error('Error: No input file specified');
-    console.error('Usage: pine-transpiler validate <file>');
-    process.exit(1);
-  }
-
-  const code = readInput(file);
-  const result = canTranspilePineScript(code);
-
-  if (result.valid) {
-    console.log(`✓ ${file} is valid Pine Script`);
-    process.exit(0);
-  } else {
-    console.error(`✗ ${file} has syntax errors:`);
-    console.error(`  ${result.reason}`);
-    process.exit(1);
-  }
-}
-
-function commandInfo(): void {
-  const stats = getMappingStats();
-
-  console.log(`
-Pine Script Transpiler v${VERSION}
-================================
-
-Supported Function Mappings:
-  Technical Analysis (ta.*):  ${stats.ta} functions
-  Math (math.*):              ${stats.math} functions
-  Time Functions:             ${stats.time} functions
-  Multi-Output Functions:     ${stats.multiOutput} functions
-  Total Mapped Functions:     ${stats.total} functions
-
-Supported Features:
-  • Variable declarations (var, varip)
-  • Function declarations
-  • Control flow (if/else, for, while, switch)
-  • Technical indicators (SMA, EMA, RSI, MACD, etc.)
-  • Input parameters
-  • Plot functions
-  • Type annotations
-  • Arrays and tuples
-
-Limitations:
-  • No request.security() support
-  • Limited drawing functions (box, line, label)
-  • No table support
-  • Some advanced Pine Script v5 features
-
-For more information, visit:
-  https://github.com/Opus-Aether-AI/pine-transpiler
-`);
-}
-
 function main(): void {
   const { command, file, options } = parseArguments();
 
   if (options.version) {
-    console.log(`pine-transpiler v${VERSION}`);
+    console.log(`pine-transpiler v${getVersion()}`);
     process.exit(0);
   }
 
   if (options.help || !command) {
-    console.log(HELP);
+    console.log(getHelpText());
     process.exit(0);
   }
 
@@ -283,9 +36,10 @@ function main(): void {
       break;
     default:
       console.error(`Error: Unknown command '${command}'`);
-      console.log(HELP);
+      console.log(getHelpText());
       process.exit(1);
   }
 }
 
 main();
+

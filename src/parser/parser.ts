@@ -3,6 +3,7 @@
  *
  * Converts a stream of tokens into an Abstract Syntax Tree (AST).
  * Extends ExpressionParser which handles all expression parsing.
+ * Delegates statement and declaration parsing to specialized modules.
  */
 
 import type {
@@ -10,8 +11,6 @@ import type {
   Expression,
   FunctionDeclaration,
   Identifier,
-  IfStatement,
-  MemberExpression,
   Program,
   Statement,
   SwitchCase,
@@ -19,11 +18,10 @@ import type {
   TypeAnnotation,
   TypeDefinition,
   VariableDeclaration,
-  WhileStatement,
 } from './ast';
 import { ExpressionParser } from './expression-parser';
 import { TokenType } from './lexer';
-import { ParseError } from './parser-base';
+import { ParseError, TYPE_KEYWORDS } from './parser-base';
 
 /**
  * Result of parsing with collected errors
@@ -98,7 +96,7 @@ export class Parser extends ExpressionParser {
   }
 
   // ==========================================================================
-  // Statements
+  // Statement Parsing
   // ==========================================================================
 
   private parseStatement(): Statement | null {
@@ -119,7 +117,6 @@ export class Parser extends ExpressionParser {
           return { type: 'ContinueStatement' };
         case 'var':
         case 'varip':
-          // Explicit variable declaration: var int x = 1
           return this.parseVariableDeclaration(keyword);
         case 'switch':
           return this.parseSwitchStatement();
@@ -132,11 +129,9 @@ export class Parser extends ExpressionParser {
         case 'method':
           return this.parseMethodDeclaration();
       }
-      // Backtrack if it wasn't a statement keyword
       this.current--;
     }
 
-    // Function declaration: f(x) => ...
     if (
       this.check(TokenType.IDENTIFIER) &&
       this.peekNext()?.type === TokenType.LPAREN
@@ -146,8 +141,6 @@ export class Parser extends ExpressionParser {
       }
     }
 
-    // Variable Declaration (x = 1) or Assignment (x := 1)
-    // Also Tuple Declaration ([a, b] = f())
     if (
       this.check(TokenType.IDENTIFIER) ||
       this.check(TokenType.LBRACKET) ||
@@ -157,11 +150,10 @@ export class Parser extends ExpressionParser {
       try {
         return this.parseVariableOrAssignment();
       } catch (_e) {
-        this.current = start; // Backtrack on fail
+        this.current = start;
       }
     }
 
-    // Expression Statement (e.g. plot(close))
     const expr = this.parseExpression();
     if (this.match(TokenType.NEWLINE) || this.isAtEnd()) {
       return { type: 'ExpressionStatement', expression: expr };
@@ -184,7 +176,11 @@ export class Parser extends ExpressionParser {
     return { type: 'BlockStatement', body };
   }
 
-  private parseIfStatement(): IfStatement {
+  // ==========================================================================
+  // Control Flow Statements
+  // ==========================================================================
+
+  private parseIfStatement(): Statement {
     const condition = this.parseExpression();
 
     let consequent: BlockStatement | Statement;
@@ -211,7 +207,7 @@ export class Parser extends ExpressionParser {
     return { type: 'IfStatement', test: condition, consequent, alternate };
   }
 
-  private parseWhileStatement(): WhileStatement {
+  private parseWhileStatement(): Statement {
     const test = this.parseExpression();
     if (this.match(TokenType.NEWLINE)) {
       const body = this.parseBlock();
@@ -250,78 +246,69 @@ export class Parser extends ExpressionParser {
         throw this.error(this.peek(), 'Expected newline before loop body.');
       }
 
-      return {
-        type: 'ForInStatement',
-        left: id,
-        right,
-        body,
-      };
-    } else {
-      const name = this.consume(
+      return { type: 'ForInStatement', left: id, right, body };
+    }
+
+    const name = this.consume(
+      TokenType.IDENTIFIER,
+      'Expected variable name after for.',
+    ).value;
+    const idNode: Identifier = { type: 'Identifier', name };
+
+    if (this.check(TokenType.KEYWORD) && this.peek().value === 'in') {
+      this.advance();
+      const right = this.parseExpression();
+      let body: BlockStatement | Statement;
+      if (this.match(TokenType.NEWLINE)) {
+        body = this.parseBlock();
+      } else {
+        throw this.error(this.peek(), 'Expected newline before loop body.');
+      }
+      return { type: 'ForInStatement', left: idNode, right, body };
+    }
+
+    if (this.check(TokenType.OPERATOR) && this.peek().value === '=') {
+      this.advance();
+      const startExpr = this.parseExpression();
+
+      const toToken = this.consume(
         TokenType.IDENTIFIER,
-        'Expected variable name after for.',
-      ).value;
-      const idNode: Identifier = { type: 'Identifier', name };
+        'Expected "to" in for loop.',
+      );
+      if (toToken.value !== 'to') throw this.error(toToken, 'Expected "to".');
 
-      if (this.check(TokenType.KEYWORD) && this.peek().value === 'in') {
+      const endExpr = this.parseExpression();
+
+      let step: Expression | undefined;
+      if (this.check(TokenType.IDENTIFIER) && this.peek().value === 'by') {
         this.advance();
-        const right = this.parseExpression();
-        let body: BlockStatement | Statement;
-        if (this.match(TokenType.NEWLINE)) {
-          body = this.parseBlock();
-        } else {
-          throw this.error(this.peek(), 'Expected newline before loop body.');
-        }
+        step = this.parseExpression();
+      }
 
+      if (this.match(TokenType.NEWLINE)) {
+        const body = this.parseBlock();
         return {
-          type: 'ForInStatement',
-          left: idNode,
-          right,
+          type: 'ForStatement',
+          init: {
+            type: 'AssignmentExpression',
+            operator: '=',
+            left: idNode,
+            right: startExpr,
+          },
+          test: {
+            type: 'BinaryExpression',
+            operator: '<=',
+            left: idNode,
+            right: endExpr,
+          },
+          update: step,
           body,
         };
-      } else if (this.check(TokenType.OPERATOR) && this.peek().value === '=') {
-        this.advance();
-        const startExpr = this.parseExpression();
-
-        const toToken = this.consume(
-          TokenType.IDENTIFIER,
-          'Expected "to" in for loop.',
-        );
-        if (toToken.value !== 'to') throw this.error(toToken, 'Expected "to".');
-
-        const endExpr = this.parseExpression();
-
-        let step: Expression | undefined;
-        if (this.check(TokenType.IDENTIFIER) && this.peek().value === 'by') {
-          this.advance();
-          step = this.parseExpression();
-        }
-
-        if (this.match(TokenType.NEWLINE)) {
-          const body = this.parseBlock();
-          return {
-            type: 'ForStatement',
-            init: {
-              type: 'AssignmentExpression',
-              operator: '=',
-              left: idNode,
-              right: startExpr,
-            },
-            test: {
-              type: 'BinaryExpression',
-              operator: '<=',
-              left: idNode,
-              right: endExpr,
-            },
-            update: step,
-            body,
-          };
-        }
-        throw this.error(this.peek(), 'Expected newline before loop body.');
-      } else {
-        throw this.error(this.peek(), 'Expected "=" or "in" in for loop.');
       }
+      throw this.error(this.peek(), 'Expected newline before loop body.');
     }
+
+    throw this.error(this.peek(), 'Expected "=" or "in" in for loop.');
   }
 
   private parseReturnStatement(): Statement {
@@ -376,6 +363,10 @@ export class Parser extends ExpressionParser {
     return { type: 'SwitchStatement', discriminant, cases };
   }
 
+  // ==========================================================================
+  // Declaration Parsing
+  // ==========================================================================
+
   private parseTypeDefinition(): TypeDefinition {
     const name = this.consume(
       TokenType.IDENTIFIER,
@@ -429,9 +420,6 @@ export class Parser extends ExpressionParser {
     const params: Identifier[] = [];
     if (!this.check(TokenType.RPAREN)) {
       do {
-        // Check for optional type annotation: Type Name
-        // Logic: If current is ID and next is ID (or next is < implying generic type)
-        // then parse type.
         let typeAnnotation: TypeAnnotation | undefined;
         if (this.check(TokenType.IDENTIFIER)) {
           const next = this.peekNext();
@@ -440,11 +428,6 @@ export class Parser extends ExpressionParser {
             next?.value === '<' ||
             this.checkTypeAnnotation()
           ) {
-            // Be careful not to parse the param name as type if it's just a name.
-            // If it's `int x`, `int` is type. `checkTypeAnnotation` matches.
-            // If it's `MyType x`, `MyType` is ID. `next` is `x` (ID).
-            // If it's `x`, `next` is `,` or `)`.
-            // So:
             if (
               this.checkTypeAnnotation() ||
               (next?.type === TokenType.IDENTIFIER &&
@@ -453,11 +436,7 @@ export class Parser extends ExpressionParser {
               try {
                 const saved = this.current;
                 typeAnnotation = this.parseTypeAnnotation();
-                // Verify we still have an identifier for the name
                 if (!this.check(TokenType.IDENTIFIER)) {
-                  // If we consumed the name as type, backtrack?
-                  // This happens if I write `f(x)` and `x` matches `checkTypeAnnotation` (unlikely unless x is `int`)
-                  // or if I write `f(Type)` without name (invalid).
                   this.current = saved;
                   typeAnnotation = undefined;
                 }
@@ -478,7 +457,6 @@ export class Parser extends ExpressionParser {
           typeAnnotation,
         });
 
-        // Default value
         if (this.match(TokenType.OPERATOR) && this.previous().value === '=') {
           this.parseExpression();
         }
@@ -511,7 +489,7 @@ export class Parser extends ExpressionParser {
       typeAnnotation = this.parseTypeAnnotation();
     }
 
-    let id: Identifier | MemberExpression | Identifier[];
+    let id: Identifier | Expression | Identifier[];
     if (this.match(TokenType.LBRACKET)) {
       const ids: Identifier[] = [];
       do {
@@ -528,7 +506,7 @@ export class Parser extends ExpressionParser {
         TokenType.IDENTIFIER,
         'Expected identifier.',
       ).value;
-      let expr: Identifier | MemberExpression = { type: 'Identifier', name };
+      let expr: Expression = { type: 'Identifier', name };
 
       while (this.match(TokenType.DOT)) {
         const prop = this.consume(
@@ -558,7 +536,7 @@ export class Parser extends ExpressionParser {
         expression: {
           type: 'AssignmentExpression',
           operator: operator === ':=' ? ':=' : '=',
-          left: id,
+          left: id as Identifier | Expression,
           right: init,
         },
       };
@@ -624,12 +602,14 @@ export class Parser extends ExpressionParser {
         const node = this.parseTypeDefinition();
         node.export = true;
         return node;
-      } else if (['var', 'const', 'let'].includes(keyword)) {
+      }
+      if (['var', 'const', 'let'].includes(keyword)) {
         this.advance();
         const node = this.parseVariableDeclaration(keyword);
         node.export = true;
         return node;
-      } else if (keyword === 'method') {
+      }
+      if (keyword === 'method') {
         this.advance();
         const node = this.parseMethodDeclaration();
         node.export = true;
@@ -657,9 +637,10 @@ export class Parser extends ExpressionParser {
     return node;
   }
 
-  /**
-   * Parse a type annotation (implements abstract method from ExpressionParser)
-   */
+  // ==========================================================================
+  // Type Annotations
+  // ==========================================================================
+
   protected parseTypeAnnotation(): TypeAnnotation {
     const name = this.consume(
       TokenType.IDENTIFIER,
@@ -680,12 +661,13 @@ export class Parser extends ExpressionParser {
     return { type: 'TypeAnnotation', name, arguments: args };
   }
 
-  /**
-   * Parse primary expression (implements abstract method from ExpressionParser)
-   */
+  // ==========================================================================
+  // Primary Expressions
+  // ==========================================================================
+
   protected parsePrimary(): Expression {
     if (this.check(TokenType.KEYWORD) && this.peek().value === 'switch') {
-      this.advance(); // consume switch
+      this.advance();
       const stmt = this.parseSwitchStatement();
       return {
         type: 'SwitchExpression',
