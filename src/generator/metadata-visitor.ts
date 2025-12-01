@@ -18,7 +18,12 @@ import type {
   Program,
   Statement,
 } from '../parser/ast';
-import type { ParsedBgcolor, ParsedInput, ParsedPlot, ParseWarning } from '../types';
+import type {
+  ParsedBgcolor,
+  ParsedInput,
+  ParsedPlot,
+  ParseWarning,
+} from '../types';
 import {
   getArg,
   getBooleanValue,
@@ -33,10 +38,10 @@ import { PlotExtractor } from './plot-extractor';
  * Session variable tracking info
  */
 export interface SessionVariable {
-  varName: string;           // e.g., "inSydney"
-  sessionInputVar: string;   // e.g., "sSydney"
-  timezone: string;          // e.g., "Australia/Sydney"
-  inputIndex?: number;       // Index of the session input
+  varName: string; // e.g., "inSydney"
+  sessionInputVar: string; // e.g., "sSydney"
+  timezone: string; // e.g., "Australia/Sydney"
+  inputIndex?: number; // Index of the session input
 }
 
 /**
@@ -44,10 +49,10 @@ export interface SessionVariable {
  * e.g., inSydney = not na(time(timeframe.period, sSydney, "Australia/Sydney"))
  */
 export interface SessionVariable {
-  varName: string;           // e.g., "inSydney"
-  sessionInputVar: string;   // e.g., "sSydney" - the input variable name
-  timezone: string;          // e.g., "Australia/Sydney"
-  inputIndex?: number;       // Index in inputs array for the session input
+  varName: string; // e.g., "inSydney"
+  sessionInputVar: string; // e.g., "sSydney" - the input variable name
+  timezone: string; // e.g., "Australia/Sydney"
+  inputIndex?: number; // Index in inputs array for the session input
 }
 
 /**
@@ -98,8 +103,8 @@ const DEPRECATED_FUNCTIONS = new Set(['study', 'security']);
  * Computed variable info for code generation
  */
 export interface ComputedVariable {
-  name: string;           // Variable name
-  expression: string;     // Native JS expression
+  name: string; // Variable name
+  expression: string; // Native JS expression
   dependencies: string[]; // Other variables this depends on
 }
 
@@ -117,7 +122,8 @@ export class MetadataVisitor {
   public historicalAccess: Set<string> = new Set();
 
   // Track color variable definitions: varName -> { color, transparency }
-  private colorVariables: Map<string, { color: string; transparency: number }> = new Map();
+  private colorVariables: Map<string, { color: string; transparency: number }> =
+    new Map();
 
   // Track session membership variables: varName -> SessionVariable info
   public sessionVariables: Map<string, SessionVariable> = new Map();
@@ -340,7 +346,10 @@ export class MetadataVisitor {
   /**
    * Track color variable definitions (e.g., SydneyCol = color.new(color.teal, 88))
    */
-  private trackColorVariable(id: Expression | Expression[], init: Expression): void {
+  private trackColorVariable(
+    id: Expression | Expression[],
+    init: Expression,
+  ): void {
     // Only handle simple identifier assignments
     if (Array.isArray(id) || id.type !== 'Identifier') return;
 
@@ -355,7 +364,10 @@ export class MetadataVisitor {
    * Track input variable assignments (e.g., sSydney = input.session(...))
    * This maps variable names to their input index for later resolution
    */
-  private trackInputVariable(id: Expression | Expression[], init: Expression): void {
+  private trackInputVariable(
+    id: Expression | Expression[],
+    init: Expression,
+  ): void {
     if (Array.isArray(id) || id.type !== 'Identifier') return;
 
     const varName = id.name;
@@ -379,7 +391,10 @@ export class MetadataVisitor {
    * Track session membership variables
    * e.g., inSydney = not na(time(timeframe.period, sSydney, "Australia/Sydney"))
    */
-  private trackSessionVariable(id: Expression | Expression[], init: Expression): void {
+  private trackSessionVariable(
+    id: Expression | Expression[],
+    init: Expression,
+  ): void {
     if (Array.isArray(id) || id.type !== 'Identifier') return;
 
     const varName = id.name;
@@ -389,10 +404,11 @@ export class MetadataVisitor {
       const arg = init.argument;
       if (arg.type === 'CallExpression') {
         // Check for na function - can be Identifier or Literal with kind 'na'
-        const isNaCall = 
+        const isNaCall =
           (arg.callee.type === 'Identifier' && arg.callee.name === 'na') ||
-          (arg.callee.type === 'Literal' && (arg.callee as { kind?: string }).kind === 'na');
-        
+          (arg.callee.type === 'Literal' &&
+            (arg.callee as { kind?: string }).kind === 'na');
+
         if (isNaCall && arg.arguments.length > 0) {
           const naArg = arg.arguments[0];
           if (naArg.type === 'CallExpression') {
@@ -433,17 +449,26 @@ export class MetadataVisitor {
    * Track derived session variables (overlaps)
    * e.g., inLonNy = inLondon and inNY
    */
-  private trackDerivedSessionVariable(id: Expression | Expression[], init: Expression): void {
+  private trackDerivedSessionVariable(
+    id: Expression | Expression[],
+    init: Expression,
+  ): void {
     if (Array.isArray(id) || id.type !== 'Identifier') return;
 
     const varName = id.name;
 
     // Only track if it's a binary expression combining session variables
-    if (init.type === 'BinaryExpression' && (init.operator === 'and' || init.operator === 'or')) {
+    if (
+      init.type === 'BinaryExpression' &&
+      (init.operator === 'and' || init.operator === 'or')
+    ) {
       // Check if operands reference session variables
       const referencesSession = (expr: Expression): boolean => {
         if (expr.type === 'Identifier') {
-          return this.sessionVariables.has(expr.name) || this.derivedSessionVariables.has(expr.name);
+          return (
+            this.sessionVariables.has(expr.name) ||
+            this.derivedSessionVariables.has(expr.name)
+          );
         }
         if (expr.type === 'BinaryExpression') {
           return referencesSession(expr.left) || referencesSession(expr.right);
@@ -462,35 +487,42 @@ export class MetadataVisitor {
   /**
    * Track computed variables (ta.*, arithmetic, etc.) for code generation
    */
-  private trackComputedVariable(id: Expression | Expression[], init: Expression): void {
+  private trackComputedVariable(
+    id: Expression | Expression[],
+    init: Expression,
+  ): void {
     if (Array.isArray(id) || id.type !== 'Identifier') return;
 
     const varName = id.name;
 
     // Skip if already tracked as session/color/input variable
-    if (this.sessionVariables.has(varName) || 
-        this.derivedSessionVariables.has(varName) ||
-        this.inputVariableMap.has(varName) ||
-        this.colorVariables.has(varName)) {
+    if (
+      this.sessionVariables.has(varName) ||
+      this.derivedSessionVariables.has(varName) ||
+      this.inputVariableMap.has(varName) ||
+      this.colorVariables.has(varName)
+    ) {
       return;
     }
 
     // Skip drawing objects (table, label, box, line, etc.) - not supported in factory output
     if (init.type === 'CallExpression') {
       const fnName = getFnName(init.callee);
-      if (fnName.startsWith('table.') || 
-          fnName.startsWith('label.') || 
-          fnName.startsWith('box.') || 
-          fnName.startsWith('line.') ||
-          fnName.startsWith('linefill.') ||
-          fnName.startsWith('polyline.')) {
+      if (
+        fnName.startsWith('table.') ||
+        fnName.startsWith('label.') ||
+        fnName.startsWith('box.') ||
+        fnName.startsWith('line.') ||
+        fnName.startsWith('linefill.') ||
+        fnName.startsWith('polyline.')
+      ) {
         return;
       }
     }
 
     // Convert expression to native JS
     const { expression, dependencies } = this.exprToNative(init);
-    
+
     if (expression) {
       this.computedVariables.set(varName, {
         name: varName,
@@ -503,7 +535,10 @@ export class MetadataVisitor {
   /**
    * Convert a Pine Script expression to native JS code
    */
-  private exprToNative(expr: Expression): { expression: string; dependencies: string[] } {
+  private exprToNative(expr: Expression): {
+    expression: string;
+    dependencies: string[];
+  } {
     const deps: string[] = [];
 
     const convert = (e: Expression): string => {
@@ -534,14 +569,14 @@ export class MetadataVisitor {
 
         case 'CallExpression': {
           const fnName = getFnName(e.callee);
-          const args = e.arguments.map(a => convert(a)).join(', ');
-          
+          const args = e.arguments.map((a) => convert(a)).join(', ');
+
           // Map ta.* functions to Std.*
           if (fnName.startsWith('ta.')) {
             const stdFn = fnName.replace('ta.', 'Std.');
             return `${stdFn}(${args}, context)`;
           }
-          
+
           // Map math.* functions
           if (fnName.startsWith('math.')) {
             const mathFn = fnName.replace('math.', 'Math.');
@@ -552,16 +587,30 @@ export class MetadataVisitor {
         }
 
         case 'MemberExpression':
-          if (e.object.type === 'Identifier' && e.property.type === 'Identifier') {
+          if (
+            e.object.type === 'Identifier' &&
+            e.property.type === 'Identifier'
+          ) {
             const objName = e.object.name;
             const propName = e.property.name;
-            
+
             // Handle price sources
-            if (['open', 'high', 'low', 'close', 'volume', 'hl2', 'hlc3', 'ohlc4'].includes(objName)) {
+            if (
+              [
+                'open',
+                'high',
+                'low',
+                'close',
+                'volume',
+                'hl2',
+                'hlc3',
+                'ohlc4',
+              ].includes(objName)
+            ) {
               deps.push(objName);
               return `Std.${objName}(context)`;
             }
-            
+
             return `${objName}.${propName}`;
           }
           // Array access e.g., variable[1]
@@ -589,14 +638,22 @@ export class MetadataVisitor {
   /**
    * Extract color info from an initializer expression
    */
-  private extractColorInfoFromInit(expr: Expression): { color: string; transparency: number } | null {
+  private extractColorInfoFromInit(
+    expr: Expression,
+  ): { color: string; transparency: number } | null {
     if (expr.type === 'CallExpression') {
       const fnName = getFnName(expr.callee);
-      if ((fnName === 'color.new' || fnName === '_colorNew') && expr.arguments.length >= 2) {
+      if (
+        (fnName === 'color.new' || fnName === '_colorNew') &&
+        expr.arguments.length >= 2
+      ) {
         const baseColor = this.extractColorFromExpr(expr.arguments[0]);
         let transparency = 0;
         const transpArg = expr.arguments[1];
-        if (transpArg.type === 'Literal' && typeof transpArg.value === 'number') {
+        if (
+          transpArg.type === 'Literal' &&
+          typeof transpArg.value === 'number'
+        ) {
           transparency = transpArg.value;
         }
         if (baseColor) {
@@ -663,13 +720,18 @@ export class MetadataVisitor {
         return `${op}${this.stringifyCondition(expr.argument)}`;
       }
       case 'MemberExpression':
-        if (expr.object.type === 'Identifier' && expr.property.type === 'Identifier') {
+        if (
+          expr.object.type === 'Identifier' &&
+          expr.property.type === 'Identifier'
+        ) {
           return `${expr.object.name}.${expr.property.name}`;
         }
         return '';
       case 'CallExpression': {
         const fnName = getFnName(expr.callee);
-        const args = expr.arguments.map(a => this.stringifyCondition(a)).join(', ');
+        const args = expr.arguments
+          .map((a) => this.stringifyCondition(a))
+          .join(', ');
         return `${fnName}(${args})`;
       }
       default:
@@ -680,15 +742,23 @@ export class MetadataVisitor {
   /**
    * Extract color and transparency from an expression
    */
-  private extractColorInfo(expr: Expression): { color: string; transparency: number } | null {
+  private extractColorInfo(
+    expr: Expression,
+  ): { color: string; transparency: number } | null {
     // Direct color.new() call
     if (expr.type === 'CallExpression') {
       const fnName = getFnName(expr.callee);
-      if ((fnName === 'color.new' || fnName === '_colorNew') && expr.arguments.length >= 2) {
+      if (
+        (fnName === 'color.new' || fnName === '_colorNew') &&
+        expr.arguments.length >= 2
+      ) {
         const baseColor = this.extractColorFromExpr(expr.arguments[0]);
         let transparency = 0;
         const transpArg = expr.arguments[1];
-        if (transpArg.type === 'Literal' && typeof transpArg.value === 'number') {
+        if (
+          transpArg.type === 'Literal' &&
+          typeof transpArg.value === 'number'
+        ) {
           transparency = transpArg.value;
         }
         if (baseColor) {
@@ -727,16 +797,29 @@ export class MetadataVisitor {
     if (expr.type === 'Literal' && typeof expr.value === 'string') {
       return expr.value; // hex color
     }
-    if (expr.type === 'MemberExpression' && 
-        expr.object.type === 'Identifier' && 
-        expr.object.name === 'color' &&
-        expr.property.type === 'Identifier') {
+    if (
+      expr.type === 'MemberExpression' &&
+      expr.object.type === 'Identifier' &&
+      expr.object.name === 'color' &&
+      expr.property.type === 'Identifier'
+    ) {
       const colorName = expr.property.name;
       const colorMap: Record<string, string> = {
-        blue: '#2962FF', red: '#FF5252', green: '#4CAF50', yellow: '#FFEB3B',
-        orange: '#FF9800', purple: '#9C27B0', white: '#FFFFFF', black: '#000000',
-        gray: '#9E9E9E', teal: '#009688', aqua: '#00BCD4', lime: '#CDDC39',
-        pink: '#E91E63', navy: '#1A237E', maroon: '#B71C1C',
+        blue: '#2962FF',
+        red: '#FF5252',
+        green: '#4CAF50',
+        yellow: '#FFEB3B',
+        orange: '#FF9800',
+        purple: '#9C27B0',
+        white: '#FFFFFF',
+        black: '#000000',
+        gray: '#9E9E9E',
+        teal: '#009688',
+        aqua: '#00BCD4',
+        lime: '#CDDC39',
+        pink: '#E91E63',
+        navy: '#1A237E',
+        maroon: '#B71C1C',
       };
       return colorMap[colorName] || null;
     }

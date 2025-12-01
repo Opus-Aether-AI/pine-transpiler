@@ -31,14 +31,18 @@ export class PlotExtractor {
         if (typeof expr.value === 'string') return `"${expr.value}"`;
         return String(expr.value);
       case 'MemberExpression':
-        if (expr.object.type === 'Identifier' && expr.property.type === 'Identifier') {
+        if (
+          expr.object.type === 'Identifier' &&
+          expr.property.type === 'Identifier'
+        ) {
           return `${expr.object.name}.${expr.property.name}`;
         }
         return '';
-      case 'CallExpression':
+      case 'CallExpression': {
         const fnName = getFnName(expr.callee);
-        const args = expr.arguments.map(a => this.exprToString(a)).join(', ');
+        const args = expr.arguments.map((a) => this.exprToString(a)).join(', ');
         return `${fnName}(${args})`;
+      }
       case 'BinaryExpression':
         return `(${this.exprToString(expr.left)} ${expr.operator} ${this.exprToString(expr.right)})`;
       case 'UnaryExpression':

@@ -5,8 +5,11 @@
  * Extracted from index.ts for better maintainability.
  */
 
+import type {
+  ComputedVariable,
+  SessionVariable,
+} from '../generator/metadata-visitor';
 import { MATH_HELPER_FUNCTIONS, SESSION_HELPER_FUNCTIONS } from '../mappings';
-import type { SessionVariable, ComputedVariable } from '../generator/metadata-visitor';
 import {
   createInputMock,
   createMathMock,
@@ -20,7 +23,12 @@ import {
   type StdLibraryInternal,
 } from '../runtime';
 import { STD_PLUS_LIBRARY } from '../stdlib';
-import type { IndicatorFactory, ParsedBgcolor, ParsedInput, ParsedPlot } from '../types';
+import type {
+  IndicatorFactory,
+  ParsedBgcolor,
+  ParsedInput,
+  ParsedPlot,
+} from '../types';
 import { COLOR_MAP } from '../types';
 import {
   buildDefaultInputs,
@@ -305,14 +313,15 @@ export function buildIndicatorFactory(
     };
   };
 
-
   return indicatorFactory;
 }
 
 /**
  * Build palette colors from bgcolor calls
  */
-function buildPaletteColors(bgcolors: ParsedBgcolor[]): Record<number, { name: string }> {
+function buildPaletteColors(
+  bgcolors: ParsedBgcolor[],
+): Record<number, { name: string }> {
   const colors: Record<number, { name: string }> = {
     0: { name: 'None' },
   };
@@ -325,8 +334,13 @@ function buildPaletteColors(bgcolors: ParsedBgcolor[]): Record<number, { name: s
 /**
  * Build palette color defaults from bgcolor calls
  */
-function buildPaletteDefaults(bgcolors: ParsedBgcolor[]): Record<number, { color: string; width: number; style: number }> {
-  const defaults: Record<number, { color: string; width: number; style: number }> = {
+function buildPaletteDefaults(
+  bgcolors: ParsedBgcolor[],
+): Record<number, { color: string; width: number; style: number }> {
+  const defaults: Record<
+    number,
+    { color: string; width: number; style: number }
+  > = {
     0: { color: 'rgba(0,0,0,0)', width: 1, style: 0 },
   };
   for (let i = 0; i < bgcolors.length; i++) {
@@ -370,16 +384,13 @@ export function generateStandaloneFactory(
   } = options;
 
   const safeId = sanitizeIndicatorId(indicatorId);
-  
+
   // Determine if we have bgcolors (session-style indicator)
   const hasBgcolors = bgcolors && bgcolors.length > 0;
-  
-  // Determine if we have regular plots (general indicator)
-  const hasPlots = plots && plots.length > 0 && plots.some(p => p.type !== 'shape');
-  
+
   // Build plots array - include bg_colorer if we have bgcolors
   const nativePlots: Array<{ id: string; type: string; palette?: string }> = [];
-  
+
   // Add regular plots first
   for (const plot of plots) {
     nativePlots.push({
@@ -387,7 +398,7 @@ export function generateStandaloneFactory(
       type: plot.type === 'hline' ? 'line' : plot.type,
     });
   }
-  
+
   // Add bg_colorer for bgcolor support
   if (hasBgcolors) {
     nativePlots.push({
@@ -396,33 +407,42 @@ export function generateStandaloneFactory(
       palette: 'bgPalette',
     });
   }
-  
+
   // Build palettes
-  const palettes = hasBgcolors ? {
-    bgPalette: {
-      colors: buildPaletteColors(bgcolors),
-      valToIndex: buildValToIndex(bgcolors),
-    },
-  } : {};
-  
+  const palettes = hasBgcolors
+    ? {
+        bgPalette: {
+          colors: buildPaletteColors(bgcolors),
+          valToIndex: buildValToIndex(bgcolors),
+        },
+      }
+    : {};
+
   // Build palette defaults
-  const paletteDefaults = hasBgcolors ? {
-    bgPalette: {
-      colors: buildPaletteDefaults(bgcolors),
-    },
-  } : {};
-  
+  const paletteDefaults = hasBgcolors
+    ? {
+        bgPalette: {
+          colors: buildPaletteDefaults(bgcolors),
+        },
+      }
+    : {};
+
   // Build style defaults
-  const styleDefaults: Record<string, { transparency?: number }> = {};
+  const styleDefaults: Record<string, Record<string, unknown>> = {};
   if (hasBgcolors) {
     // Use average transparency from bgcolors
-    const avgTransparency = bgcolors.reduce((sum, bg) => sum + bg.transparency, 0) / bgcolors.length;
+    const avgTransparency =
+      bgcolors.reduce((sum, bg) => sum + bg.transparency, 0) / bgcolors.length;
     styleDefaults.sessionBg = { transparency: Math.round(avgTransparency) };
   }
-  
+
   // Add plot styles for regular plots
   for (const plot of plots) {
-    if (plot.type === 'line' || plot.type === 'histogram' || plot.type === 'area') {
+    if (
+      plot.type === 'line' ||
+      plot.type === 'histogram' ||
+      plot.type === 'area'
+    ) {
       styleDefaults[plot.id] = {
         linestyle: 0,
         linewidth: plot.linewidth || 1,
@@ -440,36 +460,46 @@ export function generateStandaloneFactory(
       };
     }
   }
-  
+
   // Build input defaults
   const inputDefaults: Record<string, string | number | boolean> = {};
   for (const input of inputs) {
     inputDefaults[input.id] = input.defval;
   }
-  
+
   // Build styles metadata
-  const stylesMetadata: Record<string, { title: string; histogramBase?: number }> = {};
+  const stylesMetadata: Record<
+    string,
+    { title: string; histogramBase?: number }
+  > = {};
   if (hasBgcolors) {
     stylesMetadata.sessionBg = { title: 'Session Background' };
   }
-  
+
   // Add plot style metadata
   for (const plot of plots) {
-    stylesMetadata[plot.id] = { 
+    stylesMetadata[plot.id] = {
       title: plot.title || plot.id,
       ...(plot.type === 'histogram' ? { histogramBase: 0 } : {}),
     };
   }
-  
+
   // Build inputs metadata
-  const inputsMetadata = inputs.map(input => ({
+  const inputsMetadata = inputs.map((input) => ({
     id: input.id,
     name: input.name,
-    type: input.type === 'integer' ? 'integer' : 
-          input.type === 'float' ? 'float' :
-          input.type === 'bool' ? 'bool' :
-          input.type === 'source' ? 'source' :
-          input.type === 'session' ? 'session' : 'text',
+    type:
+      input.type === 'integer'
+        ? 'integer'
+        : input.type === 'float'
+          ? 'float'
+          : input.type === 'bool'
+            ? 'bool'
+            : input.type === 'source'
+              ? 'source'
+              : input.type === 'session'
+                ? 'session'
+                : 'text',
     defval: input.defval,
     ...(input.min !== undefined ? { min: input.min } : {}),
     ...(input.max !== undefined ? { max: input.max } : {}),
@@ -478,11 +508,11 @@ export function generateStandaloneFactory(
 
   // Generate the this.main() body code
   const mainBodyCode = generateNativeMainBody(
-    inputs, 
+    inputs,
     plots,
-    bgcolors, 
-    sessionVariables, 
-    derivedSessionVariables, 
+    bgcolors,
+    sessionVariables,
+    derivedSessionVariables,
     booleanInputMap,
     computedVariables,
     inputVariableMap,
@@ -515,12 +545,20 @@ function createIndicator(PineJS) {
       format: { type: 'inherit' },
 
       plots: ${JSON.stringify(nativePlots, null, 8).replace(/\n/g, '\n      ')},
-${hasBgcolors ? `
+${
+  hasBgcolors
+    ? `
       palettes: ${JSON.stringify(palettes, null, 8).replace(/\n/g, '\n      ')},
-` : ''}
+`
+    : ''
+}
       defaults: {
-${hasBgcolors ? `        palettes: ${JSON.stringify(paletteDefaults, null, 10).replace(/\n/g, '\n        ')},
-` : ''}        styles: ${JSON.stringify(styleDefaults, null, 10).replace(/\n/g, '\n        ')},
+${
+  hasBgcolors
+    ? `        palettes: ${JSON.stringify(paletteDefaults, null, 10).replace(/\n/g, '\n        ')},
+`
+    : ''
+}        styles: ${JSON.stringify(styleDefaults, null, 10).replace(/\n/g, '\n        ')},
         inputs: ${JSON.stringify(inputDefaults, null, 10).replace(/\n/g, '\n        ')},
       },
 
@@ -556,17 +594,19 @@ function generateNativeMainBody(
   inputVariableMap?: Map<string, number>,
 ): string {
   const lines: string[] = [];
-  
+
   // Create mapping from input index to variable name AND from Pine var name to our var name
   const inputIndexToVarName: Map<number, string> = new Map();
   const pineVarToJsVar: Map<string, string> = new Map();
-  
+
   // Read all inputs
   for (let i = 0; i < inputs.length; i++) {
     const input = inputs[i];
-    const varName = input.name.replace(/[^a-zA-Z0-9]/g, '_').replace(/^_+|_+$/g, '');
+    const varName = input.name
+      .replace(/[^a-zA-Z0-9]/g, '_')
+      .replace(/^_+|_+$/g, '');
     inputIndexToVarName.set(i, varName);
-    
+
     if (input.type === 'bool') {
       lines.push(`        const ${varName} = Boolean(inputCallback(${i}));`);
     } else if (input.type === 'integer' || input.type === 'float') {
@@ -574,12 +614,14 @@ function generateNativeMainBody(
     } else if (input.type === 'source') {
       // Source inputs need to be resolved to actual price data
       lines.push(`        const ${varName}_src = inputCallback(${i});`);
-      lines.push(`        const ${varName} = Std[${varName}_src] ? Std[${varName}_src](context) : Std.close(context);`);
+      lines.push(
+        `        const ${varName} = Std[${varName}_src] ? Std[${varName}_src](context) : Std.close(context);`,
+      );
     } else {
       lines.push(`        const ${varName} = inputCallback(${i});`);
     }
   }
-  
+
   // Build reverse mapping: Pine variable name -> JavaScript variable name
   // This uses inputVariableMap which maps Pine var names to input indices
   if (inputVariableMap) {
@@ -590,35 +632,35 @@ function generateNativeMainBody(
       }
     }
   }
-  
+
   lines.push('');
-  
+
   // Check if this is a session-style indicator or general indicator
   const hasBgcolors = bgcolors && bgcolors.length > 0;
   const hasPlots = plots && plots.length > 0;
   const hasComputedVars = computedVariables && computedVariables.size > 0;
-  
+
   // Generate computed variables if we have them (for general indicators)
   if (hasComputedVars && computedVariables) {
     lines.push('        // Computed values');
-    
+
     // Sort by dependencies (simple topological sort - assumes no circular deps)
     const sorted = topologicalSort(computedVariables);
-    
+
     for (const cv of sorted) {
       // Replace input variable references in expression using pineVarToJsVar
       let expr = cv.expression;
-      
+
       // First, use our accurate Pine variable -> JS variable mapping
       for (const [pineVar, jsVar] of pineVarToJsVar) {
         // Only replace whole-word matches
         const regex = new RegExp(`\\b${pineVar}\\b`, 'g');
         expr = expr.replace(regex, jsVar);
       }
-      
+
       // Replace ta.* with Std.*
       expr = expr.replace(/\bta\.(\w+)\(/g, 'Std.$1(');
-      
+
       // Add context parameter to Std.* calls if not present
       expr = expr.replace(/Std\.(\w+)\(([^)]+)\)/g, (match, fn, args) => {
         if (args.includes('context')) {
@@ -626,12 +668,12 @@ function generateNativeMainBody(
         }
         return `Std.${fn}(${args}, context)`;
       });
-      
+
       lines.push(`        const ${cv.name} = ${expr};`);
     }
     lines.push('');
   }
-  
+
   // If we have bgcolors, generate session detection logic
   if (hasBgcolors) {
     // Build session info if we have session variables
@@ -641,14 +683,15 @@ function generateNativeMainBody(
       timezone: string;
       shortName: string;
     }> = [];
-    
+
     if (sessionVariables) {
       for (const [varName, sessVar] of sessionVariables) {
         const inputIdx = sessVar.inputIndex;
         if (inputIdx !== undefined) {
           const inputVarName = inputIndexToVarName.get(inputIdx) || '';
           const input = inputs[inputIdx];
-          const shortName = input?.name.split(' ')[0] || varName.replace(/^in/, '');
+          const shortName =
+            input?.name.split(' ')[0] || varName.replace(/^in/, '');
           sessionInfo.push({
             sessionVarName: varName,
             inputVarName,
@@ -658,10 +701,12 @@ function generateNativeMainBody(
         }
       }
     }
-    
+
     // Generate session checking helper if we have sessions
     if (sessionInfo.length > 0) {
-      lines.push('        // Session checking helper (DST-safe via timezone conversion)');
+      lines.push(
+        '        // Session checking helper (DST-safe via timezone conversion)',
+      );
       lines.push('        const isInSession = (sessionStr, timezone) => {');
       lines.push('          if (!sessionStr) return false;');
       lines.push('          const parts = sessionStr.split(":");');
@@ -670,14 +715,26 @@ function generateNativeMainBody(
       lines.push('          if (rangeParts.length !== 2) return false;');
       lines.push('          const startTime = rangeParts[0];');
       lines.push('          const endTime = rangeParts[1];');
-      lines.push('          const startHour = parseInt(startTime.slice(0, 2), 10);');
-      lines.push('          const startMin = parseInt(startTime.slice(2, 4), 10) || 0;');
-      lines.push('          const endHour = parseInt(endTime.slice(0, 2), 10);');
-      lines.push('          const endMin = parseInt(endTime.slice(2, 4), 10) || 0;');
+      lines.push(
+        '          const startHour = parseInt(startTime.slice(0, 2), 10);',
+      );
+      lines.push(
+        '          const startMin = parseInt(startTime.slice(2, 4), 10) || 0;',
+      );
+      lines.push(
+        '          const endHour = parseInt(endTime.slice(0, 2), 10);',
+      );
+      lines.push(
+        '          const endMin = parseInt(endTime.slice(2, 4), 10) || 0;',
+      );
       lines.push('          const barTime = Std.time(context);');
       lines.push('          const date = new Date(barTime);');
-      lines.push('          const options = { timeZone: timezone, hour: "2-digit", minute: "2-digit", hour12: false };');
-      lines.push('          const timeStr = date.toLocaleTimeString("en-US", options);');
+      lines.push(
+        '          const options = { timeZone: timezone, hour: "2-digit", minute: "2-digit", hour12: false };',
+      );
+      lines.push(
+        '          const timeStr = date.toLocaleTimeString("en-US", options);',
+      );
       lines.push('          const [hourStr, minStr] = timeStr.split(":");');
       lines.push('          const hour = parseInt(hourStr, 10);');
       lines.push('          const minute = parseInt(minStr, 10);');
@@ -685,19 +742,25 @@ function generateNativeMainBody(
       lines.push('          const startMins = startHour * 60 + startMin;');
       lines.push('          const endMins = endHour * 60 + endMin;');
       lines.push('          if (startMins <= endMins) {');
-      lines.push('            return currentMins >= startMins && currentMins < endMins;');
+      lines.push(
+        '            return currentMins >= startMins && currentMins < endMins;',
+      );
       lines.push('          }');
-      lines.push('          return currentMins >= startMins || currentMins < endMins;');
+      lines.push(
+        '          return currentMins >= startMins || currentMins < endMins;',
+      );
       lines.push('        };');
       lines.push('');
-      
+
       lines.push('        // Session membership (DST-safe via timezone)');
       for (const sess of sessionInfo) {
-        lines.push(`        const ${sess.sessionVarName} = isInSession(${sess.inputVarName}, "${sess.timezone}");`);
+        lines.push(
+          `        const ${sess.sessionVarName} = isInSession(${sess.inputVarName}, "${sess.timezone}");`,
+        );
       }
       lines.push('');
     }
-    
+
     // Generate derived session variables (overlaps)
     if (derivedSessionVariables && derivedSessionVariables.size > 0) {
       lines.push('        // Session overlaps');
@@ -706,7 +769,7 @@ function generateNativeMainBody(
       }
       lines.push('');
     }
-    
+
     // Build boolean input name map for condition resolution
     const boolVarNameToInputVar: Map<string, string> = new Map();
     if (booleanInputMap) {
@@ -717,16 +780,16 @@ function generateNativeMainBody(
         }
       }
     }
-    
+
     lines.push('        // Determine background color index');
     lines.push('        let colorIndex = 0;');
     lines.push('');
-    
+
     // Generate condition checks (reverse order: later bgcolors override earlier ones)
     for (let i = bgcolors.length - 1; i >= 0; i--) {
       const bg = bgcolors[i];
       const colorIdx = i + 1;
-      
+
       if (bg.condition) {
         let condition = bg.condition;
         for (const [pineVarName, inputVarName] of boolVarNameToInputVar) {
@@ -738,25 +801,25 @@ function generateNativeMainBody(
         lines.push(`        // Color ${colorIdx}: condition not extracted`);
       }
     }
-    
+
     lines.push('');
     lines.push('        return [colorIndex];');
   } else if (hasPlots) {
     // General indicator with plots - return plot values
     lines.push('        // Return plot values');
     const plotReturns: string[] = [];
-    
+
     for (const plot of plots) {
       if (plot.valueExpr) {
         // The value expression might reference computed variables or input variables
         let expr = plot.valueExpr;
-        
+
         // Replace Pine variable names with JS variable names
         for (const [pineVar, jsVar] of pineVarToJsVar) {
           const regex = new RegExp(`\\b${pineVar}\\b`, 'g');
           expr = expr.replace(regex, jsVar);
         }
-        
+
         // Replace ta.* with Std.* and add context parameter
         expr = expr.replace(/\bta\.(\w+)\(/g, 'Std.$1(');
         expr = expr.replace(/Std\.(\w+)\(([^)]+)\)/g, (match, fn, args) => {
@@ -765,33 +828,35 @@ function generateNativeMainBody(
           }
           return `Std.${fn}(${args}, context)`;
         });
-        
+
         plotReturns.push(expr);
       } else {
         plotReturns.push('NaN');
       }
     }
-    
+
     lines.push(`        return [${plotReturns.join(', ')}];`);
   } else {
     lines.push('        return [];');
   }
-  
+
   return lines.join('\n');
 }
 
 /**
  * Simple topological sort for computed variables based on dependencies
  */
-function topologicalSort(vars: Map<string, ComputedVariable>): ComputedVariable[] {
+function topologicalSort(
+  vars: Map<string, ComputedVariable>,
+): ComputedVariable[] {
   const result: ComputedVariable[] = [];
   const visited = new Set<string>();
   const visiting = new Set<string>();
-  
+
   function visit(name: string): void {
     if (visited.has(name)) return;
     if (visiting.has(name)) return; // Circular dependency, skip
-    
+
     visiting.add(name);
     const cv = vars.get(name);
     if (cv) {
@@ -805,10 +870,10 @@ function topologicalSort(vars: Map<string, ComputedVariable>): ComputedVariable[
     }
     visiting.delete(name);
   }
-  
+
   for (const name of vars.keys()) {
     visit(name);
   }
-  
+
   return result;
 }

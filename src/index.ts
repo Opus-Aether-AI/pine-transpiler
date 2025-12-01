@@ -147,6 +147,7 @@ export function transpileToPineJS(
       overlay: visitor.overlay,
       plots: visitor.plots,
       inputs: visitor.inputs,
+      bgcolors: visitor.bgcolors,
       usedSources: visitor.usedSources,
       historicalAccess: visitor.historicalAccess,
       mainBody,

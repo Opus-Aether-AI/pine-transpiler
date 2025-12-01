@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { generateStandaloneFactory } from '../../src/factory/indicator-factory';
-import type { ParsedInput, ParsedPlot, ParsedBgcolor } from '../../src/types';
+import type { ParsedBgcolor, ParsedInput, ParsedPlot } from '../../src/types';
 
 describe('generateStandaloneFactory', () => {
   describe('basic indicator', () => {
@@ -126,7 +126,12 @@ describe('generateStandaloneFactory', () => {
 
     it('should generate session input', () => {
       const inputs: ParsedInput[] = [
-        { id: 'in_0', name: 'Session', type: 'session', defval: '0930-1600:23456' },
+        {
+          id: 'in_0',
+          name: 'Session',
+          type: 'session',
+          defval: '0930-1600:23456',
+        },
       ];
 
       const result = generateStandaloneFactory({
@@ -166,7 +171,14 @@ describe('generateStandaloneFactory', () => {
 
     it('should include min/max constraints', () => {
       const inputs: ParsedInput[] = [
-        { id: 'in_0', name: 'Length', type: 'integer', defval: 14, min: 1, max: 100 },
+        {
+          id: 'in_0',
+          name: 'Length',
+          type: 'integer',
+          defval: 14,
+          min: 1,
+          max: 100,
+        },
       ];
 
       const result = generateStandaloneFactory({
@@ -323,13 +335,26 @@ describe('generateStandaloneFactory', () => {
 
     it('should generate session checking helper', () => {
       const inputs: ParsedInput[] = [
-        { id: 'in_0', name: 'Session', type: 'session', defval: '0800-1700:1234567' },
+        {
+          id: 'in_0',
+          name: 'Session',
+          type: 'session',
+          defval: '0800-1700:1234567',
+        },
       ];
       const bgcolors: ParsedBgcolor[] = [
         { colorExpr: 'color', transparency: 85 },
       ];
       const sessionVariables = new Map([
-        ['inSession', { varName: 'inSession', sessionInputVar: 'session', timezone: 'America/New_York', inputIndex: 0 }],
+        [
+          'inSession',
+          {
+            varName: 'inSession',
+            sessionInputVar: 'session',
+            timezone: 'America/New_York',
+            inputIndex: 0,
+          },
+        ],
       ]);
 
       const result = generateStandaloneFactory({
@@ -353,7 +378,14 @@ describe('generateStandaloneFactory', () => {
   describe('computed variables', () => {
     it('should generate computed variables in main body', () => {
       const computedVariables = new Map([
-        ['fastSMA', { name: 'fastSMA', expression: 'Std.sma(close, 10, context)', dependencies: ['close'] }],
+        [
+          'fastSMA',
+          {
+            name: 'fastSMA',
+            expression: 'Std.sma(close, 10, context)',
+            dependencies: ['close'],
+          },
+        ],
       ]);
 
       const result = generateStandaloneFactory({
@@ -373,7 +405,14 @@ describe('generateStandaloneFactory', () => {
 
     it('should handle ta.* to Std.* mapping in computed variables', () => {
       const computedVariables = new Map([
-        ['sma', { name: 'sma', expression: 'ta.sma(close, 14)', dependencies: ['close'] }],
+        [
+          'sma',
+          {
+            name: 'sma',
+            expression: 'ta.sma(close, 14)',
+            dependencies: ['close'],
+          },
+        ],
       ]);
 
       const result = generateStandaloneFactory({
@@ -469,7 +508,15 @@ describe('generateStandaloneFactory', () => {
 
     it('should return plot values', () => {
       const plots: ParsedPlot[] = [
-        { id: 'plot_0', title: 'SMA', varName: 'sma', type: 'line', color: '#2962FF', linewidth: 1, valueExpr: 'smaValue' },
+        {
+          id: 'plot_0',
+          title: 'SMA',
+          varName: 'sma',
+          type: 'line',
+          color: '#2962FF',
+          linewidth: 1,
+          valueExpr: 'smaValue',
+        },
       ];
 
       const result = generateStandaloneFactory({

@@ -4,9 +4,13 @@
  * Handles the 'transpile' CLI command for converting Pine Script to JavaScript.
  */
 
-import { generateStandaloneFactory, transpile, transpileToPineJS } from '../../index.js';
 import { ASTGenerator } from '../../generator/ast-generator.js';
 import { MetadataVisitor } from '../../generator/metadata-visitor.js';
+import {
+  generateStandaloneFactory,
+  transpile,
+  transpileToPineJS,
+} from '../../index.js';
 import { Lexer, Parser } from '../../parser/index.js';
 import type { CLIOptions } from '../types';
 import { deriveIndicatorId, readInput, writeOutput } from '../utils';
@@ -142,7 +146,9 @@ export function commandTranspile(
       process.exit(1);
     }
   } else {
-    console.error(`Error: Unknown format '${format}'. Use 'js', 'pinejs', or 'factory'.`);
+    console.error(
+      `Error: Unknown format '${format}'. Use 'js', 'pinejs', or 'factory'.`,
+    );
     process.exit(1);
   }
 }
