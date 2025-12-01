@@ -7,8 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.3] - 2025-12-02
 
+### Added
+- Comprehensive test suite with 801 tests across 20 test files (~6,750 lines)
+- Code coverage reporting with @vitest/coverage-v8
+- CI coverage checks with thresholds (70% lines/statements, 65% functions, 60% branches)
+- Coverage report artifacts uploaded to GitHub Actions
+
 ### Changed
 - Refactored indicator constructor syntax for improved clarity and maintainability
+- Reorganized test files into logical subdirectories:
+  - `tests/generator/`: AST generator and metadata visitor tests
+  - `tests/mappings/`: Function mapping tests (math, time, utilities, etc.)
+  - `tests/parser/`: Expression and statement parser tests
+  - `tests/lexer/`: Token, operator, and indentation lexer tests
+  - `tests/cli/`: CLI tests
+  - `tests/stdlib/`: StdPlus polyfill tests
+  - `tests/regression/`: Bug fix and feature regression tests
+- Split large parser.test.ts into expressions.test.ts and statements.test.ts
+- Split large lexer.test.ts into tokens.test.ts, operators.test.ts, and indentation.test.ts
+- Created shared test utilities in tests/utils.ts to reduce duplication
 
 ### Documentation
 - Enhanced README with comprehensive API reference and architecture documentation
