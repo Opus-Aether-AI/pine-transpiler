@@ -7,7 +7,7 @@
  * Reference: https://www.tradingview.com/charting-library-docs/latest/custom_studies/
  */
 
-import { buildIndicatorFactory } from './factory';
+import { buildIndicatorFactory, generateStandaloneFactory } from './factory';
 import { ASTGenerator } from './generator/ast-generator';
 import { MetadataVisitor } from './generator/metadata-visitor';
 import {
@@ -63,6 +63,7 @@ export {
   TIME_FUNCTION_MAPPINGS,
   getMappingStats,
   getAllPineFunctionNames,
+  generateStandaloneFactory,
 };
 
 // ============================================================================

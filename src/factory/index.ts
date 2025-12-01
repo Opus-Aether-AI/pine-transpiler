@@ -17,5 +17,6 @@ export {
 export {
   buildIndicatorFactory,
   generatePreamble,
+  generateStandaloneFactory,
   type IndicatorFactoryOptions,
 } from './indicator-factory';
