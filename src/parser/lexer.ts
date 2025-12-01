@@ -342,7 +342,7 @@ export class Lexer {
 
     while (
       this.pos < this.code.length &&
-      /[a-zA-Z0-9_.]/.test(this.code[this.pos]) // Dot is allowed in identifiers like 'ta.sma'
+      /[a-zA-Z0-9_]/.test(this.code[this.pos])
     ) {
       value += this.code[this.pos];
       this.advance();
@@ -433,7 +433,7 @@ export class Lexer {
       '}': TokenType.RBRACE,
       ',': TokenType.COMMA,
       ':': TokenType.COLON,
-      // '.': TokenType.DOT, // Handled in identifiers/numbers mostly, but could be separate
+      '.': TokenType.DOT,
     };
 
     if (map[char]) {

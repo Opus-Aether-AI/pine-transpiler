@@ -11,6 +11,7 @@ import type {
   FunctionDeclaration,
   Identifier,
   IfStatement,
+  MemberExpression,
   Program,
   Statement,
   SwitchCase,
@@ -481,7 +482,7 @@ export class Parser {
     }
 
     // 2. Identifier or Tuple
-    let id: Identifier | Identifier[];
+    let id: Identifier | MemberExpression | Identifier[];
     if (this.match(TokenType.LBRACKET)) {
       // Tuple: [a, b]
       const ids: Identifier[] = [];
@@ -499,7 +500,21 @@ export class Parser {
         TokenType.IDENTIFIER,
         'Expected identifier.',
       ).value;
-      id = { type: 'Identifier', name };
+      let expr: Identifier | MemberExpression = { type: 'Identifier', name };
+
+      while (this.match(TokenType.DOT)) {
+        const prop = this.consume(
+          TokenType.IDENTIFIER,
+          'Expected property name after .',
+        ).value;
+        expr = {
+          type: 'MemberExpression',
+          object: expr,
+          property: { type: 'Identifier', name: prop },
+          computed: false,
+        };
+      }
+      id = expr;
     }
 
     // 3. Operator (= or :=)
@@ -508,13 +523,16 @@ export class Parser {
 
     const init = this.parseExpression();
 
-    if (operator === ':=') {
-      // Reassignment
+    // Reassignment (:=) or Field Assignment (member = val)
+    if (
+      operator === ':=' ||
+      (operator === '=' && !Array.isArray(id) && id.type === 'MemberExpression')
+    ) {
       return {
         type: 'ExpressionStatement',
         expression: {
           type: 'AssignmentExpression',
-          operator: ':=',
+          operator: operator === ':=' ? ':=' : '=',
           left: id,
           right: init,
         },
@@ -522,9 +540,15 @@ export class Parser {
     }
 
     // Declaration
+    // Must be Identifier or Identifier[]
+    if (!Array.isArray(id) && id.type === 'MemberExpression') {
+      // This should be unreachable due to the check above, unless we have member declaration which is invalid
+      throw new Error('Invalid variable declaration with member expression.');
+    }
+
     return {
       type: 'VariableDeclaration',
-      id,
+      id: id as Identifier | Identifier[],
       init,
       kind: 'let', // Default
       typeAnnotation: typeAnnotation

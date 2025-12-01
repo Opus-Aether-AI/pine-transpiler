@@ -39,6 +39,7 @@ import type {
 export class ASTGenerator {
   private indentLevel = 0;
   private historicalVars: Set<string>;
+  private loopCounter = 0;
 
   constructor(historicalVars: Set<string> = new Set()) {
     this.historicalVars = historicalVars;
@@ -136,9 +137,29 @@ export class ASTGenerator {
   }
 
   private generateWhileStatement(stmt: WhileStatement): string {
+    const loopVar = `_loop_${this.loopCounter++}`;
     const test = this.generateExpression(stmt.test);
-    const body = this.generateStatementOrBlock(stmt.body);
-    return `${this.indent()}while (${test}) ${body}`;
+    
+    // We need to inject the loop guard into the body
+    // The body from generateStatementOrBlock is always wrapped in braces
+    // so we can strip them and inject our code
+    let bodyContent = this.generateStatementOrBlock(stmt.body);
+    // Remove first line (opening brace) and last line (closing brace)
+    const lines = bodyContent.split('\n');
+    if (lines.length >= 2) {
+      // Remove {
+      lines.shift();
+      // Remove indented }
+      lines.pop();
+      // Re-join
+      bodyContent = lines.join('\n');
+    }
+
+    this.indentLevel++;
+    const guard = `${this.indent()}if (++${loopVar} > 10000) throw new Error("Loop limit exceeded");`;
+    this.indentLevel--;
+
+    return `${this.indent()}let ${loopVar} = 0;\n${this.indent()}while (${test}) {\n${guard}\n${bodyContent}\n${this.indent()}}`;
   }
 
   private generateSwitchStatement(stmt: SwitchStatement): string {
@@ -253,11 +274,61 @@ export class ASTGenerator {
     }
 
     const testStr = this.generateExpression(stmt.test);
-    const updateStr = stmt.update ? this.generateExpression(stmt.update) : '';
+    let updateStr = '';
+    if (stmt.update) {
+      // If we have a step, we need to increment/decrement the loop variable
+      // The loop variable name is in the init declaration
+      let varName = '';
+      if (stmt.init.type === 'VariableDeclaration') {
+        const decl = stmt.init as VariableDeclaration;
+        varName = Array.isArray(decl.id) ? decl.id[0].name : decl.id.name;
+      } else if (stmt.init.type === 'AssignmentExpression') {
+        const assign = stmt.init as AssignmentExpression;
+        if (!Array.isArray(assign.left)) {
+          if (assign.left.type === 'Identifier') {
+            varName = assign.left.name;
+          } else if (assign.left.type === 'MemberExpression') {
+            // Use the generated expression string for member expression
+            varName = this.generateMemberExpression(assign.left);
+          }
+        }
+      }
 
-    const body = this.generateStatementOrBlock(stmt.body);
+      if (varName) {
+          updateStr = `${varName} += ${this.generateExpression(stmt.update)}`;
+      } else {
+          // Fallback just in case
+          updateStr = this.generateExpression(stmt.update);
+      }
+    } else {
+        // Default increment if no step provided? 
+        // Pine default is 1. JS for loop needs explicit update usually unless handled in body
+        // If no update expression in AST, we should probably add i++
+         let varName = '';
+         if (stmt.init.type === 'VariableDeclaration') {
+           const decl = stmt.init as VariableDeclaration;
+           varName = Array.isArray(decl.id) ? decl.id[0].name : decl.id.name;
+         }
+         if (varName) {
+             updateStr = `${varName}++`;
+         }
+    }
 
-    return `${this.indent()}for (${initStr}; ${testStr}; ${updateStr}) ${body}`;
+    const loopVar = `_loop_${this.loopCounter++}`;
+    
+    let bodyContent = this.generateStatementOrBlock(stmt.body);
+    const lines = bodyContent.split('\n');
+    if (lines.length >= 2) {
+      lines.shift();
+      lines.pop();
+      bodyContent = lines.join('\n');
+    }
+
+    this.indentLevel++;
+    const guard = `${this.indent()}if (++${loopVar} > 10000) throw new Error("Loop limit exceeded");`;
+    this.indentLevel--;
+
+    return `${this.indent()}let ${loopVar} = 0;\n${this.indent()}for (${initStr}; ${testStr}; ${updateStr}) {\n${guard}\n${bodyContent}\n${this.indent()}}`;
   }
 
   private generateForInStatement(stmt: ForInStatement): string {
