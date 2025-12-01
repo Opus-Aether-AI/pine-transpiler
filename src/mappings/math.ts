@@ -228,7 +228,10 @@ const _roundToMintick = (value) => {
  * PineJS.Std math-related functions (different from JavaScript Math)
  * These operate on series and require context
  */
-export const STD_MATH_MAPPINGS: Record<string, { stdName: string; needsContext: boolean; description: string }> = {
+export const STD_MATH_MAPPINGS: Record<
+  string,
+  { stdName: string; needsContext: boolean; description: string }
+> = {
   'Std.abs': {
     stdName: 'Std.abs',
     needsContext: false,
@@ -299,7 +302,10 @@ export const STD_MATH_MAPPINGS: Record<string, { stdName: string; needsContext: 
 /**
  * Transpile a math.* function call to JavaScript
  */
-export function transpileMathFunction(pineFunc: string, args: string[]): string | null {
+export function transpileMathFunction(
+  pineFunc: string,
+  args: string[],
+): string | null {
   const mapping = MATH_FUNCTION_MAPPINGS[pineFunc];
   if (!mapping) return null;
 

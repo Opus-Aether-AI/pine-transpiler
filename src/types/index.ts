@@ -17,16 +17,12 @@ export type {
   InputCallback,
   IndicatorConstructor,
   TranspileToPineJSResult,
-
   // Metadata types
   StudyMetaInfo,
   StudyInputInfo,
   StudyPlotInfo,
   PlotStyle,
 } from './runtime';
-
-
-
 
 // ============================================================================
 // Parsed Indicator Types
@@ -78,15 +74,39 @@ export interface ParsedPlot {
   id: string;
   title: string;
   varName: string;
-  type: 'line' | 'histogram' | 'circles' | 'columns' | 'area' | 'stepline' | 'cross' | 'shape' | 'hline';
+  type:
+    | 'line'
+    | 'histogram'
+    | 'circles'
+    | 'columns'
+    | 'area'
+    | 'stepline'
+    | 'cross'
+    | 'shape'
+    | 'hline';
   color: string;
   linewidth: number;
   /** For hline - horizontal line price level */
   price?: number | undefined;
   /** For plotshape - the shape style */
-  shape?: 'circle' | 'cross' | 'diamond' | 'square' | 'triangleup' | 'triangledown' | 'flag' | 'label' | undefined;
+  shape?:
+    | 'circle'
+    | 'cross'
+    | 'diamond'
+    | 'square'
+    | 'triangleup'
+    | 'triangledown'
+    | 'flag'
+    | 'label'
+    | undefined;
   /** Location for shapes */
-  location?: 'abovebar' | 'belowbar' | 'top' | 'bottom' | 'absolute' | undefined;
+  location?:
+    | 'abovebar'
+    | 'belowbar'
+    | 'top'
+    | 'bottom'
+    | 'absolute'
+    | undefined;
 }
 
 /**

@@ -5,13 +5,19 @@
  * This function is called on every bar and returns the plot values.
  */
 
-import type { ParsedIndicator, ParsedFunction } from '../types';
-import { PRICE_SOURCES } from '../types';
-import { generatePriceSourceDeclarations, generateSeriesDeclarations } from '../mappings';
+import {
+  generatePriceSourceDeclarations,
+  generateSeriesDeclarations,
+} from '../mappings';
 import { MATH_HELPER_FUNCTIONS } from '../mappings/math';
 import { SESSION_HELPER_FUNCTIONS } from '../mappings/time';
 import { UTILITY_HELPER_FUNCTIONS } from '../mappings/utilities';
-import { transpileExpressionWithMeta, transpileExpression } from './expression-transpiler';
+import type { ParsedFunction, ParsedIndicator } from '../types';
+import { PRICE_SOURCES } from '../types';
+import {
+  transpileExpression,
+  transpileExpressionWithMeta,
+} from './expression-transpiler';
 
 // ============================================================================
 // Custom Function Generation
@@ -19,7 +25,7 @@ import { transpileExpressionWithMeta, transpileExpression } from './expression-t
 
 /**
  * Generate JavaScript functions from parsed Pine Script custom functions
- * 
+ *
  * Handle historical references in function parameters:
  * - sessionStart(c) => c and not c[1]
  * - In Pine, c is a series that supports [n] access
@@ -28,54 +34,70 @@ import { transpileExpressionWithMeta, transpileExpression } from './expression-t
 function generateCustomFunctions(
   functions: ParsedFunction[],
   inputIds: string[],
-  variableNames: string[]
+  variableNames: string[],
 ): string[] {
   const lines: string[] = [];
-  
+
   if (functions.length === 0) return lines;
-  
+
   lines.push('// Custom functions');
-  
+
   for (const func of functions) {
     // Check if any function parameter is used with historical access
     const paramsWithHistorical = new Set<string>();
     for (const param of func.params) {
       // Check for param[n] patterns in the body
-      const historicalPattern = new RegExp(`\\b${param}\\s*\\[\\s*\\d+\\s*\\]`, 'g');
+      const historicalPattern = new RegExp(
+        `\\b${param}\\s*\\[\\s*\\d+\\s*\\]`,
+        'g',
+      );
       if (historicalPattern.test(func.body)) {
         paramsWithHistorical.add(param);
       }
     }
-    
+
     // Transpile the function body
     // For params with historical access, we need special handling
     let transpiledBody = func.body;
-    
+
     // Replace param[n] with param_series.get(n) for historical params
     for (const param of paramsWithHistorical) {
-      const histPattern = new RegExp(`\\b${param}\\s*\\[\\s*(\\d+)\\s*\\]`, 'g');
-      transpiledBody = transpiledBody.replace(histPattern, `${param}_series.get($1)`);
+      const histPattern = new RegExp(
+        `\\b${param}\\s*\\[\\s*(\\d+)\\s*\\]`,
+        'g',
+      );
+      transpiledBody = transpiledBody.replace(
+        histPattern,
+        `${param}_series.get($1)`,
+      );
     }
-    
+
     // Now transpile the rest
-    transpiledBody = transpileExpression(transpiledBody, inputIds, [...variableNames, ...func.params]);
-    
+    transpiledBody = transpileExpression(transpiledBody, inputIds, [
+      ...variableNames,
+      ...func.params,
+    ]);
+
     // Generate the function - params with historical access receive _series version
-    const params = func.params.map(p => {
-      if (paramsWithHistorical.has(p)) {
-        return `${p}, ${p}_series`;
-      }
-      return p;
-    }).join(', ');
-    
+    const params = func.params
+      .map((p) => {
+        if (paramsWithHistorical.has(p)) {
+          return `${p}, ${p}_series`;
+        }
+        return p;
+      })
+      .join(', ');
+
     // Add comment if function uses historical params
     if (paramsWithHistorical.size > 0) {
-      lines.push(`// Note: Call with (value, series) for params: ${[...paramsWithHistorical].join(', ')}`);
+      lines.push(
+        `// Note: Call with (value, series) for params: ${[...paramsWithHistorical].join(', ')}`,
+      );
     }
-    
+
     lines.push(`const ${func.name} = (${params}) => ${transpiledBody};`);
   }
-  
+
   lines.push('');
   return lines;
 }
@@ -86,30 +108,34 @@ function generateCustomFunctions(
 
 /**
  * Generate historical accessor functions for price sources and variables
- * 
+ *
  * These functions allow accessing historical values like close[1], high[5], etc.
  * Uses context.new_var() to track history and get() with offset.
  */
 function generateHistoricalAccessors(
   usedSources: Set<string>,
-  usedVariables: Set<string>
+  usedVariables: Set<string>,
 ): string[] {
   const lines: string[] = [];
-  
+
   if (usedSources.size === 0 && usedVariables.size === 0) return lines;
-  
+
   lines.push('// Historical accessor functions for [n] syntax');
-  
+
   // Generate accessors for price sources
   for (const source of usedSources) {
-    lines.push(`const _getHistorical_${source} = (offset) => _series_${source}.get(offset);`);
+    lines.push(
+      `const _getHistorical_${source} = (offset) => _series_${source}.get(offset);`,
+    );
   }
-  
+
   // Generate accessors for variables (will be set up after variable calculation)
   for (const varName of usedVariables) {
-    lines.push(`let _getHistorical_${varName} = (offset) => NaN; // Will be set after variable calculation`);
+    lines.push(
+      `let _getHistorical_${varName} = (offset) => NaN; // Will be set after variable calculation`,
+    );
   }
-  
+
   lines.push('');
   return lines;
 }
@@ -142,7 +168,7 @@ function generateInputDeclarations(parsed: ParsedIndicator): string[] {
           `_${input.id}_source === 'volume' ? _volume : ` +
           `_${input.id}_source === 'hl2' ? _hl2 : ` +
           `_${input.id}_source === 'hlc3' ? _hlc3 : ` +
-          `_${input.id}_source === 'ohlc4' ? _ohlc4 : _close;`
+          `_${input.id}_source === 'ohlc4' ? _ohlc4 : _close;`,
       );
       lines.push(`const _series_${input.id} = context.new_var(${input.id});`);
     } else {
@@ -167,14 +193,18 @@ function generateInputDeclarations(parsed: ParsedIndicator): string[] {
  */
 function collectHistoricalReferences(
   parsed: ParsedIndicator,
-  inputIds: string[]
+  inputIds: string[],
 ): { sources: Set<string>; variables: Set<string> } {
   const sources = new Set<string>();
   const variables = new Set<string>();
   const variableNames = parsed.variables.map((v) => v.name);
 
   for (const variable of parsed.variables) {
-    const result = transpileExpressionWithMeta(variable.expression, inputIds, variableNames);
+    const result = transpileExpressionWithMeta(
+      variable.expression,
+      inputIds,
+      variableNames,
+    );
     for (const ref of result.historicalRefs) {
       if (PRICE_SOURCES.includes(ref.name as any)) {
         sources.add(ref.name);
@@ -193,7 +223,7 @@ function collectHistoricalReferences(
 function generateVariableCalculations(
   parsed: ParsedIndicator,
   inputIds: string[],
-  historicalVars: Set<string>
+  historicalVars: Set<string>,
 ): string[] {
   const lines: string[] = [];
   const variableNames = parsed.variables.map((v) => v.name);
@@ -203,14 +233,22 @@ function generateVariableCalculations(
   lines.push('// Calculate indicator variables');
 
   for (const variable of parsed.variables) {
-    const transpiled = transpileExpression(variable.expression, inputIds, variableNames);
+    const transpiled = transpileExpression(
+      variable.expression,
+      inputIds,
+      variableNames,
+    );
     lines.push(`const ${variable.name} = ${transpiled};`);
     // Create series for this variable too (needed for historical access)
-    lines.push(`const _series_${variable.name} = context.new_var(${variable.name});`);
-    
+    lines.push(
+      `const _series_${variable.name} = context.new_var(${variable.name});`,
+    );
+
     // Update historical accessor if this variable is used historically
     if (historicalVars.has(variable.name)) {
-      lines.push(`_getHistorical_${variable.name} = (offset) => _series_${variable.name}.get(offset);`);
+      lines.push(
+        `_getHistorical_${variable.name} = (offset) => _series_${variable.name}.get(offset);`,
+      );
     }
   }
 
@@ -228,7 +266,7 @@ function generateVariableCalculations(
 function generatePlotReturn(
   parsed: ParsedIndicator,
   inputIds: string[],
-  variableNames: string[]
+  variableNames: string[],
 ): string[] {
   const lines: string[] = [];
 
@@ -273,13 +311,14 @@ function generatePlotReturn(
  */
 export function generateMainFunction(
   parsed: ParsedIndicator,
-  inputIds: string[]
+  inputIds: string[],
 ): string {
   const lines: string[] = [];
   const variableNames = parsed.variables.map((v) => v.name);
 
   // Collect historical references used in the indicator
-  const { sources: histSources, variables: histVariables } = collectHistoricalReferences(parsed, inputIds);
+  const { sources: histSources, variables: histVariables } =
+    collectHistoricalReferences(parsed, inputIds);
 
   // Add price source declarations
   lines.push(...generatePriceSourceDeclarations());
@@ -291,7 +330,9 @@ export function generateMainFunction(
   lines.push(...generateHistoricalAccessors(histSources, histVariables));
 
   // Add custom function definitions
-  lines.push(...generateCustomFunctions(parsed.functions, inputIds, variableNames));
+  lines.push(
+    ...generateCustomFunctions(parsed.functions, inputIds, variableNames),
+  );
 
   // Add input value declarations
   lines.push(...generateInputDeclarations(parsed));
@@ -312,7 +353,7 @@ export function generateMainFunction(
  */
 export function generateMainFunctionWithHelpers(
   parsed: ParsedIndicator,
-  inputIds: string[]
+  inputIds: string[],
 ): string {
   const helperLines: string[] = [];
 
@@ -331,5 +372,5 @@ export function generateMainFunctionWithHelpers(
   // Add main logic
   const mainBody = generateMainFunction(parsed, inputIds);
 
-  return helperLines.join('\n            ') + '\n            ' + mainBody;
+  return `${helperLines.join('\n            ')}\n            ${mainBody}`;
 }

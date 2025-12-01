@@ -11,7 +11,14 @@
  * This is the first stage of transpilation - extracting structured data from source code.
  */
 
-import type { ParsedIndicator, ParsedInput, ParsedPlot, ParsedVariable, ParsedFunction, ParseWarning } from '../types';
+import type {
+  ParseWarning,
+  ParsedFunction,
+  ParsedIndicator,
+  ParsedInput,
+  ParsedPlot,
+  ParsedVariable,
+} from '../types';
 import { COLOR_MAP, PRICE_SOURCES } from '../types';
 
 // ============================================================================
@@ -24,7 +31,7 @@ let parseWarnings: ParseWarning[] = [];
 /** Add a warning about an unsupported feature */
 function addWarning(feature: string, message: string, line?: number): void {
   // Avoid duplicate warnings for the same feature
-  if (!parseWarnings.some(w => w.feature === feature && w.line === line)) {
+  if (!parseWarnings.some((w) => w.feature === feature && w.line === line)) {
     parseWarnings.push({ feature, message, line });
   }
 }
@@ -40,10 +47,10 @@ function resetWarnings(): void {
 
 /**
  * Parse custom function definitions from Pine Script code
- * 
+ *
  * Pine Script function syntax:
  *   myFunc(param1, param2) => expression
- *   
+ *
  * or multi-line:
  *   myFunc(param1, param2) =>
  *       statement1
@@ -76,9 +83,25 @@ function parseCustomFunctions(code: string): ParsedFunction[] {
       if (!name || body === undefined) continue;
 
       // Skip built-in function-like patterns
-      if (['if', 'for', 'while', 'switch', 'indicator', 'strategy', 'library'].includes(name)) continue;
+      if (
+        [
+          'if',
+          'for',
+          'while',
+          'switch',
+          'indicator',
+          'strategy',
+          'library',
+        ].includes(name)
+      )
+        continue;
 
-      const params = paramsStr ? paramsStr.split(',').map((p) => p.trim()).filter(Boolean) : [];
+      const params = paramsStr
+        ? paramsStr
+            .split(',')
+            .map((p) => p.trim())
+            .filter(Boolean)
+        : [];
 
       functions.push({
         name,
@@ -96,17 +119,36 @@ function parseCustomFunctions(code: string): ParsedFunction[] {
       const paramsStr = multiMatch[2];
 
       if (!name) continue;
-      if (['if', 'for', 'while', 'switch', 'indicator', 'strategy', 'library'].includes(name)) continue;
+      if (
+        [
+          'if',
+          'for',
+          'while',
+          'switch',
+          'indicator',
+          'strategy',
+          'library',
+        ].includes(name)
+      )
+        continue;
 
-      const params = paramsStr ? paramsStr.split(',').map((p) => p.trim()).filter(Boolean) : [];
+      const params = paramsStr
+        ? paramsStr
+            .split(',')
+            .map((p) => p.trim())
+            .filter(Boolean)
+        : [];
 
       // Collect the body lines (indented lines following the =>)
       const bodyLines: string[] = [];
       let j = lineNum + 1;
       while (j < lines.length) {
         const nextLine = lines[j];
-        if (!nextLine) { j++; continue; }
-        
+        if (!nextLine) {
+          j++;
+          continue;
+        }
+
         // Check if line is indented (part of function body)
         if (nextLine.startsWith('    ') || nextLine.startsWith('\t')) {
           bodyLines.push(nextLine.trim());
@@ -144,7 +186,7 @@ function parseCustomFunctions(code: string): ParsedFunction[] {
 function parseInputDeclaration(
   varName: string,
   inputType: string,
-  inputArgs: string
+  inputArgs: string,
 ): ParsedInput | null {
   let defval: number | boolean | string = 0;
   let inputName = varName;
@@ -162,16 +204,22 @@ function parseInputDeclaration(
       if (rawDefval.includes('=') && !rawDefval.startsWith('defval')) continue;
 
       const cleanVal = rawDefval.replace(/defval\s*=\s*/, '').trim();
-      if (inputType === 'int' || inputType === 'integer' || inputType === 'float') {
-        const parsed = parseFloat(cleanVal);
-        if (!isNaN(parsed)) defval = parsed;
+      if (
+        inputType === 'int' ||
+        inputType === 'integer' ||
+        inputType === 'float'
+      ) {
+        const parsed = Number.parseFloat(cleanVal);
+        if (!Number.isNaN(parsed)) defval = parsed;
       } else if (inputType === 'bool') {
         defval = cleanVal === 'true';
       } else if (inputType === 'source') {
         defval = cleanVal.replace(/["']/g, '') || 'close';
       } else if (inputType === 'session') {
         // Session strings like "0930-1630" or session.regular
-        defval = cleanVal.replace(/["']/g, '').replace(/^session\./, '') || '0000-2400';
+        defval =
+          cleanVal.replace(/["']/g, '').replace(/^session\./, '') ||
+          '0000-2400';
       } else {
         defval = cleanVal.replace(/["']/g, '');
       }
@@ -195,15 +243,17 @@ function parseInputDeclaration(
   if (inputType === 'int' || inputType === 'integer' || inputType === 'float') {
     const minMatch = inputArgs.match(/minval\s*=\s*([0-9.-]+)/);
     const maxMatch = inputArgs.match(/maxval\s*=\s*([0-9.-]+)/);
-    if (minMatch?.[1]) min = parseFloat(minMatch[1]);
-    if (maxMatch?.[1]) max = parseFloat(maxMatch[1]);
+    if (minMatch?.[1]) min = Number.parseFloat(minMatch[1]);
+    if (maxMatch?.[1]) max = Number.parseFloat(maxMatch[1]);
   }
 
   // Extract options for string type
   let options: string[] | undefined;
   const optionsMatch = inputArgs.match(/options\s*=\s*\[([^\]]+)\]/);
   if (optionsMatch?.[1]) {
-    options = optionsMatch[1].split(',').map((o) => o.trim().replace(/["']/g, ''));
+    options = optionsMatch[1]
+      .split(',')
+      .map((o) => o.trim().replace(/["']/g, ''));
   }
 
   const result: ParsedInput = {
@@ -214,11 +264,11 @@ function parseInputDeclaration(
     min,
     max,
   };
-  
+
   if (options) {
     result.options = options;
   }
-  
+
   return result;
 }
 
@@ -228,10 +278,10 @@ function parseInputDeclaration(
 
 /**
  * Join multi-line expressions into single lines
- * 
+ *
  * Pine Script allows line continuation with indentation. This function
  * joins continuation lines so the parser can process them as single expressions.
- * 
+ *
  * Example:
  *   x = a + b +
  *       c + d
@@ -241,40 +291,41 @@ function parseInputDeclaration(
 function preprocessMultiLineExpressions(code: string): string {
   const lines = code.split('\n');
   const result: string[] = [];
-  
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (!line) {
       result.push('');
       continue;
     }
-    
+
     const trimmed = line.trim();
-    
+
     // Skip comments and directives
     if (trimmed.startsWith('//') || trimmed.startsWith('@')) {
       result.push(line);
       continue;
     }
-    
+
     // Check if this line ends with an operator (continuation)
     const endsWithOperator = /[+\-*/%&|<>=,({]\s*$/.test(trimmed);
-    
+
     // Check if next line is indented (continuation)
     const nextLine = lines[i + 1];
-    const nextIsIndented = nextLine && (nextLine.startsWith('    ') || nextLine.startsWith('\t'));
-    
+    const nextIsIndented =
+      nextLine && (nextLine.startsWith('    ') || nextLine.startsWith('\t'));
+
     if (endsWithOperator && nextIsIndented) {
       // Join with next line(s)
       let joined = trimmed;
       let j = i + 1;
-      
+
       while (j < lines.length) {
         const contLine = lines[j];
         if (!contLine) break;
-        
+
         if (contLine.startsWith('    ') || contLine.startsWith('\t')) {
-          joined += ' ' + contLine.trim();
+          joined += ` ${contLine.trim()}`;
           j++;
         } else if (contLine.trim() === '') {
           j++;
@@ -282,14 +333,14 @@ function preprocessMultiLineExpressions(code: string): string {
           break;
         }
       }
-      
+
       result.push(joined);
       i = j - 1; // Skip joined lines
     } else {
       result.push(line);
     }
   }
-  
+
   return result.join('\n');
 }
 
@@ -301,9 +352,11 @@ function parseInputs(code: string): ParsedInput[] {
   const parsedVarNames = new Set<string>();
 
   // Pattern 1: input.type(args)
-  const newStylePattern = /(\w+)\s*=\s*input\.(int|float|bool|source|string|color|time|price|session)\s*\(([^)]*)\)/g;
-  let match;
+  const newStylePattern =
+    /(\w+)\s*=\s*input\.(int|float|bool|source|string|color|time|price|session)\s*\(([^)]*)\)/g;
+  let match: RegExpExecArray | null;
 
+  // biome-ignore lint/suspicious/noAssignInExpressions: Required for regex iteration pattern
   while ((match = newStylePattern.exec(code)) !== null) {
     const varName = match[1];
     if (!varName || parsedVarNames.has(varName)) continue;
@@ -321,6 +374,7 @@ function parseInputs(code: string): ParsedInput[] {
   // Pattern 2: input(args) - legacy style
   const legacyPattern = /(\w+)\s*=\s*input\s*\(([^)]*)\)/g;
 
+  // biome-ignore lint/suspicious/noAssignInExpressions: Required for regex iteration pattern
   while ((match = legacyPattern.exec(code)) !== null) {
     const varName = match[1];
     if (!varName || parsedVarNames.has(varName)) continue;
@@ -383,7 +437,10 @@ function parseDestructuredAssignments(code: string): DestructuredAssignment[] {
 
       if (!namesStr || !expression) continue;
 
-      const names = namesStr.split(',').map((n) => n.trim()).filter(Boolean);
+      const names = namesStr
+        .split(',')
+        .map((n) => n.trim())
+        .filter(Boolean);
       if (names.length > 0) {
         assignments.push({
           names,
@@ -400,50 +457,97 @@ function parseDestructuredAssignments(code: string): DestructuredAssignment[] {
 /**
  * Unsupported features with their warning messages
  */
-const UNSUPPORTED_PATTERNS: Array<{ pattern: RegExp; feature: string; message: string }> = [
-  { pattern: /^\s*bgcolor\s*\(/, feature: 'bgcolor', message: 'bgcolor() is not supported - background coloring will be skipped' },
-  { pattern: /^\s*barcolor\s*\(/, feature: 'barcolor', message: 'barcolor() is not supported - bar coloring will be skipped' },
-  { pattern: /^\s*alertcondition\s*\(/, feature: 'alertcondition', message: 'alertcondition() is not supported - alerts will be skipped' },
-  { pattern: /^\s*label\./, feature: 'label', message: 'label.* functions are not supported - labels will be skipped' },
-  { pattern: /^\s*line\./, feature: 'line', message: 'line.* functions are not supported - lines will be skipped' },
-  { pattern: /^\s*box\./, feature: 'box', message: 'box.* functions are not supported - boxes will be skipped' },
-  { pattern: /^\s*table\./, feature: 'table', message: 'table.* functions are not supported - tables will be skipped' },
-  { pattern: /^\s*if\s+.*\blabel\./, feature: 'label', message: 'label operations in if blocks are not supported' },
-  { pattern: /^\s*if\s+.*\btable\./, feature: 'table', message: 'table operations in if blocks are not supported' },
-  { pattern: /^\s*strategy\s*\(/, feature: 'strategy', message: 'strategy() is not supported - use indicator() instead' },
+const UNSUPPORTED_PATTERNS: Array<{
+  pattern: RegExp;
+  feature: string;
+  message: string;
+}> = [
+  {
+    pattern: /^\s*bgcolor\s*\(/,
+    feature: 'bgcolor',
+    message: 'bgcolor() is not supported - background coloring will be skipped',
+  },
+  {
+    pattern: /^\s*barcolor\s*\(/,
+    feature: 'barcolor',
+    message: 'barcolor() is not supported - bar coloring will be skipped',
+  },
+  {
+    pattern: /^\s*alertcondition\s*\(/,
+    feature: 'alertcondition',
+    message: 'alertcondition() is not supported - alerts will be skipped',
+  },
+  {
+    pattern: /^\s*label\./,
+    feature: 'label',
+    message: 'label.* functions are not supported - labels will be skipped',
+  },
+  {
+    pattern: /^\s*line\./,
+    feature: 'line',
+    message: 'line.* functions are not supported - lines will be skipped',
+  },
+  {
+    pattern: /^\s*box\./,
+    feature: 'box',
+    message: 'box.* functions are not supported - boxes will be skipped',
+  },
+  {
+    pattern: /^\s*table\./,
+    feature: 'table',
+    message: 'table.* functions are not supported - tables will be skipped',
+  },
+  {
+    pattern: /^\s*if\s+.*\blabel\./,
+    feature: 'label',
+    message: 'label operations in if blocks are not supported',
+  },
+  {
+    pattern: /^\s*if\s+.*\btable\./,
+    feature: 'table',
+    message: 'table operations in if blocks are not supported',
+  },
+  {
+    pattern: /^\s*strategy\s*\(/,
+    feature: 'strategy',
+    message: 'strategy() is not supported - use indicator() instead',
+  },
 ];
 
 /**
  * Parse variable assignments from Pine Script code
  */
-function parseVariables(code: string, inputVarNames: Set<string>): ParsedVariable[] {
+function parseVariables(
+  code: string,
+  inputVarNames: Set<string>,
+): ParsedVariable[] {
   const variables: ParsedVariable[] = [];
   const lines = code.split('\n');
 
   // Lines to skip (unsupported constructs) - these are silently skipped
   const skipPatterns = [
-    /^\s*\/\//,                      // Comments
-    /^\s*@/,                         // Annotations
-    /^\s*indicator\s*\(/,            // Indicator declaration
-    /^\s*strategy\s*\(/,             // Strategy declaration
-    /^\s*library\s*\(/,              // Library declaration
-    /input\./,                       // Input declarations
-    /input\s*\(/,                    // Legacy input
-    /^\s*plot\s*\(/,                 // Plot functions
+    /^\s*\/\//, // Comments
+    /^\s*@/, // Annotations
+    /^\s*indicator\s*\(/, // Indicator declaration
+    /^\s*strategy\s*\(/, // Strategy declaration
+    /^\s*library\s*\(/, // Library declaration
+    /input\./, // Input declarations
+    /input\s*\(/, // Legacy input
+    /^\s*plot\s*\(/, // Plot functions
     /^\s*plotshape\s*\(/,
     /^\s*plotchar\s*\(/,
     /^\s*hline\s*\(/,
-    /^\s*bgcolor\s*\(/,              // Background color
-    /^\s*barcolor\s*\(/,             // Bar coloring
-    /^\s*alertcondition\s*\(/,       // Alerts
-    /^\s*label\./,                   // Label operations
-    /^\s*line\./,                    // Line operations
-    /^\s*box\./,                     // Box operations  
-    /^\s*table\./,                   // Table operations
-    /^\s*if\s+.*\blabel\./,          // If blocks with labels
-    /^\s*if\s+.*\btable\./,          // If blocks with tables
-    /^\s*$/,                         // Empty lines
-    /^\s*\[/,                        // Skip destructured assignments (handled separately)
+    /^\s*bgcolor\s*\(/, // Background color
+    /^\s*barcolor\s*\(/, // Bar coloring
+    /^\s*alertcondition\s*\(/, // Alerts
+    /^\s*label\./, // Label operations
+    /^\s*line\./, // Line operations
+    /^\s*box\./, // Box operations
+    /^\s*table\./, // Table operations
+    /^\s*if\s+.*\blabel\./, // If blocks with labels
+    /^\s*if\s+.*\btable\./, // If blocks with tables
+    /^\s*$/, // Empty lines
+    /^\s*\[/, // Skip destructured assignments (handled separately)
   ];
 
   // First, parse destructured assignments
@@ -466,7 +570,7 @@ function parseVariables(code: string, inputVarNames: Set<string>): ParsedVariabl
       destruct.names.forEach((name, index) => {
         // Skip underscore placeholders
         if (name === '_') return;
-        
+
         variables.push({
           name,
           expression: `${tempVarName}[${index}]`,
@@ -491,7 +595,7 @@ function parseVariables(code: string, inputVarNames: Set<string>): ParsedVariabl
     if (!line) continue;
 
     const trimmed = line.trim();
-    
+
     // Check for unsupported patterns and emit warnings
     for (const { pattern, feature, message } of UNSUPPORTED_PATTERNS) {
       if (pattern.test(trimmed)) {
@@ -507,7 +611,9 @@ function parseVariables(code: string, inputVarNames: Set<string>): ParsedVariabl
 
     // Match variable assignment: varName = expression
     // Support both with and without type annotations and var keyword
-    const varMatch = trimmed.match(/^(?:var\s+)?(?:\w+\s+)?(\w+)\s*=\s*(.+?)\s*$/);
+    const varMatch = trimmed.match(
+      /^(?:var\s+)?(?:\w+\s+)?(\w+)\s*=\s*(.+?)\s*$/,
+    );
     if (varMatch) {
       const varName = varMatch[1];
       const expression = varMatch[2];
@@ -516,18 +622,51 @@ function parseVariables(code: string, inputVarNames: Set<string>): ParsedVariabl
       if (!varName || inputVarNames.has(varName)) continue;
 
       // Skip if expression is empty or a control keyword
-      if (!expression || expression === '' || ['if', 'for', 'while', 'switch'].includes(expression)) continue;
-      
+      if (
+        !expression ||
+        expression === '' ||
+        ['if', 'for', 'while', 'switch'].includes(expression)
+      )
+        continue;
+
       // Check for unsupported function calls in expressions
-      const unsupportedExprPatterns: Array<{ pattern: RegExp; feature: string; message: string }> = [
-        { pattern: /\btable\.\w+\s*\(/, feature: 'table', message: `Variable "${varName}" uses table functions which are not supported` },
-        { pattern: /\blabel\.\w+\s*\(/, feature: 'label', message: `Variable "${varName}" uses label functions which are not supported` },
-        { pattern: /\bline\.\w+\s*\(/, feature: 'line', message: `Variable "${varName}" uses line functions which are not supported` },
-        { pattern: /\bbox\.\w+\s*\(/, feature: 'box', message: `Variable "${varName}" uses box functions which are not supported` },
-        { pattern: /\brequest\.\w+\s*\(/, feature: 'request', message: `Variable "${varName}" uses request.* functions which are not supported (need external data)` },
-        { pattern: /\bstrategy\.\w+\s*\(/, feature: 'strategy', message: `Variable "${varName}" uses strategy functions which are not supported` },
+      const unsupportedExprPatterns: Array<{
+        pattern: RegExp;
+        feature: string;
+        message: string;
+      }> = [
+        {
+          pattern: /\btable\.\w+\s*\(/,
+          feature: 'table',
+          message: `Variable "${varName}" uses table functions which are not supported`,
+        },
+        {
+          pattern: /\blabel\.\w+\s*\(/,
+          feature: 'label',
+          message: `Variable "${varName}" uses label functions which are not supported`,
+        },
+        {
+          pattern: /\bline\.\w+\s*\(/,
+          feature: 'line',
+          message: `Variable "${varName}" uses line functions which are not supported`,
+        },
+        {
+          pattern: /\bbox\.\w+\s*\(/,
+          feature: 'box',
+          message: `Variable "${varName}" uses box functions which are not supported`,
+        },
+        {
+          pattern: /\brequest\.\w+\s*\(/,
+          feature: 'request',
+          message: `Variable "${varName}" uses request.* functions which are not supported (need external data)`,
+        },
+        {
+          pattern: /\bstrategy\.\w+\s*\(/,
+          feature: 'strategy',
+          message: `Variable "${varName}" uses strategy functions which are not supported`,
+        },
       ];
-      
+
       let skipExpression = false;
       for (const { pattern, feature, message } of unsupportedExprPatterns) {
         if (pattern.test(expression)) {
@@ -537,7 +676,7 @@ function parseVariables(code: string, inputVarNames: Set<string>): ParsedVariabl
         }
       }
       if (skipExpression) continue;
-      
+
       // Legacy pattern check (keep for backwards compatibility)
       const unsupportedPatterns = [
         /\btable\.\w+\s*\(/,
@@ -587,8 +726,10 @@ function parseColor(colorStr: string): string {
   // Check for color.rgb(r, g, b) or color.rgb(r, g, b, transp)
   const colorRgbMatch = colorStr.match(/color\.rgb\s*\(([^)]+)\)/);
   if (colorRgbMatch?.[1]) {
-    const rgbParts = colorRgbMatch[1].split(',').map((s) => parseInt(s.trim(), 10));
-    if (rgbParts.length >= 3 && rgbParts.every((n) => !isNaN(n))) {
+    const rgbParts = colorRgbMatch[1]
+      .split(',')
+      .map((s) => Number.parseInt(s.trim(), 10));
+    if (rgbParts.length >= 3 && rgbParts.every((n) => !Number.isNaN(n))) {
       const r = rgbParts[0] ?? 0;
       const g = rgbParts[1] ?? 0;
       const b = rgbParts[2] ?? 0;
@@ -613,9 +754,11 @@ function parsePlots(code: string): ParsedPlot[] {
   let plotIndex = 0;
 
   // Pattern for plot() calls
-  const plotRegex = /plot\s*\(\s*([^,)]+)(?:\s*,\s*["']([^"']+)["'])?(?:\s*,\s*([^)]+))?\)/g;
-  let match;
+  const plotRegex =
+    /plot\s*\(\s*([^,)]+)(?:\s*,\s*["']([^"']+)["'])?(?:\s*,\s*([^)]+))?\)/g;
+  let match: RegExpExecArray | null;
 
+  // biome-ignore lint/suspicious/noAssignInExpressions: Required for regex iteration pattern
   while ((match = plotRegex.exec(code)) !== null) {
     const varName = match[1]?.trim() || 'value';
     const title = match[2] || varName;
@@ -632,7 +775,7 @@ function parsePlots(code: string): ParsedPlot[] {
     let linewidth = 2;
     const linewidthMatch = plotOptions.match(/linewidth\s*=\s*(\d+)/);
     if (linewidthMatch?.[1]) {
-      linewidth = parseInt(linewidthMatch[1], 10);
+      linewidth = Number.parseInt(linewidthMatch[1], 10);
     }
 
     // Parse style/type
@@ -644,7 +787,8 @@ function parsePlots(code: string): ParsedPlot[] {
       else if (style === 'circles') plotType = 'circles';
       else if (style === 'columns') plotType = 'columns';
       else if (style === 'area' || style === 'areabr') plotType = 'area';
-      else if (style === 'stepline' || style === 'stepline_diamond') plotType = 'stepline';
+      else if (style === 'stepline' || style === 'stepline_diamond')
+        plotType = 'stepline';
       else if (style === 'cross') plotType = 'cross';
     }
 
@@ -661,7 +805,9 @@ function parsePlots(code: string): ParsedPlot[] {
   }
 
   // Pattern for hline() calls - horizontal lines
-  const hlineRegex = /hline\s*\(\s*([^,)]+)(?:\s*,\s*["']([^"']+)["'])?(?:\s*,\s*([^)]+))?\)/g;
+  const hlineRegex =
+    /hline\s*\(\s*([^,)]+)(?:\s*,\s*["']([^"']+)["'])?(?:\s*,\s*([^)]+))?\)/g;
+  // biome-ignore lint/suspicious/noAssignInExpressions: Required for regex iteration pattern
   while ((match = hlineRegex.exec(code)) !== null) {
     const priceStr = match[1]?.trim() || '0';
     const title = match[2] || `H-Line ${plotIndex}`;
@@ -678,11 +824,11 @@ function parsePlots(code: string): ParsedPlot[] {
     let linewidth = 1;
     const linewidthMatch = hlineOptions.match(/linewidth\s*=\s*(\d+)/);
     if (linewidthMatch?.[1]) {
-      linewidth = parseInt(linewidthMatch[1], 10);
+      linewidth = Number.parseInt(linewidthMatch[1], 10);
     }
 
-    const price = parseFloat(priceStr);
-    if (!isNaN(price)) {
+    const price = Number.parseFloat(priceStr);
+    if (!Number.isNaN(price)) {
       plots.push({
         id: `hline_${plotIndex}`,
         title,
@@ -698,6 +844,7 @@ function parsePlots(code: string): ParsedPlot[] {
 
   // Pattern for plotshape() calls
   const plotshapeRegex = /plotshape\s*\(\s*([^,)]+)(?:\s*,\s*([^)]+))?\)/g;
+  // biome-ignore lint/suspicious/noAssignInExpressions: Required for regex iteration pattern
   while ((match = plotshapeRegex.exec(code)) !== null) {
     const condition = match[1]?.trim() || 'true';
     const shapeOptions = match[2] || '';
@@ -721,7 +868,18 @@ function parsePlots(code: string): ParsedPlot[] {
     const styleMatch = shapeOptions.match(/style\s*=\s*shape\.(\w+)/);
     if (styleMatch?.[1]) {
       const s = styleMatch[1].toLowerCase();
-      if (['circle', 'cross', 'diamond', 'square', 'triangleup', 'triangledown', 'flag', 'label'].includes(s)) {
+      if (
+        [
+          'circle',
+          'cross',
+          'diamond',
+          'square',
+          'triangleup',
+          'triangledown',
+          'flag',
+          'label',
+        ].includes(s)
+      ) {
         shape = s as ParsedPlot['shape'];
       }
     }
@@ -759,30 +917,44 @@ function parsePlots(code: string): ParsedPlot[] {
 /**
  * Parse the indicator() or strategy() declaration
  */
-function parseIndicatorDeclaration(code: string): { name: string; shortName: string; overlay: boolean } {
+function parseIndicatorDeclaration(code: string): {
+  name: string;
+  shortName: string;
+  overlay: boolean;
+} {
   let name = 'Custom Indicator';
   let shortName = 'Custom';
   let overlay = true;
 
   // Match indicator() or strategy() call
-  const indicatorMatch = code.match(/(indicator|strategy)\s*\(\s*["']([^"']+)["'](?:\s*,\s*([^)]+))?\)/);
+  const indicatorMatch = code.match(
+    /(indicator|strategy)\s*\(\s*["']([^"']+)["'](?:\s*,\s*([^)]+))?\)/,
+  );
   if (indicatorMatch?.[2]) {
     name = indicatorMatch[2];
-    shortName = name.length > 20 ? name.substring(0, 17) + '...' : name;
+    shortName = name.length > 20 ? `${name.substring(0, 17)}...` : name;
 
     // Parse options
     if (indicatorMatch[3]) {
       const options = indicatorMatch[3];
 
       // Parse overlay
-      if (options.includes('overlay=true') || options.includes('overlay = true')) {
+      if (
+        options.includes('overlay=true') ||
+        options.includes('overlay = true')
+      ) {
         overlay = true;
-      } else if (options.includes('overlay=false') || options.includes('overlay = false')) {
+      } else if (
+        options.includes('overlay=false') ||
+        options.includes('overlay = false')
+      ) {
         overlay = false;
       }
 
       // Parse shorttitle
-      const shortTitleMatch = options.match(/shorttitle\s*=\s*["']([^"']+)["']/);
+      const shortTitleMatch = options.match(
+        /shorttitle\s*=\s*["']([^"']+)["']/,
+      );
       if (shortTitleMatch?.[1]) {
         shortName = shortTitleMatch[1];
       }
@@ -798,7 +970,7 @@ function parseIndicatorDeclaration(code: string): { name: string; shortName: str
 function parseVersion(code: string): number {
   const versionMatch = code.match(/@version=(\d+)/);
   if (versionMatch?.[1]) {
-    return parseInt(versionMatch[1], 10);
+    return Number.parseInt(versionMatch[1], 10);
   }
   return 5; // Default to v5
 }
@@ -816,7 +988,7 @@ function parseVersion(code: string): number {
 export function parsePineScript(code: string): ParsedIndicator {
   // Reset warnings for this parse
   resetWarnings();
-  
+
   // Preprocess: join multi-line expressions
   const preprocessedCode = preprocessMultiLineExpressions(code);
 
@@ -824,7 +996,8 @@ export function parsePineScript(code: string): ParsedIndicator {
   const version = parseVersion(preprocessedCode);
 
   // Parse indicator declaration
-  const { name, shortName, overlay } = parseIndicatorDeclaration(preprocessedCode);
+  const { name, shortName, overlay } =
+    parseIndicatorDeclaration(preprocessedCode);
 
   // Parse inputs
   const inputs = parseInputs(preprocessedCode);
@@ -855,7 +1028,7 @@ export function parsePineScript(code: string): ParsedIndicator {
 
   // Parse custom function definitions
   const functions = parseCustomFunctions(preprocessedCode);
-  
+
   // Collect warnings and reset for next parse
   const warnings = [...parseWarnings];
 
@@ -875,7 +1048,10 @@ export function parsePineScript(code: string): ParsedIndicator {
 /**
  * Validate Pine Script code before parsing
  */
-export function validatePineScript(code: string): { valid: boolean; errors: string[] } {
+export function validatePineScript(code: string): {
+  valid: boolean;
+  errors: string[];
+} {
   const errors: string[] = [];
 
   if (!code || code.trim().length === 0) {
@@ -901,11 +1077,19 @@ export function validatePineScript(code: string): { valid: boolean; errors: stri
     !code.includes('hline(') &&
     !code.includes('bgcolor(')
   ) {
-    errors.push('No plot() found. Add plot(value, "Title") to display your indicator.');
+    errors.push(
+      'No plot() found. Add plot(value, "Title") to display your indicator.',
+    );
   }
 
   return { valid: errors.length === 0, errors };
 }
 
 // Re-export types
-export type { ParsedIndicator, ParsedInput, ParsedPlot, ParsedVariable, ParsedFunction };
+export type {
+  ParsedIndicator,
+  ParsedInput,
+  ParsedPlot,
+  ParsedVariable,
+  ParsedFunction,
+};

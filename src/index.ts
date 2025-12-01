@@ -97,9 +97,9 @@ export type { TranspilerWarning } from './generator/indicator-factory';
 // Main Transpiler Function
 // ============================================================================
 
-import type { TranspileToPineJSResult, IndicatorFactory } from './types';
-import { parsePineScript, validatePineScript } from './parser';
 import { createIndicatorFactory, emitTranspilerWarning } from './generator';
+import { parsePineScript, validatePineScript } from './parser';
+import type { IndicatorFactory, TranspileToPineJSResult } from './types';
 
 /**
  * Transpile Pine Script v5/v6 code to a TradingView CustomIndicator
@@ -128,7 +128,7 @@ import { createIndicatorFactory, emitTranspilerWarning } from './generator';
 export function transpileToPineJS(
   code: string,
   indicatorId: string,
-  indicatorName?: string
+  indicatorName?: string,
 ): TranspileToPineJSResult {
   try {
     // Parse the Pine Script code
@@ -136,7 +136,7 @@ export function transpileToPineJS(
 
     // Use provided name or parsed name
     const displayName = indicatorName || parsed.name;
-    
+
     // Emit warnings for unsupported features
     if (parsed.warnings.length > 0) {
       for (const warning of parsed.warnings) {
@@ -151,14 +151,19 @@ export function transpileToPineJS(
     }
 
     // Create the indicator factory
-    const indicatorFactory = createIndicatorFactory(parsed, indicatorId, displayName);
+    const indicatorFactory = createIndicatorFactory(
+      parsed,
+      indicatorId,
+      displayName,
+    );
 
     return {
       success: true,
       indicatorFactory,
     };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown transpilation error';
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown transpilation error';
 
     // Try to extract line number from error
     let errorLine: number | undefined;
@@ -167,11 +172,11 @@ export function transpileToPineJS(
     if (error instanceof Error) {
       const lineMatch = error.message.match(/(?:line|Line)\s*(\d+)/i);
       if (lineMatch?.[1]) {
-        errorLine = parseInt(lineMatch[1], 10);
+        errorLine = Number.parseInt(lineMatch[1], 10);
       }
       const colMatch = error.message.match(/(?:column|col)\s*(\d+)/i);
       if (colMatch?.[1]) {
-        errorColumn = parseInt(colMatch[1], 10);
+        errorColumn = Number.parseInt(colMatch[1], 10);
       }
     }
 
@@ -191,7 +196,10 @@ export function transpileToPineJS(
  * @param code - Pine Script source code
  * @returns Validation result with valid flag and optional reason
  */
-export function canTranspilePineScript(code: string): { valid: boolean; reason?: string | undefined } {
+export function canTranspilePineScript(code: string): {
+  valid: boolean;
+  reason?: string | undefined;
+} {
   const { valid, errors } = validatePineScript(code);
 
   if (!valid && errors.length > 0) {
@@ -237,7 +245,7 @@ export function canTranspilePineScript(code: string): { valid: boolean; reason?:
 export function executePineJS(
   code: string,
   indicatorId: string,
-  indicatorName?: string
+  indicatorName?: string,
 ): TranspileToPineJSResult {
   try {
     // The PineJS code should define a createIndicator function
@@ -245,7 +253,7 @@ export function executePineJS(
 
     // Remove ES module syntax (export { createIndicator })
     // since we can't use ES modules with Function constructor
-    let processedCode = code
+    const processedCode = code
       .replace(/export\s*\{\s*createIndicator\s*\}\s*;?/g, '')
       .replace(/export\s+default\s+createIndicator\s*;?/g, '')
       .replace(/export\s+/g, ''); // Remove any remaining export keywords
@@ -257,7 +265,6 @@ export function executePineJS(
     `;
 
     // Create and execute the function
-    // biome-ignore lint/security/noGlobalEval: Required for dynamic PineJS execution
     const extractCreateIndicator = new Function(wrappedCode);
     const createIndicator = extractCreateIndicator();
 
@@ -295,7 +302,8 @@ export function executePineJS(
       indicatorFactory,
     };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown PineJS execution error';
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown PineJS execution error';
 
     // Try to extract line number from error
     let errorLine: number | undefined;
@@ -304,11 +312,11 @@ export function executePineJS(
     if (error instanceof Error) {
       const lineMatch = error.message.match(/(?:line|Line)\s*(\d+)/i);
       if (lineMatch?.[1]) {
-        errorLine = parseInt(lineMatch[1], 10);
+        errorLine = Number.parseInt(lineMatch[1], 10);
       }
       const colMatch = error.message.match(/(?:column|col)\s*(\d+)/i);
       if (colMatch?.[1]) {
-        errorColumn = parseInt(colMatch[1], 10);
+        errorColumn = Number.parseInt(colMatch[1], 10);
       }
     }
 

@@ -1,61 +1,57 @@
 {
-    "name": "@opusaether/pine-transpiler",
-    "version": "0.1.0",
-    "description": "Transpile Pine Script v5/v6 to executable JavaScript. Zero dependencies.",
-    "author": "Opus Aether AI",
-    "license": "AGPL-3.0",
-    "publishConfig": {
-        "access": "public"
+  "name": "@opusaether/pine-transpiler",
+  "version": "0.1.0",
+  "description": "Transpile Pine Script v5/v6 to executable JavaScript. Zero dependencies.",
+  "author": "Opus Aether AI",
+  "license": "AGPL-3.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
     },
-    "type": "module",
-    "main": "./dist/index.cjs",
-    "module": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "exports": {
-        ".": {
-            "types": "./dist/index.d.ts",
-            "import": "./dist/index.js",
-            "require": "./dist/index.cjs"
-        },
-        "./llm-prompt": {
-            "types": "./dist/llm-prompt.d.ts",
-            "import": "./dist/llm-prompt.js",
-            "require": "./dist/llm-prompt.cjs"
-        }
-    },
-    "files": [
-        "dist",
-        "README.md",
-        "LICENSE"
-    ],
-    "scripts": {
-        "prepare": "npm run build",
-        "build": "tsup",
-        "dev": "tsup --watch",
-        "typecheck": "tsc --noEmit",
-        "lint": "biome check .",
-        "lint:fix": "biome check --write .",
-        "clean": "rm -rf dist"
-    },
-    "keywords": [
-        "pine-script",
-        "tradingview",
-        "pinejs",
-        "transpiler",
-        "compiler",
-        "technical-analysis",
-        "indicators",
-        "charting",
-        "trading",
-        "finance"
-    ],
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/Opus-Aether-AI/pine-transpiler"
-    },
-    "devDependencies": {
-        "@biomejs/biome": "1.9.4",
-        "tsup": "^8.3.5",
-        "typescript": "^5.9.2"
+    "./llm-prompt": {
+      "types": "./dist/llm-prompt.d.ts",
+      "import": "./dist/llm-prompt.js",
+      "require": "./dist/llm-prompt.cjs"
     }
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "scripts": {
+    "prepare": "npm run build",
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "pine-script",
+    "tradingview",
+    "pinejs",
+    "transpiler",
+    "compiler",
+    "technical-analysis",
+    "indicators",
+    "charting",
+    "trading",
+    "finance"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Opus-Aether-AI/pine-transpiler"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "tsup": "^8.3.5",
+    "typescript": "^5.9.2"
+  }
 }

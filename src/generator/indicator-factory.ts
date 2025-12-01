@@ -5,17 +5,20 @@
  * This is the final stage of transpilation - assembling all parts into a runnable indicator.
  */
 
+import type { IndicatorFactory, ParsedIndicator } from '../types';
 import type {
   CustomIndicator,
-  PineJSRuntime,
-  StudyMetaInfo,
-  StudyInputInfo,
-  StudyPlotInfo,
-  RuntimeContext,
   InputCallback,
+  PineJSRuntime,
+  RuntimeContext,
+  StudyInputInfo,
+  StudyMetaInfo,
+  StudyPlotInfo,
 } from '../types/runtime';
-import type { ParsedIndicator, IndicatorFactory } from '../types';
-import { generateMainFunction, generateMainFunctionWithHelpers } from './main-function-generator';
+import {
+  generateMainFunction,
+  generateMainFunctionWithHelpers,
+} from './main-function-generator';
 
 // ============================================================================
 // Runtime Error & Warning Event System
@@ -60,7 +63,7 @@ export interface TranspilerWarning {
 function emitRuntimeError(detail: TranspilerRuntimeError): void {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(
-      new CustomEvent('transpiler-runtime-error', { detail })
+      new CustomEvent('transpiler-runtime-error', { detail }),
     );
   }
   // Always log to browser console as well
@@ -75,9 +78,7 @@ function emitRuntimeError(detail: TranspilerRuntimeError): void {
  */
 export function emitTranspilerWarning(detail: TranspilerWarning): void {
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(
-      new CustomEvent('transpiler-warning', { detail })
-    );
+    window.dispatchEvent(new CustomEvent('transpiler-warning', { detail }));
   }
   // Also log to console
   console.warn(`[Transpiler] Warning: ${detail.message}`);
@@ -87,10 +88,21 @@ export function emitTranspilerWarning(detail: TranspilerWarning): void {
  * Validate that the generated code is syntactically correct JavaScript
  * This catches syntax errors before they cause runtime failures
  */
-function validateGeneratedCode(code: string): { valid: boolean; error?: string } {
+function validateGeneratedCode(code: string): {
+  valid: boolean;
+  error?: string;
+} {
   try {
     // Try to create a function with the code to validate syntax
-    new Function('Std', 'context', 'inputCallback', 'isNaN', 'NaN', 'Math', code);
+    new Function(
+      'Std',
+      'context',
+      'inputCallback',
+      'isNaN',
+      'NaN',
+      'Math',
+      code,
+    );
     return { valid: true };
   } catch (error) {
     return {
@@ -117,9 +129,17 @@ function generatePlotInfos(parsed: ParsedIndicator): StudyPlotInfo[] {
 /**
  * Generate the defaults.styles object for metainfo
  */
-function generateDefaultStyles(
-  parsed: ParsedIndicator
-): Record<string, { linestyle: number; visible: boolean; linewidth: number; plottype: number; color: string; transparency: number }> {
+function generateDefaultStyles(parsed: ParsedIndicator): Record<
+  string,
+  {
+    linestyle: number;
+    visible: boolean;
+    linewidth: number;
+    plottype: number;
+    color: string;
+    transparency: number;
+  }
+> {
   return parsed.plots.reduce(
     (acc, plot) => {
       acc[plot.id] = {
@@ -132,7 +152,17 @@ function generateDefaultStyles(
       };
       return acc;
     },
-    {} as Record<string, { linestyle: number; visible: boolean; linewidth: number; plottype: number; color: string; transparency: number }>
+    {} as Record<
+      string,
+      {
+        linestyle: number;
+        visible: boolean;
+        linewidth: number;
+        plottype: number;
+        color: string;
+        transparency: number;
+      }
+    >,
   );
 }
 
@@ -159,20 +189,24 @@ function getPlotType(type: string): number {
 /**
  * Generate the defaults.inputs object for metainfo
  */
-function generateDefaultInputs(parsed: ParsedIndicator): Record<string, number | boolean | string> {
+function generateDefaultInputs(
+  parsed: ParsedIndicator,
+): Record<string, number | boolean | string> {
   return parsed.inputs.reduce(
     (acc, input) => {
       acc[input.id] = input.defval;
       return acc;
     },
-    {} as Record<string, number | boolean | string>
+    {} as Record<string, number | boolean | string>,
   );
 }
 
 /**
  * Generate the styles object for metainfo
  */
-function generateStyles(parsed: ParsedIndicator): Record<string, { title: string; histogramBase: number }> {
+function generateStyles(
+  parsed: ParsedIndicator,
+): Record<string, { title: string; histogramBase: number }> {
   return parsed.plots.reduce(
     (acc, plot) => {
       acc[plot.id] = {
@@ -181,7 +215,7 @@ function generateStyles(parsed: ParsedIndicator): Record<string, { title: string
       };
       return acc;
     },
-    {} as Record<string, { title: string; histogramBase: number }>
+    {} as Record<string, { title: string; histogramBase: number }>,
   );
 }
 
@@ -214,7 +248,7 @@ function generateInputInfos(parsed: ParsedIndicator): StudyInputInfo[] {
 export function createIndicatorFactory(
   parsed: ParsedIndicator,
   indicatorId: string,
-  displayName: string
+  displayName: string,
 ): IndicatorFactory {
   const safeId = indicatorId.replace(/[^a-zA-Z0-9_]/g, '_');
   const inputIds = parsed.inputs.map((i) => i.id);
@@ -225,7 +259,10 @@ export function createIndicatorFactory(
   // Validate the generated code syntax before creating the factory
   const validation = validateGeneratedCode(mainFunctionBody);
   if (!validation.valid) {
-    console.error('[Transpiler] Generated code has syntax errors:', validation.error);
+    console.error(
+      '[Transpiler] Generated code has syntax errors:',
+      validation.error,
+    );
     console.error('[Transpiler] Generated code:\n', mainFunctionBody);
     // Emit error event for UI to catch
     emitRuntimeError({
@@ -260,39 +297,44 @@ export function createIndicatorFactory(
         styles: generateStyles(parsed),
         inputs: generateInputInfos(parsed),
       } as StudyMetaInfo,
-      constructor: function () {
-        return {
-          // Build the main function dynamically using the transpiled code
-          main: (context: RuntimeContext, inputCallback: InputCallback) => {
-            try {
-              // Execute the transpiled code
-              // We create a function with all the necessary variables in scope
-              const executeMain = new Function(
-                'Std',
-                'context',
-                'inputCallback',
-                'isNaN',
-                'NaN',
-                'Math',
-                mainFunctionBody
-              );
+      constructor: () => ({
+        // Build the main function dynamically using the transpiled code
+        main: (context: RuntimeContext, inputCallback: InputCallback) => {
+          try {
+            // Execute the transpiled code
+            // We create a function with all the necessary variables in scope
+            const executeMain = new Function(
+              'Std',
+              'context',
+              'inputCallback',
+              'isNaN',
+              'NaN',
+              'Math',
+              mainFunctionBody,
+            );
 
-              return executeMain(Std, context, inputCallback, isNaN, NaN, Math);
-            } catch (error) {
-              // Emit error event for UI to catch
-              emitRuntimeError({
-                indicatorId,
-                indicatorName: displayName,
-                error: error instanceof Error ? error : String(error),
-                generatedCode: mainFunctionBody,
-                timestamp: Date.now(),
-              });
-              // Return NaN for all plots on error to avoid breaking the chart
-              return parsed.plots.map(() => NaN);
-            }
-          },
-        };
-      },
+            return executeMain(
+              Std,
+              context,
+              inputCallback,
+              Number.isNaN,
+              Number.NaN,
+              Math,
+            );
+          } catch (error) {
+            // Emit error event for UI to catch
+            emitRuntimeError({
+              indicatorId,
+              indicatorName: displayName,
+              error: error instanceof Error ? error : String(error),
+              generatedCode: mainFunctionBody,
+              timestamp: Date.now(),
+            });
+            // Return NaN for all plots on error to avoid breaking the chart
+            return parsed.plots.map(() => Number.NaN);
+          }
+        },
+      }),
     };
   };
 
@@ -333,7 +375,9 @@ export function generateIndicatorSummary(parsed: ParsedIndicator): string {
   if (parsed.plots.length > 0) {
     lines.push('Plots:');
     for (const plot of parsed.plots) {
-      lines.push(`  - ${plot.title}: ${plot.varName} (${plot.type}, ${plot.color})`);
+      lines.push(
+        `  - ${plot.title}: ${plot.varName} (${plot.type}, ${plot.color})`,
+      );
     }
   }
 
@@ -345,7 +389,7 @@ export function generateIndicatorSummary(parsed: ParsedIndicator): string {
  */
 export function getGeneratedMainFunctionBody(
   parsed: ParsedIndicator,
-  inputIds: string[]
+  inputIds: string[],
 ): string {
   return generateMainFunction(parsed, inputIds);
 }
