@@ -7,7 +7,11 @@
  * Reference: https://www.tradingview.com/charting-library-docs/latest/custom_studies/
  */
 
-import { buildIndicatorFactory, generateStandaloneFactory } from './factory';
+import {
+  analyzeRequiredHelpers,
+  buildIndicatorFactory,
+  generateStandaloneFactory,
+} from './factory';
 import { ASTGenerator } from './generator/ast-generator';
 import { MetadataVisitor } from './generator/metadata-visitor';
 import {
@@ -34,6 +38,7 @@ import type {
   TranspileToPineJSResult,
 } from './types';
 import { COLOR_MAP, PRICE_SOURCES } from './types';
+import { validateOutput } from './validator';
 
 // ============================================================================
 // Exports
@@ -134,9 +139,46 @@ export function transpileToPineJS(
     const visitor = new MetadataVisitor();
     visitor.visit(ast);
 
+    // 3.5 Metainfo null-safety guard — null entries in plots/inputs crash
+    // TradingView's _contentSeriesProperties with "Cannot read properties of
+    // undefined (reading 'length')".
+    if (!Array.isArray(visitor.plots)) {
+      return {
+        success: false,
+        error: 'Internal: plots metadata is not an array',
+      };
+    }
+    const nullPlotIdx = visitor.plots.findIndex((p) => p == null);
+    if (nullPlotIdx >= 0) {
+      return {
+        success: false,
+        error: `Internal: plot[${nullPlotIdx}] is null — check plot() call parsing`,
+      };
+    }
+    if (!Array.isArray(visitor.inputs)) {
+      return {
+        success: false,
+        error: 'Internal: inputs metadata is not an array',
+      };
+    }
+
     // 4. Generate Code
     const generator = new ASTGenerator(visitor.historicalAccess);
     const mainBody = generator.generate(ast);
+
+    // 4.5 Validate output before handing to indicator factory
+    const validation = validateOutput(
+      mainBody,
+      analyzeRequiredHelpers(mainBody),
+    );
+    if (validation.confidence < 0.5) {
+      return {
+        success: false,
+        error:
+          validation.issues[0]?.message ??
+          'Transpiler output validation failed',
+      };
+    }
 
     // 5. Create Indicator Factory using the factory builder
     const indicatorFactory = buildIndicatorFactory({

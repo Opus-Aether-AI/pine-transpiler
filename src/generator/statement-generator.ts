@@ -92,8 +92,13 @@ export class StatementGenerator implements StatementGeneratorInterface {
         return this.generateTypeDefinition(stmt);
       case 'ImportStatement':
         return this.generateImportStatement(stmt as ImportStatement);
-      default:
-        throw new Error(`Unknown statement type: ${(stmt as Statement).type}`);
+      default: {
+        const s = stmt as Statement & {
+          loc?: { start: { line: number; column: number } };
+        };
+        const loc = s.loc ? `[${s.loc.start.line}:${s.loc.start.column}] ` : '';
+        throw new Error(`${loc}Unknown statement type: ${s.type}`);
+      }
     }
   }
 
@@ -350,7 +355,11 @@ export class StatementGenerator implements StatementGeneratorInterface {
 
   private generateFunctionDeclaration(stmt: Statement): string {
     if (stmt.type !== 'FunctionDeclaration') {
-      throw new Error('Expected FunctionDeclaration');
+      const s = stmt as Statement & {
+        loc?: { start: { line: number; column: number } };
+      };
+      const loc = s.loc ? `[${s.loc.start.line}:${s.loc.start.column}] ` : '';
+      throw new Error(`${loc}Expected FunctionDeclaration, got ${stmt.type}`);
     }
     const name = sanitizeIdentifier(stmt.id.name);
     const params = stmt.params

@@ -67,7 +67,7 @@ export interface IndicatorFactoryOptions {
 /**
  * Analyze which helpers are needed based on the transpiled code
  */
-function analyzeRequiredHelpers(mainBody: string): {
+export function analyzeRequiredHelpers(mainBody: string): {
   needsMath: boolean;
   needsSession: boolean;
   needsStdPlus: boolean;

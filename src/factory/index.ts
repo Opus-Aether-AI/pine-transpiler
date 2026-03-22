@@ -15,6 +15,7 @@ export {
 } from './factory-helpers';
 
 export {
+  analyzeRequiredHelpers,
   buildIndicatorFactory,
   generatePreamble,
   generateStandaloneFactory,

@@ -43,21 +43,23 @@ export function mapPlotType(t: string): number {
 export function buildDefaultStyles(
   plots: ParsedPlot[],
 ): Record<string, PlotStyle> {
-  return plots.reduce(
-    (acc, p) => {
-      acc[p.id] = {
-        linestyle: 0,
-        visible: true,
-        linewidth: p.linewidth,
-        plottype: mapPlotType(p.type),
-        color: p.color,
-        transparency: 0,
-        trackPrice: p.type === 'hline',
-      };
-      return acc;
-    },
-    {} as Record<string, PlotStyle>,
-  );
+  return plots
+    .filter((p) => p != null)
+    .reduce(
+      (acc, p) => {
+        acc[p.id] = {
+          linestyle: 0,
+          visible: true,
+          linewidth: p.linewidth,
+          plottype: mapPlotType(p.type),
+          color: p.color,
+          transparency: 0,
+          trackPrice: p.type === 'hline',
+        };
+        return acc;
+      },
+      {} as Record<string, PlotStyle>,
+    );
 }
 
 /**
@@ -69,13 +71,15 @@ export function buildDefaultStyles(
 export function buildDefaultInputs(
   inputs: ParsedInput[],
 ): Record<string, number | boolean | string> {
-  return inputs.reduce(
-    (acc, i) => {
-      acc[i.id] = i.defval;
-      return acc;
-    },
-    {} as Record<string, number | boolean | string>,
-  );
+  return inputs
+    .filter((i) => i != null)
+    .reduce(
+      (acc, i) => {
+        acc[i.id] = i.defval;
+        return acc;
+      },
+      {} as Record<string, number | boolean | string>,
+    );
 }
 
 /**
@@ -87,13 +91,15 @@ export function buildDefaultInputs(
 export function buildStylesMetadata(
   plots: ParsedPlot[],
 ): Record<string, { title: string; histogramBase?: number }> {
-  return plots.reduce(
-    (acc, p) => {
-      acc[p.id] = { title: p.title, histogramBase: 0 };
-      return acc;
-    },
-    {} as Record<string, { title: string; histogramBase?: number }>,
-  );
+  return plots
+    .filter((p) => p != null)
+    .reduce(
+      (acc, p) => {
+        acc[p.id] = { title: p.title, histogramBase: 0 };
+        return acc;
+      },
+      {} as Record<string, { title: string; histogramBase?: number }>,
+    );
 }
 
 /**
@@ -105,10 +111,12 @@ export function buildStylesMetadata(
 export function buildPlotsMetadata(
   plots: ParsedPlot[],
 ): Array<{ id: string; type: 'line' | 'histogram' }> {
-  return plots.map((p) => ({
-    id: p.id,
-    type: p.type === 'line' || p.type === 'histogram' ? p.type : 'line',
-  }));
+  return plots
+    .filter((p) => p != null)
+    .map((p) => ({
+      id: p.id,
+      type: p.type === 'line' || p.type === 'histogram' ? p.type : 'line',
+    }));
 }
 
 /**
@@ -134,23 +142,25 @@ export function buildInputsMetadata(inputs: ParsedInput[]): Array<{
   max?: number;
   options?: string[];
 }> {
-  return inputs.map((i) => ({
-    id: i.id,
-    name: i.name,
-    type: (i.type === 'string' ? 'text' : i.type) as
-      | 'text'
-      | 'integer'
-      | 'float'
-      | 'bool'
-      | 'source'
-      | 'session'
-      | 'time'
-      | 'color',
-    defval: i.defval,
-    min: i.min,
-    max: i.max,
-    options: i.options,
-  }));
+  return inputs
+    .filter((i) => i != null)
+    .map((i) => ({
+      id: i.id,
+      name: i.name,
+      type: (i.type === 'string' ? 'text' : i.type) as
+        | 'text'
+        | 'integer'
+        | 'float'
+        | 'bool'
+        | 'source'
+        | 'session'
+        | 'time'
+        | 'color',
+      defval: i.defval,
+      min: i.min,
+      max: i.max,
+      options: i.options,
+    }));
 }
 
 /**

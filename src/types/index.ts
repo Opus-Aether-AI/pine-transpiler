@@ -271,3 +271,29 @@ export const PRICE_SOURCES = [
 ] as const;
 
 export type PriceSource = (typeof PRICE_SOURCES)[number];
+
+// ============================================================================
+// Validation Types
+// ============================================================================
+
+/** Source location for diagnostics */
+export interface SourceLocation {
+  line: number;
+  column: number;
+}
+
+/** A single validation issue found in generated output */
+export interface ValidationIssue {
+  stage: 'syntax' | 'pine-leak' | 'helper-integrity';
+  message: string;
+  loc?: SourceLocation;
+}
+
+/** Result of post-generation output validation */
+export interface ValidationResult {
+  /** Whether the output is considered safe to use */
+  valid: boolean;
+  /** Confidence 0.0–1.0 (1.0 = no issues found) */
+  confidence: number;
+  issues: ValidationIssue[];
+}

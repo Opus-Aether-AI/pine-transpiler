@@ -144,7 +144,14 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
 
   private generateCallExpression(expr: CallExpression): string {
     let callee = this.generateExpression(expr.callee as Expression);
-    const args = expr.arguments.map((a) => this.generateExpression(a));
+    // Named args (e.g. `ta.sma(source = close, length = 14)`) are parsed as
+    // AssignmentExpressions. Emit only the value so they don't leak as invalid
+    // JS assignments in the output.
+    const args = expr.arguments.map((a) =>
+      a.type === 'AssignmentExpression'
+        ? this.generateExpression((a as AssignmentExpression).right)
+        : this.generateExpression(a),
+    );
 
     const mapping = UNIFIED_FUNCTION_MAP.get(callee);
 
@@ -184,6 +191,21 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
     return `[${elements}]`;
   }
 
+  /**
+   * Generate the left-hand side of an assignment from a MemberExpression
+   * without applying _getHistorical_* conversion — assigning to a function
+   * call result is invalid JS.
+   */
+  private generateMemberLValue(expr: MemberExpression): string {
+    const object = this.generateExpression(expr.object);
+    if (expr.computed) {
+      const property = this.generateExpression(expr.property);
+      return `${object}[${property}]`;
+    }
+    const property = (expr.property as Identifier).name;
+    return `${object}.${property}`;
+  }
+
   public generateAssignmentExpression(expr: AssignmentExpression): string {
     if (Array.isArray(expr.left)) {
       const ids = expr.left.map((id) => id.name).join(', ');
@@ -193,10 +215,17 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
     const left =
       expr.left.type === 'Identifier'
         ? expr.left.name
-        : this.generateMemberExpression(expr.left as MemberExpression);
+        : this.generateMemberLValue(expr.left as MemberExpression);
 
     let op = expr.operator;
     if (op === ':=') op = '=';
+
+    // Compound assignment operators on member expressions (arr[i] += 1) must
+    // be expanded since the lvalue is the canonical form, not a getter call.
+    if (op !== '=' && expr.left.type === 'MemberExpression') {
+      const binOp = op.slice(0, -1); // '+=' → '+'
+      return `${left} = ${left} ${binOp} (${this.generateExpression(expr.right)})`;
+    }
 
     return `${left} ${op} ${this.generateExpression(expr.right)}`;
   }

@@ -182,6 +182,7 @@ export class Parser extends ExpressionParser {
   // ==========================================================================
 
   private parseIfStatement(): Statement {
+    const startToken = this.previous(); // 'if' keyword already consumed
     const condition = this.parseExpression();
 
     let consequent: BlockStatement | Statement;
@@ -205,17 +206,27 @@ export class Parser extends ExpressionParser {
       }
     }
 
-    return { type: 'IfStatement', test: condition, consequent, alternate };
+    return this.withLocation(
+      { type: 'IfStatement', test: condition, consequent, alternate },
+      startToken,
+    );
   }
 
   private parseWhileStatement(): Statement {
+    const startToken = this.previous(); // 'while' keyword already consumed
     const test = this.parseExpression();
     if (this.match(TokenType.NEWLINE)) {
       const body = this.parseBlock();
-      return { type: 'WhileStatement', test, body };
+      return this.withLocation(
+        { type: 'WhileStatement', test, body },
+        startToken,
+      );
     }
     const body = this.parseBlock();
-    return { type: 'WhileStatement', test, body };
+    return this.withLocation(
+      { type: 'WhileStatement', test, body },
+      startToken,
+    );
   }
 
   private parseForStatement(): Statement {
@@ -412,6 +423,7 @@ export class Parser extends ExpressionParser {
   }
 
   private parseFunctionDeclaration(): FunctionDeclaration {
+    const startToken = this.peek(); // function name identifier (not yet consumed)
     const name = this.consume(
       TokenType.IDENTIFIER,
       'Expected function name.',
@@ -476,12 +488,15 @@ export class Parser extends ExpressionParser {
       body = this.parseExpression();
     }
 
-    return {
-      type: 'FunctionDeclaration',
-      id: { type: 'Identifier', name },
-      params,
-      body,
-    };
+    return this.withLocation(
+      {
+        type: 'FunctionDeclaration',
+        id: { type: 'Identifier', name },
+        params,
+        body,
+      },
+      startToken,
+    );
   }
 
   private parseVariableOrAssignment(): Statement {
@@ -557,6 +572,7 @@ export class Parser extends ExpressionParser {
   }
 
   private parseVariableDeclaration(kind: string): VariableDeclaration {
+    const startToken = this.previous(); // 'var'/'varip' keyword already consumed
     let typeAnnotation: TypeAnnotation | undefined;
     if (this.checkTypeAnnotation()) {
       typeAnnotation = this.parseTypeAnnotation();
@@ -570,13 +586,16 @@ export class Parser extends ExpressionParser {
 
     const init = this.parseExpression();
 
-    return {
-      type: 'VariableDeclaration',
-      id: { type: 'Identifier', name },
-      init,
-      kind: kind as 'var' | 'const' | 'let',
-      typeAnnotation,
-    };
+    return this.withLocation(
+      {
+        type: 'VariableDeclaration',
+        id: { type: 'Identifier', name },
+        init,
+        kind: kind as 'var' | 'const' | 'let',
+        typeAnnotation,
+      },
+      startToken,
+    );
   }
 
   private parseImportStatement(): Statement {
