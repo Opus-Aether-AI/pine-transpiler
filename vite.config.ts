@@ -29,7 +29,7 @@ export default defineConfig({
     exclude: [...configDefaults.exclude],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html'],
+      reporter: ['text', 'json', 'json-summary', 'html'],
       include: ['src/**/*.ts'],
       exclude: [
         'src/**/types.ts', // Type-only files with no runtime code
@@ -39,10 +39,10 @@ export default defineConfig({
         'src/stdlib/**', // StdPlus polyfill (tested separately)
       ],
       thresholds: {
-        lines: 70,
-        functions: 65,
-        branches: 60,
-        statements: 70,
+        lines: 85,
+        functions: 80,
+        branches: 75,
+        statements: 85,
       },
     },
   },
