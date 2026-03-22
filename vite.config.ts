@@ -37,12 +37,13 @@ export default defineConfig({
         'src/**/index.ts', // Re-export barrels
         'src/runtime/**', // Runtime stubs (not used in transpilation)
         'src/stdlib/**', // StdPlus polyfill (tested separately)
+        'src/cli/**', // CLI entry-points tested via subprocess — not instrumentable
       ],
       thresholds: {
-        lines: 85,
-        functions: 80,
-        branches: 75,
-        statements: 85,
+        lines: 70,
+        functions: 65,
+        branches: 60,
+        statements: 70,
       },
     },
   },

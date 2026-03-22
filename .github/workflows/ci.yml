@@ -1,10 +1,10 @@
-name: CI
+name: Pine Transpiler CI
 
 on:
   push:
-    branches: [main, 'feat/**', 'fix/**', 'chore/**']
+    branches: [main, master, 'feat/**', 'fix/**', 'chore/**']
   pull_request:
-    branches: [main]
+    branches: [main, master]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -77,19 +77,6 @@ jobs:
           path: coverage/
           retention-days: 30
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          files: coverage/coverage-final.json
-          flags: unittests
-          name: pine-transpiler
-          fail_ci_if_error: false
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-
-      - name: Comment coverage summary on PR
-        if: github.event_name == 'pull_request'
-        uses: davelosert/vitest-coverage-report-action@v2
-        with:
-          json-summary-path: coverage/coverage-summary.json
-          json-final-path: coverage/coverage-final.json
+      - name: Print coverage summary
+        if: always()
+        run: cat coverage/coverage-summary.json 2>/dev/null || echo "No coverage summary found"
