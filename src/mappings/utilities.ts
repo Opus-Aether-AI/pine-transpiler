@@ -26,6 +26,18 @@ export {
   COLOR_HELPER_FUNCTIONS,
 } from './color';
 export {
+  DRAWING_FUNCTION_MAPPINGS,
+  DRAWING_HELPER_FUNCTIONS,
+} from './drawing';
+export {
+  MAP_FUNCTION_MAPPINGS,
+  MAP_HELPER_FUNCTIONS,
+} from './map';
+export {
+  MATRIX_FUNCTION_MAPPINGS,
+  MATRIX_HELPER_FUNCTIONS,
+} from './matrix';
+export {
   STRING_FUNCTION_MAPPINGS,
   STRING_HELPER_FUNCTIONS,
 } from './string';
@@ -38,6 +50,9 @@ export {
 import { ARRAY_FUNCTION_MAPPINGS, ARRAY_HELPER_FUNCTIONS } from './array';
 import { BARSTATE_HELPER_FUNCTIONS, BARSTATE_MAPPINGS } from './barstate';
 import { COLOR_FUNCTION_MAPPINGS, COLOR_HELPER_FUNCTIONS } from './color';
+import { DRAWING_FUNCTION_MAPPINGS, DRAWING_HELPER_FUNCTIONS } from './drawing';
+import { MAP_FUNCTION_MAPPINGS, MAP_HELPER_FUNCTIONS } from './map';
+import { MATRIX_FUNCTION_MAPPINGS, MATRIX_HELPER_FUNCTIONS } from './matrix';
 import { STRING_FUNCTION_MAPPINGS, STRING_HELPER_FUNCTIONS } from './string';
 import { SYMINFO_HELPER_FUNCTIONS, SYMINFO_MAPPINGS } from './syminfo';
 
@@ -210,6 +225,30 @@ export const PLOT_MAPPINGS: Record<
     stdName: 'Std.fill',
     description: 'Fill area between plots',
   },
+  plotbar: {
+    stdName: 'Std.plotbar',
+    description: 'Plot bar on chart',
+  },
+  plotcandle: {
+    stdName: 'Std.plotcandle',
+    description: 'Plot candlestick on chart',
+  },
+  alertcondition: {
+    stdName: '_alertCondition',
+    description: 'Register alert condition',
+  },
+  alert: {
+    stdName: '_alert',
+    description: 'Trigger alert',
+  },
+  'input.timeframe': {
+    stdName: '_inputTimeframe',
+    description: 'Timeframe input parameter',
+  },
+  'input.session': {
+    stdName: '_inputSession',
+    description: 'Session input parameter',
+  },
 };
 
 // ============================================================================
@@ -223,7 +262,10 @@ export const UTILITY_HELPER_FUNCTIONS = `${SYMINFO_HELPER_FUNCTIONS}
 ${BARSTATE_HELPER_FUNCTIONS}
 ${COLOR_HELPER_FUNCTIONS}
 ${STRING_HELPER_FUNCTIONS}
-${ARRAY_HELPER_FUNCTIONS}`;
+${ARRAY_HELPER_FUNCTIONS}
+${MATRIX_HELPER_FUNCTIONS}
+${MAP_HELPER_FUNCTIONS}
+${DRAWING_HELPER_FUNCTIONS}`;
 
 // ============================================================================
 // Combined Mappings
@@ -245,6 +287,9 @@ export const ALL_UTILITY_MAPPINGS: Record<
   ...COLOR_FUNCTION_MAPPINGS,
   ...STRING_FUNCTION_MAPPINGS,
   ...ARRAY_FUNCTION_MAPPINGS,
+  ...MATRIX_FUNCTION_MAPPINGS,
+  ...MAP_FUNCTION_MAPPINGS,
+  ...DRAWING_FUNCTION_MAPPINGS,
   ...RUNTIME_ERROR_MAPPING,
   ...PLOT_MAPPINGS,
 };

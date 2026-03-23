@@ -111,6 +111,94 @@ export const ARRAY_FUNCTION_MAPPINGS: Record<
     stdName: '_arrayJoin',
     description: 'Join array to string',
   },
+  'array.from': {
+    stdName: '_arrayFrom',
+    description: 'Create array from variadic arguments',
+  },
+  'array.shift': {
+    stdName: '_arrayShift',
+    description: 'Remove and return first element',
+  },
+  'array.unshift': {
+    stdName: '_arrayUnshift',
+    description: 'Add element to beginning',
+  },
+  'array.insert': {
+    stdName: '_arrayInsert',
+    description: 'Insert element at index',
+  },
+  'array.remove': {
+    stdName: '_arrayRemove',
+    description: 'Remove element at index',
+  },
+  'array.fill': {
+    stdName: '_arrayFill',
+    description: 'Fill array with value',
+  },
+  'array.first': {
+    stdName: '_arrayFirst',
+    description: 'Get first element',
+  },
+  'array.last': {
+    stdName: '_arrayLast',
+    description: 'Get last element',
+  },
+  'array.contains': {
+    stdName: '_arrayIncludes',
+    description: 'Check if array contains value',
+  },
+  'array.covariance': {
+    stdName: '_arrayCovariance',
+    description: 'Covariance of two arrays',
+  },
+  'array.binary_search': {
+    stdName: '_arrayBinarySearch',
+    description: 'Binary search in sorted array',
+  },
+  'array.range': {
+    stdName: '_arrayRange',
+    description: 'Range (max - min) of array',
+  },
+  'array.median': {
+    stdName: '_arrayMedian',
+    description: 'Median of array elements',
+  },
+  'array.mode': {
+    stdName: '_arrayMode',
+    description: 'Mode of array elements',
+  },
+  'array.percentile_linear_interpolation': {
+    stdName: '_arrayPercentileLI',
+    description: 'Percentile using linear interpolation',
+  },
+  'array.percentile_nearest_rank': {
+    stdName: '_arrayPercentileNR',
+    description: 'Percentile using nearest rank',
+  },
+  'array.abs': {
+    stdName: '_arrayAbs',
+    description: 'Absolute value of each element',
+  },
+  'array.every': {
+    stdName: '_arrayEvery',
+    description: 'Test if all elements pass a condition',
+  },
+  'array.some': {
+    stdName: '_arraySome',
+    description: 'Test if any element passes a condition',
+  },
+  'array.new_label': {
+    stdName: '_arrayNewLabel',
+    description: 'Create new label array',
+  },
+  'array.new_line': {
+    stdName: '_arrayNewLine',
+    description: 'Create new line array',
+  },
+  'array.new_box': {
+    stdName: '_arrayNewBox',
+    description: 'Create new box array',
+  },
 };
 
 /**
@@ -151,4 +239,45 @@ const _arrayIncludes = (arr, val) => arr.includes(val);
 const _arrayIndexOf = (arr, val) => arr.indexOf(val);
 const _arrayLastIndexOf = (arr, val) => arr.lastIndexOf(val);
 const _arrayJoin = (arr, sep = ',') => arr.join(sep);
+const _arrayFrom = (...args) => [...args];
+const _arrayShift = (arr) => arr.shift();
+const _arrayUnshift = (arr, val) => { arr.unshift(val); return arr; };
+const _arrayInsert = (arr, i, val) => { arr.splice(i, 0, val); return arr; };
+const _arrayRemove = (arr, i) => arr.splice(i, 1)[0];
+const _arrayFill = (arr, val, start, end) => { arr.fill(val, start, end); return arr; };
+const _arrayFirst = (arr) => arr[0];
+const _arrayLast = (arr) => arr[arr.length - 1];
+const _arrayCovariance = (a, b) => {
+  const ma = _arrayAvg(a), mb = _arrayAvg(b);
+  return a.reduce((s, v, i) => s + (v - ma) * (b[i] - mb), 0) / a.length;
+};
+const _arrayBinarySearch = (arr, val) => {
+  let lo = 0, hi = arr.length - 1;
+  while (lo <= hi) { const m = (lo + hi) >> 1; if (arr[m] === val) return m; arr[m] < val ? lo = m + 1 : hi = m - 1; }
+  return -1;
+};
+const _arrayRange = (arr) => Math.max(...arr) - Math.min(...arr);
+const _arrayMedian = (arr) => {
+  const s = [...arr].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+const _arrayMode = (arr) => {
+  const freq = {}; arr.forEach(v => freq[v] = (freq[v] || 0) + 1);
+  return Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0] * 1;
+};
+const _arrayPercentileLI = (arr, p) => {
+  const s = [...arr].sort((a, b) => a - b), r = (p / 100) * (s.length - 1), lo = Math.floor(r);
+  return lo === s.length - 1 ? s[lo] : s[lo] + (r - lo) * (s[lo + 1] - s[lo]);
+};
+const _arrayPercentileNR = (arr, p) => {
+  const s = [...arr].sort((a, b) => a - b);
+  return s[Math.ceil((p / 100) * s.length) - 1];
+};
+const _arrayAbs = (arr) => arr.map(v => Math.abs(v));
+const _arrayEvery = (arr, fn) => arr.every(fn);
+const _arraySome = (arr, fn) => arr.some(fn);
+const _arrayNewLabel = (size = 0, val = null) => Array(size).fill(val);
+const _arrayNewLine = (size = 0, val = null) => Array(size).fill(val);
+const _arrayNewBox = (size = 0, val = null) => Array(size).fill(val);
 `;

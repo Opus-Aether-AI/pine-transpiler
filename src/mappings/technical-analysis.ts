@@ -421,6 +421,27 @@ export const VOLUME_MAPPINGS: Record<string, TAFunctionMapping> = {
     argCount: 0,
     description: 'Volume-Weighted Average Price',
   },
+  'ta.ad': {
+    stdName: 'Std.accdist',
+    needsSeries: false,
+    contextArg: true,
+    argCount: 0,
+    description: 'Accumulation/Distribution (alias for accdist)',
+  },
+  'ta.adosc': {
+    stdName: 'StdPlus.adosc',
+    needsSeries: false,
+    contextArg: true,
+    argCount: 2,
+    description: 'Accumulation/Distribution Oscillator (fastLen, slowLen)',
+  },
+  'ta.cmf': {
+    stdName: 'StdPlus.cmf',
+    needsSeries: false,
+    contextArg: true,
+    argCount: 1,
+    description: 'Chaikin Money Flow (length)',
+  },
 };
 
 // ============================================================================
