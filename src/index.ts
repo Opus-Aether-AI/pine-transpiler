@@ -161,6 +161,24 @@ export function transpileToPineJS(
         error: 'Internal: inputs metadata is not an array',
       };
     }
+    const nullInputIdx = visitor.inputs.findIndex((i) => i == null);
+    if (nullInputIdx >= 0) {
+      return {
+        success: false,
+        error: `Internal: input[${nullInputIdx}] is null — check input.*() call parsing`,
+      };
+    }
+
+    // 3.6 bgcolors null-safety
+    if (visitor.bgcolors && Array.isArray(visitor.bgcolors)) {
+      const nullBgIdx = visitor.bgcolors.findIndex((b) => b == null);
+      if (nullBgIdx >= 0) {
+        return {
+          success: false,
+          error: `Internal: bgcolor[${nullBgIdx}] is null — check bgcolor() call parsing`,
+        };
+      }
+    }
 
     // 4. Generate Code
     const generator = new ASTGenerator(visitor.historicalAccess);

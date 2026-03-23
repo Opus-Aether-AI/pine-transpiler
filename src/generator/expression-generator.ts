@@ -147,6 +147,9 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
     // Named args (e.g. `ta.sma(source = close, length = 14)`) are parsed as
     // AssignmentExpressions. Emit only the value so they don't leak as invalid
     // JS assignments in the output.
+    // LIMITATION: Named args are stripped positionally — if the user reorders
+    // them (e.g. `ta.sma(length = 14, source = close)`), the positional
+    // mapping will be wrong. Proper fix requires a function-signature database.
     const args = expr.arguments.map((a) =>
       a.type === 'AssignmentExpression'
         ? this.generateExpression((a as AssignmentExpression).right)

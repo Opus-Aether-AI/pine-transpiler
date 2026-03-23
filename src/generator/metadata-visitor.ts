@@ -36,23 +36,13 @@ import { PlotExtractor } from './plot-extractor';
 
 /**
  * Session variable tracking info
- */
-export interface SessionVariable {
-  varName: string; // e.g., "inSydney"
-  sessionInputVar: string; // e.g., "sSydney"
-  timezone: string; // e.g., "Australia/Sydney"
-  inputIndex?: number; // Index of the session input
-}
-
-/**
- * Session variable info for tracking session membership variables
  * e.g., inSydney = not na(time(timeframe.period, sSydney, "Australia/Sydney"))
  */
 export interface SessionVariable {
-  varName: string; // e.g., "inSydney"
-  sessionInputVar: string; // e.g., "sSydney" - the input variable name
-  timezone: string; // e.g., "Australia/Sydney"
-  inputIndex?: number; // Index in inputs array for the session input
+  varName: string;
+  sessionInputVar: string;
+  timezone: string;
+  inputIndex?: number;
 }
 
 /**

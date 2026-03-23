@@ -14,8 +14,8 @@ import { describe, expect, it } from 'vitest';
 import { ExpressionGenerator } from '../../src/generator/expression-generator';
 import type {
   AssignmentExpression,
-  BlockStatement,
   BinaryExpression,
+  BlockStatement,
   ConditionalExpression,
   ExpressionStatement,
   IfStatement,
@@ -191,17 +191,29 @@ describe('switch expression', () => {
         {
           type: 'SwitchCase',
           test: { type: 'Literal', value: 1, kind: 'number' } as never,
-          consequent: { type: 'Literal', value: '"one"', kind: 'string' } as never,
+          consequent: {
+            type: 'Literal',
+            value: '"one"',
+            kind: 'string',
+          } as never,
         },
         {
           type: 'SwitchCase',
           test: { type: 'Literal', value: 2, kind: 'number' } as never,
-          consequent: { type: 'Literal', value: '"two"', kind: 'string' } as never,
+          consequent: {
+            type: 'Literal',
+            value: '"two"',
+            kind: 'string',
+          } as never,
         },
         {
           type: 'SwitchCase',
           test: null,
-          consequent: { type: 'Literal', value: '"other"', kind: 'string' } as never,
+          consequent: {
+            type: 'Literal',
+            value: '"other"',
+            kind: 'string',
+          } as never,
         },
       ],
     };
@@ -225,12 +237,20 @@ describe('switch expression', () => {
             left: { type: 'Identifier', name: 'x' },
             right: { type: 'Literal', value: 0, kind: 'number' } as never,
           } as BinaryExpression,
-          consequent: { type: 'Literal', value: '"positive"', kind: 'string' } as never,
+          consequent: {
+            type: 'Literal',
+            value: '"positive"',
+            kind: 'string',
+          } as never,
         },
         {
           type: 'SwitchCase',
           test: null,
-          consequent: { type: 'Literal', value: '"zero"', kind: 'string' } as never,
+          consequent: {
+            type: 'Literal',
+            value: '"zero"',
+            kind: 'string',
+          } as never,
         },
       ],
     };

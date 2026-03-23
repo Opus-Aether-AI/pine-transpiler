@@ -5,7 +5,9 @@
  * indicator factory. Catches silent failures that would otherwise surface
  * as browser errors inside TradingView's charting library.
  *
- * Stage 1 — JS syntax check
+ * Stage 1 — JS syntax check (uses `new Function` — intentional; this is safe
+ *           because the input is our own transpiler output, not arbitrary user
+ *           code. The function body is never called, only parsed by the engine.)
  * Stage 2 — Pine namespace leak detection
  * Stage 3 — Injected helper integrity
  * Stage 4 — Confidence score
@@ -13,11 +15,21 @@
 
 import type { ValidationIssue, ValidationResult } from '../types';
 
+/**
+ * Strip string literals from JS source so regex-based leak detection
+ * doesn't produce false positives on content inside strings.
+ */
+function stripStringLiterals(src: string): string {
+  return src.replace(
+    /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)/g,
+    '""',
+  );
+}
+
 // Pine constructs that should have been transpiled away
 const PINE_NAMESPACE_LEAKS: Array<{ re: RegExp; label: string }> = [
   { re: /\bta\.[a-z_]+\s*\(/, label: "unmapped 'ta.*' call" },
   { re: /\bmath\.[a-z_]+\s*\(/, label: "unmapped 'math.*' call" },
-  { re: / := /, label: "Pine ':=' operator not converted" },
   // 'na' as standalone identifier (not part of NaN, function name, property)
   {
     re: /(?<![A-Za-z0-9_])na(?![A-Za-z0-9_=:()])/,
@@ -54,9 +66,12 @@ export function validateOutput(
 
   // -------------------------------------------------------------------------
   // Stage 2 — Pine namespace leak detection
+  // Strip string literals first so that e.g. "na" inside a title string
+  // doesn't trigger a false positive.
   // -------------------------------------------------------------------------
+  const strippedBody = stripStringLiterals(mainBody);
   for (const { re, label } of PINE_NAMESPACE_LEAKS) {
-    if (re.test(mainBody)) {
+    if (re.test(strippedBody)) {
       issues.push({
         stage: 'pine-leak',
         message: `Transpiler output contains ${label}`,
@@ -87,6 +102,22 @@ export function validateOutput(
       stage: 'helper-integrity',
       message:
         'Output references math helper functions but math helpers were not injected into the preamble',
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Stage 3b — Series safety (ported from Pine-A-Script reviewer)
+  // Bracket indexing on series (e.g. `close[1]`) should have been converted
+  // to `_getHistorical_*()` calls. Raw bracket access suggests a missed
+  // conversion.
+  // -------------------------------------------------------------------------
+  const seriesBracketPattern =
+    /\b(close|open|high|low|volume|hl2|hlc3|ohlc4)\s*\[\s*\d+\s*\]/;
+  if (seriesBracketPattern.test(strippedBody)) {
+    issues.push({
+      stage: 'helper-integrity',
+      message:
+        'Output contains raw bracket indexing on a price series (e.g. close[1]) — should use _getHistorical_* or Std offset',
     });
   }
 

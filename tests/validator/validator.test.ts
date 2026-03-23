@@ -73,6 +73,24 @@ describe('Output Validator', () => {
       expect(result.issues).toHaveLength(0);
       expect(result.confidence).toBe(1.0);
     });
+
+    it('should not flag Pine keywords inside string literals', () => {
+      const result = validateOutput(
+        'const label = "na value from ta.sma"; const y = 1;',
+        NO_HELPERS,
+      );
+      const leaks = result.issues.filter((i) => i.stage === 'pine-leak');
+      expect(leaks).toHaveLength(0);
+    });
+
+    it('should still flag Pine keywords outside string literals', () => {
+      const result = validateOutput(
+        'const label = "safe"; const x = ta.sma(close, 14);',
+        NO_HELPERS,
+      );
+      const leaks = result.issues.filter((i) => i.stage === 'pine-leak');
+      expect(leaks.length).toBeGreaterThan(0);
+    });
   });
 
   // -----------------------------------------------------------------------
