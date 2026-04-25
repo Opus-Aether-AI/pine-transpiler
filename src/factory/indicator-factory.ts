@@ -509,18 +509,16 @@ export function buildIndicatorFactory(
             // member access. The Proxy `get` handler covers member
             // access; the function itself covers calls.
             const callableProxy = (label: string): unknown =>
-              new Proxy(
-                ((arg: unknown) => arg) as unknown as object,
-                {
-                  get: (_t, p) => {
-                    // Allow calls like `format.volume(x)` to pass
-                    // through too — every member is itself a callable
-                    // identity-stub.
-                    if (typeof p === 'symbol') return undefined;
-                    return (arg: unknown) => arg !== undefined ? arg : `${label}.${String(p)}`;
-                  },
+              new Proxy(((arg: unknown) => arg) as unknown as object, {
+                get: (_t, p) => {
+                  // Allow calls like `format.volume(x)` to pass
+                  // through too — every member is itself a callable
+                  // identity-stub.
+                  if (typeof p === 'symbol') return undefined;
+                  return (arg: unknown) =>
+                    arg !== undefined ? arg : `${label}.${String(p)}`;
                 },
-              );
+              });
             const chart = callableProxy('chart') as Record<string, string>;
             const format = callableProxy('format') as Record<string, string>;
             const string = callableProxy('string') as Record<string, string>;
@@ -586,14 +584,14 @@ export function buildIndicatorFactory(
               },
             };
             const naFallback = () => naIterable;
-            const request = new Proxy(
-              {},
-              { get: () => naFallback },
-            ) as Record<string, (...args: unknown[]) => unknown>;
-            const array = new Proxy(
-              {},
-              { get: () => naFallback },
-            ) as Record<string, (...args: unknown[]) => unknown>;
+            const request = new Proxy({}, { get: () => naFallback }) as Record<
+              string,
+              (...args: unknown[]) => unknown
+            >;
+            const array = new Proxy({}, { get: () => naFallback }) as Record<
+              string,
+              (...args: unknown[]) => unknown
+            >;
 
             // Pine date/time built-ins. Real Pine takes a unix-ms
             // timestamp; without one (`hour()`, `minute()`, etc. with

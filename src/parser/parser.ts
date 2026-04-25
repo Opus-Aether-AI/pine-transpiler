@@ -686,7 +686,8 @@ export class Parser extends ExpressionParser {
         type: 'ExpressionStatement',
         expression: {
           type: 'AssignmentExpression',
-          operator: operator === ':=' ? ':=' : operator === '=' ? '=' : operator,
+          operator:
+            operator === ':=' ? ':=' : operator === '=' ? '=' : operator,
           left: id as Identifier | MemberExpression,
           right: init,
         },
