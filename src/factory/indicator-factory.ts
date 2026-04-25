@@ -313,7 +313,18 @@ export function buildIndicatorFactory(
           // stub was `() => {}`, which silently produced empty
           // _plotValues with no error signal — corpus consumers saw a
           // plot-count mismatch but no thrown error to surface.
+          //
+          // We tag the error with `__compileError` so the runtime catch
+          // can suppress its per-bar `console.error` when the error is
+          // just the compile error rethrown (otherwise a broken
+          // indicator spams 200 redundant error lines per render).
           const compileErr = e instanceof Error ? e : new Error(String(e));
+          Object.defineProperty(compileErr, '__compileError', {
+            value: true,
+            enumerable: false,
+            writable: false,
+            configurable: false,
+          });
           compiledScript = () => {
             throw compileErr;
           };
@@ -495,8 +506,18 @@ export function buildIndicatorFactory(
 
               return _plotValues;
             } catch (e) {
-              // biome-ignore lint/suspicious/noConsole: Runtime error logging
-              console.error('Script execution error', e);
+              // Suppress the per-bar console.error when the error is
+              // just the compile error being rethrown — the
+              // compilation catch above already logged it once, and
+              // logging it 200 more times (once per bar) is noise.
+              const isCompileRethrow =
+                typeof e === 'object' &&
+                e !== null &&
+                (e as { __compileError?: boolean }).__compileError === true;
+              if (!isCompileRethrow) {
+                // biome-ignore lint/suspicious/noConsole: Runtime error logging
+                console.error('Script execution error', e);
+              }
               // Synthesize a NaN-of-declared-length array so the chart
               // doesn't crash on a bad bar. Tag the array with a non-
               // enumerable `__caughtError` so consumers (e.g. the corpus
