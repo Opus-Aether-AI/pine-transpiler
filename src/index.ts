@@ -231,6 +231,16 @@ export function executePineJS(
       return indicator;
     };
 
+    // Mirror the `transpileToPineJS` body-exposure contract for the
+    // PineJS path so a consumer can render the user's source as the
+    // "compiled" preview without a special case for raw-JS scripts.
+    Object.defineProperty(indicatorFactory, '__pineJsBody', {
+      value: processedCode,
+      enumerable: false,
+      writable: false,
+      configurable: true,
+    });
+
     return {
       success: true,
       indicatorFactory,

@@ -313,6 +313,18 @@ export function buildIndicatorFactory(
     };
   };
 
+  // Expose the literal transpiled JS body on the factory so consumers
+  // (e.g. an editor's "compiled" preview pane) can render the actual
+  // Pine→JS output instead of `factory.toString()` (which only shows
+  // the outer wrapper). Non-enumerable so spreading the factory into
+  // other objects doesn't accidentally drag the body string along.
+  Object.defineProperty(indicatorFactory, '__pineJsBody', {
+    value: body,
+    enumerable: false,
+    writable: false,
+    configurable: true,
+  });
+
   return indicatorFactory;
 }
 
