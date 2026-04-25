@@ -39,7 +39,9 @@
     "lint:fix": "biome check --write .",
     "clean": "rm -rf dist",
     "test": "bun test tests/",
-    "test:coverage": "bun test --coverage tests/"
+    "test:coverage": "bun test --coverage tests/",
+    "corpus": "bun scripts/corpus/report.ts",
+    "corpus:snap": "UPDATE_SNAPSHOTS=1 bun test tests/corpus/"
   },
   "keywords": [
     "pine-script",
