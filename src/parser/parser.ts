@@ -202,8 +202,17 @@ export class Parser extends ExpressionParser {
       consequent = this.parseBlock();
     }
 
+    // Look for an `else` branch — but ONLY consume the keyword when
+    // it actually IS `else`. The previous form
+    //   `if (this.match(KEYWORD) && this.previous().value === 'else')`
+    // ate the next token unconditionally; when the next statement was
+    // a sibling `if` (two consecutive ifs in the same block, common
+    // inside Pine function bodies), the second `if` keyword got
+    // swallowed silently and the parser bailed on the rest of the
+    // input. Switch to peek-then-conditional-advance.
     let alternate: BlockStatement | Statement | undefined;
-    if (this.match(TokenType.KEYWORD) && this.previous().value === 'else') {
+    if (this.check(TokenType.KEYWORD) && this.peek().value === 'else') {
+      this.advance(); // consume `else`
       if (this.check(TokenType.NEWLINE)) {
         this.advance();
         alternate = this.parseBlock();
