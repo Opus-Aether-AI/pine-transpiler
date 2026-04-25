@@ -234,7 +234,11 @@ export class StatementGenerator implements StatementGeneratorInterface {
       })
       .join(', ');
 
-    return `${indent(this.indentLevel)}${prefix}class ${name} {\n${indent(this.indentLevel, 1)}constructor(${paramsWithDefaults}) {\n${indent(this.indentLevel, 2)}${constructorBody.trim()}\n${indent(this.indentLevel, 1)}}\n${indent(this.indentLevel)}}`;
+    // Pine v6 calls type constructors via `MyType.new(args)` (a static
+    // factory). Emit a static `new` method that forwards to the
+    // standard JS constructor so `MyType.new(...)` resolves correctly
+    // alongside `new MyType(...)`.
+    return `${indent(this.indentLevel)}${prefix}class ${name} {\n${indent(this.indentLevel, 1)}constructor(${paramsWithDefaults}) {\n${indent(this.indentLevel, 2)}${constructorBody.trim()}\n${indent(this.indentLevel, 1)}}\n${indent(this.indentLevel, 1)}static new(...args) { return new ${name}(...args); }\n${indent(this.indentLevel)}}`;
   }
 
   private generateForStatement(stmt: ForStatement): string {

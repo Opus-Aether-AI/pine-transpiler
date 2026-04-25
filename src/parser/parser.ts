@@ -436,6 +436,20 @@ export class Parser extends ExpressionParser {
       let typeAnnotation: TypeAnnotation | undefined;
       if (this.checkTypeAnnotation()) {
         typeAnnotation = this.parseTypeAnnotation();
+      } else if (this.isUserTypeFieldPrefix()) {
+        // Pine v6 type fields can themselves be user-defined types or
+        // arrays of them: `Imbalance[] imbalance`,
+        // `Imbalance_Settings settings`. Discard the type identifier
+        // (and optional `[]`) so the field-name parse below succeeds;
+        // we don't enforce field types at codegen.
+        this.advance();
+        while (
+          this.check(TokenType.LBRACKET) &&
+          this.peekNext()?.type === TokenType.RBRACKET
+        ) {
+          this.advance();
+          this.advance();
+        }
       }
 
       const fieldName = this.consume(
@@ -536,6 +550,25 @@ export class Parser extends ExpressionParser {
       params,
       body,
     };
+  }
+
+  /**
+   * Detect a user-defined type prefix in a TYPE-FIELD context (inside
+   * `type X` block): two identifiers in a row, optionally with `[]`
+   * between them. Field declarations don't require an `=` (no
+   * default), so the lookahead just needs an IDENT followed by either
+   * NEWLINE or `=`.
+   */
+  private isUserTypeFieldPrefix(): boolean {
+    if (!this.check(TokenType.IDENTIFIER)) return false;
+    let lookahead = this.current + 1;
+    while (
+      this.tokens[lookahead]?.type === TokenType.LBRACKET &&
+      this.tokens[lookahead + 1]?.type === TokenType.RBRACKET
+    ) {
+      lookahead += 2;
+    }
+    return this.tokens[lookahead]?.type === TokenType.IDENTIFIER;
   }
 
   /**
