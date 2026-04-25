@@ -1,0 +1,4 @@
+//@version=5
+indicator("Time Functions", overlay=false)
+h = hour(time)
+plot(h, "Hour", color=color.blue)

@@ -1,0 +1,6 @@
+//@version=5
+indicator("Array Basic", overlay=true)
+arr = array.new<float>(0)
+array.push(arr, close)
+array.push(arr, close * 1.01)
+plot(array.size(arr) > 0 ? array.get(arr, 0) : na, "First", color=color.blue)
