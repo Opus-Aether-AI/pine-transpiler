@@ -269,9 +269,9 @@ const StdPlus = {
 };
 
 indicator("Keltner Channels");
-let length = input.int(20, "Length");
-let mult = input.float(1.5, "Multiplier");
-let [basis, upper, lower] = StdPlus.kc(context, close, length, mult);
+var length = input.int(20, "Length");
+var mult = input.float(1.5, "Multiplier");
+var [basis, upper, lower] = StdPlus.kc(context, close, length, mult);
 Std.plot(basis, "Basis");
 Std.plot(upper, "Upper");
 Std.plot(lower, "Lower");

@@ -5,7 +5,7 @@ describe('New Features', () => {
   it('should transpile export variable', () => {
     const pine = 'export var x = 1';
     const js = transpile(pine);
-    expect(js).toContain('export let x = 1;');
+    expect(js).toContain('export var x = 1;');
   });
 
   it('should transpile export function', () => {
@@ -39,7 +39,7 @@ export type Point
   it('should transpile generic types', () => {
     const pine = 'var array<int> a = array.new<int>(10)';
     const js = transpile(pine);
-    expect(js).toContain('let a ='); // Types are stripped or handled, mainly parser check
+    expect(js).toContain('var a ='); // Types are stripped or handled, mainly parser check
   });
 
   it('should transpile ta.hma correctly', () => {

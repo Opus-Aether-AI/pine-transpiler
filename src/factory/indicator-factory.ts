@@ -11,9 +11,12 @@ import type {
 } from '../generator/metadata-visitor';
 import {
   ARRAY_HELPER_FUNCTIONS,
+  COLOR_HELPER_FUNCTIONS,
   MAP_HELPER_FUNCTIONS,
   MATH_HELPER_FUNCTIONS,
   SESSION_HELPER_FUNCTIONS,
+  STRING_HELPER_FUNCTIONS,
+  UTILITY_HELPER_FUNCTIONS,
 } from '../mappings';
 import {
   createBarstate,
@@ -102,6 +105,9 @@ function analyzeRequiredHelpers(mainBody: string): {
   needsStdPlus: boolean;
   needsArray: boolean;
   needsMap: boolean;
+  needsColor: boolean;
+  needsString: boolean;
+  needsUtility: boolean;
 } {
   return {
     // Math helpers: _avg, _sum, _toDegrees, _toRadians, _roundToMintick
@@ -159,6 +165,15 @@ function analyzeRequiredHelpers(mainBody: string): {
       mainBody.includes('_mapKeys(') ||
       mainBody.includes('_mapValues(') ||
       mainBody.includes('_mapClear('),
+    // Color helpers: _colorNew (the transpiled form of `color.new`)
+    needsColor: mainBody.includes('_colorNew('),
+    // String helpers: anything starting with _str
+    needsString: /\b_str[A-Z]/.test(mainBody),
+    // Catch-all utility helpers (NA, type conversion, etc.)
+    needsUtility:
+      mainBody.includes('_pineNa(') ||
+      mainBody.includes('_pineNz(') ||
+      mainBody.includes('_pineFixnan('),
   };
 }
 
@@ -186,8 +201,16 @@ export function generatePreamble(
   }
 
   // Conditionally inject helpers based on what's actually used
-  const { needsMath, needsSession, needsStdPlus, needsArray, needsMap } =
-    analyzeRequiredHelpers(mainBody);
+  const {
+    needsMath,
+    needsSession,
+    needsStdPlus,
+    needsArray,
+    needsMap,
+    needsColor,
+    needsString,
+    needsUtility,
+  } = analyzeRequiredHelpers(mainBody);
 
   if (needsMath) {
     preamble += `${MATH_HELPER_FUNCTIONS}\n`;
@@ -203,6 +226,15 @@ export function generatePreamble(
   }
   if (needsMap) {
     preamble += `${MAP_HELPER_FUNCTIONS}\n`;
+  }
+  if (needsColor) {
+    preamble += `${COLOR_HELPER_FUNCTIONS}\n`;
+  }
+  if (needsString) {
+    preamble += `${STRING_HELPER_FUNCTIONS}\n`;
+  }
+  if (needsUtility) {
+    preamble += `${UTILITY_HELPER_FUNCTIONS}\n`;
   }
 
   return preamble;
@@ -281,6 +313,7 @@ export function buildIndicatorFactory(
             'hline',
             'bgcolor',
             'fill',
+            'barcolor',
             'box',
             'line',
             'label',
@@ -293,8 +326,17 @@ export function buildIndicatorFactory(
             'size',
             'alertcondition',
             'alert',
+            'request',
+            'array',
             'time',
             'bar_index',
+            'hour',
+            'minute',
+            'second',
+            'year',
+            'month',
+            'dayofmonth',
+            'dayofweek',
             'close',
             'open',
             'high',
@@ -400,6 +442,9 @@ export function buildIndicatorFactory(
             };
             const bgcolor = () => {};
             const fill = () => {};
+            // barcolor is a metainfo concern (per-bar color) — runtime
+            // no-op like bgcolor.
+            const barcolor = () => {};
 
             // Color mapping
             const color = COLOR_MAP;
@@ -448,6 +493,35 @@ export function buildIndicatorFactory(
             const alertcondition = () => {};
             const alert = () => {};
 
+            // request.* and array (the namespace, distinct from the
+            // array.* mappings) — Pine v6 multi-timeframe / collection
+            // APIs. `request.security` and friends need a real data
+            // layer; without one we can only stub. The bare `array`
+            // identifier lets Pine code that does `array<float>` type
+            // annotations or rare `array` namespace references not
+            // crash at the JS reference level. Both no-op proxies
+            // forward member access to NaN-returning fallbacks.
+            const request = new Proxy(
+              {},
+              { get: () => () => Number.NaN },
+            ) as Record<string, (...args: unknown[]) => unknown>;
+            const array = new Proxy(
+              {},
+              { get: () => () => Number.NaN },
+            ) as Record<string, (...args: unknown[]) => unknown>;
+
+            // Pine date/time built-ins. Real Pine takes a unix-ms
+            // timestamp; without one (`hour()`, `minute()`, etc. with
+            // no arg) it returns the current bar's hour/minute/etc.
+            // Mock from the current bar's `time` value.
+            const hour = (t?: number) => new Date(t ?? time).getUTCHours();
+            const minute = (t?: number) => new Date(t ?? time).getUTCMinutes();
+            const second = (t?: number) => new Date(t ?? time).getUTCSeconds();
+            const year = (t?: number) => new Date(t ?? time).getUTCFullYear();
+            const month = (t?: number) => new Date(t ?? time).getUTCMonth() + 1;
+            const dayofmonth = (t?: number) => new Date(t ?? time).getUTCDate();
+            const dayofweek = (t?: number) => new Date(t ?? time).getUTCDay() + 1;
+
             // Per-bar built-ins. `time` is the bar's open time; the
             // mock context exposes Std.time(ctx). `bar_index` is 0-based
             // and tracked on context when the runtime supports it.
@@ -480,6 +554,7 @@ export function buildIndicatorFactory(
                 hline,
                 bgcolor,
                 fill,
+                barcolor,
                 stubs.box,
                 stubs.line,
                 stubs.label,
@@ -492,8 +567,17 @@ export function buildIndicatorFactory(
                 size,
                 alertcondition,
                 alert,
+                request,
+                array,
                 time,
                 bar_index,
+                hour,
+                minute,
+                second,
+                year,
+                month,
+                dayofmonth,
+                dayofweek,
                 sources.close,
                 sources.open,
                 sources.high,

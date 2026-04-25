@@ -269,7 +269,7 @@ const StdPlus = {
 };
 
 indicator("MACD");
-let [macdLine, signalLine, histogram] = StdPlus.macd(context, close, 12, 26, 9);
+var [macdLine, signalLine, histogram] = StdPlus.macd(context, close, 12, 26, 9);
 Std.plot(macdLine, "MACD");
 Std.plot(signalLine, "Signal");
 Std.plot(histogram, "Histogram");

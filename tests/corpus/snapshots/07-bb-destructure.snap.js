@@ -269,9 +269,9 @@ const StdPlus = {
 };
 
 indicator("Bollinger Bands");
-let length = input.int(20, "Length");
-let mult = input.float(2, "Multiplier");
-let [basis, upper, lower] = StdPlus.bb(context, close, length, mult);
+var length = input.int(20, "Length");
+var mult = input.float(2, "Multiplier");
+var [basis, upper, lower] = StdPlus.bb(context, close, length, mult);
 Std.plot(basis, "Basis");
 Std.plot(upper, "Upper");
 Std.plot(lower, "Lower");

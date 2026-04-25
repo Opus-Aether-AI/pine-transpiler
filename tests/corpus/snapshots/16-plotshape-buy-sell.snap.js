@@ -269,9 +269,9 @@ const StdPlus = {
 };
 
 indicator("Plotshape Buy Sell");
-let fast = Std.ema(context, close, 9);
-let slow = Std.ema(context, close, 21);
-let buy = StdPlus.crossover(context, fast, slow);
-let sell = StdPlus.crossunder(context, fast, slow);
+var fast = Std.ema(context, close, 9);
+var slow = Std.ema(context, close, 21);
+var buy = StdPlus.crossover(context, fast, slow);
+var sell = StdPlus.crossunder(context, fast, slow);
 Std.plotshape(buy, "Buy");
 Std.plotshape(sell, "Sell");

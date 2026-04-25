@@ -269,6 +269,6 @@ const StdPlus = {
 };
 
 indicator("Momentum & ROC");
-let length = input.int(10, "Length");
+var length = input.int(10, "Length");
 Std.plot(StdPlus.mom(context, close, length), "Momentum");
 Std.plot(Std.roc(context, close, length), "ROC");
