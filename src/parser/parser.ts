@@ -526,6 +526,16 @@ export class Parser extends ExpressionParser {
 
     const operatorToken = this.consume(TokenType.OPERATOR, 'Expected = or :=');
     const operator = operatorToken.value;
+    // Tighten validation: TokenType.OPERATOR matches every operator,
+    // including `-` and `+`. Without this check, a multi-line arrow
+    // function body like `src - ta.sma(src, len)` was being parsed as
+    // a VariableDeclaration `let src = ta.sma(src, len)` (the `-` was
+    // silently swallowed as the "operator"). parseStatement catches
+    // the throw and falls back to parsing the line as an expression
+    // statement.
+    if (operator !== '=' && operator !== ':=') {
+      throw this.error(operatorToken, 'Expected = or := in assignment.');
+    }
     const init = this.parseExpression();
 
     if (
