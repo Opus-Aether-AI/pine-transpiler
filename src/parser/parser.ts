@@ -361,8 +361,16 @@ export class Parser extends ExpressionParser {
     while (!this.check(TokenType.DEDENT) && !this.isAtEnd()) {
       if (this.match(TokenType.NEWLINE)) continue;
 
+      // Switch case can start with either `=>` (default arm, no test
+      // expression) or `<test> =>`. Peek-then-conditional-advance to
+      // avoid eating an unrelated operator: the previous form
+      // `match(OPERATOR) && previous().value === '=>'` consumed any
+      // OPERATOR before checking and silently corrupted the parser
+      // state when the next token was a `-` / `+` / `!` etc. starting
+      // an expression.
       let test: Expression | null = null;
-      if (this.match(TokenType.OPERATOR) && this.previous().value === '=>') {
+      if (this.check(TokenType.OPERATOR) && this.peek().value === '=>') {
+        this.advance();
         test = null;
       } else {
         test = this.parseExpression();
