@@ -564,7 +564,16 @@ export class Parser extends ExpressionParser {
     }
 
     if (!Array.isArray(id) && id.type === 'MemberExpression') {
-      throw new Error('Invalid variable declaration with member expression.');
+      // Use this.error() so we throw a ParseError, which the narrowed
+      // catch in parseStatement (`!(e instanceof ParseError)`) can
+      // recognise and recover from. Throwing a bare Error here would
+      // bypass the narrowing and crash the parser on what should be a
+      // recoverable error (e.g. `a.b = value` reaches here only when
+      // operator !== ':=' / '=' which means we mis-routed).
+      throw this.error(
+        this.peek(),
+        'Invalid variable declaration with member expression.',
+      );
     }
 
     return {

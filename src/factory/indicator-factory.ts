@@ -71,6 +71,29 @@ export interface IndicatorFactoryOptions {
 }
 
 /**
+ * Safely read an optional field from an opaque object (typically the
+ * runtime `context` or `context.symbol`). The PineJS runtime declares
+ * a smaller surface than what real charts expose at runtime — fields
+ * like `barIndex`, `isRealtime`, and `symbol.bars` are only present
+ * on richer runtime implementations. The double-cast through `unknown`
+ * is the tsc-clean way to read those without polluting the public
+ * type with implementation details.
+ */
+function readNumberField(obj: unknown, key: string): number | undefined {
+  const v = (obj as Record<string, unknown>)[key];
+  return typeof v === 'number' ? v : undefined;
+}
+
+function readBooleanField(
+  obj: unknown,
+  key: string,
+  fallback: boolean,
+): boolean {
+  const v = (obj as Record<string, unknown>)[key];
+  return typeof v === 'boolean' ? v : fallback;
+}
+
+/**
  * Analyze which helpers are needed based on the transpiled code
  */
 function analyzeRequiredHelpers(mainBody: string): {
@@ -285,7 +308,15 @@ export function buildIndicatorFactory(
         } catch (e) {
           // biome-ignore lint/suspicious/noConsole: Runtime error logging
           console.error('Compilation error', e);
-          compiledScript = () => {};
+          // Store the original error so it routes through the per-bar
+          // runtime catch (which tags `__caughtError`). Earlier the
+          // stub was `() => {}`, which silently produced empty
+          // _plotValues with no error signal — corpus consumers saw a
+          // plot-count mismatch but no thrown error to surface.
+          const compileErr = e instanceof Error ? e : new Error(String(e));
+          compiledScript = () => {
+            throw compileErr;
+          };
         }
 
         return {
@@ -329,22 +360,10 @@ export function buildIndicatorFactory(
               // The PineJS runtime can expose total bars / current bar
               // index on context.symbol; fall through to undefined so
               // createBarstate keeps the legacy `islast=true` default
-              // when those fields aren't present. Double-casting through
-              // `unknown` is required because RuntimeContextInternal
-              // doesn't declare these optional fields and tsc's strict
-              // overlap check rejects the direct cast.
-              totalBars: ((): number | undefined => {
-                const sym = ctx.symbol as unknown as { bars?: unknown };
-                return typeof sym.bars === 'number' ? sym.bars : undefined;
-              })(),
-              barIndex: ((): number | undefined => {
-                const c = ctx as unknown as { barIndex?: unknown };
-                return typeof c.barIndex === 'number' ? c.barIndex : undefined;
-              })(),
-              isRealtime: ((): boolean => {
-                const c = ctx as unknown as { isRealtime?: unknown };
-                return typeof c.isRealtime === 'boolean' ? c.isRealtime : true;
-              })(),
+              // when those fields aren't present.
+              totalBars: readNumberField(ctx.symbol, 'bars'),
+              barIndex: readNumberField(ctx, 'barIndex'),
+              isRealtime: readBooleanField(ctx, 'isRealtime', true),
             });
             // Update the closure cursor so the next main() invocation
             // sees this bar as the previous one.
@@ -428,10 +447,7 @@ export function buildIndicatorFactory(
                     (stdTimeFn as (c: RuntimeContextInternal) => unknown)(ctx),
                   )
                 : 0;
-            const bar_index = ((): number => {
-              const c = ctx as unknown as { barIndex?: unknown };
-              return typeof c.barIndex === 'number' ? c.barIndex : 0;
-            })();
+            const bar_index = readNumberField(ctx, 'barIndex') ?? 0;
 
             // Execution
             try {
@@ -489,11 +505,15 @@ export function buildIndicatorFactory(
               // surface the underlying error instead of silently
               // marking the bar as a pass.
               const fallback = plots.map((_p) => NaN);
+              // Preserve the raw error (instance + stack) on the array
+              // so consumers can surface the full diagnostic, not just
+              // the message. Non-enumerable so spread / JSON.stringify
+              // don't drag it into chart output.
               Object.defineProperty(fallback, '__caughtError', {
-                value: e instanceof Error ? e.message : String(e),
+                value: e,
                 enumerable: false,
                 writable: false,
-                configurable: true,
+                configurable: false,
               });
               return fallback;
             }

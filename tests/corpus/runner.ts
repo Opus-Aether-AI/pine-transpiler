@@ -94,17 +94,33 @@ function runOneBar(
     // merging the synthetic array with mock's currentBarPlots — that
     // was a false-positive PASS for late-bar throws where mock had
     // accumulated real values before the throw.
-    const factoryPlots = Array.isArray(result) ? (result as number[]) : [];
     const caughtError = (
       result as { __caughtError?: unknown } | null | undefined
     )?.__caughtError;
-
-    if (typeof caughtError === 'string' || caughtError instanceof Error) {
+    // Widened from `string | Error` to "anything not null/undefined" —
+    // the factory may ship the raw error (Error instance), a string
+    // message, or in pathological cases something else. Anything
+    // present means the script threw.
+    if (caughtError !== undefined && caughtError !== null) {
       return { plotOutput: [], error: caughtError };
+    }
+
+    // The factory contract says main() returns number[]. Anything else
+    // is a script-correctness bug we should surface, not silently
+    // merge as an empty factory contribution. (e.g. a transpiler bug
+    // that emits `return foo` where foo is undefined.)
+    if (result !== undefined && !Array.isArray(result)) {
+      return {
+        plotOutput: [],
+        error: new Error(
+          `main() returned non-array: ${typeof result === 'object' ? 'object' : typeof result}`,
+        ),
+      };
     }
 
     // Successful run: concat both channels. mock has the actual plot
     // values; factory has any hline NaNs.
+    const factoryPlots = Array.isArray(result) ? (result as number[]) : [];
     const plotOutput = [...runtime.currentBarPlots, ...factoryPlots];
     return { plotOutput, error: null };
   } catch (error) {
