@@ -539,6 +539,39 @@ function buildStd(
         // value when one is detected; we don't replicate that logic).
         pivothigh: (..._args: unknown[]) => Number.NaN,
         pivotlow: (..._args: unknown[]) => Number.NaN,
+
+        // highestbars/lowestbars: index of the bar where the max/min over
+        // the lookback window occurred (negative offset back).
+        highestbars: (_ctx: unknown, series: unknown, length: number) => {
+            let max = -Infinity;
+            let idx = 0;
+            for (let i = 0; i < length; i++) {
+                const v = readSeriesValue(series, i);
+                if (Number.isFinite(v) && v > max) {
+                    max = v;
+                    idx = -i;
+                }
+            }
+            return idx;
+        },
+        lowestbars: (_ctx: unknown, series: unknown, length: number) => {
+            let min = Infinity;
+            let idx = 0;
+            for (let i = 0; i < length; i++) {
+                const v = readSeriesValue(series, i);
+                if (Number.isFinite(v) && v < min) {
+                    min = v;
+                    idx = -i;
+                }
+            }
+            return idx;
+        },
+
+        // Parabolic SAR — simplified: tracks the previous bar's close as a
+        // proxy. Real implementation needs trend state across bars.
+        sar: (_ctx: unknown, _start: unknown, _inc: unknown, _max: unknown) => {
+            return bars[pointer.current - 1]?.close ?? Number.NaN;
+        },
     };
 
     // Proxy: any Std method we haven't implemented falls through to a NaN-

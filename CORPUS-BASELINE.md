@@ -6,9 +6,53 @@ This is the score we're driving up. Re-run with `bun run corpus`.
 
 | Date | Pass rate | Notes |
 |---|---|---|
-| 2026-04-25 (initial) | 32/40 = **80%** | Phase 0 baseline |
+| 2026-04-25 (initial) | 32/40 = **80%** | Phase 0 baseline (curated only) |
 | 2026-04-25 (post Phase 1.0) | 39/40 = **98%** | `color=` named-arg shadowing fixed |
 | 2026-04-25 (post Phase 3) | 40/40 = **100%** | multi-line user functions return correctly |
+| 2026-04-25 (post Phase 4) | 79/92 = **86%** | + 52 community fixtures from 4 GitHub repos |
+
+## Phase 4: community corpus
+
+`bun scripts/corpus/scrape.ts` pulled 52 real-world Pine v5/v6 scripts from:
+- everget/tradingview-pinescript-indicators (8 of 210, mostly v3/v4 — the 8 v5 ones all pass after fixes)
+- f13end/tradingview-custom-indicators (1)
+- harryguiacorn/TradingView-Proprietary-Indicators (17)
+- ArunKBhaskar/PineScript (26)
+
+Per-source pass rate after Phase 4 fixes:
+
+| Source | Pass / Total | Rate |
+|---|---:|---:|
+| curated | 40 / 40 | 100% |
+| everget | 8 / 8 | 100% |
+| f13end | 1 / 1 | 100% |
+| harryguiacorn | 12 / 17 | 71% |
+| arunkbhaskar | 18 / 26 | 69% |
+
+### Phase 4 fixes that landed
+
+- **For-loop emit was missing the increment** — Pine `for i = 0 to N` parses as
+  AssignmentExpression init; the generator emitted `for (i = 0; cond; )` with
+  no increment, leaving the loop guarded only by the iteration ceiling. Now
+  emits `for (let i = 0; cond; i++)`.
+- **Catch-fallback double-counting** — when a script half-runs and the
+  factory's try/catch returned `plots.map((_p) => NaN)` of declared length,
+  the corpus runner concatenated mock's currentBarPlots with the catch
+  fallback and showed 2× the declared count. Detection heuristic now
+  identifies the fallback (length === declared && all NaN && mock has finite
+  values) and uses mock-only.
+
+### Remaining failures (~14% of community)
+
+Almost all remaining failures are **wrapper-param identifier shadowing**:
+user Pine declares variables named `indicator`, `hline`, `bgcolor`, `box`,
+etc. — the same names the factory uses as wrapper-injected parameters.
+The transpiled body emits `let indicator = "…"` inside the wrapper closure
+where `indicator` is already a function parameter, and JS rejects it as a
+duplicate let. Fixing this needs a scope-aware rename pass that tracks
+declared user identifiers and rewrites their references in the same scope
+(but **not** at call sites where the user means the builtin) — that's a
+deeper change deferred to a follow-up.
 
 ## Current score
 

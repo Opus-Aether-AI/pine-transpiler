@@ -40,7 +40,7 @@ indicator("Array Stats");
 let length = input.int(20, "Length");
 let arr = _arrayNewFloat(0);
 let _loop_0 = 0;
-for (i = 0; (i <= (length - 1)); ) {
+for (let i = 0; (i <= (length - 1)); i++) {
   if (++_loop_0 > 10000) throw new Error("Loop limit exceeded (max 10000 iterations)");
   _arrayPush(arr, _getHistorical_close(i));
 }

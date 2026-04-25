@@ -18,11 +18,46 @@
  * the rapid-improvement plan. Reports inform, they don't gate.
  */
 
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { runFixture, type CorpusResult } from '../../tests/corpus/runner';
 
 const FIXTURES_DIR = join(import.meta.dir, '..', '..', 'tests', 'corpus', 'fixtures');
+const COMMUNITY_DIR = join(import.meta.dir, '..', '..', 'tests', 'corpus', 'community');
+
+interface DiscoveredFixture {
+    /** Group label for the report, e.g. "curated" or "everget". */
+    group: string;
+    /** Fixture name relative to its group dir. */
+    name: string;
+    /** Absolute path. */
+    path: string;
+}
+
+function listAllFixtures(): DiscoveredFixture[] {
+    const out: DiscoveredFixture[] = [];
+    if (existsSync(FIXTURES_DIR)) {
+        for (const f of readdirSync(FIXTURES_DIR).sort()) {
+            if (!f.endsWith('.pine')) continue;
+            out.push({ group: 'curated', name: f, path: join(FIXTURES_DIR, f) });
+        }
+    }
+    if (existsSync(COMMUNITY_DIR)) {
+        for (const label of readdirSync(COMMUNITY_DIR).sort()) {
+            const labelDir = join(COMMUNITY_DIR, label);
+            if (!statSync(labelDir).isDirectory()) continue;
+            for (const f of readdirSync(labelDir).sort()) {
+                if (!f.endsWith('.pine')) continue;
+                out.push({
+                    group: label,
+                    name: f,
+                    path: join(labelDir, f),
+                });
+            }
+        }
+    }
+    return out;
+}
 
 interface ReportSummary {
     total: number;
@@ -40,6 +75,22 @@ function listFixtures(): string[] {
     return readdirSync(FIXTURES_DIR)
         .filter((f) => f.endsWith('.pine'))
         .sort();
+}
+
+function aggregateByGroup(
+    fixtures: DiscoveredFixture[],
+    results: CorpusResult[],
+): Map<string, { total: number; pass: number }> {
+    const out = new Map<string, { total: number; pass: number }>();
+    for (let i = 0; i < fixtures.length; i++) {
+        const fx = fixtures[i];
+        const r = results[i];
+        const bucket = out.get(fx.group) ?? { total: 0, pass: 0 };
+        bucket.total++;
+        if (r.pass) bucket.pass++;
+        out.set(fx.group, bucket);
+    }
+    return out;
 }
 
 function aggregate(results: CorpusResult[]): ReportSummary {
@@ -187,20 +238,40 @@ function renderMarkdown(summary: ReportSummary): string {
 }
 
 function main(): number {
-    const fixtures = listFixtures();
-    if (fixtures.length === 0) {
-        console.error('No fixtures in tests/corpus/fixtures/. Seed via Phase 0.3.');
+    const allFixtures = listAllFixtures();
+    if (allFixtures.length === 0) {
+        console.error(
+            'No fixtures discovered. Seed curated via Phase 0.3 or run `bun scripts/corpus/scrape.ts` for community.',
+        );
         return 1;
     }
 
-    const results = fixtures.map((fixture) => {
-        const source = readFileSync(join(FIXTURES_DIR, fixture), 'utf8');
-        return runFixture(source, { fixtureName: fixture });
+    const results = allFixtures.map((fx) => {
+        const source = readFileSync(fx.path, 'utf8');
+        return runFixture(source, { fixtureName: `${fx.group}/${fx.name}` });
     });
 
     const summary = aggregate(results);
+    const groups = aggregateByGroup(allFixtures, results);
+
     const md = renderMarkdown(summary);
     console.log(md);
+
+    // Per-group breakdown so the curated and community pass rates are
+    // separately visible.
+    console.log('## Per-source pass rate');
+    console.log('');
+    console.log('| Group | Pass | Total | Rate |');
+    console.log('|---|---:|---:|---:|');
+    const groupNames = Array.from(groups.keys()).sort((a, b) =>
+        a === 'curated' ? -1 : b === 'curated' ? 1 : a.localeCompare(b),
+    );
+    for (const g of groupNames) {
+        const b = groups.get(g);
+        if (!b) continue;
+        console.log(`| ${g} | ${b.pass} | ${b.total} | ${pct(b.pass, b.total)} |`);
+    }
+    console.log('');
     return 0;
 }
 

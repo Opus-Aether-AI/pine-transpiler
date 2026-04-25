@@ -238,6 +238,22 @@ export class StatementGenerator implements StatementGeneratorInterface {
   }
 
   private generateForStatement(stmt: ForStatement): string {
+    // Extract the loop variable name regardless of whether `stmt.init`
+    // is a VariableDeclaration (`var i = 0`) or AssignmentExpression
+    // (`i = 0`). Pine's `for i = 0 to n` parses as the latter, so
+    // omitting it here was producing `for (i = 0; cond; )` — a JS
+    // infinite loop guarded only by the `_loop_<n>` ceiling.
+    let loopVarName = '';
+    if (stmt.init.type === 'VariableDeclaration') {
+      const decl = stmt.init as VariableDeclaration;
+      loopVarName = Array.isArray(decl.id) ? decl.id[0].name : decl.id.name;
+    } else if (stmt.init.type === 'AssignmentExpression') {
+      const assign = stmt.init as AssignmentExpression;
+      if (!Array.isArray(assign.left) && assign.left.type === 'Identifier') {
+        loopVarName = assign.left.name;
+      }
+    }
+
     let initStr = '';
     if (stmt.init.type === 'VariableDeclaration') {
       const decl = stmt.init as VariableDeclaration;
@@ -245,8 +261,12 @@ export class StatementGenerator implements StatementGeneratorInterface {
       const init = decl.init
         ? ` = ${this.expressionGen.generateExpression(decl.init)}`
         : '';
-      const name = Array.isArray(decl.id) ? decl.id[0].name : decl.id.name;
-      initStr = `${kind} ${name}${init}`;
+      initStr = `${kind} ${loopVarName}${init}`;
+    } else if (loopVarName) {
+      // Promote bare `i = 0` to `let i = 0` so the loop var doesn't
+      // leak into the surrounding scope as a global.
+      const assign = stmt.init as AssignmentExpression;
+      initStr = `let ${loopVarName} = ${this.expressionGen.generateExpression(assign.right)}`;
     } else {
       initStr = this.expressionGen.generateAssignmentExpression(
         stmt.init as AssignmentExpression,
@@ -256,35 +276,13 @@ export class StatementGenerator implements StatementGeneratorInterface {
     const testStr = this.expressionGen.generateExpression(stmt.test);
     let updateStr = '';
     if (stmt.update) {
-      let varName = '';
-      if (stmt.init.type === 'VariableDeclaration') {
-        const decl = stmt.init as VariableDeclaration;
-        varName = Array.isArray(decl.id) ? decl.id[0].name : decl.id.name;
-      } else if (stmt.init.type === 'AssignmentExpression') {
-        const assign = stmt.init as AssignmentExpression;
-        if (!Array.isArray(assign.left)) {
-          if (assign.left.type === 'Identifier') {
-            varName = assign.left.name;
-          } else if (assign.left.type === 'MemberExpression') {
-            varName = this.expressionGen.generateMemberExpression(assign.left);
-          }
-        }
-      }
-
-      if (varName) {
-        updateStr = `${varName} += ${this.expressionGen.generateExpression(stmt.update)}`;
+      if (loopVarName) {
+        updateStr = `${loopVarName} += ${this.expressionGen.generateExpression(stmt.update)}`;
       } else {
         updateStr = this.expressionGen.generateExpression(stmt.update);
       }
-    } else {
-      let varName = '';
-      if (stmt.init.type === 'VariableDeclaration') {
-        const decl = stmt.init as VariableDeclaration;
-        varName = Array.isArray(decl.id) ? decl.id[0].name : decl.id.name;
-      }
-      if (varName) {
-        updateStr = `${varName}++`;
-      }
+    } else if (loopVarName) {
+      updateStr = `${loopVarName}++`;
     }
 
     const loopVar = `_loop_${this.loopCounter++}`;

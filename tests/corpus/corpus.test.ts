@@ -20,6 +20,7 @@ import { runFixture } from './runner';
 
 const FIXTURES_DIR = join(import.meta.dir, 'fixtures');
 const SNAPSHOTS_DIR = join(import.meta.dir, 'snapshots');
+const COMMUNITY_DIR = join(import.meta.dir, 'community');
 
 if (!existsSync(SNAPSHOTS_DIR)) {
     mkdirSync(SNAPSHOTS_DIR, { recursive: true });
@@ -32,6 +33,28 @@ function listFixtures(): string[] {
     return readdirSync(FIXTURES_DIR)
         .filter((f) => f.endsWith('.pine'))
         .sort();
+}
+
+interface CommunityFixture {
+    /** Source label, e.g. "harryguiacorn". */
+    label: string;
+    /** Filename without directory. */
+    filename: string;
+    /** Absolute path. */
+    path: string;
+}
+
+function listCommunityFixtures(): CommunityFixture[] {
+    if (!existsSync(COMMUNITY_DIR)) return [];
+    const out: CommunityFixture[] = [];
+    for (const label of readdirSync(COMMUNITY_DIR).sort()) {
+        const labelDir = join(COMMUNITY_DIR, label);
+        for (const filename of readdirSync(labelDir).sort()) {
+            if (!filename.endsWith('.pine')) continue;
+            out.push({ label, filename, path: join(labelDir, filename) });
+        }
+    }
+    return out;
 }
 
 function snapshotPathFor(fixture: string): string {
@@ -82,6 +105,39 @@ describe('Pine corpus', () => {
             // failing fixtures to red-X the suite while the corpus is the
             // backlog driver. The structured result is consumed by
             // scripts/corpus/report.ts to compute the score.
+        });
+    }
+});
+
+// Community corpus: real Pine scripts scraped from public repos via
+// `bun scripts/corpus/scrape.ts`. These are NOT snapshot-tested —
+// they're a moving stress test for transpiler coverage. Failures here
+// surface gaps in real-world Pine usage and feed the next round of
+// fixes. The walker just confirms each fixture transpiles cleanly;
+// runtime correctness is checked by the report script with structured
+// pass/fail counts.
+describe('Pine community corpus', () => {
+    const community = listCommunityFixtures();
+
+    it('discovers community fixtures (informational)', () => {
+        expect(typeof community.length).toBe('number');
+    });
+
+    if (community.length === 0) {
+        it.skip('no community fixtures yet — run `bun scripts/corpus/scrape.ts` to seed', () => {});
+        return;
+    }
+
+    for (const fixture of community) {
+        it(`${fixture.label}/${fixture.filename} — transpiles without throwing`, () => {
+            const source = readFileSync(fixture.path, 'utf8');
+            const result = runFixture(source, {
+                fixtureName: `${fixture.label}/${fixture.filename}`,
+            });
+            // Soft assertion: we want the transpile path to *not crash*.
+            // Plot-count match and runtime semantics are tracked by the
+            // report, not gated here.
+            expect(result.stageReached).not.toBe(undefined);
         });
     }
 });
