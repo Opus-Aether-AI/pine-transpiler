@@ -732,6 +732,19 @@ export class Parser extends ExpressionParser {
       }
     }
 
+    // Pine v6 array type suffix: `float[]`, `int[]`, etc. Consume the
+    // empty brackets so downstream parsing doesn't see them as the
+    // start of a destructure/subscript. The type info is informational
+    // only for the runtime — the array.* mappings handle the actual
+    // operations regardless of the declared element type.
+    while (
+      this.check(TokenType.LBRACKET) &&
+      this.peekNext()?.type === TokenType.RBRACKET
+    ) {
+      this.advance(); // [
+      this.advance(); // ]
+    }
+
     return { type: 'TypeAnnotation', name, arguments: args };
   }
 
