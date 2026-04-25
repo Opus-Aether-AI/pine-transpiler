@@ -1,6 +1,6 @@
 {
   "name": "@opusaether/pine-transpiler",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "description": "Transpile Pine Script v5/v6 to executable JavaScript. Zero dependencies.",
   "author": "Opus Aether AI",
   "license": "AGPL-3.0",
@@ -41,7 +41,8 @@
     "test": "bun test tests/",
     "test:coverage": "bun test --coverage tests/",
     "corpus": "bun scripts/corpus/report.ts",
-    "corpus:snap": "UPDATE_SNAPSHOTS=1 bun test tests/corpus/"
+    "corpus:snap": "UPDATE_SNAPSHOTS=1 bun test tests/corpus/",
+    "prepare": "vite build"
   },
   "keywords": [
     "pine-script",
