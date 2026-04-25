@@ -286,10 +286,10 @@ const StdPlus = {
     }
 };
 
-indicator("Plotshape Buy Sell", overlay = true);
+indicator("Plotshape Buy Sell");
 let fast = Std.ema(context, close, 9);
 let slow = Std.ema(context, close, 21);
 let buy = StdPlus.crossover(context, fast, slow);
 let sell = StdPlus.crossunder(context, fast, slow);
-Std.plotshape(buy, "Buy", style = shape.triangleup, location = location.belowbar, color = color.green, size = size.small);
-Std.plotshape(sell, "Sell", style = shape.triangledown, location = location.abovebar, color = color.red, size = size.small);
+Std.plotshape(buy, "Buy");
+Std.plotshape(sell, "Sell");

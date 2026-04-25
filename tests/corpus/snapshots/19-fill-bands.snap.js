@@ -286,10 +286,10 @@ const StdPlus = {
     }
 };
 
-indicator("Fill Bands", overlay = true);
+indicator("Fill Bands");
 let length = input.int(20, "Length");
 let mult = input.float(2, "Mult");
 let [basis, upper, lower] = StdPlus.bb(context, close, length, mult);
-let p1 = Std.plot(upper, "Upper", color = color.red);
-let p2 = Std.plot(lower, "Lower", color = color.green);
-Std.fill(p1, p2, color = _colorNew(color.blue, 90));
+let p1 = Std.plot(upper, "Upper");
+let p2 = Std.plot(lower, "Lower");
+Std.fill(p1, p2);

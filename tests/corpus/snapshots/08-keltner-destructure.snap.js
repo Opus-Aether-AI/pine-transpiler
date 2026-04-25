@@ -286,10 +286,10 @@ const StdPlus = {
     }
 };
 
-indicator("Keltner Channels", overlay = true);
+indicator("Keltner Channels");
 let length = input.int(20, "Length");
 let mult = input.float(1.5, "Multiplier");
 let [basis, upper, lower] = StdPlus.kc(context, close, length, mult);
-Std.plot(basis, "Basis", color = color.gray);
-Std.plot(upper, "Upper", color = color.red);
-Std.plot(lower, "Lower", color = color.green);
+Std.plot(basis, "Basis");
+Std.plot(upper, "Upper");
+Std.plot(lower, "Lower");
