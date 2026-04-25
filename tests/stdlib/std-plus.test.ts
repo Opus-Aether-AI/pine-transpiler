@@ -324,7 +324,9 @@ plot(middle)`;
     // it returned NaN forever. Phase 1.1 replaces the cache with a
     // direct ctx.new_var(value) per bar.
     it('does not manually cache HMA diff series in ctx', () => {
-      expect(STD_PLUS_LIBRARY).not.toContain('ctx._hma_diff_series = new Map()');
+      expect(STD_PLUS_LIBRARY).not.toContain(
+        'ctx._hma_diff_series = new Map()',
+      );
     });
 
     it('does not manually cache MACD series in ctx', () => {

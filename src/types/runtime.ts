@@ -396,7 +396,10 @@ export interface StudyPlotInfo {
   /** Unique plot identifier */
   id: string;
 
-  /** Plot type/style */
+  /** Plot type/style. The 'shapes', 'chars', 'bg_colorer' members are
+   *  the PineJS metainfo types emitted by `buildPlotsMetadata` for
+   *  plotshape / plotchar / bgcolor calls; the rest are AST-side names
+   *  used by the metadata visitor. */
   type:
     | 'line'
     | 'histogram'
@@ -406,7 +409,10 @@ export interface StudyPlotInfo {
     | 'stepline'
     | 'cross'
     | 'shape'
-    | 'hline';
+    | 'shapes'
+    | 'chars'
+    | 'hline'
+    | 'bg_colorer';
 
   /** Optional price for hline */
   price?: number;

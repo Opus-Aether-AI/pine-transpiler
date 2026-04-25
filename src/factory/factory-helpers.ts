@@ -127,9 +127,10 @@ function plotTypeToMetainfoType(
   }
 }
 
-export function buildPlotsMetadata(
-  plots: ParsedPlot[],
-): Array<{ id: string; type: 'line' | 'histogram' | 'shapes' | 'chars' | 'bg_colorer' }> {
+export function buildPlotsMetadata(plots: ParsedPlot[]): Array<{
+  id: string;
+  type: 'line' | 'histogram' | 'shapes' | 'chars' | 'bg_colorer';
+}> {
   return plots.map((p) => ({
     id: p.id,
     type: plotTypeToMetainfoType(p.type),

@@ -150,7 +150,17 @@ export class Parser extends ExpressionParser {
       const start = this.current;
       try {
         return this.parseVariableOrAssignment();
-      } catch (_e) {
+      } catch (e) {
+        // Only ParseError indicates "this isn't a variable decl, fall
+        // through to expression parsing" — e.g. the operator-validation
+        // throw at parseVariableOrAssignment. Anything else (TypeError,
+        // RangeError, programmer error) should bubble up so the corpus
+        // / consumer sees the real failure instead of being silently
+        // routed into a downstream parse failure with a misleading
+        // message.
+        if (!(e instanceof ParseError)) {
+          throw e;
+        }
         this.current = start;
       }
     }

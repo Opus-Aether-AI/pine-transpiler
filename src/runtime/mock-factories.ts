@@ -74,6 +74,17 @@ export interface InputFunction {
   time: (defval: InputValue, title?: string) => InputValue;
   symbol: (defval: InputValue, title?: string) => InputValue;
   source: (defval: InputValue, title?: string) => number;
+  // Pine v5/v6 added more typed input helpers — covering all of them
+  // here so user code that calls input.color()/input.timeframe()/etc.
+  // resolves to the user's value instead of throwing "input.X is not
+  // a function". The default-passthrough behaviour keeps the runtime
+  // honest: charts pass real values via inputCallback at the right
+  // index; absent that, the supplied defval is returned.
+  color: (defval: InputValue, title?: string) => InputValue;
+  timeframe: (defval: InputValue, title?: string) => InputValue;
+  session: (defval: InputValue, title?: string) => InputValue;
+  text_area: (defval: InputValue, title?: string) => InputValue;
+  price: (defval: InputValue, title?: string) => InputValue;
 }
 
 /**
@@ -97,6 +108,11 @@ export function createInputMock(
   input.string = baseInput;
   input.time = baseInput;
   input.symbol = baseInput;
+  input.color = baseInput;
+  input.timeframe = baseInput;
+  input.session = baseInput;
+  input.text_area = baseInput;
+  input.price = baseInput;
   input.source = (_defval: InputValue, _title?: string) => {
     const val = inputCallback(_inputIndex++);
     if (val === 'close') return Std.close(context);
