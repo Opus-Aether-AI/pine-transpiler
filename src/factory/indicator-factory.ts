@@ -520,7 +520,8 @@ export function buildIndicatorFactory(
             const year = (t?: number) => new Date(t ?? time).getUTCFullYear();
             const month = (t?: number) => new Date(t ?? time).getUTCMonth() + 1;
             const dayofmonth = (t?: number) => new Date(t ?? time).getUTCDate();
-            const dayofweek = (t?: number) => new Date(t ?? time).getUTCDay() + 1;
+            const dayofweek = (t?: number) =>
+              new Date(t ?? time).getUTCDay() + 1;
 
             // Per-bar built-ins. `time` is the bar's open time; the
             // mock context exposes Std.time(ctx). `bar_index` is 0-based
