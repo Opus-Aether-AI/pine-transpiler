@@ -36,6 +36,32 @@ const DANGEROUS_IDENTIFIERS = new Set([
   'arguments',
   'caller',
   'callee',
+  // JS strict-mode reserved words that Pine v6 allows as identifiers
+  // (Pine has `this` and `super` as legal user param names — JS does
+  // not). Renaming with the `_pine_` prefix sidesteps the SyntaxError
+  // we'd otherwise get from `function f(this) {}`.
+  'this',
+  'super',
+  'class',
+  'enum',
+  'extends',
+  'static',
+  'yield',
+  'await',
+  'let',
+  'const',
+  'var',
+  'return',
+  'throw',
+  'typeof',
+  'instanceof',
+  'in',
+  'of',
+  'new',
+  'delete',
+  'void',
+  'null',
+  'undefined',
 ]);
 
 // NOTE on wrapper-param collisions: Pine source like `indicator = ""`

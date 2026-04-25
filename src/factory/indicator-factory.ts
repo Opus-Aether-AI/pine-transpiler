@@ -346,6 +346,7 @@ export function buildIndicatorFactory(
             'position',
             'text',
             'display',
+            'ticker',
             'close',
             'open',
             'high',
@@ -500,18 +501,29 @@ export function buildIndicatorFactory(
             // `xloc.bar_index`, `yloc.price`, etc. doesn't crash on
             // ReferenceError. Values are placeholder strings; the
             // chart host consumes the real ones via metainfo.
-            const chart = new Proxy(
-              {},
-              { get: (_t, p) => `chart.${String(p)}` },
-            ) as Record<string, string>;
-            const format = new Proxy(
-              {},
-              { get: (_t, p) => `format.${String(p)}` },
-            ) as Record<string, string>;
-            const string = new Proxy(
-              {},
-              { get: (_t, p) => `string.${String(p)}` },
-            ) as Record<string, string>;
+            //
+            // Note: some of these (string, format, chart) are also
+            // used as type-cast functions in Pine — `string(x)`,
+            // `format.volume(x)`, etc. Wrap a function so they're
+            // BOTH callable (returning the input as-is) AND support
+            // member access. The Proxy `get` handler covers member
+            // access; the function itself covers calls.
+            const callableProxy = (label: string): unknown =>
+              new Proxy(
+                ((arg: unknown) => arg) as unknown as object,
+                {
+                  get: (_t, p) => {
+                    // Allow calls like `format.volume(x)` to pass
+                    // through too — every member is itself a callable
+                    // identity-stub.
+                    if (typeof p === 'symbol') return undefined;
+                    return (arg: unknown) => arg !== undefined ? arg : `${label}.${String(p)}`;
+                  },
+                },
+              );
+            const chart = callableProxy('chart') as Record<string, string>;
+            const format = callableProxy('format') as Record<string, string>;
+            const string = callableProxy('string') as Record<string, string>;
             const xloc = {
               bar_index: 'bar_index',
               bar_time: 'bar_time',
@@ -542,6 +554,11 @@ export function buildIndicatorFactory(
               {},
               { get: (_t, p) => `display.${String(p)}` },
             ) as Record<string, string>;
+            // ticker.* is a Pine namespace for ticker manipulation
+            // (`ticker.new`, `ticker.modify`); also used as a callable
+            // type-cast. Match the callable+member pattern used by
+            // chart/format/string above.
+            const ticker = callableProxy('ticker') as Record<string, string>;
 
             // Pine `alertcondition()` and `alert()` are no-ops at the
             // mock layer — the chart routes alerts via metadata, not
@@ -656,6 +673,7 @@ export function buildIndicatorFactory(
                 position,
                 text,
                 display,
+                ticker,
                 sources.close,
                 sources.open,
                 sources.high,

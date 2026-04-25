@@ -59,18 +59,26 @@ export const STRING_FUNCTION_MAPPINGS: Record<
 
 /**
  * String helper function implementations
+ *
+ * Pine string operations need to be defensive: at runtime the input
+ * may be undefined / NaN / a non-string when a transpiler stub or
+ * upstream Std fallback returns a non-string sentinel. Coerce to
+ * string before each operation so a missing input doesn't crash the
+ * whole indicator (it'll just produce empty / default output for
+ * that call).
  */
 export const STRING_HELPER_FUNCTIONS = `
 // String helpers
-const _strLength = (s) => s.length;
-const _strContains = (s, sub) => s.includes(sub);
-const _strStartsWith = (s, prefix) => s.startsWith(prefix);
-const _strEndsWith = (s, suffix) => s.endsWith(suffix);
-const _strSubstring = (s, start, end) => s.substring(start, end);
-const _strReplace = (s, old, rep) => s.replace(old, rep);
-const _strReplaceAll = (s, old, rep) => s.replaceAll(old, rep);
-const _strLower = (s) => s.toLowerCase();
-const _strUpper = (s) => s.toUpperCase();
-const _strSplit = (s, sep) => s.split(sep);
-const _strFormat = (fmt, ...args) => fmt.replace(/{(\\d+)}/g, (m, i) => args[i] ?? m);
+const _strCoerce = (s) => (s == null ? '' : String(s));
+const _strLength = (s) => _strCoerce(s).length;
+const _strContains = (s, sub) => _strCoerce(s).includes(_strCoerce(sub));
+const _strStartsWith = (s, prefix) => _strCoerce(s).startsWith(_strCoerce(prefix));
+const _strEndsWith = (s, suffix) => _strCoerce(s).endsWith(_strCoerce(suffix));
+const _strSubstring = (s, start, end) => _strCoerce(s).substring(start, end);
+const _strReplace = (s, old, rep) => _strCoerce(s).replace(_strCoerce(old), _strCoerce(rep));
+const _strReplaceAll = (s, old, rep) => _strCoerce(s).replaceAll(_strCoerce(old), _strCoerce(rep));
+const _strLower = (s) => _strCoerce(s).toLowerCase();
+const _strUpper = (s) => _strCoerce(s).toUpperCase();
+const _strSplit = (s, sep) => _strCoerce(s).split(_strCoerce(sep));
+const _strFormat = (fmt, ...args) => _strCoerce(fmt).replace(/{(\\d+)}/g, (m, i) => args[i] ?? m);
 `;
