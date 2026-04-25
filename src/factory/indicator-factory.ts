@@ -9,7 +9,12 @@ import type {
   ComputedVariable,
   SessionVariable,
 } from '../generator/metadata-visitor';
-import { MATH_HELPER_FUNCTIONS, SESSION_HELPER_FUNCTIONS } from '../mappings';
+import {
+  ARRAY_HELPER_FUNCTIONS,
+  MAP_HELPER_FUNCTIONS,
+  MATH_HELPER_FUNCTIONS,
+  SESSION_HELPER_FUNCTIONS,
+} from '../mappings';
 import {
   createInputMock,
   createMathMock,
@@ -71,6 +76,8 @@ function analyzeRequiredHelpers(mainBody: string): {
   needsMath: boolean;
   needsSession: boolean;
   needsStdPlus: boolean;
+  needsArray: boolean;
+  needsMap: boolean;
 } {
   return {
     // Math helpers: _avg, _sum, _toDegrees, _toRadians, _roundToMintick
@@ -90,6 +97,44 @@ function analyzeRequiredHelpers(mainBody: string): {
       mainBody.includes('_getTradingDayTime('),
     // StdPlus: StdPlus.bb, StdPlus.hma, StdPlus.macd, etc.
     needsStdPlus: mainBody.includes('StdPlus.'),
+    // Array helpers: any of the _array<X> functions emitted by the
+    // array.* mappings need ARRAY_HELPER_FUNCTIONS injected — without
+    // it the body crashes with `_arrayPush is not defined` and the
+    // factory's catch block silently returns NaN per declared plot.
+    needsArray:
+      mainBody.includes('_arrayNew') ||
+      mainBody.includes('_arrayPush(') ||
+      mainBody.includes('_arrayPop(') ||
+      mainBody.includes('_arrayGet(') ||
+      mainBody.includes('_arraySet(') ||
+      mainBody.includes('_arraySize(') ||
+      mainBody.includes('_arrayAvg(') ||
+      mainBody.includes('_arraySum(') ||
+      mainBody.includes('_arrayMin(') ||
+      mainBody.includes('_arrayMax(') ||
+      mainBody.includes('_arrayStdev(') ||
+      mainBody.includes('_arrayVariance(') ||
+      mainBody.includes('_arraySort(') ||
+      mainBody.includes('_arrayReverse(') ||
+      mainBody.includes('_arraySlice(') ||
+      mainBody.includes('_arrayConcat(') ||
+      mainBody.includes('_arrayCopy(') ||
+      mainBody.includes('_arrayClear(') ||
+      mainBody.includes('_arrayIncludes(') ||
+      mainBody.includes('_arrayIndexOf(') ||
+      mainBody.includes('_arrayLastIndexOf(') ||
+      mainBody.includes('_arrayJoin('),
+    // Map helpers: same pattern for Pine v6 map.*
+    needsMap:
+      mainBody.includes('_mapNew(') ||
+      mainBody.includes('_mapPut(') ||
+      mainBody.includes('_mapGet(') ||
+      mainBody.includes('_mapContains(') ||
+      mainBody.includes('_mapRemove(') ||
+      mainBody.includes('_mapSize(') ||
+      mainBody.includes('_mapKeys(') ||
+      mainBody.includes('_mapValues(') ||
+      mainBody.includes('_mapClear('),
   };
 }
 
@@ -117,7 +162,7 @@ export function generatePreamble(
   }
 
   // Conditionally inject helpers based on what's actually used
-  const { needsMath, needsSession, needsStdPlus } =
+  const { needsMath, needsSession, needsStdPlus, needsArray, needsMap } =
     analyzeRequiredHelpers(mainBody);
 
   if (needsMath) {
@@ -128,6 +173,12 @@ export function generatePreamble(
   }
   if (needsStdPlus) {
     preamble += `${STD_PLUS_LIBRARY}\n`;
+  }
+  if (needsArray) {
+    preamble += `${ARRAY_HELPER_FUNCTIONS}\n`;
+  }
+  if (needsMap) {
+    preamble += `${MAP_HELPER_FUNCTIONS}\n`;
   }
 
   return preamble;
