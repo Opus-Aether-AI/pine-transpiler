@@ -4,7 +4,7 @@
  * Tests for the StdPlus polyfill library that provides missing PineJS functions.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { STD_PLUS_LIBRARY } from '../../src/stdlib/index';
 import { transpile } from '../utils';
 

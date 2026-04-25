@@ -2,7 +2,7 @@
  * Tests for indicator factory generation
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { generateStandaloneFactory } from '../../src/factory/indicator-factory';
 import type { ParsedBgcolor, ParsedInput, ParsedPlot } from '../../src/types';
 

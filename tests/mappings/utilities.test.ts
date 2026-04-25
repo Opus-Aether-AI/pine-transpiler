@@ -11,7 +11,7 @@
  * - Array functions
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import {
   ALL_UTILITY_MAPPINGS,
   ARRAY_FUNCTION_MAPPINGS,

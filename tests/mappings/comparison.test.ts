@@ -4,7 +4,7 @@
  * Tests for Pine Script comparison function mappings.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import {
   BOOLEAN_COMPARISON_MAPPINGS,
   COMPARE_MAPPING,

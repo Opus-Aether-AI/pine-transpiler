@@ -4,7 +4,7 @@
  * Tests for TA function mappings and code generation.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { transpile } from '../../src/index';
 import {
   BAND_MAPPINGS,

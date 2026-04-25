@@ -5,7 +5,7 @@
  * Covers control flow, loops, type definitions, imports, and edge cases.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import {
   assertTranspiles,
   codeContainsAll,

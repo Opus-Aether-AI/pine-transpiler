@@ -5,7 +5,7 @@
  * from Pine Script AST during transpilation.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { createIndicator, extractMetadata } from '../utils';
 
 describe('MetadataVisitor', () => {

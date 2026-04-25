@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { ASTGenerator } from '../src/generator/ast-generator';
 import { Lexer } from '../src/parser/lexer';
 import { Parser } from '../src/parser/parser';

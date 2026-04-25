@@ -4,7 +4,7 @@
  * Tests for parsing various statement types in Pine Script.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import type {
   BinaryExpression,
   BlockStatement,

@@ -5,7 +5,7 @@
  * that could cause security issues or crashes.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import {
   canTranspilePineScript,
   transpile,
