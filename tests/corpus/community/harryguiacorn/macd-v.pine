@@ -1,0 +1,37 @@
+// Source: github.com/harryguiacorn/TradingView-Proprietary-Indicators/MACD-V.pine
+// Vendored as a corpus fixture. License is the repo's — see the upstream LICENSE.
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// @ Paper by Alex Spiroglou
+// © Coded by Harry Gui
+
+//@version=5
+indicator("MACD-V", overlay=false)
+
+// Input parameters
+fastLength = input(12, title="Fast EMA Length")
+slowLength = input(26, title="Slow EMA Length")
+signalLength = input(9, title="Signal Length")
+atrLength = input(26, title="ATR Length")
+overbought = input(40, title="Overbought")
+oversold = input(-40, title="Oversold")
+
+// Calculate ATR
+atr = ta.atr(atrLength)
+
+[macdLine, signalLine, histLine] = ta.macd(close, fastLength, slowLength, signalLength)
+// plot(macdLine/atr, color=color.blue)
+// plot(signalLine/atr, color=color.orange)
+macdv = histLine/atr*100
+plot(macdv, title = "Histogram", style = plot.style_columns, color = (macdv >= 0 ? (macdv[1] < macdv ? #26A69A : #B2DFDB) : (macdv[1] < macdv ? #FFCDD2 : #FF5252)))
+
+hline(0, title = "0.0")
+hline(overbought, title = "Overbought")
+hline(oversold, title = "Oversold")
+
+plotshape(macdv < oversold ? macdv * 1.1 : na, "MACD-V Oversold", shape.circle, location = location.absolute, color = color.new(color.fuchsia, 0))
+plotshape(macdv > overbought ? macdv * 1.1 : na, "MACD-V Overbought", shape.circle, location = location.absolute, color = color.new(color.fuchsia, 0))
+
+// Highlight chart background between specific hours
+display_hours_highlight = input(false, "Display background colours for specific hours")
+t1 = time(timeframe.period, "1000-1300,1600-2000,2400-0700:23456", "Europe/London")
+bgcolor(not na(t1) ? color.new(color.silver, 90) : na, display = display_hours_highlight? display.all: display.none)

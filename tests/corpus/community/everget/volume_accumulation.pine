@@ -1,0 +1,52 @@
+// Source: github.com/everget/tradingview-pinescript-indicators/volume/volume_accumulation.pine
+// Vendored as a corpus fixture. License is the repo's — see the upstream LICENSE.
+//@version=6
+// Copyright (c) 2020-present, Alex Orekhov (everget)
+indicator('Volume Accumulation', format = format.volume)
+
+accumulationType = input.string('Daily', title = 'Type', options = ['Minutely', 'Hourly', 'Session', 'Daily', 'Monthly', 'Quarterly', 'Yearly'])
+sessionInput = input.session('0900-1530', title = 'Session (only for \'Session\' type)')
+includeWeekends = input(true, title = 'Include Weekends')
+var session = sessionInput + (includeWeekends ? ':1234567' : '')
+
+applyBarColors = input(true, title = 'Apply Bar Colors')
+
+//---
+
+_inSession(res, sess) => not na(time(res, sess))
+
+min = minute(time)
+h = hour(time)
+s = _inSession(timeframe.period, session) ? 1 : 0
+d = dayofmonth(time)
+m = month(time)
+q = int(math.ceil(m / 3))
+y = year(time)
+
+int period = switch accumulationType
+    'Minutely' => min
+    'Hourly' => h
+    'Session' => s
+    'Daily' => d
+    'Monthly' => m
+    'Quarterly' => q
+    'Yearly' => y
+    => d
+
+var acc = 0.0
+acc := period != period[1] ? volume : nz(acc[1]) + volume
+
+var accPrev = 0.0
+accPrev := period != period[1] ? acc[1] : accPrev
+
+accColor = acc > accPrev ? #92df8bff : #fe9695ff
+plot(acc, title = 'Accumulation', style = plot.style_columns, color = accColor)
+barcolor(applyBarColors ? accColor : na, title = 'Bar Color')
+
+var periodChangeColor = color.new(#ffcc80, 60)
+var noneColor = #ffffff00
+
+bgcolor(period != period[1] ? periodChangeColor : noneColor, title = 'Separator')
+
+higherAlert = acc > accPrev
+alertcondition(higherAlert, title = 'Higher Accumulation', message = 'Higher Accumulation')

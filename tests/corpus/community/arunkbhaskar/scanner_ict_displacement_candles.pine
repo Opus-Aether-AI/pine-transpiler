@@ -1,0 +1,525 @@
+// Source: github.com/ArunKBhaskar/PineScript/ICT%20Displacement%20Candles/%5BScanner%5D%20ICT%20Displacement%20Candles.txt
+// Vendored as a corpus fixture. License is the repo's — see the upstream LICENSE.
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Arun_K_Bhaskar
+
+//@version=6
+indicator(title = 'ICT Displacement Candles Scanner', shorttitle = 'ICTDCScan', overlay = true, max_lines_count = 500, max_labels_count = 500, behind_chart = false)
+
+//___________________________ Menu Start
+
+string g_scn_tb = '█████████████████ Scanner █████████████████'
+
+string tt_ch = 
+ "Displacement:" + 
+ "\n• Strong, sudden price move (up/down) with long candles, minimal wicks." + 
+
+ "\n\n Retracement:" + 
+ "\n• Price retraces to a Fibonacci level of the displacement." +
+ "\n• Potential entry point for trend continuation."
+
+string tt_is = 
+ "• Reads only the first 40 symbols." + 
+ "\n• Max 4096 characters." + 
+ "\n• Format: EXCHANGE:SYMBOL_A,EXCHANGE:SYMBOL_B"
+
+string i_scn_choose = input.string(
+ defval = 'Displacement', 
+ title = 'Scanning Method', 
+ options = ['Displacement', 'Retracement'], tooltip = tt_ch, group = g_scn_tb)
+
+string i_symbols = input.text_area(
+ defval = 'NSE:ABCAPITAL,NSE:ABFRL,NSE:ASHOKLEY,NSE:BANDHANBNK,NSE:BANKBARODA,NSE:BANKINDIA,NSE:BEL,NSE:BHEL,NSE:BIOCON,NSE:BPCL,NSE:CESC,NSE:DELHIVERY,NSE:FEDERALBNK,NSE:GAIL,NSE:HINDCOPPER,NSE:HUDCO,NSE:IEX,NSE:IGL,NSE:IIFL,NSE:INDUSTOWER,NSE:IOC,NSE:IREDA,NSE:IRFC,NSE:JIOFIN,NSE:LTF,NSE:MANAPPURAM,NSE:MOTHERSON,NSE:M_MFIN,NSE:NATIONALUM,NSE:NCC,NSE:NYKAA,NSE:ONGC,NSE:PETRONET,NSE:POWERGRID,NSE:RBLBANK,NSE:SAIL,NSE:TATASTEEL,NSE:UNIONBANK,NSE:WIPRO,NSE:ZOMATO', 
+ title = 'Paste Symbols', tooltip = tt_is, group = g_scn_tb)
+
+bool i_scn_show_table = input.bool(defval = true, title = 'Display Table', group = g_scn_tb)
+bool i_scn_show_long = input.bool(defval = true, title = 'Long Signals', inline = 'tb_2', group = g_scn_tb)
+bool i_scn_show_short = input.bool(defval = true, title = 'Short Signals', inline = 'tb_2', group = g_scn_tb)
+
+int i_scn_tbl_show_rows = input.int(defval = 12, title = 'Display Rows', minval = 0, maxval = 100, group = g_scn_tb)
+string i_scn_tbl_pos = input.string(defval = position.bottom_left, title = 'Table Position', options = [position.top_left, position.top_center, position.top_right, position.middle_left, position.middle_center, position.middle_right, position.bottom_left, position.bottom_center, position.bottom_right], group = g_scn_tb)
+string i_scn_tbl_txt_size = input.string(defval = size.small, title = 'Table Size', options = [size.auto, size.tiny, size.small, size.normal, size.large, size.huge], group = g_scn_tb)
+
+string g_dc = '████████████ Displacement Candles ████████████'
+
+string tt_mb = "Shows if bars exceed the set value."
+string tt_dev = "Specifies the minimal size of displament, as a percentage of the average high-low range for the last 14 bars."
+string tt_ret_fib = 
+ "• 0: Top of bullish & bottom of bearish displacement." + 
+ "\n• 1: Bottom of bullish & top of bearish displacement." + 
+ "\n• 0.5: 50% of the displacement."
+
+int i_dc_min_bars = input.int(defval = 3, title = 'Minimum Bars', minval = 1, tooltip = tt_mb, group = g_dc)
+float i_dc_dev_percent = nz(input.float(60.0, "Minimal Deviation (%)", minval=1, step = 10, tooltip = tt_dev, group = g_dc) / 100 * ta.sma(high-low, 14))
+bool i_dc_close_filter = input.bool(defval = true, title = 'Apply Close Above/Below Prev Close', group = g_dc)
+bool i_dc_hl_filter = input.bool(defval = false, title = 'Apply Close Above/Below Prev High/Low', group = g_dc)
+float i_dc_fib_val = input.float(defval = 0.5, title = 'Fibonacci Value', step = 0.1, tooltip = tt_ret_fib, group = g_dc)
+
+string g_af = '██████████████ Additional Fiters ██████████████'
+
+string tt_atr = "• Filters out longer or more volatile displacement candles."
+string tt_atr_mul = "• Higher values filter longer or more volatile candles."
+string tt_bf = "• 80 means the body covers 80%+ of the displacement candle."
+string tt_tf = "• Filter signals within a given time."
+string tt_df = "• Filter signals on specified dates (for Retracement Candles only)."
+
+bool i_atr_filter = input.bool(defval = false, title = 'Apply ATR Filter', tooltip = tt_atr, group = g_af)
+int i_atr_length = input.int(defval = 14, minval = 1, title = 'ATR Length', group = g_af)
+float i_atr_multi = input.float(defval = 1, title = 'ATR Multiplier', minval = 1, group = g_af)
+
+bool i_body_filter = input.bool(defval = false, title = 'Apply Body % Filter', tooltip = tt_bf, group = g_af)
+float i_body_percent = input.float(defval = 70, title = 'Body % Above', minval = 0, maxval = 100, group = g_af) / 100
+
+bool i_time_filter = input.bool(defval = false, title = 'Apply Time Filter', tooltip = tt_tf, group = g_af)
+int i_hour_1 = input.int(defval = 9, minval = 0, title = 'Time From', inline = 't_1', group = g_af)
+int i_minute_1 = input.int(defval = 15, minval = 0, title = ':', inline = 't_1', group = g_af)
+int i_hour_2 = input.int(defval = 10, minval = 0, title = 'Time To ', inline = 't_2', group = g_af)
+int i_minute_2 = input.int(defval = 15, minval = 0, title = ':', inline = 't_2', group = g_af)
+
+bool i_date_filter = input.bool(defval = false, title = 'Apply Date Filter', tooltip = tt_df, group = g_af)
+int i_day = input.int(defval = 30, minval = 1, maxval = 31, title = 'Day', group = g_af)
+int i_month = input.int(defval = 3, minval = 1, maxval = 12, title = 'Month', group = g_af)
+int i_year = input.int(defval = 2025, minval = 0, title = 'Year', group = g_af)
+
+string g_cum = '█████████████ Performance Table █████████████'
+
+bool i_cum_tbl_disp = input.bool(defval = true, title = 'Display', group = g_cum)
+string i_cum_tbl_pos = input.string(defval = position.bottom_right, title = 'Position', options = [position.top_left, position.top_center, position.top_right, position.middle_left, position.middle_center, position.middle_right, position.bottom_left, position.bottom_center, position.bottom_right], group = g_cum)
+string i_cum_tbl_size = input.string(defval = size.normal, title = 'Size', options = [size.auto, size.tiny, size.small, size.normal, size.large, size.huge], group = g_cum)
+
+//string g_ch = '█████████████████ Colors █████████████████'
+color i_pos_color = #089981 //input.color(defval = #089981, title = 'Positive', group = g_ch)
+color i_pos_light_color = #70CCBD //input.color(defval = #70CCBD, title = 'Positive Light', group = g_ch)
+color i_neg_light_color = #FAA1A4 //input.color(defval = #FAA1A4, title = 'Negative Light', group = g_ch)
+color i_neg_color = #F23645 //input.color(defval = #F23645, title = 'Negative', group = g_ch)
+color i_neu_color = #D1D4DC //input.color(defval = #D1D4DC, title = 'Neutral Light', group = g_ch)
+color i_neu_dark_color = #0F0F0F //input.color(defval = #0F0F0F, title = 'Neutral', group = g_ch)
+
+//___________________________ Menu End
+
+//___________________________ Performance Start
+
+is_new_day = ta.change(time('D')) != 0
+
+// Cumulative Percentage Change
+var float cum_pchg = na
+day_pchg = na(close[1]) ? 0 : (close - close[1]) / close[1] * 100
+cum_pchg := is_new_day ? day_pchg : na(cum_pchg) ? day_pchg : cum_pchg + day_pchg
+
+// Cumulative Volume and Volume Percentage Change
+var float curr_cum_vol = na
+var float prev_cum_vol = na
+if is_new_day
+    prev_cum_vol := curr_cum_vol
+    curr_cum_vol := volume
+    curr_cum_vol
+else
+    curr_cum_vol := na(curr_cum_vol) ? volume : curr_cum_vol + volume
+    curr_cum_vol
+prev_vol_safe = nz(prev_cum_vol, curr_cum_vol)
+cum_vol_pchg = (curr_cum_vol - prev_vol_safe) / prev_vol_safe * 100
+
+var table tbl_cum = table.new(position=i_cum_tbl_pos, columns=2, rows=4, border_width=1, force_overlay=true)
+
+cell_perform(col, row, txt, txt_color, aligh) =>
+    table.cell(tbl_cum, col, row, txt, text_color=txt_color, text_halign=aligh, bgcolor=i_neu_dark_color, text_size=i_cum_tbl_size)
+
+if barstate.islast and i_cum_tbl_disp
+    pchg_col = cum_pchg > 0 ? i_pos_color : i_neg_color
+    vol_pchg_col = cum_vol_pchg > 0 ? i_pos_color : i_neg_color
+    prev_vol_pchg_col = prev_vol_safe < curr_cum_vol ? i_neg_color : i_pos_color
+    
+    cell_perform(0, 0, '%Chg', chart.fg_color, text.align_left)
+    cell_perform(1, 0, str.tostring(cum_pchg, '#.##') + ' %', pchg_col, text.align_right)
+    cell_perform(0, 1, 'Vol %Chg', chart.fg_color, text.align_left)
+    cell_perform(1, 1, str.tostring(cum_vol_pchg, '#.##') + ' %', vol_pchg_col, text.align_right)
+    cell_perform(0, 2, 'Vol', chart.fg_color, text.align_left)
+    cell_perform(1, 2, str.tostring(curr_cum_vol / 100000, '#.##') + ' L', vol_pchg_col, text.align_right)
+    cell_perform(0, 3, 'PD Vol', chart.fg_color, text.align_left)
+    cell_perform(1, 3, str.tostring(prev_vol_safe / 100000, '#.##') + ' L', prev_vol_pchg_col, text.align_right)
+
+//___________________________ Performance End
+
+//___________________________ Additional Filters Start
+
+// Pre-calculate common values
+candle_range = high - low
+body_size = math.abs(close - open)
+
+// ATR Filter
+atr_filter = not i_atr_filter or candle_range > ta.atr(i_atr_length) * i_atr_multi
+
+// Body Filters
+body_filter = not i_body_filter or candle_range > 0 and body_size / candle_range >= i_body_percent
+
+// Time Filter
+time_filter = 
+ not i_time_filter or 
+ (hour > i_hour_1 or hour == i_hour_1 and minute >= i_minute_1) and 
+ (hour < i_hour_2 or hour == i_hour_2 and minute < i_minute_2)
+
+// Date Filter
+date_filter = not i_date_filter or year == i_year and month == i_month and dayofmonth == i_day
+
+//___________________________ Additional Filters End
+
+//___________________________ Displacement Candles Start
+
+// Combined tracking variables
+var int bullCnt = 0
+var int bearCnt = 0
+var float bullHi = na
+var float bullLo = na
+var float bearHi = na
+var float bearLo = na
+var float bullFib = na
+var float bearFib = na
+var bullHighs = array.new_float()
+var bullLows = array.new_float()
+var bearHighs = array.new_float()
+var bearLows = array.new_float()
+
+// Conditions and filters combined
+float priceChg = (high - low)
+bool bullish = priceChg >= i_dc_dev_percent and close > open and (not i_dc_close_filter or close > close[1]) and (not i_dc_hl_filter or close > high[1]) and atr_filter
+bool bearish = priceChg >= i_dc_dev_percent and close < open and (not i_dc_close_filter or close < close[1]) and (not i_dc_hl_filter or close < low[1]) and atr_filter
+
+// Optimized counting and array management
+if bullish
+    bullCnt := bullCnt + 1
+    bearCnt := 0
+    array.push(bullHighs, high)
+    array.push(bullLows, low)
+    if bullCnt == 1
+        array.clear(bearHighs)
+        array.clear(bearLows)
+else if bearish
+    bearCnt := bearCnt + 1
+    bullCnt := 0
+    array.push(bearHighs, high)
+    array.push(bearLows, low)
+    if bearCnt == 1
+        array.clear(bullHighs)
+        array.clear(bullLows)
+else
+    bullCnt := 0
+    bearCnt := 0
+    array.clear(bullHighs)
+    array.clear(bullLows)
+    array.clear(bearHighs)
+    array.clear(bearLows)
+
+// Calculate high-low range and percentage
+float bullRange = na
+float bearRange = na
+float bullRangePercent = na
+float bearRangePercent = na
+
+if bullCnt >= i_dc_min_bars
+    bullHi := array.max(bullHighs)
+    bullLo := array.min(bullLows)
+    bullRange := bullHi - bullLo
+    bullRangePercent := (bullRange / bullLo) * 100
+    bullFib := bullHi - (bullHi - bullLo) * i_dc_fib_val
+if bearCnt >= i_dc_min_bars
+    bearHi := array.max(bearHighs)
+    bearLo := array.min(bearLows)
+    bearRange := bearHi - bearLo
+    bearRangePercent := (bearRange / bearLo) * 100
+    bearFib := bearLo + (bearHi - bearLo) * i_dc_fib_val
+
+bearMaxCnt = bearCnt[1] >= i_dc_min_bars and bearCnt == 0
+bullMaxCnt = bullCnt[1] >= i_dc_min_bars and bullCnt == 0
+
+// Plot
+if bearMaxCnt and i_scn_show_short
+    label.new(x = bar_index[1], y = low[1], text = str.tostring(bearCnt[1]), color = na, textcolor = i_neg_light_color, size = size.small, style = label.style_label_up, yloc = yloc.belowbar)
+//    label.new(x = bar_index[1], y = low[1], text = str.format("{0,number,#.##}%", bearRangePercent[1]), color = na, textcolor = i_neg_light_color, size = size.small, style = label.style_label_up, yloc = yloc.belowbar)
+
+if bullMaxCnt and i_scn_show_long
+    label.new(x = bar_index[1], y = high[1], text = str.tostring(bullCnt[1]), color = na, textcolor = i_pos_light_color, size = size.small, style = label.style_label_down, yloc = yloc.abovebar)
+//    label.new(x = bar_index[1], y = high[1], text = str.format("{0,number,#.##}%", bullRangePercent[1]), color = na, textcolor = i_pos_light_color, size = size.small, style = label.style_label_down, yloc = yloc.abovebar)
+
+// Plot counts
+//if bearCnt >= i_dc_min_bars and i_scn_show_short
+//    label.new(x = bar_index, y = low, text = str.tostring(bearCnt), color = na, textcolor = i_neg_light_color, size = size.small, style = label.style_label_up, yloc = yloc.belowbar)
+//if bullCnt >= i_dc_min_barst and i_scn_show_long
+//    label.new(x = bar_index, y = high, text = str.tostring(bullCnt), color = na, textcolor = i_pos_light_color, size = size.small, style = label.style_label_down, yloc = yloc.abovebar)
+
+plot(series = bearFib, title = 'Bearish Fib Line', color = i_neg_color, style = plot.style_stepline, display = display.none)
+plot(series = bullFib, title = 'Bullish Fib Line', color = i_pos_color, style = plot.style_stepline, display = display.none)
+
+// Track the final count before reset
+var int lastBullCnt = 0
+var int lastBearCnt = 0
+
+// Update when sequence ends
+if bullMaxCnt
+    lastBullCnt := bullCnt[1]
+if bearMaxCnt
+    lastBearCnt := bearCnt[1]
+
+// Retracement tracking combined
+var bool bullActive = false
+var bool bearActive = false
+var bool bullDone = false
+var bool bearDone = false
+var int bullBar = na
+var int bearBar = na
+var int bullStart = na
+var int bearStart = na
+var float bullLow = na
+var float bearHigh = na
+var line bullLine = na
+var line bearLine = na
+
+// Activate sequences
+if bullCnt >= i_dc_min_bars and bullCnt[1] < i_dc_min_bars
+    bullActive := true
+    bearActive := false
+    bullDone := false
+    bearDone := false
+    bullStart := bar_index - bullCnt + 1
+if bearCnt >= i_dc_min_bars and bearCnt[1] < i_dc_min_bars
+    bearActive := true
+    bullActive := false
+    bearDone := false
+    bullDone := false
+    bearStart := bar_index - bearCnt + 1
+
+// Detect and mark retracements
+bool bearRet = bearActive and not bearDone and ta.crossover(high, bearFib) and high[1] < bearFib and time_filter and date_filter
+bool bullRet = bullActive and not bullDone and ta.crossunder(low, bullFib) and low[1] > bullFib and time_filter and date_filter
+if bearRet and i_scn_choose == 'Retracement' and i_scn_show_short
+    bearDone := true
+    bearBar := bar_index
+    bearHigh := high
+    bearLine := line.new(x1 = bearStart, y1 = bearFib, x2 = bearBar, y2 = bearFib, color = i_neg_light_color, style = line.style_dotted)
+if bullRet and i_scn_choose == 'Retracement' and i_scn_show_long
+    bullDone := true
+    bullBar := bar_index
+    bullLow := low
+    bullLine := line.new(x1 = bullStart, y1 = bullFib, x2 = bullBar, y2 = bullFib, color = i_pos_light_color, style = line.style_dotted)
+
+// Plot signals
+plotshape(i_scn_show_short and i_scn_choose == 'Retracement' ? bearRet : false, title = 'Bearish Retracement', style = shape.triangledown, location = location.abovebar, color = i_neg_light_color, size = size.tiny)
+plotshape(i_scn_show_long and i_scn_choose == 'Retracement' ? bullRet : false, title = 'Bullish Retracement', style = shape.triangleup, location = location.belowbar, color = i_pos_light_color, size = size.tiny)
+barcolor(i_scn_show_short and i_scn_choose == 'Retracement' and bearRet ? i_neg_light_color : i_scn_show_long and i_scn_choose == 'Retracement' and bullRet ? i_pos_light_color : na, title = 'Retracement Candle')
+
+//___________________________ Displacement Candles End
+
+//___________________________ Get Symbols List for Screener Start
+
+// Acknowledgement & Reference
+// Trader: 'allanster'
+// Indicator Title: 'How To Input CSV List Of Symbol Data Used For Screener'
+// Indicator Link: 'https://www.tradingview.com/script/KfqHqHUH-How-To-Input-CSV-List-Of-Symbol-Data-Used-For-Screener/'
+
+// Feed Function
+feed(input_string) =>
+    if na(input_string) or str.length(input_string) == 0
+        [string(na), string(na)]
+    else
+        result = str.split(input_string, ',')
+        first_item = ''
+        for i = 0 to array.size(result) - 1 by 1
+            trimmed = str.trim(array.get(result, i))
+            if trimmed != ''
+                first_item := trimmed
+                break
+        remaining = str.replace(input_string, first_item + ',', '', 1)
+        [first_item, remaining]
+
+// Flexible Symbol Extraction
+sym_split_arr = str.split(i_symbols, ',')
+new_sym_arr = array.new_string(array.size(sym_split_arr), na)
+for i = 0 to array.size(sym_split_arr) - 1 by 1
+    trimmed = str.trim(array.get(sym_split_arr, i))
+    if trimmed != ''
+        array.set(new_sym_arr, i, trimmed)
+
+// Assign symbols dynamically
+t_01 = array.size(new_sym_arr) > 0 ? array.get(new_sym_arr, 0) : na
+t_02 = array.size(new_sym_arr) > 1 ? array.get(new_sym_arr, 1) : na
+t_03 = array.size(new_sym_arr) > 2 ? array.get(new_sym_arr, 2) : na
+t_04 = array.size(new_sym_arr) > 3 ? array.get(new_sym_arr, 3) : na
+t_05 = array.size(new_sym_arr) > 4 ? array.get(new_sym_arr, 4) : na
+t_06 = array.size(new_sym_arr) > 5 ? array.get(new_sym_arr, 5) : na
+t_07 = array.size(new_sym_arr) > 6 ? array.get(new_sym_arr, 6) : na
+t_08 = array.size(new_sym_arr) > 7 ? array.get(new_sym_arr, 7) : na
+t_09 = array.size(new_sym_arr) > 8 ? array.get(new_sym_arr, 8) : na
+t_10 = array.size(new_sym_arr) > 9 ? array.get(new_sym_arr, 9) : na
+t_11 = array.size(new_sym_arr) > 10 ? array.get(new_sym_arr, 10) : na
+t_12 = array.size(new_sym_arr) > 11 ? array.get(new_sym_arr, 11) : na
+t_13 = array.size(new_sym_arr) > 12 ? array.get(new_sym_arr, 12) : na
+t_14 = array.size(new_sym_arr) > 13 ? array.get(new_sym_arr, 13) : na
+t_15 = array.size(new_sym_arr) > 14 ? array.get(new_sym_arr, 14) : na
+t_16 = array.size(new_sym_arr) > 15 ? array.get(new_sym_arr, 15) : na
+t_17 = array.size(new_sym_arr) > 16 ? array.get(new_sym_arr, 16) : na
+t_18 = array.size(new_sym_arr) > 17 ? array.get(new_sym_arr, 17) : na
+t_19 = array.size(new_sym_arr) > 18 ? array.get(new_sym_arr, 18) : na
+t_20 = array.size(new_sym_arr) > 19 ? array.get(new_sym_arr, 19) : na
+t_21 = array.size(new_sym_arr) > 20 ? array.get(new_sym_arr, 20) : na
+t_22 = array.size(new_sym_arr) > 21 ? array.get(new_sym_arr, 21) : na
+t_23 = array.size(new_sym_arr) > 22 ? array.get(new_sym_arr, 22) : na
+t_24 = array.size(new_sym_arr) > 23 ? array.get(new_sym_arr, 23) : na
+t_25 = array.size(new_sym_arr) > 24 ? array.get(new_sym_arr, 24) : na
+t_26 = array.size(new_sym_arr) > 25 ? array.get(new_sym_arr, 25) : na
+t_27 = array.size(new_sym_arr) > 26 ? array.get(new_sym_arr, 26) : na
+t_28 = array.size(new_sym_arr) > 27 ? array.get(new_sym_arr, 27) : na
+t_29 = array.size(new_sym_arr) > 28 ? array.get(new_sym_arr, 28) : na
+t_30 = array.size(new_sym_arr) > 29 ? array.get(new_sym_arr, 29) : na
+t_31 = array.size(new_sym_arr) > 30 ? array.get(new_sym_arr, 30) : na
+t_32 = array.size(new_sym_arr) > 31 ? array.get(new_sym_arr, 31) : na
+t_33 = array.size(new_sym_arr) > 32 ? array.get(new_sym_arr, 32) : na
+t_34 = array.size(new_sym_arr) > 33 ? array.get(new_sym_arr, 33) : na
+t_35 = array.size(new_sym_arr) > 34 ? array.get(new_sym_arr, 34) : na
+t_36 = array.size(new_sym_arr) > 35 ? array.get(new_sym_arr, 35) : na
+t_37 = array.size(new_sym_arr) > 36 ? array.get(new_sym_arr, 36) : na
+t_38 = array.size(new_sym_arr) > 37 ? array.get(new_sym_arr, 37) : na
+t_39 = array.size(new_sym_arr) > 38 ? array.get(new_sym_arr, 38) : na
+t_40 = array.size(new_sym_arr) > 39 ? array.get(new_sym_arr, 39) : na
+
+//___________________________ Get Symbols List for Screener End
+
+//___________________________ Scanner Start
+
+// Acknowledgement & Reference
+// Trader: 'MUQWISHI'
+// Indicator Title: 'Candlestick Patterns Screener [By MUQWISHI]'
+// Indicator Link: 'https://www.tradingview.com/script/xiWQuGOq-Candlestick-Patterns-Screener-By-MUQWISHI/'
+
+// Scanner Conditions
+bool short_cond =  
+ i_scn_choose == 'Displacement' ? bearMaxCnt : bearRet
+
+bool long_cond = 
+ i_scn_choose == 'Displacement' ? bullMaxCnt : bullRet
+
+// Indicator Calculation Function 
+indicator_calculation() =>
+    // Declare variables with var for persistence
+    var int _time = na
+    var int bars = na
+    var float _range = na
+    var float pchg = na
+    var int signal = na
+
+    if barstate.isconfirmed
+        // Single-line signal assignment
+        signal := i_scn_show_long and long_cond ? 1 : i_scn_show_short and short_cond ? -1 : na
+
+        if not na(signal)
+            _time := time
+            bars := bearMaxCnt ? bearCnt[1] : bullMaxCnt ? bullCnt[1] : na //math.round_to_mintick(close)
+            _range := bearMaxCnt ? bearRangePercent[1] : bullMaxCnt ? bullRangePercent[1] : na
+            pchg := cum_pchg
+
+    [_time, bars, _range, pchg, signal]
+
+// Time Formatting Function
+format_time(x) =>
+    str.format_time(x, timeframe.isintraday ? 'HH:mm dd-MM-yyyy' : 'dd-MM-yyyy', syminfo.timezone)
+
+// Symbol Extraction Function
+ticker_extract(s) =>
+    array.get(str.split(s, ':'), 1)
+
+// Matrix setup
+var matrix = matrix.new<string>(0, 6, na)
+
+// Add Rows Function
+rows_to_matix(symbol, _time, bars, _range, pchg, signal) =>
+    matrix.add_row(matrix, 0, array.from(symbol, _time, bars, _range, pchg, signal))
+
+// Scanner Function
+scan(new_sym_arr) =>
+    for i = 0 to array.size(new_sym_arr) - 1 by 1
+        sym = ticker.modify(array.get(new_sym_arr, i), syminfo.session)
+        [_time, bars, _range, pchg, signal] = request.security(sym, timeframe.period, indicator_calculation())
+        if not na(signal) and _time == time
+            rows_to_matix(
+                 ticker_extract(array.get(new_sym_arr, i)), 
+                 format_time(_time), 
+                 str.tostring(bars), 
+                 str.tostring(_range, '#.##'), 
+                 str.tostring(pchg, '#.##'), 
+                 str.tostring(signal))
+
+// Scan Symbols Array
+scan(new_sym_arr)
+
+// Trim excess rows in the matrix
+if matrix.rows(matrix) > i_scn_tbl_show_rows
+    while matrix.rows(matrix) > i_scn_tbl_show_rows
+        matrix.remove_row(matrix, matrix.rows(matrix) - 1)
+
+// Draw Table
+var table tbl_scan = table.new(position = i_scn_tbl_pos, columns = 5, rows = 102, border_width = 1, force_overlay = true)
+
+// Cells Function
+cell_scan_title(int _column, int _row, string _title, string tool_tip) =>
+    table.cell(table_id = tbl_scan, column = _column, row = _row, text = _title, text_color = i_neu_color, text_halign = text.align_center, bgcolor = i_neu_dark_color, text_size = i_scn_tbl_txt_size, tooltip = tool_tip)
+
+cell_scan(col, row, txt, _text_color) =>
+    table.cell(tbl_scan, col, row, text = txt, text_color = _text_color, text_halign = text.align_left, bgcolor = i_neu_dark_color, text_size = i_scn_tbl_txt_size)
+
+string tt_bar = "Number of displacement candles."
+string tt_pRng = "Percentage between the displacement candles."
+string tt_pChg = "Percentage change of the day."
+
+// Scanner Table
+if barstate.islast and i_scn_show_table
+    // Clear existing data in the table
+    table.clear(table_id = tbl_scan, start_column = 0, start_row = 0, end_column = 2, end_row = 101)
+    
+    cell_scan_title(0, 0, i_scn_choose, '')
+    table.merge_cells(table_id = tbl_scan, start_column = 0, start_row = 0, end_column = 4, end_row = 0)
+    cell_scan_title(0, 1, 'Symbol', '')
+    cell_scan_title(1, 1, 'Time', '')
+    cell_scan_title(2, 1, 'Bar', tt_bar)
+    cell_scan_title(3, 1, '%Rng', tt_pRng)
+    cell_scan_title(4, 1, '%Chg', tt_pChg)
+    j = 4
+
+    // Populate table with matrix data
+    if matrix.rows(matrix) > 0
+        for i = 0 to matrix.rows(matrix) - 1 by 1
+            color txt_color = matrix.get(matrix, i, 5) == '1' ? i_pos_color : matrix.get(matrix, i, 5) == '-1' ? i_neg_color : na
+
+            cell_scan(0, j, matrix.get(matrix, i, 0), txt_color)
+            cell_scan(1, j, matrix.get(matrix, i, 1), txt_color)
+            cell_scan(2, j, matrix.get(matrix, i, 2), txt_color)
+            cell_scan(3, j, matrix.get(matrix, i, 3), txt_color)
+            cell_scan(4, j, matrix.get(matrix, i, 4), txt_color)
+            j := j + 1
+
+//___________________________ Scanner End
+
+//___________________________ Code End
+
+// Readme
+// 
+// Indicator Title: "ICT Displacement Candles Scanner"
+// 
+// Overview
+// - A price action trading method based on strong price moves (displacement).
+// - Helps identify trend direction and potential trade entries.
+//
+// Features
+// - Scanning Methods:
+//   - Displacement: Strong, sudden price move (up/down) with long candles, minimal wicks.
+//   - Retracement: Price retraces to a Fibonacci level of the displacement.
+//
+// How to Use?
+// 1. Identify Displacement: Look for strong price movement after liquidity is taken.
+// 2. Wait for Retracement: Use Fibonacci to find entry levels (e.g., 61.8%).
+// 3. Confirm with Order Blocks or Fair Value Gap(FVG): Ensure price reacts at an institutional level.
+// 4. Enter Trade: Buy or sell based on trend continuation signals.
+// 5. Set Targets: Aim for the next liquidity zone.
+//
+// Note: Read tooltips for more clarity.
+// 
+// Questions?: Message the author on TradingView: https://www.tradingview.com/u/Arun_K_Bhaskar/
+// 
+// More Indicators: Free TradingView indicators and source code on GitHub: https://github.com/ArunKBhaskar/PineScript

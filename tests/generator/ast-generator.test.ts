@@ -131,9 +131,14 @@ for i = 0 to 10
     sum := sum + i
 `;
         const js = generateCode(code);
-        // Generator produces: for (i = 0; (i <= 10); ) with separate guard
-        expect(js).toContain('for (i = 0');
-        expect(js).toContain('10');
+        // Pine `for i = 0 to 10` parses with init as AssignmentExpression
+        // (`i = 0`); previously this emitted `for (i = 0; …; )` with NO
+        // increment, leaving the loop guarded only by the iteration
+        // ceiling. The generator now promotes it to `for (let i = 0; …;
+        // i++)` so the loop both terminates naturally AND keeps `i`
+        // scoped to the loop.
+        expect(js).toContain('for (let i = 0');
+        expect(js).toContain('i++');
         expect(js).toContain('Loop limit exceeded');
       });
 

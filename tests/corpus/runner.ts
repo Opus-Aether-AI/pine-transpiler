@@ -76,21 +76,42 @@ function runOneBar(
         inputCallback: (index: number) => number,
     ) => unknown,
     inputCallback: (index: number) => number,
+    declared: number,
 ): { plotOutput: number[]; error: unknown | null } {
     runtime.resetVarPointer();
     runtime.resetCurrentBarPlots();
     try {
         const result = main(runtime.context, inputCallback) as unknown;
-        // The transpiler routes calls along TWO different paths:
-        //   plot()      → Std.plot() → mock's currentBarPlots
-        //   hline()     → wrapper's hline param → factory's _plotValues
-        //   plotshape() → Std.plotshape() → mock's currentBarPlots
-        // Both contribute to metainfo.plots.length. Concatenate so the
-        // count matches what the metadata visitor declared. Source order
-        // is lost, but for the corpus pass criterion only the count
-        // matters.
+        // Plot output reaches us along two channels:
+        //   1) mock's Std.plot/plotshape/plotchar/plotarrow → currentBarPlots
+        //   2) wrapper-bound hline()/plotshape()/plotchar() → factory's
+        //      _plotValues, returned from main().
+        //
+        // The factory ALSO returns `plots.map((_p) => NaN)` from its own
+        // try/catch when the user script throws. That synthetic array
+        // has the exact declared length and is all NaN — distinguishing
+        // it from a legitimate "all-hline NaN" run requires comparing
+        // the total against declared.
         const factoryPlots = Array.isArray(result) ? (result as number[]) : [];
-        const plotOutput = [...runtime.currentBarPlots, ...factoryPlots];
+        const allNaN =
+            factoryPlots.length > 0 && factoryPlots.every((v) => Number.isNaN(v));
+
+        let plotOutput: number[];
+        if (
+            allNaN &&
+            factoryPlots.length === declared &&
+            runtime.currentBarPlots.length > 0
+        ) {
+            // The synthetic catch fallback is firing: mock fired some
+            // Std.plot calls before the script threw, and the factory
+            // padded the return to declared length with NaN. Trust mock
+            // exclusively to avoid double-counting.
+            plotOutput = [...runtime.currentBarPlots];
+        } else {
+            // Successful run: concat both channels. mock has the actual
+            // plot values; factory has any hline NaNs.
+            plotOutput = [...runtime.currentBarPlots, ...factoryPlots];
+        }
         return { plotOutput, error: null };
     } catch (error) {
         return { plotOutput: [], error };
@@ -205,6 +226,7 @@ export function runFixture(
             runtime,
             constructed.main as (ctx: unknown, cb: unknown) => unknown as never,
             inputCallback,
+            baseResult.declaredPlotCount,
         );
         if (error) {
             recordError(runtime.report, error);
