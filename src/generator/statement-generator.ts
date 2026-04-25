@@ -360,13 +360,41 @@ export class StatementGenerator implements StatementGeneratorInterface {
 
     let body = '';
     if (stmt.body.type === 'BlockStatement') {
-      body = this.generateBlockStatement(stmt.body);
+      body = this.generateFunctionBody(stmt.body);
     } else {
       this.indentLevel++;
       body = `{\n${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(stmt.body as Expression)};\n${indent(this.indentLevel, -1)}}`;
     }
 
     return `${indent(this.indentLevel)}${prefix}function ${name}(${params}) ${body}`;
+  }
+
+  /**
+   * Generate the body of a multi-line Pine function. Pine has implicit
+   * return — the value of the last expression in the block is the
+   * function's return value. JS requires an explicit `return`, so the
+   * last ExpressionStatement is rewritten as a ReturnStatement during
+   * emission. Other tail-position constructs (e.g. an `if`) are left
+   * as-is for now; users wanting to return from those should use an
+   * explicit `=>`-form or assign to a result variable.
+   */
+  private generateFunctionBody(block: BlockStatement): string {
+    this.indentLevel++;
+    const statements = block.body;
+    const lines: string[] = [];
+    for (let i = 0; i < statements.length; i++) {
+      const s = statements[i];
+      const isLast = i === statements.length - 1;
+      if (isLast && s.type === 'ExpressionStatement') {
+        lines.push(
+          `${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(s.expression)};`,
+        );
+      } else {
+        lines.push(this.generateStatement(s));
+      }
+    }
+    this.indentLevel--;
+    return `{\n${lines.join('\n')}\n${indent(this.indentLevel)}}`;
   }
 
   private generateImportStatement(stmt: ImportStatement): string {
