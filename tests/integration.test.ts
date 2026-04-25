@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { ASTGenerator } from '../src/generator/ast-generator';
 import { Lexer } from '../src/parser/lexer';
 import { Parser } from '../src/parser/parser';
@@ -17,7 +17,7 @@ describe('Pine Script Transpiler', () => {
     const pine = 'var int x = 10';
     const js = transpile(pine);
     // The transpiler currently maps 'var' (Pine) to 'let' (JS) for variables
-    expect(js).toContain('let x = 10;');
+    expect(js).toContain('var x = 10;');
   });
 
   it('should transpile function calls', () => {
@@ -33,13 +33,13 @@ describe('Pine Script Transpiler', () => {
     // We expect the output to be roughly: let s = "bad\"; drop table users; --";
     // The quote should be escaped.
     // Check if it contains the dangerous string as a string value, not code.
-    expect(js).toContain('let s = "bad\\"; drop table users; --";');
+    expect(js).toContain('var s = "bad\\"; drop table users; --";');
   });
 
   it('should transpile array literals', () => {
     const code = 'var a = [1, 2, 3]';
     const result = transpile(code);
-    expect(result).toContain('let a = [1, 2, 3];');
+    expect(result).toContain('var a = [1, 2, 3];');
   });
 
   it('should transpile for...in loops', () => {

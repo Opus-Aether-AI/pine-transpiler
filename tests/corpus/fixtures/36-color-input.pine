@@ -1,0 +1,5 @@
+//@version=5
+indicator("Color Input", overlay=true)
+length = input.int(20, "Length")
+col = input.color(color.blue, "Line Color")
+plot(ta.sma(close, length), "SMA", color=col)

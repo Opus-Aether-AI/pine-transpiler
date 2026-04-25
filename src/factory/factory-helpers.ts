@@ -29,6 +29,22 @@ export function mapPlotType(t: string): number {
       return 4;
     case 'stepline':
       return 0;
+    // PineJS plot styles are line-family numeric indices. Shape and
+    // char plots have their own metainfo top-level type ('shapes' /
+    // 'chars'), so the style.plottype here is largely cosmetic — but
+    // letting them fall through to 0 (line) would emit a structurally
+    // inconsistent metainfo (plot.type === 'shapes' AND
+    // styles[id].plottype === line). Use a dedicated marker so the
+    // chart host can ignore the style's plottype while still seeing
+    // the metainfo type as authoritative.
+    case 'shape':
+      return 6;
+    case 'char':
+      return 7;
+    case 'bg_colorer':
+      return 8;
+    case 'hline':
+      return 0;
     default:
       return 0;
   }
@@ -102,12 +118,40 @@ export function buildStylesMetadata(
  * @param plots - Array of parsed plot definitions
  * @returns Array of plot info objects for metainfo
  */
-export function buildPlotsMetadata(
-  plots: ParsedPlot[],
-): Array<{ id: string; type: 'line' | 'histogram' }> {
+/**
+ * Map a ParsedPlot.type to the corresponding PineJS metainfo.plots[i].type
+ * string. PineJS recognises: 'line', 'histogram', 'shapes', 'chars',
+ * 'arrows', 'bg_colorer'. Style variants like 'circles' / 'columns' /
+ * 'area' / 'stepline' / 'cross' all render as 'line' plots in metainfo;
+ * the visual is set per-plot in metainfo.styles[id].plottype.
+ */
+function plotTypeToMetainfoType(
+  type: ParsedPlot['type'],
+): 'line' | 'histogram' | 'shapes' | 'chars' | 'bg_colorer' {
+  switch (type) {
+    case 'shape':
+      return 'shapes';
+    case 'char':
+      return 'chars';
+    case 'bg_colorer':
+      return 'bg_colorer';
+    case 'histogram':
+      return 'histogram';
+    default:
+      // 'line', 'circles', 'columns', 'area', 'stepline', 'cross', 'hline'
+      // all collapse to a 'line' plot; plottype in styles distinguishes
+      // their visual rendering.
+      return 'line';
+  }
+}
+
+export function buildPlotsMetadata(plots: ParsedPlot[]): Array<{
+  id: string;
+  type: 'line' | 'histogram' | 'shapes' | 'chars' | 'bg_colorer';
+}> {
   return plots.map((p) => ({
     id: p.id,
-    type: p.type === 'line' || p.type === 'histogram' ? p.type : 'line',
+    type: plotTypeToMetainfoType(p.type),
   }));
 }
 

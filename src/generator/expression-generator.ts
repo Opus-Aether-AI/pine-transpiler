@@ -36,6 +36,28 @@ import {
 } from './generator-utils';
 
 /**
+ * A Pine call argument written as `name=value` parses to an
+ * AssignmentExpression with an Identifier on the left and operator `=`.
+ * Those are metadata-only (the metadata visitor consumes them via
+ * getArg) and must NOT be emitted into the runtime call: JS would
+ * interpret `name = value` as an assignment that rewrites whatever
+ * `name` shadows in the wrapper closure.
+ *
+ * Pine's reassignment operator `:=` also parses to AssignmentExpression
+ * with an Identifier left — but `f(x := computedValue)` is a real
+ * side-effecting reassignment in an argument position, NOT a named arg.
+ * Only the `=` form is dropped.
+ */
+function isNamedArgument(arg: Expression): boolean {
+  return (
+    arg.type === 'AssignmentExpression' &&
+    arg.operator === '=' &&
+    !Array.isArray(arg.left) &&
+    arg.left.type === 'Identifier'
+  );
+}
+
+/**
  * Interface for expression generation, used for dependency injection.
  */
 export interface ExpressionGeneratorInterface {
@@ -144,7 +166,21 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
 
   private generateCallExpression(expr: CallExpression): string {
     let callee = this.generateExpression(expr.callee as Expression);
-    const args = expr.arguments.map((a) => this.generateExpression(a));
+
+    // Pine call syntax allows named arguments: `plot(close, color=color.blue)`.
+    // Naïvely emitting `Std.plot(close, color = color.blue)` makes JS read
+    // the named arg as an *assignment expression*, which mutates the local
+    // `color` variable (the COLOR_MAP) to a single hex string. Subsequent
+    // calls that read `color.<name>` then crash on `undefined.purple`.
+    //
+    // Resolution: drop named-arg pairs from the runtime emit. They're
+    // metadata-only — `metadata-visitor.ts` extracts them separately via
+    // `getArg(args, index, name)` for the indicator's metainfo, so the
+    // chart still picks up titles, colors, styles, etc. Only positional
+    // values need to reach the JS function.
+    const args = expr.arguments
+      .filter((a) => !isNamedArgument(a))
+      .map((a) => this.generateExpression(a));
 
     const mapping = UNIFIED_FUNCTION_MAP.get(callee);
 

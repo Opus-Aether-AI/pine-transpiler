@@ -1,0 +1,7 @@
+//@version=5
+indicator("Map Keys Values", overlay=false)
+m = map.new<string, float>()
+map.put(m, "high", high)
+map.put(m, "low", low)
+map.put(m, "close", close)
+plot(map.size(m), "Size")

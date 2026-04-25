@@ -1,0 +1,8 @@
+//@version=5
+indicator("EMA Cross", overlay=true)
+fast = input.int(9, "Fast")
+slow = input.int(21, "Slow")
+emaFast = ta.ema(close, fast)
+emaSlow = ta.ema(close, slow)
+plot(emaFast, "Fast EMA", color=color.lime)
+plot(emaSlow, "Slow EMA", color=color.red)

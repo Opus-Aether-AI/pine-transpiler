@@ -1,0 +1,6 @@
+//@version=5
+indicator("CCI", overlay=false)
+length = input.int(20, "Length")
+plot(ta.cci(close, length), "CCI", color=color.purple)
+hline(100)
+hline(-100)

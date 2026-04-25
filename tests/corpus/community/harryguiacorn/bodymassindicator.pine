@@ -1,0 +1,34 @@
+// Source: github.com/harryguiacorn/TradingView-Proprietary-Indicators/BodyMassIndicator.pine
+// Vendored as a corpus fixture. License is the repo's — see the upstream LICENSE.
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © FxCloudTrader
+
+//@version=5
+indicator("Body Mass Indicator", "BMI", overlay = true)
+enableBodyMass      = input.bool(true, "5.1 Enable Body Mass Indicator")
+enableBodyATRMass   = input.bool(false, "5.2 Enable Body Mass ATR Indicator")
+lookbackperiod = input.int(26, "Look back periods")
+noOfAtr = input.int(1, "Number of ATRs vs body mass")
+
+BodyRange() =>
+	math.abs(close - open) 
+
+// Get the highest body range of the past number of bars
+highestBodyRange = ta.highest(BodyRange(), lookbackperiod)
+
+if highestBodyRange==BodyRange() and enableBodyMass
+	if close > open
+    	label.new(bar_index, na, "▲\n" + str.tostring(highestBodyRange, format.mintick), yloc = yloc.belowbar, style = label.style_none, textcolor = color.black, size = size.normal)
+	else if close < open
+		label.new(bar_index, na, str.tostring(highestBodyRange, format.mintick) + "\n▼", yloc = yloc.abovebar, style = label.style_none, textcolor = color.black, size = size.normal)
+
+if BodyRange()> ta.atr(lookbackperiod) * noOfAtr and enableBodyATRMass
+	if close > open
+    	label.new(bar_index, na, "▲\n" + str.tostring(BodyRange(), format.mintick), yloc = yloc.belowbar, style = label.style_none, textcolor = color.black, size = size.normal)
+	else if close < open
+		label.new(bar_index, na, str.tostring(BodyRange(), format.mintick) + "\n▼", yloc = yloc.abovebar, style = label.style_none, textcolor = color.black, size = size.normal)
+
+//Display every candlestick range for testing environment
+// label.new(bar_index[0], na, str.tostring(BodyRange(), format.mintick) + "", yloc = yloc.belowbar, style = label.style_none, textcolor = color.black, size = size.normal)
+
+// plotshape(highestBodyRange==BodyRange()?highestBodyRange:na,   title = 'Body Mass',  style=shape.flag, location=location.bottom, offset=0, color=color.new(color.yellow, 50), size=size.small, display = enableBodyMass?display.all:display.data_window)

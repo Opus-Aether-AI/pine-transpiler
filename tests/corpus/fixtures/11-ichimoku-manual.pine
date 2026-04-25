@@ -1,0 +1,13 @@
+//@version=5
+indicator("Ichimoku Manual", overlay=true)
+convPeriod = input.int(9, "Conversion")
+basePeriod = input.int(26, "Base")
+spanBPeriod = input.int(52, "Span B")
+tenkan = (ta.highest(high, convPeriod) + ta.lowest(low, convPeriod)) / 2
+kijun = (ta.highest(high, basePeriod) + ta.lowest(low, basePeriod)) / 2
+senkouA = (tenkan + kijun) / 2
+senkouB = (ta.highest(high, spanBPeriod) + ta.lowest(low, spanBPeriod)) / 2
+plot(tenkan, "Tenkan", color=color.red)
+plot(kijun, "Kijun", color=color.blue)
+plot(senkouA, "Span A", color=color.green)
+plot(senkouB, "Span B", color=color.orange)

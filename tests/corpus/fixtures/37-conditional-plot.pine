@@ -1,0 +1,7 @@
+//@version=5
+indicator("Conditional Plot", overlay=true)
+length = input.int(20, "Length")
+sma = ta.sma(close, length)
+showAbove = input.bool(true, "Show only when above")
+plot(showAbove and close > sma ? sma : na, "Above MA", color=color.green)
+plot(showAbove and close < sma ? sma : na, "Below MA", color=color.red)

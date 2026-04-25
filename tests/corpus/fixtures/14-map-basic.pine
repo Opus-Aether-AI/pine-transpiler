@@ -1,0 +1,7 @@
+//@version=5
+indicator("Map Basic", overlay=false)
+counts = map.new<string, int>()
+key = close > open ? "up" : "down"
+prevCount = map.contains(counts, key) ? map.get(counts, key) : 0
+map.put(counts, key, prevCount + 1)
+plot(map.size(counts), "Map Size")

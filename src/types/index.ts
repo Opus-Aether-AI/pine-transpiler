@@ -99,6 +99,7 @@ export interface ParsedPlot {
     | 'stepline'
     | 'cross'
     | 'shape'
+    | 'char'
     | 'hline'
     | 'bg_colorer';
   color: string;

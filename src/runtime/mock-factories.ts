@@ -74,6 +74,17 @@ export interface InputFunction {
   time: (defval: InputValue, title?: string) => InputValue;
   symbol: (defval: InputValue, title?: string) => InputValue;
   source: (defval: InputValue, title?: string) => number;
+  // Pine v5/v6 added more typed input helpers — covering all of them
+  // here so user code that calls input.color()/input.timeframe()/etc.
+  // resolves to the user's value instead of throwing "input.X is not
+  // a function". The default-passthrough behaviour keeps the runtime
+  // honest: charts pass real values via inputCallback at the right
+  // index; absent that, the supplied defval is returned.
+  color: (defval: InputValue, title?: string) => InputValue;
+  timeframe: (defval: InputValue, title?: string) => InputValue;
+  session: (defval: InputValue, title?: string) => InputValue;
+  text_area: (defval: InputValue, title?: string) => InputValue;
+  price: (defval: InputValue, title?: string) => InputValue;
 }
 
 /**
@@ -97,6 +108,11 @@ export function createInputMock(
   input.string = baseInput;
   input.time = baseInput;
   input.symbol = baseInput;
+  input.color = baseInput;
+  input.timeframe = baseInput;
+  input.session = baseInput;
+  input.text_area = baseInput;
+  input.price = baseInput;
   input.source = (_defval: InputValue, _title?: string) => {
     const val = inputCallback(_inputIndex++);
     if (val === 'close') return Std.close(context);
@@ -199,6 +215,13 @@ export interface TimeframeMock {
   isweekly: boolean;
   ismonthly: boolean;
   multiplier: number;
+  /** `timeframe.change(tf)` — true once per change of the named
+   *  timeframe boundary (new hour/day/etc.). Pine multi-timeframe
+   *  scripts gate accumulators on this. Mock returns false. */
+  change: (tf: string) => boolean;
+  /** `timeframe.in_seconds()` — returns the current timeframe in
+   *  seconds. Mock returns 60. */
+  in_seconds: () => number;
 }
 
 /**
@@ -216,6 +239,8 @@ export function createTimeframeMock(
     isweekly: Std.isweekly(context) as boolean,
     ismonthly: Std.ismonthly(context) as boolean,
     multiplier: Std.interval(context) as number,
+    change: () => false,
+    in_seconds: () => 60,
   };
 }
 

@@ -1,0 +1,6 @@
+//@version=5
+indicator("MFI", overlay=false)
+length = input.int(14, "Length")
+plot(ta.mfi(hlc3, length), "MFI", color=color.orange)
+hline(80)
+hline(20)

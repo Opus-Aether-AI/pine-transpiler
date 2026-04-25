@@ -9,8 +9,17 @@ import type {
   ComputedVariable,
   SessionVariable,
 } from '../generator/metadata-visitor';
-import { MATH_HELPER_FUNCTIONS, SESSION_HELPER_FUNCTIONS } from '../mappings';
 import {
+  ARRAY_HELPER_FUNCTIONS,
+  COLOR_HELPER_FUNCTIONS,
+  MAP_HELPER_FUNCTIONS,
+  MATH_HELPER_FUNCTIONS,
+  SESSION_HELPER_FUNCTIONS,
+  STRING_HELPER_FUNCTIONS,
+  UTILITY_HELPER_FUNCTIONS,
+} from '../mappings';
+import {
+  createBarstate,
   createInputMock,
   createMathMock,
   createPlotMock,
@@ -65,12 +74,40 @@ export interface IndicatorFactoryOptions {
 }
 
 /**
+ * Safely read an optional field from an opaque object (typically the
+ * runtime `context` or `context.symbol`). The PineJS runtime declares
+ * a smaller surface than what real charts expose at runtime — fields
+ * like `barIndex`, `isRealtime`, and `symbol.bars` are only present
+ * on richer runtime implementations. The double-cast through `unknown`
+ * is the tsc-clean way to read those without polluting the public
+ * type with implementation details.
+ */
+function readNumberField(obj: unknown, key: string): number | undefined {
+  const v = (obj as Record<string, unknown>)[key];
+  return typeof v === 'number' ? v : undefined;
+}
+
+function readBooleanField(
+  obj: unknown,
+  key: string,
+  fallback: boolean,
+): boolean {
+  const v = (obj as Record<string, unknown>)[key];
+  return typeof v === 'boolean' ? v : fallback;
+}
+
+/**
  * Analyze which helpers are needed based on the transpiled code
  */
 function analyzeRequiredHelpers(mainBody: string): {
   needsMath: boolean;
   needsSession: boolean;
   needsStdPlus: boolean;
+  needsArray: boolean;
+  needsMap: boolean;
+  needsColor: boolean;
+  needsString: boolean;
+  needsUtility: boolean;
 } {
   return {
     // Math helpers: _avg, _sum, _toDegrees, _toRadians, _roundToMintick
@@ -90,6 +127,53 @@ function analyzeRequiredHelpers(mainBody: string): {
       mainBody.includes('_getTradingDayTime('),
     // StdPlus: StdPlus.bb, StdPlus.hma, StdPlus.macd, etc.
     needsStdPlus: mainBody.includes('StdPlus.'),
+    // Array helpers: any of the _array<X> functions emitted by the
+    // array.* mappings need ARRAY_HELPER_FUNCTIONS injected — without
+    // it the body crashes with `_arrayPush is not defined` and the
+    // factory's catch block silently returns NaN per declared plot.
+    needsArray:
+      mainBody.includes('_arrayNew') ||
+      mainBody.includes('_arrayPush(') ||
+      mainBody.includes('_arrayPop(') ||
+      mainBody.includes('_arrayGet(') ||
+      mainBody.includes('_arraySet(') ||
+      mainBody.includes('_arraySize(') ||
+      mainBody.includes('_arrayAvg(') ||
+      mainBody.includes('_arraySum(') ||
+      mainBody.includes('_arrayMin(') ||
+      mainBody.includes('_arrayMax(') ||
+      mainBody.includes('_arrayStdev(') ||
+      mainBody.includes('_arrayVariance(') ||
+      mainBody.includes('_arraySort(') ||
+      mainBody.includes('_arrayReverse(') ||
+      mainBody.includes('_arraySlice(') ||
+      mainBody.includes('_arrayConcat(') ||
+      mainBody.includes('_arrayCopy(') ||
+      mainBody.includes('_arrayClear(') ||
+      mainBody.includes('_arrayIncludes(') ||
+      mainBody.includes('_arrayIndexOf(') ||
+      mainBody.includes('_arrayLastIndexOf(') ||
+      mainBody.includes('_arrayJoin('),
+    // Map helpers: same pattern for Pine v6 map.*
+    needsMap:
+      mainBody.includes('_mapNew(') ||
+      mainBody.includes('_mapPut(') ||
+      mainBody.includes('_mapGet(') ||
+      mainBody.includes('_mapContains(') ||
+      mainBody.includes('_mapRemove(') ||
+      mainBody.includes('_mapSize(') ||
+      mainBody.includes('_mapKeys(') ||
+      mainBody.includes('_mapValues(') ||
+      mainBody.includes('_mapClear('),
+    // Color helpers: _colorNew (the transpiled form of `color.new`)
+    needsColor: mainBody.includes('_colorNew('),
+    // String helpers: anything starting with _str
+    needsString: /\b_str[A-Z]/.test(mainBody),
+    // Catch-all utility helpers (NA, type conversion, etc.)
+    needsUtility:
+      mainBody.includes('_pineNa(') ||
+      mainBody.includes('_pineNz(') ||
+      mainBody.includes('_pineFixnan('),
   };
 }
 
@@ -117,8 +201,16 @@ export function generatePreamble(
   }
 
   // Conditionally inject helpers based on what's actually used
-  const { needsMath, needsSession, needsStdPlus } =
-    analyzeRequiredHelpers(mainBody);
+  const {
+    needsMath,
+    needsSession,
+    needsStdPlus,
+    needsArray,
+    needsMap,
+    needsColor,
+    needsString,
+    needsUtility,
+  } = analyzeRequiredHelpers(mainBody);
 
   if (needsMath) {
     preamble += `${MATH_HELPER_FUNCTIONS}\n`;
@@ -128,6 +220,21 @@ export function generatePreamble(
   }
   if (needsStdPlus) {
     preamble += `${STD_PLUS_LIBRARY}\n`;
+  }
+  if (needsArray) {
+    preamble += `${ARRAY_HELPER_FUNCTIONS}\n`;
+  }
+  if (needsMap) {
+    preamble += `${MAP_HELPER_FUNCTIONS}\n`;
+  }
+  if (needsColor) {
+    preamble += `${COLOR_HELPER_FUNCTIONS}\n`;
+  }
+  if (needsString) {
+    preamble += `${STRING_HELPER_FUNCTIONS}\n`;
+  }
+  if (needsUtility) {
+    preamble += `${UTILITY_HELPER_FUNCTIONS}\n`;
   }
 
   return preamble;
@@ -178,6 +285,12 @@ export function buildIndicatorFactory(
         inputs: buildInputsMetadata(inputs),
       },
       constructor: () => {
+        // Track the previous bar's open time so barstate.isnew can flip
+        // when a new bar arrives. Lives on the per-instance closure so
+        // it persists across main() invocations within one indicator
+        // session, but resets cleanly when the chart re-instantiates.
+        let _previousBarTime = -1;
+
         // Compile the script once during initialization
         // biome-ignore lint/complexity/noBannedTypes: Function constructor required
         let compiledScript: Function;
@@ -196,9 +309,11 @@ export function buildIndicatorFactory(
             'timeframe',
             'plotshape',
             'plotchar',
+            'plotarrow',
             'hline',
             'bgcolor',
             'fill',
+            'barcolor',
             'box',
             'line',
             'label',
@@ -206,6 +321,32 @@ export function buildIndicatorFactory(
             'str',
             'syminfo',
             'barstate',
+            'shape',
+            'location',
+            'size',
+            'alertcondition',
+            'alert',
+            'request',
+            'array',
+            'time',
+            'bar_index',
+            'hour',
+            'minute',
+            'second',
+            'year',
+            'month',
+            'dayofmonth',
+            'dayofweek',
+            'chart',
+            'format',
+            'string',
+            'xloc',
+            'yloc',
+            'extend',
+            'position',
+            'text',
+            'display',
+            'ticker',
             'close',
             'open',
             'high',
@@ -219,7 +360,26 @@ export function buildIndicatorFactory(
         } catch (e) {
           // biome-ignore lint/suspicious/noConsole: Runtime error logging
           console.error('Compilation error', e);
-          compiledScript = () => {};
+          // Store the original error so it routes through the per-bar
+          // runtime catch (which tags `__caughtError`). Earlier the
+          // stub was `() => {}`, which silently produced empty
+          // _plotValues with no error signal — corpus consumers saw a
+          // plot-count mismatch but no thrown error to surface.
+          //
+          // We tag the error with `__compileError` so the runtime catch
+          // can suppress its per-bar `console.error` when the error is
+          // just the compile error rethrown (otherwise a broken
+          // indicator spams 200 redundant error lines per render).
+          const compileErr = e instanceof Error ? e : new Error(String(e));
+          Object.defineProperty(compileErr, '__compileError', {
+            value: true,
+            enumerable: false,
+            writable: false,
+            configurable: false,
+          });
+          compiledScript = () => {
+            throw compileErr;
+          };
         }
 
         return {
@@ -244,6 +404,34 @@ export function buildIndicatorFactory(
             const stubs = createStubNamespaces();
             const sources = createPriceSources(stdLib, ctx);
 
+            // Real-ish barstate: read the current bar's time from the
+            // runtime when it exposes Std.time, fall back to -1 (matches
+            // the "stub" behaviour) otherwise. The factory's outer
+            // closure tracks the previous bar's time so isnew flips on
+            // every new bar; isconfirmed/ishistory follow the runtime's
+            // realtime signal when available.
+            const stdTime = (stdLib as Record<string, unknown>).time;
+            const currentBarTime =
+              typeof stdTime === 'function'
+                ? Number(
+                    (stdTime as (c: RuntimeContextInternal) => unknown)(ctx),
+                  )
+                : -1;
+            const barstate = createBarstate({
+              currentTime: currentBarTime,
+              previousTime: _previousBarTime,
+              // The PineJS runtime can expose total bars / current bar
+              // index on context.symbol; fall through to undefined so
+              // createBarstate keeps the legacy `islast=true` default
+              // when those fields aren't present.
+              totalBars: readNumberField(ctx.symbol, 'bars'),
+              barIndex: readNumberField(ctx, 'barIndex'),
+              isRealtime: readBooleanField(ctx, 'isRealtime', true),
+            });
+            // Update the closure cursor so the next main() invocation
+            // sees this bar as the previous one.
+            _previousBarTime = currentBarTime;
+
             // No-op functions for indicator declarations
             const indicator = () => {};
             const study = () => {};
@@ -256,14 +444,179 @@ export function buildIndicatorFactory(
             const plotchar = () => {
               _plotValues.push(NaN);
             };
+            const plotarrow = () => {
+              _plotValues.push(NaN);
+            };
             const hline = () => {
               _plotValues.push(NaN);
             };
             const bgcolor = () => {};
             const fill = () => {};
+            // barcolor is a metainfo concern (per-bar color) — runtime
+            // no-op like bgcolor.
+            const barcolor = () => {};
 
             // Color mapping
             const color = COLOR_MAP;
+
+            // Pine namespaces / globals user code expects to reference.
+            // Without these wrapper-bound parameters, `shape.triangleup`,
+            // `location.belowbar`, `bar_index`, etc. resolve to
+            // `undefined` and the script throws ReferenceError on first
+            // access. The values are intentionally simple bag-of-strings
+            // because the metadata visitor consumes them out-of-band;
+            // the runtime only needs *something* present so member
+            // access doesn't crash.
+            const shape = {
+              triangleup: 'shape_triangle_up',
+              triangledown: 'shape_triangle_down',
+              arrowup: 'shape_arrow_up',
+              arrowdown: 'shape_arrow_down',
+              circle: 'shape_circle',
+              cross: 'shape_cross',
+              diamond: 'shape_diamond',
+              flag: 'shape_flag',
+              square: 'shape_square',
+              labelup: 'shape_label_up',
+              labeldown: 'shape_label_down',
+              xcross: 'shape_xcross',
+            };
+            const location = {
+              abovebar: 'AboveBar',
+              belowbar: 'BelowBar',
+              top: 'Top',
+              bottom: 'Bottom',
+              absolute: 'Absolute',
+            };
+            const size = {
+              auto: 'auto',
+              tiny: 'tiny',
+              small: 'small',
+              normal: 'normal',
+              large: 'large',
+              huge: 'huge',
+            };
+            // Additional Pine namespaces — bag-of-strings stubs so user
+            // code that references `chart.fg_color`, `format.price`,
+            // `xloc.bar_index`, `yloc.price`, etc. doesn't crash on
+            // ReferenceError. Values are placeholder strings; the
+            // chart host consumes the real ones via metainfo.
+            //
+            // Note: some of these (string, format, chart) are also
+            // used as type-cast functions in Pine — `string(x)`,
+            // `format.volume(x)`, etc. Wrap a function so they're
+            // BOTH callable (returning the input as-is) AND support
+            // member access. The Proxy `get` handler covers member
+            // access; the function itself covers calls.
+            const callableProxy = (label: string): unknown =>
+              new Proxy(((arg: unknown) => arg) as unknown as object, {
+                get: (_t, p) => {
+                  // Allow calls like `format.volume(x)` to pass
+                  // through too — every member is itself a callable
+                  // identity-stub.
+                  if (typeof p === 'symbol') return undefined;
+                  return (arg: unknown) =>
+                    arg !== undefined ? arg : `${label}.${String(p)}`;
+                },
+              });
+            const chart = callableProxy('chart') as Record<string, string>;
+            const format = callableProxy('format') as Record<string, string>;
+            const string = callableProxy('string') as Record<string, string>;
+            const xloc = {
+              bar_index: 'bar_index',
+              bar_time: 'bar_time',
+            };
+            const yloc = {
+              price: 'price',
+              abovebar: 'abovebar',
+              belowbar: 'belowbar',
+            };
+            const extend = {
+              none: 'none',
+              left: 'left',
+              right: 'right',
+              both: 'both',
+            };
+            const position = new Proxy(
+              {},
+              { get: (_t, p) => `position.${String(p)}` },
+            ) as Record<string, string>;
+            const text = {
+              align_left: 'left',
+              align_center: 'center',
+              align_right: 'right',
+              align_top: 'top',
+              align_bottom: 'bottom',
+            };
+            const display = new Proxy(
+              {},
+              { get: (_t, p) => `display.${String(p)}` },
+            ) as Record<string, string>;
+            // ticker.* is a Pine namespace for ticker manipulation
+            // (`ticker.new`, `ticker.modify`); also used as a callable
+            // type-cast. Match the callable+member pattern used by
+            // chart/format/string above.
+            const ticker = callableProxy('ticker') as Record<string, string>;
+
+            // Pine `alertcondition()` and `alert()` are no-ops at the
+            // mock layer — the chart routes alerts via metadata, not
+            // per-bar execution. Stub them to avoid `is not defined`.
+            const alertcondition = () => {};
+            const alert = () => {};
+
+            // request.* and array (the namespace, distinct from the
+            // array.* mappings) — Pine v6 multi-timeframe / collection
+            // APIs. `request.security` and friends need a real data
+            // layer; without one we can only stub. The bare `array`
+            // identifier lets Pine code that does `array<float>` type
+            // annotations or rare `array` namespace references not
+            // crash at the JS reference level.
+            //
+            // The stub returns an object that's BOTH a NaN-when-coerced
+            // value AND a destructure-friendly iterable that yields
+            // NaN forever. Pine's `[a, b, c] = request.security(...)`
+            // destructure pattern is common in multi-tf scripts; a
+            // bare `() => NaN` would crash on "number is not iterable"
+            // and mask which fixtures actually need request support.
+            const naIterable: Iterable<number> = {
+              [Symbol.iterator]() {
+                return { next: () => ({ value: Number.NaN, done: false }) };
+              },
+            };
+            const naFallback = () => naIterable;
+            const request = new Proxy({}, { get: () => naFallback }) as Record<
+              string,
+              (...args: unknown[]) => unknown
+            >;
+            const array = new Proxy({}, { get: () => naFallback }) as Record<
+              string,
+              (...args: unknown[]) => unknown
+            >;
+
+            // Pine date/time built-ins. Real Pine takes a unix-ms
+            // timestamp; without one (`hour()`, `minute()`, etc. with
+            // no arg) it returns the current bar's hour/minute/etc.
+            // Mock from the current bar's `time` value.
+            const hour = (t?: number) => new Date(t ?? time).getUTCHours();
+            const minute = (t?: number) => new Date(t ?? time).getUTCMinutes();
+            const second = (t?: number) => new Date(t ?? time).getUTCSeconds();
+            const year = (t?: number) => new Date(t ?? time).getUTCFullYear();
+            const month = (t?: number) => new Date(t ?? time).getUTCMonth() + 1;
+            const dayofmonth = (t?: number) => new Date(t ?? time).getUTCDate();
+            const dayofweek = (t?: number) =>
+              new Date(t ?? time).getUTCDay() + 1;
+
+            // Per-bar built-ins. `time` is the bar's open time; the
+            // mock context exposes Std.time(ctx). `bar_index` is 0-based
+            // and tracked on context when the runtime supports it.
+            const stdTimeFn = (stdLib as Record<string, unknown>).time;
+            const time =
+              typeof stdTimeFn === 'function'
+                ? Number(
+                    (stdTimeFn as (c: RuntimeContextInternal) => unknown)(ctx),
+                  )
+                : 0;
+            const bar_index = readNumberField(ctx, 'barIndex') ?? 0;
 
             // Execution
             try {
@@ -281,16 +634,44 @@ export function buildIndicatorFactory(
                 timeframe,
                 plotshape,
                 plotchar,
+                plotarrow,
                 hline,
                 bgcolor,
                 fill,
+                barcolor,
                 stubs.box,
                 stubs.line,
                 stubs.label,
                 stubs.table,
                 stubs.str,
                 syminfo,
-                stubs.barstate,
+                barstate,
+                shape,
+                location,
+                size,
+                alertcondition,
+                alert,
+                request,
+                array,
+                time,
+                bar_index,
+                hour,
+                minute,
+                second,
+                year,
+                month,
+                dayofmonth,
+                dayofweek,
+                chart,
+                format,
+                string,
+                xloc,
+                yloc,
+                extend,
+                position,
+                text,
+                display,
+                ticker,
                 sources.close,
                 sources.open,
                 sources.high,
@@ -303,15 +684,55 @@ export function buildIndicatorFactory(
 
               return _plotValues;
             } catch (e) {
-              // biome-ignore lint/suspicious/noConsole: Runtime error logging
-              console.error('Script execution error', e);
-              return plots.map((_p) => NaN);
+              // Suppress the per-bar console.error when the error is
+              // just the compile error being rethrown — the
+              // compilation catch above already logged it once, and
+              // logging it 200 more times (once per bar) is noise.
+              const isCompileRethrow =
+                typeof e === 'object' &&
+                e !== null &&
+                (e as { __compileError?: boolean }).__compileError === true;
+              if (!isCompileRethrow) {
+                // biome-ignore lint/suspicious/noConsole: Runtime error logging
+                console.error('Script execution error', e);
+              }
+              // Synthesize a NaN-of-declared-length array so the chart
+              // doesn't crash on a bad bar. Tag the array with a non-
+              // enumerable `__caughtError` so consumers (e.g. the corpus
+              // runner) can tell this apart from a legitimate all-NaN
+              // bar (which can happen with hline-only scripts) and
+              // surface the underlying error instead of silently
+              // marking the bar as a pass.
+              const fallback = plots.map((_p) => NaN);
+              // Preserve the raw error (instance + stack) on the array
+              // so consumers can surface the full diagnostic, not just
+              // the message. Non-enumerable so spread / JSON.stringify
+              // don't drag it into chart output.
+              Object.defineProperty(fallback, '__caughtError', {
+                value: e,
+                enumerable: false,
+                writable: false,
+                configurable: false,
+              });
+              return fallback;
             }
           },
         };
       },
     };
   };
+
+  // Expose the literal transpiled JS body on the factory so consumers
+  // (e.g. an editor's "compiled" preview pane) can render the actual
+  // Pine→JS output instead of `factory.toString()` (which only shows
+  // the outer wrapper). Non-enumerable so spreading the factory into
+  // other objects doesn't accidentally drag the body string along.
+  Object.defineProperty(indicatorFactory, '__pineJsBody', {
+    value: body,
+    enumerable: false,
+    writable: false,
+    configurable: true,
+  });
 
   return indicatorFactory;
 }

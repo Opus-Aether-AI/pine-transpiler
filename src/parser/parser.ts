@@ -118,6 +118,11 @@ export class Parser extends ExpressionParser {
           return { type: 'ContinueStatement' };
         case 'var':
         case 'varip':
+        case 'const':
+          // Pine v6 added `const` qualifier (e.g. `const color buyColor
+          // = color.blue`); same parser path as var/varip — the
+          // VariableDeclaration node carries `kind` and the generator
+          // emits `const` for it.
           return this.parseVariableDeclaration(keyword);
         case 'switch':
           return this.parseSwitchStatement();
@@ -149,8 +154,38 @@ export class Parser extends ExpressionParser {
     ) {
       const start = this.current;
       try {
-        return this.parseVariableOrAssignment();
-      } catch (_e) {
+        const first = this.parseVariableOrAssignment();
+        // Pine permits comma-separated declarations on one line:
+        //   `bool a = false, bool b = true`
+        //   `int prev_ph_bi = na, int prev_pl_bi = na`
+        // Each comma-separated piece is its own typed decl. Wrap the
+        // collection in a BlockStatement so the rest of the parser /
+        // generator can treat it as a sequence of statements without a
+        // new node kind. The braces don't appear in emitted JS because
+        // we're still at top level and BlockStatement at top level
+        // emits `{ … }` only when it's a child of a block-aware
+        // construct. For top-level, generateBlockStatement is called
+        // by generateStatement which wraps it; that's still legal JS
+        // at top level (a bare block).
+        if (!this.check(TokenType.COMMA)) {
+          return first;
+        }
+        const decls: Statement[] = [first];
+        while (this.match(TokenType.COMMA)) {
+          decls.push(this.parseVariableOrAssignment());
+        }
+        return { type: 'BlockStatement', body: decls };
+      } catch (e) {
+        // Only ParseError indicates "this isn't a variable decl, fall
+        // through to expression parsing" — e.g. the operator-validation
+        // throw at parseVariableOrAssignment. Anything else (TypeError,
+        // RangeError, programmer error) should bubble up so the corpus
+        // / consumer sees the real failure instead of being silently
+        // routed into a downstream parse failure with a misleading
+        // message.
+        if (!(e instanceof ParseError)) {
+          throw e;
+        }
         this.current = start;
       }
     }
@@ -192,8 +227,17 @@ export class Parser extends ExpressionParser {
       consequent = this.parseBlock();
     }
 
+    // Look for an `else` branch — but ONLY consume the keyword when
+    // it actually IS `else`. The previous form
+    //   `if (this.match(KEYWORD) && this.previous().value === 'else')`
+    // ate the next token unconditionally; when the next statement was
+    // a sibling `if` (two consecutive ifs in the same block, common
+    // inside Pine function bodies), the second `if` keyword got
+    // swallowed silently and the parser bailed on the rest of the
+    // input. Switch to peek-then-conditional-advance.
     let alternate: BlockStatement | Statement | undefined;
-    if (this.match(TokenType.KEYWORD) && this.previous().value === 'else') {
+    if (this.check(TokenType.KEYWORD) && this.peek().value === 'else') {
+      this.advance(); // consume `else`
       if (this.check(TokenType.NEWLINE)) {
         this.advance();
         alternate = this.parseBlock();
@@ -337,8 +381,16 @@ export class Parser extends ExpressionParser {
     while (!this.check(TokenType.DEDENT) && !this.isAtEnd()) {
       if (this.match(TokenType.NEWLINE)) continue;
 
+      // Switch case can start with either `=>` (default arm, no test
+      // expression) or `<test> =>`. Peek-then-conditional-advance to
+      // avoid eating an unrelated operator: the previous form
+      // `match(OPERATOR) && previous().value === '=>'` consumed any
+      // OPERATOR before checking and silently corrupted the parser
+      // state when the next token was a `-` / `+` / `!` etc. starting
+      // an expression.
       let test: Expression | null = null;
-      if (this.match(TokenType.OPERATOR) && this.previous().value === '=>') {
+      if (this.check(TokenType.OPERATOR) && this.peek().value === '=>') {
+        this.advance();
         test = null;
       } else {
         test = this.parseExpression();
@@ -384,6 +436,20 @@ export class Parser extends ExpressionParser {
       let typeAnnotation: TypeAnnotation | undefined;
       if (this.checkTypeAnnotation()) {
         typeAnnotation = this.parseTypeAnnotation();
+      } else if (this.isUserTypeFieldPrefix()) {
+        // Pine v6 type fields can themselves be user-defined types or
+        // arrays of them: `Imbalance[] imbalance`,
+        // `Imbalance_Settings settings`. Discard the type identifier
+        // (and optional `[]`) so the field-name parse below succeeds;
+        // we don't enforce field types at codegen.
+        this.advance();
+        while (
+          this.check(TokenType.LBRACKET) &&
+          this.peekNext()?.type === TokenType.RBRACKET
+        ) {
+          this.advance();
+          this.advance();
+        }
       }
 
       const fieldName = this.consume(
@@ -392,7 +458,8 @@ export class Parser extends ExpressionParser {
       ).value;
 
       let init: Expression | null = null;
-      if (this.match(TokenType.OPERATOR) && this.previous().value === '=') {
+      if (this.check(TokenType.OPERATOR) && this.peek().value === '=') {
+        this.advance();
         init = this.parseExpression();
       }
 
@@ -458,7 +525,8 @@ export class Parser extends ExpressionParser {
           typeAnnotation,
         });
 
-        if (this.match(TokenType.OPERATOR) && this.previous().value === '=') {
+        if (this.check(TokenType.OPERATOR) && this.peek().value === '=') {
+          this.advance();
           this.parseExpression();
         }
       } while (this.match(TokenType.COMMA));
@@ -484,10 +552,71 @@ export class Parser extends ExpressionParser {
     };
   }
 
+  /**
+   * Detect a user-defined type prefix in a TYPE-FIELD context (inside
+   * `type X` block): two identifiers in a row, optionally with `[]`
+   * between them. Field declarations don't require an `=` (no
+   * default), so the lookahead just needs an IDENT followed by either
+   * NEWLINE or `=`.
+   */
+  private isUserTypeFieldPrefix(): boolean {
+    if (!this.check(TokenType.IDENTIFIER)) return false;
+    let lookahead = this.current + 1;
+    while (
+      this.tokens[lookahead]?.type === TokenType.LBRACKET &&
+      this.tokens[lookahead + 1]?.type === TokenType.RBRACKET
+    ) {
+      lookahead += 2;
+    }
+    return this.tokens[lookahead]?.type === TokenType.IDENTIFIER;
+  }
+
+  /**
+   * Detect a user-defined type prefix: two identifiers in a row,
+   * optionally with `[]` between them (typed-array annotation), where
+   * the second identifier is followed by `=`, `:=`, or a compound
+   * assignment. Used as a fallback when checkTypeAnnotation rejects
+   * the first identifier because it's not a built-in TYPE_KEYWORD.
+   */
+  private isUserTypePrefix(): boolean {
+    if (!this.check(TokenType.IDENTIFIER)) return false;
+    let lookahead = this.current + 1;
+    // Skip any `[]` after the first identifier.
+    while (
+      this.tokens[lookahead]?.type === TokenType.LBRACKET &&
+      this.tokens[lookahead + 1]?.type === TokenType.RBRACKET
+    ) {
+      lookahead += 2;
+    }
+    if (this.tokens[lookahead]?.type !== TokenType.IDENTIFIER) return false;
+    const after = this.tokens[lookahead + 1];
+    if (!after) return false;
+    if (after.type !== TokenType.OPERATOR) return false;
+    return ['=', ':=', '+=', '-=', '*=', '/=', '%='].includes(after.value);
+  }
+
   private parseVariableOrAssignment(): Statement {
     let typeAnnotation: TypeAnnotation | undefined;
     if (this.checkTypeAnnotation()) {
       typeAnnotation = this.parseTypeAnnotation();
+    } else if (this.isUserTypePrefix()) {
+      // Pine v6 allows user-defined types as type annotations:
+      //   `MyType x = MyType.new()`
+      // checkTypeAnnotation only recognises the built-in type keywords;
+      // a user type sits as an Identifier in the token stream. When we
+      // see two identifiers in a row followed by `=`, the first is a
+      // type annotation. Consume and discard it (we don't enforce types
+      // at codegen anyway).
+      this.advance();
+      // Also consume `[]` if it's a typed-array annotation (`MyType[]
+      // arr = …`).
+      while (
+        this.check(TokenType.LBRACKET) &&
+        this.peekNext()?.type === TokenType.RBRACKET
+      ) {
+        this.advance();
+        this.advance();
+      }
     }
 
     let id: Identifier | Expression | Identifier[];
@@ -526,17 +655,39 @@ export class Parser extends ExpressionParser {
 
     const operatorToken = this.consume(TokenType.OPERATOR, 'Expected = or :=');
     const operator = operatorToken.value;
+    // Tighten validation: TokenType.OPERATOR matches every operator,
+    // including `-` and `+`. Without this check, a multi-line arrow
+    // function body like `src - ta.sma(src, len)` was being parsed as
+    // a VariableDeclaration `let src = ta.sma(src, len)` (the `-` was
+    // silently swallowed as the "operator"). parseStatement catches
+    // the throw and falls back to parsing the line as an expression
+    // statement.
+    //
+    // Pine v6 also supports compound-assignment operators on existing
+    // variables: `x += 1`, `x -= 2`, `x *= 0.5`, `x /= 2`, `x %= n`.
+    // These behave like reassignments (similar to `:=`) and emit as
+    // AssignmentExpression statements rather than new declarations.
+    const COMPOUND_ASSIGN = new Set(['+=', '-=', '*=', '/=', '%=']);
+    if (
+      operator !== '=' &&
+      operator !== ':=' &&
+      !COMPOUND_ASSIGN.has(operator)
+    ) {
+      throw this.error(operatorToken, 'Expected = or := in assignment.');
+    }
     const init = this.parseExpression();
 
     if (
       operator === ':=' ||
+      COMPOUND_ASSIGN.has(operator) ||
       (operator === '=' && !Array.isArray(id) && id.type === 'MemberExpression')
     ) {
       return {
         type: 'ExpressionStatement',
         expression: {
           type: 'AssignmentExpression',
-          operator: operator === ':=' ? ':=' : '=',
+          operator:
+            operator === ':=' ? ':=' : operator === '=' ? '=' : operator,
           left: id as Identifier | MemberExpression,
           right: init,
         },
@@ -544,7 +695,16 @@ export class Parser extends ExpressionParser {
     }
 
     if (!Array.isArray(id) && id.type === 'MemberExpression') {
-      throw new Error('Invalid variable declaration with member expression.');
+      // Use this.error() so we throw a ParseError, which the narrowed
+      // catch in parseStatement (`!(e instanceof ParseError)`) can
+      // recognise and recover from. Throwing a bare Error here would
+      // bypass the narrowing and crash the parser on what should be a
+      // recoverable error (e.g. `a.b = value` reaches here only when
+      // operator !== ':=' / '=' which means we mis-routed).
+      throw this.error(
+        this.peek(),
+        'Invalid variable declaration with member expression.',
+      );
     }
 
     return {
@@ -657,6 +817,19 @@ export class Parser extends ExpressionParser {
       if (!this.matchOperator('>')) {
         throw this.error(this.peek(), 'Expected > after generic arguments.');
       }
+    }
+
+    // Pine v6 array type suffix: `float[]`, `int[]`, etc. Consume the
+    // empty brackets so downstream parsing doesn't see them as the
+    // start of a destructure/subscript. The type info is informational
+    // only for the runtime — the array.* mappings handle the actual
+    // operations regardless of the declared element type.
+    while (
+      this.check(TokenType.LBRACKET) &&
+      this.peekNext()?.type === TokenType.RBRACKET
+    ) {
+      this.advance(); // [
+      this.advance(); // ]
     }
 
     return { type: 'TypeAnnotation', name, arguments: args };

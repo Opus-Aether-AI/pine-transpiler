@@ -4,7 +4,7 @@
  * Tests for Pine Script math.* function mappings to JavaScript.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import {
   BASIC_MATH_MAPPINGS,
   MATH_FUNCTION_MAPPINGS,

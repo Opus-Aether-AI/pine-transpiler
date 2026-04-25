@@ -1,0 +1,10 @@
+const _series_high = context.new_var(high);
+const _getHistorical_high = (offset) => _series_high.get(offset);
+const _series_low = context.new_var(low);
+const _getHistorical_low = (offset) => _series_low.get(offset);
+indicator("Pivot Points");
+var length = input.int(5, "Length");
+var ph = Std.pivothigh(context, high, length, length);
+var pl = Std.pivotlow(context, low, length, length);
+Std.plot(ph, "Pivot High");
+Std.plot(pl, "Pivot Low");

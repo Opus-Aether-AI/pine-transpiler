@@ -4,7 +4,7 @@
  * Tests for indentation handling in Pine Script tokenization.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { lexTokens } from '../utils';
 
 describe('Lexer - Indentation', () => {

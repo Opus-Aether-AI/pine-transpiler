@@ -1,0 +1,11 @@
+//@version=5
+indicator("ATR Bands", overlay=true)
+length = input.int(14, "Length")
+mult = input.float(2.0, "Mult")
+atrVal = ta.atr(length)
+basis = ta.sma(close, length)
+upper = basis + atrVal * mult
+lower = basis - atrVal * mult
+plot(basis, "Basis", color=color.gray)
+plot(upper, "Upper", color=color.red)
+plot(lower, "Lower", color=color.green)

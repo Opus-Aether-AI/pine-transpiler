@@ -1,0 +1,4 @@
+//@version=5
+indicator("EMA Basic", overlay=true)
+length = input.int(20, "Length")
+plot(ta.ema(close, length), "EMA", color=color.orange)

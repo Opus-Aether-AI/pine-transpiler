@@ -5,7 +5,7 @@
  * from Pine Script AST during transpilation.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { createIndicator, extractMetadata } from '../utils';
 
 describe('MetadataVisitor', () => {
@@ -240,10 +240,14 @@ plot(high, "High")
   });
 
   describe('PlotChar Extraction', () => {
-    it('should extract plotchar as shape type', () => {
+    it('should extract plotchar as char type (separate from shape)', () => {
+      // plotchar maps to PineJS 'chars' plot type via
+      // plotTypeToMetainfoType. Earlier this produced 'shape', which
+      // conflated plotchar with plotshape and made the 'chars' branch
+      // of the type union unreachable.
       const code = 'plotchar(close > open, "Char", "▲")';
       const metadata = extractMetadata(code);
-      expect(metadata.plots[0].type).toBe('shape');
+      expect(metadata.plots[0].type).toBe('char');
     });
   });
 

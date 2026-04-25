@@ -1,0 +1,6 @@
+//@version=5
+indicator("Ternary Color", overlay=true)
+length = input.int(14, "Length")
+ema = ta.ema(close, length)
+trendUp = close > ema
+plot(ema, "EMA", color=trendUp ? color.green : color.red, linewidth=2)

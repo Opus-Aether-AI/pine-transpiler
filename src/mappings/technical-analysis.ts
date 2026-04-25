@@ -431,6 +431,17 @@ export const VOLUME_MAPPINGS: Record<string, TAFunctionMapping> = {
  * Band indicators (Bollinger, Keltner, Donchian)
  */
 export const BAND_MAPPINGS: Record<string, TAFunctionMapping> = {
+  // Pine v5/v6 ships both `ta.bb` and `ta.bbands` as aliases for the
+  // same Bollinger Bands function returning [basis, upper, lower].
+  // Without this alias, `[basis, upper, lower] = ta.bbands(...)` left
+  // the call as the literal Pine name and crashed at runtime.
+  'ta.bbands': {
+    stdName: 'StdPlus.bb',
+    needsSeries: true,
+    contextArg: true,
+    argCount: 3,
+    description: 'Bollinger Bands (alias of ta.bb)',
+  },
   'ta.bb': {
     stdName: 'StdPlus.bb',
     needsSeries: true,
@@ -544,6 +555,42 @@ export const MULTI_OUTPUT_MAPPINGS: Record<string, MultiOutputFunctionMapping> =
       description: 'Directional Movement Index (diLength, adxSmoothing)',
       outputCount: 5,
       outputNames: ['plusDI', 'minusDI', 'dx', 'adx', 'adxr'],
+    },
+    'ta.bb': {
+      stdName: 'StdPlus.bb',
+      needsSeries: true,
+      contextArg: true,
+      argCount: 3,
+      description: 'Bollinger Bands (series, length, mult)',
+      outputCount: 3,
+      outputNames: ['basis', 'upper', 'lower'],
+    },
+    'ta.bbands': {
+      stdName: 'StdPlus.bb',
+      needsSeries: true,
+      contextArg: true,
+      argCount: 3,
+      description: 'Bollinger Bands (alias of ta.bb)',
+      outputCount: 3,
+      outputNames: ['basis', 'upper', 'lower'],
+    },
+    'ta.kc': {
+      stdName: 'StdPlus.kc',
+      needsSeries: true,
+      contextArg: true,
+      argCount: 4,
+      description: 'Keltner Channels (series, length, mult, useTrueRange)',
+      outputCount: 3,
+      outputNames: ['basis', 'upper', 'lower'],
+    },
+    'ta.supertrend': {
+      stdName: 'Std.supertrend',
+      needsSeries: false,
+      contextArg: true,
+      argCount: 2,
+      description: 'Supertrend (factor, period)',
+      outputCount: 2,
+      outputNames: ['supertrend', 'direction'],
     },
   };
 

@@ -1,0 +1,6 @@
+//@version=5
+indicator("Percent Change", overlay=false)
+length = input.int(20, "Length")
+pctChange = ((close - close[length]) / close[length]) * 100
+plot(pctChange, "Pct Change %", color=color.purple)
+hline(0)

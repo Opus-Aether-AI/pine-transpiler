@@ -234,10 +234,30 @@ export class StatementGenerator implements StatementGeneratorInterface {
       })
       .join(', ');
 
-    return `${indent(this.indentLevel)}${prefix}class ${name} {\n${indent(this.indentLevel, 1)}constructor(${paramsWithDefaults}) {\n${indent(this.indentLevel, 2)}${constructorBody.trim()}\n${indent(this.indentLevel, 1)}}\n${indent(this.indentLevel)}}`;
+    // Pine v6 calls type constructors via `MyType.new(args)` (a static
+    // factory). Emit a static `new` method that forwards to the
+    // standard JS constructor so `MyType.new(...)` resolves correctly
+    // alongside `new MyType(...)`.
+    return `${indent(this.indentLevel)}${prefix}class ${name} {\n${indent(this.indentLevel, 1)}constructor(${paramsWithDefaults}) {\n${indent(this.indentLevel, 2)}${constructorBody.trim()}\n${indent(this.indentLevel, 1)}}\n${indent(this.indentLevel, 1)}static new(...args) { return new ${name}(...args); }\n${indent(this.indentLevel)}}`;
   }
 
   private generateForStatement(stmt: ForStatement): string {
+    // Extract the loop variable name regardless of whether `stmt.init`
+    // is a VariableDeclaration (`var i = 0`) or AssignmentExpression
+    // (`i = 0`). Pine's `for i = 0 to n` parses as the latter, so
+    // omitting it here was producing `for (i = 0; cond; )` — a JS
+    // infinite loop guarded only by the `_loop_<n>` ceiling.
+    let loopVarName = '';
+    if (stmt.init.type === 'VariableDeclaration') {
+      const decl = stmt.init as VariableDeclaration;
+      loopVarName = Array.isArray(decl.id) ? decl.id[0].name : decl.id.name;
+    } else if (stmt.init.type === 'AssignmentExpression') {
+      const assign = stmt.init as AssignmentExpression;
+      if (!Array.isArray(assign.left) && assign.left.type === 'Identifier') {
+        loopVarName = assign.left.name;
+      }
+    }
+
     let initStr = '';
     if (stmt.init.type === 'VariableDeclaration') {
       const decl = stmt.init as VariableDeclaration;
@@ -245,8 +265,12 @@ export class StatementGenerator implements StatementGeneratorInterface {
       const init = decl.init
         ? ` = ${this.expressionGen.generateExpression(decl.init)}`
         : '';
-      const name = Array.isArray(decl.id) ? decl.id[0].name : decl.id.name;
-      initStr = `${kind} ${name}${init}`;
+      initStr = `${kind} ${loopVarName}${init}`;
+    } else if (loopVarName) {
+      // Promote bare `i = 0` to `let i = 0` so the loop var doesn't
+      // leak into the surrounding scope as a global.
+      const assign = stmt.init as AssignmentExpression;
+      initStr = `let ${loopVarName} = ${this.expressionGen.generateExpression(assign.right)}`;
     } else {
       initStr = this.expressionGen.generateAssignmentExpression(
         stmt.init as AssignmentExpression,
@@ -256,35 +280,13 @@ export class StatementGenerator implements StatementGeneratorInterface {
     const testStr = this.expressionGen.generateExpression(stmt.test);
     let updateStr = '';
     if (stmt.update) {
-      let varName = '';
-      if (stmt.init.type === 'VariableDeclaration') {
-        const decl = stmt.init as VariableDeclaration;
-        varName = Array.isArray(decl.id) ? decl.id[0].name : decl.id.name;
-      } else if (stmt.init.type === 'AssignmentExpression') {
-        const assign = stmt.init as AssignmentExpression;
-        if (!Array.isArray(assign.left)) {
-          if (assign.left.type === 'Identifier') {
-            varName = assign.left.name;
-          } else if (assign.left.type === 'MemberExpression') {
-            varName = this.expressionGen.generateMemberExpression(assign.left);
-          }
-        }
-      }
-
-      if (varName) {
-        updateStr = `${varName} += ${this.expressionGen.generateExpression(stmt.update)}`;
+      if (loopVarName) {
+        updateStr = `${loopVarName} += ${this.expressionGen.generateExpression(stmt.update)}`;
       } else {
         updateStr = this.expressionGen.generateExpression(stmt.update);
       }
-    } else {
-      let varName = '';
-      if (stmt.init.type === 'VariableDeclaration') {
-        const decl = stmt.init as VariableDeclaration;
-        varName = Array.isArray(decl.id) ? decl.id[0].name : decl.id.name;
-      }
-      if (varName) {
-        updateStr = `${varName}++`;
-      }
+    } else if (loopVarName) {
+      updateStr = `${loopVarName}++`;
     }
 
     const loopVar = `_loop_${this.loopCounter++}`;
@@ -317,7 +319,18 @@ export class StatementGenerator implements StatementGeneratorInterface {
   }
 
   private generateVariableDeclaration(stmt: VariableDeclaration): string {
-    const kind = stmt.kind === 'const' ? 'const' : 'let';
+    // Pine variable scoping is statement-level: `x = 1` inside one if
+    // block and `x = 2` inside another are independent locals. Our
+    // parser sometimes flattens those if-blocks back to top scope (a
+    // separate, deeper bug), which produces JS like:
+    //   let yValue = a;
+    //   let yValue = b;   ← SyntaxError on redeclaration
+    // Switching `let` → `var` makes the redeclaration legal in JS
+    // without changing observable Pine semantics — Pine doesn't have
+    // TDZ semantics, and `var`'s function-scope hoisting matches
+    // Pine's "sequential" reading. `const` (rare in our emit) stays
+    // as-is.
+    const kind = stmt.kind === 'const' ? 'const' : 'var';
     const init = stmt.init
       ? ` = ${this.expressionGen.generateExpression(stmt.init)}`
       : '';
@@ -360,13 +373,41 @@ export class StatementGenerator implements StatementGeneratorInterface {
 
     let body = '';
     if (stmt.body.type === 'BlockStatement') {
-      body = this.generateBlockStatement(stmt.body);
+      body = this.generateFunctionBody(stmt.body);
     } else {
       this.indentLevel++;
       body = `{\n${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(stmt.body as Expression)};\n${indent(this.indentLevel, -1)}}`;
     }
 
     return `${indent(this.indentLevel)}${prefix}function ${name}(${params}) ${body}`;
+  }
+
+  /**
+   * Generate the body of a multi-line Pine function. Pine has implicit
+   * return — the value of the last expression in the block is the
+   * function's return value. JS requires an explicit `return`, so the
+   * last ExpressionStatement is rewritten as a ReturnStatement during
+   * emission. Other tail-position constructs (e.g. an `if`) are left
+   * as-is for now; users wanting to return from those should use an
+   * explicit `=>`-form or assign to a result variable.
+   */
+  private generateFunctionBody(block: BlockStatement): string {
+    this.indentLevel++;
+    const statements = block.body;
+    const lines: string[] = [];
+    for (let i = 0; i < statements.length; i++) {
+      const s = statements[i];
+      const isLast = i === statements.length - 1;
+      if (isLast && s.type === 'ExpressionStatement') {
+        lines.push(
+          `${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(s.expression)};`,
+        );
+      } else {
+        lines.push(this.generateStatement(s));
+      }
+    }
+    this.indentLevel--;
+    return `{\n${lines.join('\n')}\n${indent(this.indentLevel)}}`;
   }
 
   private generateImportStatement(stmt: ImportStatement): string {

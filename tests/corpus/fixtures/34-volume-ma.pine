@@ -1,0 +1,5 @@
+//@version=5
+indicator("Volume MA", overlay=false)
+length = input.int(20, "Length")
+plot(volume, "Volume", color=color.blue, style=plot.style_columns)
+plot(ta.sma(volume, length), "Volume MA", color=color.red)
