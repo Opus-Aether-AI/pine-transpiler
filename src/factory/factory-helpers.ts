@@ -102,12 +102,37 @@ export function buildStylesMetadata(
  * @param plots - Array of parsed plot definitions
  * @returns Array of plot info objects for metainfo
  */
+/**
+ * Map a ParsedPlot.type to the corresponding PineJS metainfo.plots[i].type
+ * string. PineJS recognises: 'line', 'histogram', 'shapes', 'chars',
+ * 'arrows', 'bg_colorer'. Style variants like 'circles' / 'columns' /
+ * 'area' / 'stepline' / 'cross' all render as 'line' plots in metainfo;
+ * the visual is set per-plot in metainfo.styles[id].plottype.
+ */
+function plotTypeToMetainfoType(
+  type: ParsedPlot['type'],
+): 'line' | 'histogram' | 'shapes' | 'chars' | 'bg_colorer' {
+  switch (type) {
+    case 'shape':
+      return 'shapes';
+    case 'bg_colorer':
+      return 'bg_colorer';
+    case 'histogram':
+      return 'histogram';
+    default:
+      // 'line', 'circles', 'columns', 'area', 'stepline', 'cross', 'hline'
+      // all collapse to a 'line' plot; plottype in styles distinguishes
+      // their visual rendering.
+      return 'line';
+  }
+}
+
 export function buildPlotsMetadata(
   plots: ParsedPlot[],
-): Array<{ id: string; type: 'line' | 'histogram' }> {
+): Array<{ id: string; type: 'line' | 'histogram' | 'shapes' | 'chars' | 'bg_colorer' }> {
   return plots.map((p) => ({
     id: p.id,
-    type: p.type === 'line' || p.type === 'histogram' ? p.type : 'line',
+    type: plotTypeToMetainfoType(p.type),
   }));
 }
 
