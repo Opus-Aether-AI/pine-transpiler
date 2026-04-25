@@ -118,6 +118,11 @@ export class Parser extends ExpressionParser {
           return { type: 'ContinueStatement' };
         case 'var':
         case 'varip':
+        case 'const':
+          // Pine v6 added `const` qualifier (e.g. `const color buyColor
+          // = color.blue`); same parser path as var/varip — the
+          // VariableDeclaration node carries `kind` and the generator
+          // emits `const` for it.
           return this.parseVariableDeclaration(keyword);
         case 'switch':
           return this.parseSwitchStatement();
