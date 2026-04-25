@@ -337,6 +337,15 @@ export function buildIndicatorFactory(
             'month',
             'dayofmonth',
             'dayofweek',
+            'chart',
+            'format',
+            'string',
+            'xloc',
+            'yloc',
+            'extend',
+            'position',
+            'text',
+            'display',
             'close',
             'open',
             'high',
@@ -486,6 +495,53 @@ export function buildIndicatorFactory(
               large: 'large',
               huge: 'huge',
             };
+            // Additional Pine namespaces — bag-of-strings stubs so user
+            // code that references `chart.fg_color`, `format.price`,
+            // `xloc.bar_index`, `yloc.price`, etc. doesn't crash on
+            // ReferenceError. Values are placeholder strings; the
+            // chart host consumes the real ones via metainfo.
+            const chart = new Proxy(
+              {},
+              { get: (_t, p) => `chart.${String(p)}` },
+            ) as Record<string, string>;
+            const format = new Proxy(
+              {},
+              { get: (_t, p) => `format.${String(p)}` },
+            ) as Record<string, string>;
+            const string = new Proxy(
+              {},
+              { get: (_t, p) => `string.${String(p)}` },
+            ) as Record<string, string>;
+            const xloc = {
+              bar_index: 'bar_index',
+              bar_time: 'bar_time',
+            };
+            const yloc = {
+              price: 'price',
+              abovebar: 'abovebar',
+              belowbar: 'belowbar',
+            };
+            const extend = {
+              none: 'none',
+              left: 'left',
+              right: 'right',
+              both: 'both',
+            };
+            const position = new Proxy(
+              {},
+              { get: (_t, p) => `position.${String(p)}` },
+            ) as Record<string, string>;
+            const text = {
+              align_left: 'left',
+              align_center: 'center',
+              align_right: 'right',
+              align_top: 'top',
+              align_bottom: 'bottom',
+            };
+            const display = new Proxy(
+              {},
+              { get: (_t, p) => `display.${String(p)}` },
+            ) as Record<string, string>;
 
             // Pine `alertcondition()` and `alert()` are no-ops at the
             // mock layer — the chart routes alerts via metadata, not
@@ -499,15 +555,27 @@ export function buildIndicatorFactory(
             // layer; without one we can only stub. The bare `array`
             // identifier lets Pine code that does `array<float>` type
             // annotations or rare `array` namespace references not
-            // crash at the JS reference level. Both no-op proxies
-            // forward member access to NaN-returning fallbacks.
+            // crash at the JS reference level.
+            //
+            // The stub returns an object that's BOTH a NaN-when-coerced
+            // value AND a destructure-friendly iterable that yields
+            // NaN forever. Pine's `[a, b, c] = request.security(...)`
+            // destructure pattern is common in multi-tf scripts; a
+            // bare `() => NaN` would crash on "number is not iterable"
+            // and mask which fixtures actually need request support.
+            const naIterable: Iterable<number> = {
+              [Symbol.iterator]() {
+                return { next: () => ({ value: Number.NaN, done: false }) };
+              },
+            };
+            const naFallback = () => naIterable;
             const request = new Proxy(
               {},
-              { get: () => () => Number.NaN },
+              { get: () => naFallback },
             ) as Record<string, (...args: unknown[]) => unknown>;
             const array = new Proxy(
               {},
-              { get: () => () => Number.NaN },
+              { get: () => naFallback },
             ) as Record<string, (...args: unknown[]) => unknown>;
 
             // Pine date/time built-ins. Real Pine takes a unix-ms
@@ -579,6 +647,15 @@ export function buildIndicatorFactory(
                 month,
                 dayofmonth,
                 dayofweek,
+                chart,
+                format,
+                string,
+                xloc,
+                yloc,
+                extend,
+                position,
+                text,
+                display,
                 sources.close,
                 sources.open,
                 sources.high,
