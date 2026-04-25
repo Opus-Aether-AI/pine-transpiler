@@ -30,13 +30,23 @@ This tool allows you to run Pine Script indicators directly within the Charting 
 
 ## Installation
 
+Install directly from GitHub (npm publish coming soon):
+
 ```bash
-npm install @opusaether/pine-transpiler
-# or
-pnpm add @opusaether/pine-transpiler
-# or
-yarn add @opusaether/pine-transpiler
+# bun (recommended)
+bun add github:Opus-Aether-AI/pine-transpiler#v0.2.0
+
+# npm
+npm install github:Opus-Aether-AI/pine-transpiler#v0.2.0
+
+# pnpm
+pnpm add github:Opus-Aether-AI/pine-transpiler#v0.2.0
+
+# yarn
+yarn add github:Opus-Aether-AI/pine-transpiler#v0.2.0
 ```
+
+The package ships a pre-built `dist/` so no post-install build step is required. Pin to the tag (`#v0.2.0`) to avoid breakage from `main`.
 
 ## Quick Start
 
