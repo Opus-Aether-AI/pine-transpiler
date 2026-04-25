@@ -587,20 +587,31 @@ export class Parser extends ExpressionParser {
     // silently swallowed as the "operator"). parseStatement catches
     // the throw and falls back to parsing the line as an expression
     // statement.
-    if (operator !== '=' && operator !== ':=') {
+    //
+    // Pine v6 also supports compound-assignment operators on existing
+    // variables: `x += 1`, `x -= 2`, `x *= 0.5`, `x /= 2`, `x %= n`.
+    // These behave like reassignments (similar to `:=`) and emit as
+    // AssignmentExpression statements rather than new declarations.
+    const COMPOUND_ASSIGN = new Set(['+=', '-=', '*=', '/=', '%=']);
+    if (
+      operator !== '=' &&
+      operator !== ':=' &&
+      !COMPOUND_ASSIGN.has(operator)
+    ) {
       throw this.error(operatorToken, 'Expected = or := in assignment.');
     }
     const init = this.parseExpression();
 
     if (
       operator === ':=' ||
+      COMPOUND_ASSIGN.has(operator) ||
       (operator === '=' && !Array.isArray(id) && id.type === 'MemberExpression')
     ) {
       return {
         type: 'ExpressionStatement',
         expression: {
           type: 'AssignmentExpression',
-          operator: operator === ':=' ? ':=' : '=',
+          operator: operator === ':=' ? ':=' : operator === '=' ? '=' : operator,
           left: id as Identifier | MemberExpression,
           right: init,
         },
