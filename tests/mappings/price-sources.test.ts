@@ -4,7 +4,7 @@
  * Tests for Pine Script price source mappings (OHLCV, hl2, hlc3, etc.).
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import {
   BAR_INDEX_MAPPING,
   generatePriceSourceDeclarations,

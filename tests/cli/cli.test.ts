@@ -5,7 +5,7 @@
  * Uses mocking to avoid actual file system and process operations.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import {
   canTranspilePineScript,
   getMappingStats,
