@@ -471,8 +471,22 @@ export class Lexer {
         end: this.pos,
       });
     } else if (value === 'na') {
+      // Pine has BOTH `na` as a literal NaN constant AND `na(x)` as a
+      // builtin function (returns true when x is NaN). Distinguish by
+      // looking ahead: if the next non-whitespace char is `(`, this is
+      // a function call → emit IDENTIFIER so the function-mapping
+      // registry maps it to `Std.na`. Otherwise emit the NA literal
+      // token, which the generator emits as `NaN`.
+      let probe = this.pos;
+      while (
+        probe < this.code.length &&
+        (this.code[probe] === ' ' || this.code[probe] === '\t')
+      ) {
+        probe++;
+      }
+      const isCall = this.code[probe] === '(';
       this.tokens.push({
-        type: TokenType.NA,
+        type: isCall ? TokenType.IDENTIFIER : TokenType.NA,
         value,
         line: this.line,
         column: this.column - value.length,

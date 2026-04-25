@@ -373,11 +373,19 @@ describe('Utility Mappings', () => {
   });
 
   describe('Transpilation Integration', () => {
-    it('should transpile na() function', () => {
+    it('should transpile na() function as Std.na call', () => {
       const code = 'x = na(close)';
       const js = transpile(code);
-      // na is mapped to NaN
+      // `na(x)` is the Pine builtin "is x NaN" check; maps to Std.na.
+      // Distinct from bare `na` literal which still emits as NaN.
+      expect(js).toContain('Std.na(close)');
+    });
+
+    it('should transpile bare na as NaN literal', () => {
+      const code = 'x = na';
+      const js = transpile(code);
       expect(js).toContain('NaN');
+      expect(js).not.toContain('Std.na');
     });
 
     it('should transpile nz() function', () => {
