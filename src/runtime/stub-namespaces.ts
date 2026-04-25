@@ -177,10 +177,12 @@ export function createStubNamespaces(): StubNamespaces {
  * - `isconfirmed`— !isrealtime; the last bar of historical replay is
  *                  always confirmed
  */
-export function createBarstate(ctx: BarstateContext = {
-  currentTime: -1,
-  previousTime: -1,
-}): BarstateStub {
+export function createBarstate(
+  ctx: BarstateContext = {
+    currentTime: -1,
+    previousTime: -1,
+  },
+): BarstateStub {
   const {
     currentTime,
     previousTime,

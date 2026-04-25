@@ -254,6 +254,7 @@ export function buildIndicatorFactory(
             'timeframe',
             'plotshape',
             'plotchar',
+            'plotarrow',
             'hline',
             'bgcolor',
             'fill',
@@ -264,6 +265,13 @@ export function buildIndicatorFactory(
             'str',
             'syminfo',
             'barstate',
+            'shape',
+            'location',
+            'size',
+            'alertcondition',
+            'alert',
+            'time',
+            'bar_index',
             'close',
             'open',
             'high',
@@ -321,19 +329,22 @@ export function buildIndicatorFactory(
               // The PineJS runtime can expose total bars / current bar
               // index on context.symbol; fall through to undefined so
               // createBarstate keeps the legacy `islast=true` default
-              // when those fields aren't present.
-              totalBars:
-                typeof (ctx.symbol as { bars?: number }).bars === 'number'
-                  ? (ctx.symbol as { bars: number }).bars
-                  : undefined,
-              barIndex:
-                typeof (ctx as { barIndex?: number }).barIndex === 'number'
-                  ? (ctx as { barIndex: number }).barIndex
-                  : undefined,
-              isRealtime:
-                typeof (ctx as { isRealtime?: boolean }).isRealtime === 'boolean'
-                  ? (ctx as { isRealtime: boolean }).isRealtime
-                  : true,
+              // when those fields aren't present. Double-casting through
+              // `unknown` is required because RuntimeContextInternal
+              // doesn't declare these optional fields and tsc's strict
+              // overlap check rejects the direct cast.
+              totalBars: ((): number | undefined => {
+                const sym = ctx.symbol as unknown as { bars?: unknown };
+                return typeof sym.bars === 'number' ? sym.bars : undefined;
+              })(),
+              barIndex: ((): number | undefined => {
+                const c = ctx as unknown as { barIndex?: unknown };
+                return typeof c.barIndex === 'number' ? c.barIndex : undefined;
+              })(),
+              isRealtime: ((): boolean => {
+                const c = ctx as unknown as { isRealtime?: unknown };
+                return typeof c.isRealtime === 'boolean' ? c.isRealtime : true;
+              })(),
             });
             // Update the closure cursor so the next main() invocation
             // sees this bar as the previous one.
@@ -351,6 +362,9 @@ export function buildIndicatorFactory(
             const plotchar = () => {
               _plotValues.push(NaN);
             };
+            const plotarrow = () => {
+              _plotValues.push(NaN);
+            };
             const hline = () => {
               _plotValues.push(NaN);
             };
@@ -359,6 +373,65 @@ export function buildIndicatorFactory(
 
             // Color mapping
             const color = COLOR_MAP;
+
+            // Pine namespaces / globals user code expects to reference.
+            // Without these wrapper-bound parameters, `shape.triangleup`,
+            // `location.belowbar`, `bar_index`, etc. resolve to
+            // `undefined` and the script throws ReferenceError on first
+            // access. The values are intentionally simple bag-of-strings
+            // because the metadata visitor consumes them out-of-band;
+            // the runtime only needs *something* present so member
+            // access doesn't crash.
+            const shape = {
+              triangleup: 'shape_triangle_up',
+              triangledown: 'shape_triangle_down',
+              arrowup: 'shape_arrow_up',
+              arrowdown: 'shape_arrow_down',
+              circle: 'shape_circle',
+              cross: 'shape_cross',
+              diamond: 'shape_diamond',
+              flag: 'shape_flag',
+              square: 'shape_square',
+              labelup: 'shape_label_up',
+              labeldown: 'shape_label_down',
+              xcross: 'shape_xcross',
+            };
+            const location = {
+              abovebar: 'AboveBar',
+              belowbar: 'BelowBar',
+              top: 'Top',
+              bottom: 'Bottom',
+              absolute: 'Absolute',
+            };
+            const size = {
+              auto: 'auto',
+              tiny: 'tiny',
+              small: 'small',
+              normal: 'normal',
+              large: 'large',
+              huge: 'huge',
+            };
+
+            // Pine `alertcondition()` and `alert()` are no-ops at the
+            // mock layer — the chart routes alerts via metadata, not
+            // per-bar execution. Stub them to avoid `is not defined`.
+            const alertcondition = () => {};
+            const alert = () => {};
+
+            // Per-bar built-ins. `time` is the bar's open time; the
+            // mock context exposes Std.time(ctx). `bar_index` is 0-based
+            // and tracked on context when the runtime supports it.
+            const stdTimeFn = (stdLib as Record<string, unknown>).time;
+            const time =
+              typeof stdTimeFn === 'function'
+                ? Number(
+                    (stdTimeFn as (c: RuntimeContextInternal) => unknown)(ctx),
+                  )
+                : 0;
+            const bar_index = ((): number => {
+              const c = ctx as unknown as { barIndex?: unknown };
+              return typeof c.barIndex === 'number' ? c.barIndex : 0;
+            })();
 
             // Execution
             try {
@@ -376,6 +449,7 @@ export function buildIndicatorFactory(
                 timeframe,
                 plotshape,
                 plotchar,
+                plotarrow,
                 hline,
                 bgcolor,
                 fill,
@@ -386,6 +460,13 @@ export function buildIndicatorFactory(
                 stubs.str,
                 syminfo,
                 barstate,
+                shape,
+                location,
+                size,
+                alertcondition,
+                alert,
+                time,
+                bar_index,
                 sources.close,
                 sources.open,
                 sources.high,
@@ -400,7 +481,21 @@ export function buildIndicatorFactory(
             } catch (e) {
               // biome-ignore lint/suspicious/noConsole: Runtime error logging
               console.error('Script execution error', e);
-              return plots.map((_p) => NaN);
+              // Synthesize a NaN-of-declared-length array so the chart
+              // doesn't crash on a bad bar. Tag the array with a non-
+              // enumerable `__caughtError` so consumers (e.g. the corpus
+              // runner) can tell this apart from a legitimate all-NaN
+              // bar (which can happen with hline-only scripts) and
+              // surface the underlying error instead of silently
+              // marking the bar as a pass.
+              const fallback = plots.map((_p) => NaN);
+              Object.defineProperty(fallback, '__caughtError', {
+                value: e instanceof Error ? e.message : String(e),
+                enumerable: false,
+                writable: false,
+                configurable: true,
+              });
+              return fallback;
             }
           },
         };

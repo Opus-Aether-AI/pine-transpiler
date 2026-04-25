@@ -18,57 +18,57 @@ import { Lexer } from '../../src/parser/lexer';
 import { Parser } from '../../src/parser/parser';
 
 function transpile(code: string): string {
-    const lexer = new Lexer(code);
-    const tokens = lexer.tokenize();
-    const parser = new Parser(tokens);
-    const ast = parser.parse();
-    const generator = new ASTGenerator();
-    return generator.generate(ast);
+  const lexer = new Lexer(code);
+  const tokens = lexer.tokenize();
+  const parser = new Parser(tokens);
+  const ast = parser.parse();
+  const generator = new ASTGenerator();
+  return generator.generate(ast);
 }
 
 describe('named arguments — no closure-shadowing assignment emit', () => {
-    it('drops `color=` from plot(value, color=color.x)', () => {
-        const out = transpile('plot(close, color=color.blue)');
-        expect(out).not.toContain('color = color.blue');
-        expect(out).toContain('Std.plot(close');
-    });
+  it('drops `color=` from plot(value, color=color.x)', () => {
+    const out = transpile('plot(close, color=color.blue)');
+    expect(out).not.toContain('color = color.blue');
+    expect(out).toContain('Std.plot(close');
+  });
 
-    it('drops multiple named args from a single call', () => {
-        const out = transpile(
-            'plot(close, "Title", color=color.red, linewidth=2, style=plot.style_columns)',
-        );
-        // None of the named-arg names should appear as `name = value` in
-        // the runtime body — they're metadata-only.
-        expect(out).not.toContain('color =');
-        expect(out).not.toContain('linewidth =');
-        expect(out).not.toContain('style =');
-    });
+  it('drops multiple named args from a single call', () => {
+    const out = transpile(
+      'plot(close, "Title", color=color.red, linewidth=2, style=plot.style_columns)',
+    );
+    // None of the named-arg names should appear as `name = value` in
+    // the runtime body — they're metadata-only.
+    expect(out).not.toContain('color =');
+    expect(out).not.toContain('linewidth =');
+    expect(out).not.toContain('style =');
+  });
 
-    it('preserves positional arguments alongside named ones', () => {
-        const out = transpile('plot(close, "Series", color=color.green)');
-        expect(out).toContain('"Series"');
-        expect(out).toContain('Std.plot(close,');
-    });
+  it('preserves positional arguments alongside named ones', () => {
+    const out = transpile('plot(close, "Series", color=color.green)');
+    expect(out).toContain('"Series"');
+    expect(out).toContain('Std.plot(close,');
+  });
 
-    it('does not break ordinary assignment expressions outside calls', () => {
-        // `:=` is Pine's reassignment operator — it should still emit as
-        // a normal JS assignment, not be dropped.
-        const out = transpile('x = 0\nx := x + 1');
-        expect(out).toContain('x = (x + 1)');
-    });
+  it('does not break ordinary assignment expressions outside calls', () => {
+    // `:=` is Pine's reassignment operator — it should still emit as
+    // a normal JS assignment, not be dropped.
+    const out = transpile('x = 0\nx := x + 1');
+    expect(out).toContain('x = (x + 1)');
+  });
 
-    it('handles three plot calls without rebinding the outer color identifier', () => {
-        // The exact regression: with the old emit, the second call's
-        // `color.x` would access the string `color` had been reassigned to.
-        const out = transpile(
-            [
-                'plot(close, color=color.blue)',
-                'plot(close, color=color.orange)',
-                'plot(close, color=color.purple)',
-            ].join('\n'),
-        );
-        // No three sequential `color = ...` statements masquerading as args.
-        const colorAssigns = out.match(/\bcolor\s*=\s*color\./g) ?? [];
-        expect(colorAssigns.length).toBe(0);
-    });
+  it('handles three plot calls without rebinding the outer color identifier', () => {
+    // The exact regression: with the old emit, the second call's
+    // `color.x` would access the string `color` had been reassigned to.
+    const out = transpile(
+      [
+        'plot(close, color=color.blue)',
+        'plot(close, color=color.orange)',
+        'plot(close, color=color.purple)',
+      ].join('\n'),
+    );
+    // No three sequential `color = ...` statements masquerading as args.
+    const colorAssigns = out.match(/\bcolor\s*=\s*color\./g) ?? [];
+    expect(colorAssigns.length).toBe(0);
+  });
 });

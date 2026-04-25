@@ -37,15 +37,21 @@ import {
 
 /**
  * A Pine call argument written as `name=value` parses to an
- * AssignmentExpression with an Identifier on the left. Those are
- * metadata-only (the metadata visitor consumes them via getArg) and
- * must NOT be emitted into the runtime call: JS would interpret
- * `name = value` as an assignment that rewrites whatever `name` shadows
- * in the wrapper closure.
+ * AssignmentExpression with an Identifier on the left and operator `=`.
+ * Those are metadata-only (the metadata visitor consumes them via
+ * getArg) and must NOT be emitted into the runtime call: JS would
+ * interpret `name = value` as an assignment that rewrites whatever
+ * `name` shadows in the wrapper closure.
+ *
+ * Pine's reassignment operator `:=` also parses to AssignmentExpression
+ * with an Identifier left — but `f(x := computedValue)` is a real
+ * side-effecting reassignment in an argument position, NOT a named arg.
+ * Only the `=` form is dropped.
  */
 function isNamedArgument(arg: Expression): boolean {
   return (
     arg.type === 'AssignmentExpression' &&
+    arg.operator === '=' &&
     !Array.isArray(arg.left) &&
     arg.left.type === 'Identifier'
   );
