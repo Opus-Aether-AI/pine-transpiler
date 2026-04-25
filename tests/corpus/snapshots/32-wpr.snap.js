@@ -83,27 +83,22 @@ const StdPlus = {
     hma: function(ctx, series, length) {
         const len2 = Math.floor(length / 2);
         const sqrtLen = Math.round(Math.sqrt(length));
-        
+
         const wma1 = Std.wma(ctx, series, len2);
         const wma2 = Std.wma(ctx, series, length);
-        
+
         if (isNaN(wma1) || isNaN(wma2)) return NaN;
-        
+
         const diff = 2 * wma1 - wma2;
-        
-        if (!ctx._hma_diff_series) {
-            ctx._hma_diff_series = new Map();
-        }
-        
-        const seriesKey = String(series) + '_' + length;
-        
-        if (!ctx._hma_diff_series.has(seriesKey)) {
-            ctx._hma_diff_series.set(seriesKey, ctx.new_var(diff));
-        }
-        
-        const diffSeries = ctx._hma_diff_series.get(seriesKey);
-        diffSeries.set(diff);
-        
+
+        // ctx.new_var() is the documented PineJS persistence primitive:
+        // each call site gets a stable series across bars. The previous
+        // implementation cached the series in ctx._hma_diff_series and
+        // then called .set(diff), which OVERWRITES the latest history
+        // entry instead of pushing — so wma() never saw enough samples.
+        // new_var(value) on every bar both retrieves the persistent
+        // series and appends the current bar's value.
+        const diffSeries = ctx.new_var(diff);
         return Std.wma(ctx, diffSeries, sqrtLen);
     },
 
@@ -135,29 +130,23 @@ const StdPlus = {
     macd: function(ctx, series, fastLen, slowLen, sigLen) {
         const fastMA = Std.ema(ctx, series, fastLen);
         const slowMA = Std.ema(ctx, series, slowLen);
-        
+
         if (isNaN(fastMA) || isNaN(slowMA)) {
             return [NaN, NaN, NaN];
         }
-        
+
         const macdLine = fastMA - slowMA;
-        
-        if (!ctx._macd_series) {
-            ctx._macd_series = new Map();
-        }
-        
-        const seriesKey = String(series) + '_' + fastLen + '_' + slowLen + '_' + sigLen;
-        
-        if (!ctx._macd_series.has(seriesKey)) {
-            ctx._macd_series.set(seriesKey, ctx.new_var(macdLine));
-        }
-        
-        const macdSeries = ctx._macd_series.get(seriesKey);
-        macdSeries.set(macdLine);
-        
+
+        // The previous implementation cached macdSeries in ctx and then
+        // called .set(macdLine) on subsequent bars — which OVERWRITES
+        // the latest history slot instead of appending. The signal-line
+        // EMA over a one-element series returned NaN forever, and the
+        // histogram (macdLine - signal) followed it. Pushing via
+        // ctx.new_var() each bar is the contract.
+        const macdSeries = ctx.new_var(macdLine);
         const signalLine = Std.ema(ctx, macdSeries, sigLen);
         const histogram = macdLine - signalLine;
-        
+
         return [macdLine, signalLine, histogram];
     },
     
@@ -176,19 +165,14 @@ const StdPlus = {
         const high = Std.high(ctx);
         const low = Std.low(ctx);
         const close = Std.close(ctx);
-        
-        if (!ctx._wpr_series) {
-            ctx._wpr_series = {
-                high: ctx.new_var(high),
-                low: ctx.new_var(low)
-            };
-        }
-        
-        ctx._wpr_series.high.set(high);
-        ctx._wpr_series.low.set(low);
-        
-        const hh = Std.highest(ctx, ctx._wpr_series.high, length);
-        const ll = Std.lowest(ctx, ctx._wpr_series.low, length);
+
+        // Persistent high/low series via new_var per-bar (was cached on
+        // ctx._wpr_series + .set() — same overwrite bug as macd/hma).
+        const highSeries = ctx.new_var(high);
+        const lowSeries = ctx.new_var(low);
+
+        const hh = Std.highest(ctx, highSeries, length);
+        const ll = Std.lowest(ctx, lowSeries, length);
         
         if (isNaN(hh) || isNaN(ll) || hh === ll) return NaN;
         
@@ -248,17 +232,15 @@ const StdPlus = {
      */
     ao: function(ctx) {
         const hl2 = Std.hl2(ctx);
-        
-        if (!ctx._ao_series) {
-            ctx._ao_series = ctx.new_var(hl2);
-        }
-        ctx._ao_series.set(hl2);
-        
-        const sma5 = Std.sma(ctx, ctx._ao_series, 5);
-        const sma34 = Std.sma(ctx, ctx._ao_series, 34);
-        
+        // Push hl2 into a per-bar persistent series so the SMAs see real
+        // history (was overwriting via .set() — same bug as macd/hma).
+        const hl2Series = ctx.new_var(hl2);
+
+        const sma5 = Std.sma(ctx, hl2Series, 5);
+        const sma34 = Std.sma(ctx, hl2Series, 34);
+
         if (isNaN(sma5) || isNaN(sma34)) return NaN;
-        
+
         return sma5 - sma34;
     },
     
