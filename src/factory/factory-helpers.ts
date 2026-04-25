@@ -29,6 +29,22 @@ export function mapPlotType(t: string): number {
       return 4;
     case 'stepline':
       return 0;
+    // PineJS plot styles are line-family numeric indices. Shape and
+    // char plots have their own metainfo top-level type ('shapes' /
+    // 'chars'), so the style.plottype here is largely cosmetic — but
+    // letting them fall through to 0 (line) would emit a structurally
+    // inconsistent metainfo (plot.type === 'shapes' AND
+    // styles[id].plottype === line). Use a dedicated marker so the
+    // chart host can ignore the style's plottype while still seeing
+    // the metainfo type as authoritative.
+    case 'shape':
+      return 6;
+    case 'char':
+      return 7;
+    case 'bg_colorer':
+      return 8;
+    case 'hline':
+      return 0;
     default:
       return 0;
   }
