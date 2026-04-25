@@ -16,6 +16,7 @@ import {
   SESSION_HELPER_FUNCTIONS,
 } from '../mappings';
 import {
+  createBarstate,
   createInputMock,
   createMathMock,
   createPlotMock,
@@ -229,6 +230,12 @@ export function buildIndicatorFactory(
         inputs: buildInputsMetadata(inputs),
       },
       constructor: () => {
+        // Track the previous bar's open time so barstate.isnew can flip
+        // when a new bar arrives. Lives on the per-instance closure so
+        // it persists across main() invocations within one indicator
+        // session, but resets cleanly when the chart re-instantiates.
+        let _previousBarTime = -1;
+
         // Compile the script once during initialization
         // biome-ignore lint/complexity/noBannedTypes: Function constructor required
         let compiledScript: Function;
@@ -295,6 +302,43 @@ export function buildIndicatorFactory(
             const stubs = createStubNamespaces();
             const sources = createPriceSources(stdLib, ctx);
 
+            // Real-ish barstate: read the current bar's time from the
+            // runtime when it exposes Std.time, fall back to -1 (matches
+            // the "stub" behaviour) otherwise. The factory's outer
+            // closure tracks the previous bar's time so isnew flips on
+            // every new bar; isconfirmed/ishistory follow the runtime's
+            // realtime signal when available.
+            const stdTime = (stdLib as Record<string, unknown>).time;
+            const currentBarTime =
+              typeof stdTime === 'function'
+                ? Number(
+                    (stdTime as (c: RuntimeContextInternal) => unknown)(ctx),
+                  )
+                : -1;
+            const barstate = createBarstate({
+              currentTime: currentBarTime,
+              previousTime: _previousBarTime,
+              // The PineJS runtime can expose total bars / current bar
+              // index on context.symbol; fall through to undefined so
+              // createBarstate keeps the legacy `islast=true` default
+              // when those fields aren't present.
+              totalBars:
+                typeof (ctx.symbol as { bars?: number }).bars === 'number'
+                  ? (ctx.symbol as { bars: number }).bars
+                  : undefined,
+              barIndex:
+                typeof (ctx as { barIndex?: number }).barIndex === 'number'
+                  ? (ctx as { barIndex: number }).barIndex
+                  : undefined,
+              isRealtime:
+                typeof (ctx as { isRealtime?: boolean }).isRealtime === 'boolean'
+                  ? (ctx as { isRealtime: boolean }).isRealtime
+                  : true,
+            });
+            // Update the closure cursor so the next main() invocation
+            // sees this bar as the previous one.
+            _previousBarTime = currentBarTime;
+
             // No-op functions for indicator declarations
             const indicator = () => {};
             const study = () => {};
@@ -341,7 +385,7 @@ export function buildIndicatorFactory(
                 stubs.table,
                 stubs.str,
                 syminfo,
-                stubs.barstate,
+                barstate,
                 sources.close,
                 sources.open,
                 sources.high,

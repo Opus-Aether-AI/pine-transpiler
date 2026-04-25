@@ -45,9 +45,25 @@ export interface StrStub {
 /** Stub namespace for bar state information */
 export interface BarstateStub {
   islast: boolean;
+  isfirst: boolean;
+  ishistory: boolean;
   isrealtime: boolean;
   isnew: boolean;
   isconfirmed: boolean;
+}
+
+/** Per-bar context the factory passes when minting barstate values. */
+export interface BarstateContext {
+  /** Current bar's open time (Unix ms). */
+  currentTime: number;
+  /** Previous bar's open time, or -1 on the very first bar. */
+  previousTime: number;
+  /** Total bars in the symbol's series, when known. */
+  totalBars?: number;
+  /** 0-indexed current bar position, when known. */
+  barIndex?: number;
+  /** True when the runtime signals real-time (vs replay) rendering. */
+  isRealtime?: boolean;
 }
 
 /** All stub namespaces combined */
@@ -141,37 +157,61 @@ export function createStubNamespaces(): StubNamespaces {
       length: (v: string) => v.length,
       contains: (s: string, sub: string) => s.includes(sub),
     },
-    barstate: {
-      // These return hardcoded values since we can't determine actual bar state
-      // without deeper integration with the charting runtime
-      get islast() {
-        warnOnceAboutStub(
-          'barstate.islast',
-          'barstate.islast returns hardcoded true - actual bar state detection not implemented',
-        );
-        return true;
-      },
-      get isrealtime() {
-        warnOnceAboutStub(
-          'barstate.isrealtime',
-          'barstate.isrealtime returns hardcoded true - actual bar state detection not implemented',
-        );
-        return true;
-      },
-      get isnew() {
-        warnOnceAboutStub(
-          'barstate.isnew',
-          'barstate.isnew returns hardcoded false - actual bar state detection not implemented',
-        );
-        return false;
-      },
-      get isconfirmed() {
-        warnOnceAboutStub(
-          'barstate.isconfirmed',
-          'barstate.isconfirmed returns hardcoded true - actual bar state detection not implemented',
-        );
-        return true;
-      },
+    barstate: createBarstate(),
+  };
+}
+
+/**
+ * Build a `barstate` namespace driven by the per-bar context. Pass an
+ * empty context (or omit the argument) for the legacy hardcoded
+ * behaviour when the factory hasn't been wired to track bar state yet.
+ *
+ * - `islast`     — bar index is the last in the series (or true when
+ *                  totalBars is unknown, matching prior behaviour).
+ * - `isfirst`    — bar index === 0
+ * - `ishistory`  — !isRealtime (only true while replaying historical
+ *                  bars)
+ * - `isrealtime` — runtime signal; defaults to true (existing contract)
+ * - `isnew`      — currentTime !== previousTime (first call sets the
+ *                  baseline)
+ * - `isconfirmed`— !isrealtime; the last bar of historical replay is
+ *                  always confirmed
+ */
+export function createBarstate(ctx: BarstateContext = {
+  currentTime: -1,
+  previousTime: -1,
+}): BarstateStub {
+  const {
+    currentTime,
+    previousTime,
+    totalBars,
+    barIndex,
+    isRealtime = true,
+  } = ctx;
+
+  return {
+    get islast() {
+      if (typeof totalBars === 'number' && typeof barIndex === 'number') {
+        return barIndex === totalBars - 1;
+      }
+      // Backwards-compatible default — preserves the original stub
+      // semantics for indicators that haven't migrated yet.
+      return true;
+    },
+    get isfirst() {
+      return typeof barIndex === 'number' ? barIndex === 0 : false;
+    },
+    get ishistory() {
+      return !isRealtime;
+    },
+    get isrealtime() {
+      return isRealtime;
+    },
+    get isnew() {
+      return currentTime !== previousTime && currentTime !== -1;
+    },
+    get isconfirmed() {
+      return !isRealtime;
     },
   };
 }
