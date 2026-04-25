@@ -359,11 +359,22 @@ function buildStd(
     // just the current value, which silently broke any indicator gating
     // on `cum(volume) > threshold` and similar accumulators.
     cum: (_ctx: unknown, series: unknown) => {
+      // Scalar input (`series` is a number, e.g. when the transpiler
+      // emits a current-bar value where a series was expected): treat
+      // it as the bar-0 contribution. Without this guard we'd loop
+      // forever — readSeriesValue(number, _) returns the same finite
+      // value at every offset.
+      if (typeof series === 'number') {
+        return Number.isFinite(series) ? series : Number.NaN;
+      }
       let total = 0;
       let i = 0;
-      // Loop until we hit a NaN (out-of-range) — the series exposes one
-      // entry per bar that has been visited so far.
-      while (true) {
+      // Hard cap protects against future series implementations that
+      // return finite values at arbitrary offsets (e.g. a Proxy series
+      // that synthesises data). The corpus runs 200 bars max, so 10k
+      // is plenty of headroom while still being a finite ceiling.
+      const MAX = 10_000;
+      while (i < MAX) {
         const v = readSeriesValue(series, i);
         if (!Number.isFinite(v)) break;
         total += v;

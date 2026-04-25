@@ -115,6 +115,8 @@ function plotTypeToMetainfoType(
   switch (type) {
     case 'shape':
       return 'shapes';
+    case 'char':
+      return 'chars';
     case 'bg_colorer':
       return 'bg_colorer';
     case 'histogram':
