@@ -3,7 +3,7 @@ node_modules
 .pnpm-store
 
 # Build outputs
-dist
+# dist intentionally NOT ignored — published in git for consumers installing via git URL
 coverage
 
 # System files
