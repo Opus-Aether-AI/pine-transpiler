@@ -1,0 +1,3 @@
+//@version=5
+indicator("Trivial Plot", overlay=true)
+plot(close)

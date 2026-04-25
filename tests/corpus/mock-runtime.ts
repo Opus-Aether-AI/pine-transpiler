@@ -47,6 +47,10 @@ export interface MockRuntime {
     totalBars: number;
     /** Reset the var-pointer in context at the start of each bar. */
     resetVarPointer: () => void;
+    /** Reset the plot-capture array at the start of each bar. */
+    resetCurrentBarPlots: () => void;
+    /** Read the captured plot output for the current bar (mutable array). */
+    currentBarPlots: number[];
     report: MockRuntimeReport;
 }
 
@@ -175,10 +179,43 @@ function buildStd(
     bars: SyntheticBar[],
     pointer: BarPointer,
     report: MockRuntimeReport,
+    currentBarPlots: number[],
 ): StdLibraryInternal {
     const currentBar = (): SyntheticBar | undefined => bars[pointer.current];
 
     const std: Record<string, unknown> = {
+        // Plot family — the transpiler maps `plot()` → `Std.plot()` (see
+        // src/mappings/utilities.ts:190), so the runtime's Std must
+        // implement these to capture indicator output. The wrapper's
+        // `plot` parameter is left unused by transpiled code.
+        plot: (value: unknown, ..._rest: unknown[]) => {
+            currentBarPlots.push(readSeriesValue(value));
+        },
+        plotshape: (condition: unknown, ..._rest: unknown[]) => {
+            const v = readSeriesValue(condition);
+            currentBarPlots.push(Number.isFinite(v) && v !== 0 ? 1 : Number.NaN);
+        },
+        plotchar: (condition: unknown, ..._rest: unknown[]) => {
+            const v = readSeriesValue(condition);
+            currentBarPlots.push(Number.isFinite(v) && v !== 0 ? 1 : Number.NaN);
+        },
+        plotarrow: (value: unknown, ..._rest: unknown[]) => {
+            currentBarPlots.push(readSeriesValue(value));
+        },
+        hline: (..._rest: unknown[]) => {
+            // hlines don't contribute to per-bar output; PineJS handles
+            // them via metainfo. The mock is a no-op so we don't pollute
+            // the captured plot array.
+        },
+        bgcolor: (..._rest: unknown[]) => {
+            // bgcolor is a metainfo concern (bg_colorer plot type); no
+            // captured value to push.
+        },
+        fill: (..._rest: unknown[]) => {
+            // fill is rendered between two existing plots; no extra
+            // captured value.
+        },
+
         // Price accessors
         close: () => currentBar()?.close ?? Number.NaN,
         open: () => currentBar()?.open ?? Number.NaN,
@@ -227,19 +264,19 @@ function buildStd(
         eq: (a: unknown, b: unknown) => readSeriesValue(a) === readSeriesValue(b),
         neq: (a: unknown, b: unknown) => readSeriesValue(a) !== readSeriesValue(b),
 
-        // Moving averages
-        sma: (series: unknown, length: number) => {
+        // Moving averages — all TA-style Std functions take (ctx, ...args).
+        // The first parameter (ctx) is discarded by the mock; data comes
+        // from the bar pointer or from the passed-in series/value.
+        sma: (_ctx: unknown, series: unknown, length: number) => {
             let sum = 0;
-            let n = 0;
             for (let i = 0; i < length; i++) {
                 const v = readSeriesValue(series, i);
                 if (!Number.isFinite(v)) return Number.NaN;
                 sum += v;
-                n++;
             }
-            return n > 0 ? sum / n : Number.NaN;
+            return sum / length;
         },
-        ema: (series: unknown, length: number) => {
+        ema: (_ctx: unknown, series: unknown, length: number) => {
             const k = 2 / (length + 1);
             let ema = readSeriesValue(series, length - 1);
             if (!Number.isFinite(ema)) return Number.NaN;
@@ -250,8 +287,7 @@ function buildStd(
             }
             return ema;
         },
-        rma: (series: unknown, length: number) => {
-            // Wilder's smoothing — same formula as EMA with k = 1/length
+        rma: (_ctx: unknown, series: unknown, length: number) => {
             const k = 1 / length;
             let rma = readSeriesValue(series, length - 1);
             if (!Number.isFinite(rma)) return Number.NaN;
@@ -262,7 +298,7 @@ function buildStd(
             }
             return rma;
         },
-        wma: (series: unknown, length: number) => {
+        wma: (_ctx: unknown, series: unknown, length: number) => {
             let sum = 0;
             let weight = 0;
             for (let i = 0; i < length; i++) {
@@ -274,7 +310,7 @@ function buildStd(
             }
             return weight > 0 ? sum / weight : Number.NaN;
         },
-        vwma: (series: unknown, length: number) => {
+        vwma: (_ctx: unknown, series: unknown, length: number) => {
             let sum = 0;
             let volSum = 0;
             for (let i = 0; i < length; i++) {
@@ -288,7 +324,7 @@ function buildStd(
         },
 
         // Oscillators
-        rsi: (series: unknown, length: number) => {
+        rsi: (_ctx: unknown, series: unknown, length: number) => {
             let gain = 0;
             let loss = 0;
             for (let i = 0; i < length; i++) {
@@ -303,25 +339,66 @@ function buildStd(
             const rs = gain / length / (loss / length);
             return 100 - 100 / (1 + rs);
         },
-        roc: (series: unknown, length: number) => {
+        roc: (_ctx: unknown, series: unknown, length: number) => {
             const cur = readSeriesValue(series, 0);
             const prev = readSeriesValue(series, length);
             if (!Number.isFinite(cur) || !Number.isFinite(prev) || prev === 0)
                 return Number.NaN;
             return ((cur - prev) / prev) * 100;
         },
-        change: (series: unknown, length = 1) => {
+        change: (_ctx: unknown, series: unknown, length = 1) => {
             const cur = readSeriesValue(series, 0);
             const prev = readSeriesValue(series, length);
             return Number.isFinite(cur) && Number.isFinite(prev) ? cur - prev : Number.NaN;
         },
-        cum: (series: unknown) => {
-            // Mock: just return current value (cumulative state is hard to mock cleanly)
-            return readSeriesValue(series, 0);
+        cum: (_ctx: unknown, series: unknown) => readSeriesValue(series, 0),
+        cci: (_ctx: unknown, series: unknown, length: number) => {
+            const values: number[] = [];
+            for (let i = 0; i < length; i++) {
+                const v = readSeriesValue(series, i);
+                if (!Number.isFinite(v)) return Number.NaN;
+                values.push(v);
+            }
+            const mean = values.reduce((a, b) => a + b, 0) / length;
+            const md =
+                values.reduce((a, b) => a + Math.abs(b - mean), 0) / length;
+            const cur = readSeriesValue(series, 0);
+            return md === 0 ? Number.NaN : (cur - mean) / (0.015 * md);
+        },
+        mfi: (_ctx: unknown, _series: unknown, length: number) => {
+            // Approx: use price * volume; simplified for mock determinism
+            let posSum = 0;
+            let negSum = 0;
+            for (let i = 0; i < length; i++) {
+                const cur = bars[pointer.current - i];
+                const prev = bars[pointer.current - i - 1];
+                if (!cur || !prev) return Number.NaN;
+                const tp = (cur.high + cur.low + cur.close) / 3;
+                const ptp = (prev.high + prev.low + prev.close) / 3;
+                const mf = tp * cur.volume;
+                if (tp > ptp) posSum += mf;
+                else if (tp < ptp) negSum += mf;
+            }
+            if (negSum === 0) return 100;
+            const ratio = posSum / negSum;
+            return 100 - 100 / (1 + ratio);
+        },
+        wpr: (_ctx: unknown, length: number) => {
+            const cur = currentBar();
+            if (!cur) return Number.NaN;
+            let hh = -Infinity;
+            let ll = Infinity;
+            for (let i = 0; i < length; i++) {
+                const b = bars[pointer.current - i];
+                if (!b) return Number.NaN;
+                if (b.high > hh) hh = b.high;
+                if (b.low < ll) ll = b.low;
+            }
+            return hh === ll ? Number.NaN : ((hh - cur.close) / (hh - ll)) * -100;
         },
 
         // Volatility
-        stdev: (series: unknown, length: number) => {
+        stdev: (_ctx: unknown, series: unknown, length: number) => {
             const values: number[] = [];
             for (let i = 0; i < length; i++) {
                 const v = readSeriesValue(series, i);
@@ -333,7 +410,7 @@ function buildStd(
                 values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length;
             return Math.sqrt(variance);
         },
-        variance: (series: unknown, length: number) => {
+        variance: (_ctx: unknown, series: unknown, length: number) => {
             const values: number[] = [];
             for (let i = 0; i < length; i++) {
                 const v = readSeriesValue(series, i);
@@ -343,7 +420,7 @@ function buildStd(
             const mean = values.reduce((a, b) => a + b, 0) / values.length;
             return values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length;
         },
-        atr: (length: number) => {
+        atr: (_ctx: unknown, length: number) => {
             const trs: number[] = [];
             for (let i = 0; i < length; i++) {
                 const cur = bars[pointer.current - i];
@@ -360,7 +437,7 @@ function buildStd(
             }
             return trs.reduce((a, b) => a + b, 0) / trs.length;
         },
-        tr: () => {
+        tr: (_ctx: unknown) => {
             const cur = currentBar();
             const prev = bars[pointer.current - 1];
             if (!cur) return Number.NaN;
@@ -373,7 +450,7 @@ function buildStd(
         },
 
         // Trend
-        highest: (series: unknown, length: number) => {
+        highest: (_ctx: unknown, series: unknown, length: number) => {
             let h = -Infinity;
             for (let i = 0; i < length; i++) {
                 const v = readSeriesValue(series, i);
@@ -382,7 +459,7 @@ function buildStd(
             }
             return h === -Infinity ? Number.NaN : h;
         },
-        lowest: (series: unknown, length: number) => {
+        lowest: (_ctx: unknown, series: unknown, length: number) => {
             let l = Infinity;
             for (let i = 0; i < length; i++) {
                 const v = readSeriesValue(series, i);
@@ -391,7 +468,7 @@ function buildStd(
             }
             return l === Infinity ? Number.NaN : l;
         },
-        median: (series: unknown, length: number) => {
+        median: (_ctx: unknown, series: unknown, length: number) => {
             const values: number[] = [];
             for (let i = 0; i < length; i++) {
                 const v = readSeriesValue(series, i);
@@ -404,7 +481,7 @@ function buildStd(
                 ? (values[mid - 1] + values[mid]) / 2
                 : values[mid];
         },
-        sum: (series: unknown, length: number) => {
+        sum: (_ctx: unknown, series: unknown, length: number) => {
             let sum = 0;
             for (let i = 0; i < length; i++) {
                 const v = readSeriesValue(series, i);
@@ -413,6 +490,20 @@ function buildStd(
             }
             return sum;
         },
+
+        // Cross detection (single boolean, no series state)
+        cross: (_ctx: unknown, _a: unknown, _b: unknown) => false,
+
+        // VWAP — simplified, no rollover tracking
+        vwap: (_ctx: unknown, source: unknown) => readSeriesValue(source, 0),
+
+        // OBV — simplified
+        obv: (_ctx: unknown) => 0,
+
+        // Pivot detection — mock returns NaN (real Pine returns the pivot
+        // value when one is detected; we don't replicate that logic).
+        pivothigh: (..._args: unknown[]) => Number.NaN,
+        pivotlow: (..._args: unknown[]) => Number.NaN,
     };
 
     // Proxy: any Std method we haven't implemented falls through to a NaN-
@@ -452,7 +543,8 @@ export function createMockRuntime(
     };
 
     const context = new MockContext();
-    const std = buildStd(bars, pointer, report);
+    const currentBarPlots: number[] = [];
+    const std = buildStd(bars, pointer, report, currentBarPlots);
 
     return {
         pineJs: { Std: std },
@@ -462,6 +554,10 @@ export function createMockRuntime(
         },
         totalBars: barCount,
         resetVarPointer: () => context.resetVarPointer(),
+        resetCurrentBarPlots: () => {
+            currentBarPlots.length = 0;
+        },
+        currentBarPlots,
         report,
     };
 }

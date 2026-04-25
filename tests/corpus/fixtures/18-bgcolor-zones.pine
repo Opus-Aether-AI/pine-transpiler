@@ -1,0 +1,8 @@
+//@version=5
+indicator("Bgcolor Zones", overlay=true)
+length = input.int(14)
+rsi = ta.rsi(close, length)
+ob = rsi > 70
+os = rsi < 30
+bgcolor(ob ? color.new(color.red, 80) : os ? color.new(color.green, 80) : na)
+plot(close)

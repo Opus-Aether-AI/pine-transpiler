@@ -1,0 +1,10 @@
+const _series_high = context.new_var(high);
+const _getHistorical_high = (offset) => _series_high.get(offset);
+const _series_low = context.new_var(low);
+const _getHistorical_low = (offset) => _series_low.get(offset);
+indicator("Pivot Points", overlay = true);
+let length = input.int(5, "Length");
+let ph = Std.pivothigh(context, high, length, length);
+let pl = Std.pivotlow(context, low, length, length);
+Std.plot(ph, "Pivot High", color = color.red, style = plot.style_circles);
+Std.plot(pl, "Pivot Low", color = color.green, style = plot.style_circles);

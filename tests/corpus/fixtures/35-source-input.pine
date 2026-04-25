@@ -1,0 +1,5 @@
+//@version=5
+indicator("Source Input", overlay=true)
+src = input.source(close, "Source")
+length = input.int(20, "Length")
+plot(ta.sma(src, length), "MA")

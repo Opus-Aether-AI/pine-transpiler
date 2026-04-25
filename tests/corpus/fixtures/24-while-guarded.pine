@@ -1,0 +1,8 @@
+//@version=5
+indicator("While Guarded", overlay=false)
+i = 0
+total = 0.0
+while i < 10 and i < bar_index
+    total := total + close[i]
+    i := i + 1
+plot(total / 10, "Sum10")

@@ -1,0 +1,8 @@
+//@version=5
+indicator("Bollinger Bands", overlay=true)
+length = input.int(20, "Length")
+mult = input.float(2.0, "Multiplier")
+[basis, upper, lower] = ta.bb(close, length, mult)
+plot(basis, "Basis", color=color.gray)
+plot(upper, "Upper", color=color.red)
+plot(lower, "Lower", color=color.green)

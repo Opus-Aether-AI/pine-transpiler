@@ -1,0 +1,4 @@
+//@version=5
+indicator("Plotchar", overlay=true)
+upBar = close > open
+plotchar(upBar, "Up", char="▲", location=location.belowbar, color=color.green, size=size.tiny)

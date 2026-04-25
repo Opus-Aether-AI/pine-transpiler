@@ -1,0 +1,5 @@
+//@version=5
+indicator("Varip Tick", overlay=false)
+varip int ticks = 0
+ticks := ticks + 1
+plot(ticks, "Ticks")

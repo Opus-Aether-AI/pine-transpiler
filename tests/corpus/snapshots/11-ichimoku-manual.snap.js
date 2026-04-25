@@ -1,0 +1,16 @@
+const _series_high = context.new_var(high);
+const _getHistorical_high = (offset) => _series_high.get(offset);
+const _series_low = context.new_var(low);
+const _getHistorical_low = (offset) => _series_low.get(offset);
+indicator("Ichimoku Manual", overlay = true);
+let convPeriod = input.int(9, "Conversion");
+let basePeriod = input.int(26, "Base");
+let spanBPeriod = input.int(52, "Span B");
+let tenkan = ((Std.highest(context, high, convPeriod) + Std.lowest(context, low, convPeriod)) / 2);
+let kijun = ((Std.highest(context, high, basePeriod) + Std.lowest(context, low, basePeriod)) / 2);
+let senkouA = ((tenkan + kijun) / 2);
+let senkouB = ((Std.highest(context, high, spanBPeriod) + Std.lowest(context, low, spanBPeriod)) / 2);
+Std.plot(tenkan, "Tenkan", color = color.red);
+Std.plot(kijun, "Kijun", color = color.blue);
+Std.plot(senkouA, "Span A", color = color.green);
+Std.plot(senkouB, "Span B", color = color.orange);

@@ -1,0 +1,7 @@
+//@version=5
+indicator("Pivot Points", overlay=true)
+length = input.int(5, "Length")
+ph = ta.pivothigh(high, length, length)
+pl = ta.pivotlow(low, length, length)
+plot(ph, "Pivot High", color=color.red, style=plot.style_circles)
+plot(pl, "Pivot Low", color=color.green, style=plot.style_circles)

@@ -1,0 +1,5 @@
+//@version=5
+indicator("Custom Function", overlay=false)
+demean(src, len) =>
+    src - ta.sma(src, len)
+plot(demean(close, 20), "Demean", color=color.blue)
