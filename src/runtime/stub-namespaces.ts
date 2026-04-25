@@ -37,9 +37,20 @@ export interface TableStub {
 
 /** Stub namespace for string functions */
 export interface StrStub {
-  tostring: (v: unknown) => string;
-  length: (v: string) => number;
-  contains: (s: string, sub: string) => boolean;
+  tostring: (v: unknown, format?: unknown) => string;
+  tonumber: (v: unknown) => number;
+  length: (v: unknown) => number;
+  contains: (s: unknown, sub: unknown) => boolean;
+  startswith: (s: unknown, prefix: unknown) => boolean;
+  endswith: (s: unknown, suffix: unknown) => boolean;
+  upper: (s: unknown) => string;
+  lower: (s: unknown) => string;
+  replace_all: (s: unknown, target: unknown, replacement: unknown) => string;
+  trim: (s: unknown) => string;
+  split: (s: unknown, sep: unknown) => string[];
+  pos: (s: unknown, sub: unknown) => number;
+  substring: (s: unknown, start: unknown, end?: unknown) => string;
+  format: (fmt: unknown, ...args: unknown[]) => string;
 }
 
 /** Stub namespace for bar state information */
@@ -152,11 +163,39 @@ export function createStubNamespaces(): StubNamespaces {
       },
       cell: () => {},
     },
-    str: {
-      tostring: (v: unknown) => String(v),
-      length: (v: string) => v.length,
-      contains: (s: string, sub: string) => s.includes(sub),
-    },
+    str: ((): StrStub => {
+      // Coerce arbitrary inputs to strings safely — Pine `str.X` calls
+      // can be fed numbers, NaN, undefined (e.g. when an upstream Std
+      // function returned NaN). Real PineJS coerces; mirror that so a
+      // missing input doesn't take down the whole indicator.
+      const c = (v: unknown): string => (v == null ? '' : String(v));
+      return {
+        tostring: (v) => c(v),
+        tonumber: (v) => {
+          const n = Number(c(v));
+          return Number.isFinite(n) ? n : Number.NaN;
+        },
+        length: (v) => c(v).length,
+        contains: (s, sub) => c(s).includes(c(sub)),
+        startswith: (s, prefix) => c(s).startsWith(c(prefix)),
+        endswith: (s, suffix) => c(s).endsWith(c(suffix)),
+        upper: (s) => c(s).toUpperCase(),
+        lower: (s) => c(s).toLowerCase(),
+        replace_all: (s, target, replacement) =>
+          c(s).split(c(target)).join(c(replacement)),
+        trim: (s) => c(s).trim(),
+        split: (s, sep) => c(s).split(c(sep)),
+        pos: (s, sub) => c(s).indexOf(c(sub)),
+        substring: (s, start, end) => {
+          const str = c(s);
+          const startIdx = typeof start === 'number' ? start : 0;
+          const endIdx = typeof end === 'number' ? end : str.length;
+          return str.substring(startIdx, endIdx);
+        },
+        format: (fmt, ...args) =>
+          c(fmt).replace(/{(\d+)}/g, (m, i) => c(args[Number(i)] ?? m)),
+      };
+    })(),
     barstate: createBarstate(),
   };
 }
