@@ -34,8 +34,10 @@ export {
   type TimeframeMock,
 } from './mock-factories';
 export {
+  type BarstateContext,
   type BarstateStub,
   type BoxStub,
+  createBarstate,
   createStubNamespaces,
   type LabelStub,
   type LineStub,
