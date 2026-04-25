@@ -154,7 +154,27 @@ export class Parser extends ExpressionParser {
     ) {
       const start = this.current;
       try {
-        return this.parseVariableOrAssignment();
+        const first = this.parseVariableOrAssignment();
+        // Pine permits comma-separated declarations on one line:
+        //   `bool a = false, bool b = true`
+        //   `int prev_ph_bi = na, int prev_pl_bi = na`
+        // Each comma-separated piece is its own typed decl. Wrap the
+        // collection in a BlockStatement so the rest of the parser /
+        // generator can treat it as a sequence of statements without a
+        // new node kind. The braces don't appear in emitted JS because
+        // we're still at top level and BlockStatement at top level
+        // emits `{ … }` only when it's a child of a block-aware
+        // construct. For top-level, generateBlockStatement is called
+        // by generateStatement which wraps it; that's still legal JS
+        // at top level (a bare block).
+        if (!this.check(TokenType.COMMA)) {
+          return first;
+        }
+        const decls: Statement[] = [first];
+        while (this.match(TokenType.COMMA)) {
+          decls.push(this.parseVariableOrAssignment());
+        }
+        return { type: 'BlockStatement', body: decls };
       } catch (e) {
         // Only ParseError indicates "this isn't a variable decl, fall
         // through to expression parsing" — e.g. the operator-validation
