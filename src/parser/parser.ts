@@ -424,7 +424,8 @@ export class Parser extends ExpressionParser {
       ).value;
 
       let init: Expression | null = null;
-      if (this.match(TokenType.OPERATOR) && this.previous().value === '=') {
+      if (this.check(TokenType.OPERATOR) && this.peek().value === '=') {
+        this.advance();
         init = this.parseExpression();
       }
 
@@ -490,7 +491,8 @@ export class Parser extends ExpressionParser {
           typeAnnotation,
         });
 
-        if (this.match(TokenType.OPERATOR) && this.previous().value === '=') {
+        if (this.check(TokenType.OPERATOR) && this.peek().value === '=') {
+          this.advance();
           this.parseExpression();
         }
       } while (this.match(TokenType.COMMA));
