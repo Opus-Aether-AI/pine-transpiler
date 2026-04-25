@@ -267,7 +267,7 @@ const StdPlus = {
 };
 
 indicator("Williams %R");
-let length = input.int(14, "Length");
+var length = input.int(14, "Length");
 Std.plot(StdPlus.wpr(context, length), "%R");
 hline(-20);
 hline(-80);

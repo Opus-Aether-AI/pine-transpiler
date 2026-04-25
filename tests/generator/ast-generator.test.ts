@@ -24,7 +24,7 @@ if x > 0
 `;
         const js = generateCode(code);
         expect(js).toContain('if ((x > 0))');
-        expect(js).toContain('let y = 1;');
+        expect(js).toContain('var y = 1;');
       });
 
       it('should generate if-else statement', () => {
@@ -37,8 +37,8 @@ else
         const js = generateCode(code);
         expect(js).toContain('if ((x > 0))');
         expect(js).toContain('else');
-        expect(js).toContain('let y = 1;');
-        expect(js).toContain('let y = 0;');
+        expect(js).toContain('var y = 1;');
+        expect(js).toContain('var y = 0;');
       });
 
       it('should generate if-else if-else chain', () => {
@@ -281,19 +281,19 @@ export type MyType
     it('should generate simple variable declaration', () => {
       const code = 'x = 42';
       const js = generateCode(code);
-      expect(js).toContain('let x = 42;');
+      expect(js).toContain('var x = 42;');
     });
 
     it('should generate var keyword as let', () => {
       const code = 'var x = 42';
       const js = generateCode(code);
-      expect(js).toContain('let x = 42;');
+      expect(js).toContain('var x = 42;');
     });
 
     it('should generate varip keyword as let', () => {
       const code = 'varip x = 42';
       const js = generateCode(code);
-      expect(js).toContain('let x = 42;');
+      expect(js).toContain('var x = 42;');
     });
 
     it('should handle const keyword', () => {
@@ -306,13 +306,17 @@ export type MyType
     it('should generate tuple destructuring', () => {
       const code = '[a, b] = func()';
       const js = generateCode(code);
-      expect(js).toContain('let [a, b] = func();');
+      expect(js).toContain('var [a, b] = func();');
     });
 
     it('should generate exported variable', () => {
       const code = 'export var x = 1';
       const js = generateCode(code);
-      expect(js).toContain('export let x = 1;');
+      // Pine's `var x = 1` and `x = 1` both emit JS `var x = 1;` after
+      // we switched the generator from `let` to `var` to allow safe
+      // redeclaration when the parser flattens block-scoped vars to
+      // top scope.
+      expect(js).toContain('export var x = 1;');
     });
   });
 

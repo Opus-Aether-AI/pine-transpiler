@@ -17,8 +17,8 @@ const _mapClear = (m) => { m.clear(); return m; };
 const _mapCopy = (m) => new Map(m);
 
 indicator("Map Basic");
-let counts = _mapNew();
-let key = ((close > open) ? "up" : "down");
-let prevCount = (_mapContains(counts, key) ? _mapGet(counts, key) : 0);
+var counts = _mapNew();
+var key = ((close > open) ? "up" : "down");
+var prevCount = (_mapContains(counts, key) ? _mapGet(counts, key) : 0);
 _mapPut(counts, key, (prevCount + 1));
 Std.plot(_mapSize(counts), "Map Size");

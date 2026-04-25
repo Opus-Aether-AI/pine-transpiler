@@ -269,9 +269,9 @@ const StdPlus = {
 };
 
 indicator("Fill Bands");
-let length = input.int(20, "Length");
-let mult = input.float(2, "Mult");
-let [basis, upper, lower] = StdPlus.bb(context, close, length, mult);
-let p1 = Std.plot(upper, "Upper");
-let p2 = Std.plot(lower, "Lower");
+var length = input.int(20, "Length");
+var mult = input.float(2, "Mult");
+var [basis, upper, lower] = StdPlus.bb(context, close, length, mult);
+var p1 = Std.plot(upper, "Upper");
+var p2 = Std.plot(lower, "Lower");
 Std.fill(p1, p2);

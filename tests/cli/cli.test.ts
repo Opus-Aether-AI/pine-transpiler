@@ -22,7 +22,7 @@ x = 1 + 2`;
       const result = transpile(pineCode);
 
       // Transpiler uses 'let' for variable declarations
-      expect(result).toContain('let x = (1 + 2)');
+      expect(result).toContain('var x = (1 + 2)');
     });
 
     it('should transpile indicator with inputs', () => {

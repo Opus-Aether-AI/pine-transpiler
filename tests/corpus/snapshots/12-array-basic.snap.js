@@ -37,7 +37,7 @@ const _arrayLastIndexOf = (arr, val) => arr.lastIndexOf(val);
 const _arrayJoin = (arr, sep = ',') => arr.join(sep);
 
 indicator("Array Basic");
-let arr = _arrayNewFloat(0);
+var arr = _arrayNewFloat(0);
 _arrayPush(arr, close);
 _arrayPush(arr, (close * 1.01));
 Std.plot(((_arraySize(arr) > 0) ? _arrayGet(arr, 0) : NaN), "First");

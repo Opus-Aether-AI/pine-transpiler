@@ -269,7 +269,7 @@ const StdPlus = {
 };
 
 indicator("Var State");
-let trades = 0;
+var trades = 0;
 if (StdPlus.crossover(context, Std.ema(context, close, 9), Std.ema(context, close, 21))) {
   trades = (trades + 1);
 }

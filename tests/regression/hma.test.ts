@@ -11,7 +11,7 @@ plot(h)
 `;
     const js = transpile(pine);
     // console.log(js);
-    expect(js).toContain('let h = StdPlus.hma(context, close, 14);');
+    expect(js).toContain('var h = StdPlus.hma(context, close, 14);');
   });
 
   test('should transpile ta.hma with expression', () => {
@@ -23,6 +23,6 @@ plot(h)
 `;
     const js = transpile(pine);
     // console.log(js);
-    expect(js).toContain('let h = StdPlus.hma(context, (close + open), 14);');
+    expect(js).toContain('var h = StdPlus.hma(context, (close + open), 14);');
   });
 });

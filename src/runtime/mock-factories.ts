@@ -215,6 +215,13 @@ export interface TimeframeMock {
   isweekly: boolean;
   ismonthly: boolean;
   multiplier: number;
+  /** `timeframe.change(tf)` — true once per change of the named
+   *  timeframe boundary (new hour/day/etc.). Pine multi-timeframe
+   *  scripts gate accumulators on this. Mock returns false. */
+  change: (tf: string) => boolean;
+  /** `timeframe.in_seconds()` — returns the current timeframe in
+   *  seconds. Mock returns 60. */
+  in_seconds: () => number;
 }
 
 /**
@@ -232,6 +239,8 @@ export function createTimeframeMock(
     isweekly: Std.isweekly(context) as boolean,
     ismonthly: Std.ismonthly(context) as boolean,
     multiplier: Std.interval(context) as number,
+    change: () => false,
+    in_seconds: () => 60,
   };
 }
 

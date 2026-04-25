@@ -19,7 +19,7 @@ const _mapClear = (m) => { m.clear(); return m; };
 const _mapCopy = (m) => new Map(m);
 
 indicator("Map Keys Values");
-let m = _mapNew();
+var m = _mapNew();
 _mapPut(m, "high", high);
 _mapPut(m, "low", low);
 _mapPut(m, "close", close);

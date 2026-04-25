@@ -315,7 +315,18 @@ export class StatementGenerator implements StatementGeneratorInterface {
   }
 
   private generateVariableDeclaration(stmt: VariableDeclaration): string {
-    const kind = stmt.kind === 'const' ? 'const' : 'let';
+    // Pine variable scoping is statement-level: `x = 1` inside one if
+    // block and `x = 2` inside another are independent locals. Our
+    // parser sometimes flattens those if-blocks back to top scope (a
+    // separate, deeper bug), which produces JS like:
+    //   let yValue = a;
+    //   let yValue = b;   ← SyntaxError on redeclaration
+    // Switching `let` → `var` makes the redeclaration legal in JS
+    // without changing observable Pine semantics — Pine doesn't have
+    // TDZ semantics, and `var`'s function-scope hoisting matches
+    // Pine's "sequential" reading. `const` (rare in our emit) stays
+    // as-is.
+    const kind = stmt.kind === 'const' ? 'const' : 'var';
     const init = stmt.init
       ? ` = ${this.expressionGen.generateExpression(stmt.init)}`
       : '';
