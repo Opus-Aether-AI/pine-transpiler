@@ -538,10 +538,52 @@ export class Parser extends ExpressionParser {
     };
   }
 
+  /**
+   * Detect a user-defined type prefix: two identifiers in a row,
+   * optionally with `[]` between them (typed-array annotation), where
+   * the second identifier is followed by `=`, `:=`, or a compound
+   * assignment. Used as a fallback when checkTypeAnnotation rejects
+   * the first identifier because it's not a built-in TYPE_KEYWORD.
+   */
+  private isUserTypePrefix(): boolean {
+    if (!this.check(TokenType.IDENTIFIER)) return false;
+    let lookahead = this.current + 1;
+    // Skip any `[]` after the first identifier.
+    while (
+      this.tokens[lookahead]?.type === TokenType.LBRACKET &&
+      this.tokens[lookahead + 1]?.type === TokenType.RBRACKET
+    ) {
+      lookahead += 2;
+    }
+    if (this.tokens[lookahead]?.type !== TokenType.IDENTIFIER) return false;
+    const after = this.tokens[lookahead + 1];
+    if (!after) return false;
+    if (after.type !== TokenType.OPERATOR) return false;
+    return ['=', ':=', '+=', '-=', '*=', '/=', '%='].includes(after.value);
+  }
+
   private parseVariableOrAssignment(): Statement {
     let typeAnnotation: TypeAnnotation | undefined;
     if (this.checkTypeAnnotation()) {
       typeAnnotation = this.parseTypeAnnotation();
+    } else if (this.isUserTypePrefix()) {
+      // Pine v6 allows user-defined types as type annotations:
+      //   `MyType x = MyType.new()`
+      // checkTypeAnnotation only recognises the built-in type keywords;
+      // a user type sits as an Identifier in the token stream. When we
+      // see two identifiers in a row followed by `=`, the first is a
+      // type annotation. Consume and discard it (we don't enforce types
+      // at codegen anyway).
+      this.advance();
+      // Also consume `[]` if it's a typed-array annotation (`MyType[]
+      // arr = …`).
+      while (
+        this.check(TokenType.LBRACKET) &&
+        this.peekNext()?.type === TokenType.RBRACKET
+      ) {
+        this.advance();
+        this.advance();
+      }
     }
 
     let id: Identifier | Expression | Identifier[];
