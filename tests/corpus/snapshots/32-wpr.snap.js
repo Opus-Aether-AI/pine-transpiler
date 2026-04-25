@@ -284,8 +284,8 @@ const StdPlus = {
     }
 };
 
-indicator("Williams %R", overlay = false);
+indicator("Williams %R");
 let length = input.int(14, "Length");
-Std.plot(StdPlus.wpr(context, length), "%R", color = color.blue);
+Std.plot(StdPlus.wpr(context, length), "%R");
 hline(-20);
 hline(-80);

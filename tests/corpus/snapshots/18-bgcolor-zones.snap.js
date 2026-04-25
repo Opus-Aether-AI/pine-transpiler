@@ -1,6 +1,6 @@
 const _series_close = context.new_var(close);
 const _getHistorical_close = (offset) => _series_close.get(offset);
-indicator("Bgcolor Zones", overlay = true);
+indicator("Bgcolor Zones");
 let length = input.int(14);
 let rsi = Std.rsi(context, close, length);
 let ob = (rsi > 70);

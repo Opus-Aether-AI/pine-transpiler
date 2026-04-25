@@ -2,7 +2,7 @@ const _series_close = context.new_var(close);
 const _getHistorical_close = (offset) => _series_close.get(offset);
 const _series_open = context.new_var(open);
 const _getHistorical_open = (offset) => _series_open.get(offset);
-indicator("Map Basic", overlay = false);
+indicator("Map Basic");
 let counts = map.new();
 let key = ((close > open) ? "up" : "down");
 let prevCount = (map.contains(counts, key) ? map.get(counts, key) : 0);

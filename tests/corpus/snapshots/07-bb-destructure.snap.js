@@ -286,10 +286,10 @@ const StdPlus = {
     }
 };
 
-indicator("Bollinger Bands", overlay = true);
+indicator("Bollinger Bands");
 let length = input.int(20, "Length");
 let mult = input.float(2, "Multiplier");
 let [basis, upper, lower] = StdPlus.bb(context, close, length, mult);
-Std.plot(basis, "Basis", color = color.gray);
-Std.plot(upper, "Upper", color = color.red);
-Std.plot(lower, "Lower", color = color.green);
+Std.plot(basis, "Basis");
+Std.plot(upper, "Upper");
+Std.plot(lower, "Lower");

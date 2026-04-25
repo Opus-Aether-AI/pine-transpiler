@@ -1,3 +1,3 @@
-indicator("Time Functions", overlay = false);
+indicator("Time Functions");
 let h = Std.hour(time);
-Std.plot(h, "Hour", color = color.blue);
+Std.plot(h, "Hour");

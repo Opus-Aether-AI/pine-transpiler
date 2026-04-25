@@ -286,8 +286,8 @@ const StdPlus = {
     }
 };
 
-indicator("MACD", overlay = false);
+indicator("MACD");
 let [macdLine, signalLine, histogram] = StdPlus.macd(context, close, 12, 26, 9);
-Std.plot(macdLine, "MACD", color = color.blue);
-Std.plot(signalLine, "Signal", color = color.orange);
-Std.plot(histogram, "Histogram", color = color.purple, style = plot.style_columns);
+Std.plot(macdLine, "MACD");
+Std.plot(signalLine, "Signal");
+Std.plot(histogram, "Histogram");

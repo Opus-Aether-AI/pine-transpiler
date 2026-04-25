@@ -4,7 +4,7 @@ const _series_low = context.new_var(low);
 const _getHistorical_low = (offset) => _series_low.get(offset);
 const _series_close = context.new_var(close);
 const _getHistorical_close = (offset) => _series_close.get(offset);
-indicator("Map Keys Values", overlay = false);
+indicator("Map Keys Values");
 let m = map.new();
 map.put(m, "high", high);
 map.put(m, "low", low);

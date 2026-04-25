@@ -286,7 +286,7 @@ const StdPlus = {
     }
 };
 
-indicator("Momentum & ROC", overlay = false);
+indicator("Momentum & ROC");
 let length = input.int(10, "Length");
-Std.plot(StdPlus.mom(context, close, length), "Momentum", color = color.blue);
-Std.plot(Std.roc(context, close, length), "ROC", color = color.orange);
+Std.plot(StdPlus.mom(context, close, length), "Momentum");
+Std.plot(Std.roc(context, close, length), "ROC");
