@@ -40,30 +40,30 @@ import { COLOR_MAP, PRICE_SOURCES } from './types';
 // ============================================================================
 
 export type {
+  ComparisonFunctionMapping,
   IndicatorFactory,
-  TranspileToPineJSResult,
+  MultiOutputFunctionMapping,
+  ParsedFunction,
   ParsedIndicator,
   ParsedInput,
   ParsedPlot,
   ParsedVariable,
-  ParsedFunction,
   TAFunctionMapping,
-  MultiOutputFunctionMapping,
-  ComparisonFunctionMapping,
   TimeFunctionMapping,
   TranspilerRuntimeError,
+  TranspileToPineJSResult,
 };
 
 export {
   COLOR_MAP,
+  generateStandaloneFactory,
+  getAllPineFunctionNames,
+  getMappingStats,
+  MATH_FUNCTION_MAPPINGS,
+  MULTI_OUTPUT_MAPPINGS,
   PRICE_SOURCES,
   TA_FUNCTION_MAPPINGS,
-  MULTI_OUTPUT_MAPPINGS,
-  MATH_FUNCTION_MAPPINGS,
   TIME_FUNCTION_MAPPINGS,
-  getMappingStats,
-  getAllPineFunctionNames,
-  generateStandaloneFactory,
 };
 
 // ============================================================================

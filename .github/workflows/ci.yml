@@ -2,65 +2,49 @@ name: Pine Transpiler CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
 
 jobs:
   check:
     name: Quality Check
     runs-on: ubuntu-latest
-    
     steps:
       - uses: actions/checkout@v4
-      
-      - uses: pnpm/action-setup@v3
+
+      - uses: oven-sh/setup-bun@v2
         with:
-          version: 10
-          
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'pnpm'
-          
+          bun-version: latest
+
       - name: Install Dependencies
-        run: pnpm install
-        
+        run: bun install --frozen-lockfile=false
+
       - name: Build
-        run: pnpm build
-        
+        run: bun run build
+
       - name: Type Check
-        run: pnpm typecheck
-        
+        run: bun run typecheck
+
       - name: Lint
-        run: pnpm lint
+        run: bun run lint
 
   test:
     name: Test
     runs-on: ubuntu-latest
     needs: check
-    
     steps:
       - uses: actions/checkout@v4
-      
-      - uses: pnpm/action-setup@v3
+
+      - uses: oven-sh/setup-bun@v2
         with:
-          version: 10
-          
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'pnpm'
-          
+          bun-version: latest
+
       - name: Install Dependencies
-        run: pnpm install
-        
-      - name: Run Tests with Coverage
-        run: pnpm test:coverage
-        
-      - name: Upload Coverage Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage/
-          retention-days: 14
+        run: bun install --frozen-lockfile=false
+
+      - name: Run Tests
+        run: bun test tests/
+
+      - name: Run Corpus
+        run: bun run corpus
