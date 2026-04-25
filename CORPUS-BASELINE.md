@@ -2,7 +2,25 @@
 
 This is the score we're driving up. Re-run with `bun run corpus`.
 
-## Score (2026-04-25)
+## Score history
+
+| Date | Pass rate | Notes |
+|---|---|---|
+| 2026-04-25 (initial) | 32/40 = **80%** | Phase 0 baseline |
+| 2026-04-25 (post Phase 1.0) | 39/40 = **98%** | `color=` named-arg shadowing fixed |
+| 2026-04-25 (post Phase 3) | 40/40 = **100%** | multi-line user functions return correctly |
+
+## Current score
+
+```
+Total fixtures:        40
+Transpile success:     40   (100%)
++ Instantiate:         40   (100%)
++ Construct:           40   (100%)
++ Full pass:           40   (100%)  ← AT TARGET
+```
+
+## Initial baseline (2026-04-25)
 
 ```
 Total fixtures:        40
