@@ -43,7 +43,16 @@ export abstract class ExpressionParser extends ParserBase {
   protected parseTernary(): Expression {
     const expr = this.parseLogicalOr();
 
-    if (this.match(TokenType.OPERATOR) && this.previous().value === '?') {
+    // Peek-then-conditional-advance for `?`: the previous form
+    //   `if (match(OPERATOR) && previous().value === '?')`
+    // consumed the next OPERATOR token unconditionally and silently
+    // dropped it on a non-`?` match. Concretely: `x = switch …` was
+    // parsed as `x` (identifier), then this match ate `=`, the check
+    // failed, and the `switch …` block became orphaned at top level.
+    // The same shape lived in parseIfStatement / parseSwitchStatement
+    // and got fixed there earlier.
+    if (this.check(TokenType.OPERATOR) && this.peek().value === '?') {
+      this.advance();
       const consequent = this.parseExpression();
       if (!this.match(TokenType.COLON)) {
         throw this.error(this.peek(), 'Expected : in ternary.');

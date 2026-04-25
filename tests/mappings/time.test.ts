@@ -7,7 +7,7 @@
  * - Session functions
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import {
   DATE_TIME_MAPPINGS,
   DAYOFWEEK_CONSTANTS,

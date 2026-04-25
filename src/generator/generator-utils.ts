@@ -36,7 +36,46 @@ const DANGEROUS_IDENTIFIERS = new Set([
   'arguments',
   'caller',
   'callee',
+  // JS strict-mode reserved words that Pine v6 allows as identifiers
+  // (Pine has `this` and `super` as legal user param names — JS does
+  // not). Renaming with the `_pine_` prefix sidesteps the SyntaxError
+  // we'd otherwise get from `function f(this) {}`.
+  'this',
+  'super',
+  'class',
+  'enum',
+  'extends',
+  'static',
+  'yield',
+  'await',
+  'let',
+  'const',
+  'var',
+  'return',
+  'throw',
+  'typeof',
+  'instanceof',
+  'in',
+  'of',
+  'new',
+  'delete',
+  'void',
+  'null',
+  'undefined',
 ]);
+
+// NOTE on wrapper-param collisions: Pine source like `indicator = ""`
+// (a user variable named the same as a wrapper-injected param such as
+// `indicator`, `hline`, `bgcolor`, etc.) emits `let indicator = ""`
+// inside the wrapper closure and JS rejects it as a duplicate let.
+// Adding those names here would solve the collision but break the call
+// site `indicator("Title", overlay=true)` because every reference to
+// the identifier would also be renamed. The right fix is a scope-aware
+// rename pass that tracks declared user identifiers and rewrites their
+// references in the same scope only — that's a deeper change deferred
+// to a follow-up. For now, well-behaved Pine that doesn't shadow
+// builtins works fine; ~8 community fixtures that DO shadow surface as
+// "compile failed → catch fallback" in the corpus report.
 
 /**
  * Sanitize an identifier name to prevent security issues

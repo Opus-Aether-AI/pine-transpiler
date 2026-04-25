@@ -1,0 +1,14 @@
+const _series_close = context.new_var(close);
+const _getHistorical_close = (offset) => _series_close.get(offset);
+const _series_high = context.new_var(high);
+const _getHistorical_high = (offset) => _series_high.get(offset);
+const _series_low = context.new_var(low);
+const _getHistorical_low = (offset) => _series_low.get(offset);
+indicator("Stochastic");
+var k = input.int(14, "%K");
+var d = input.int(3, "%D");
+var [sk, sd] = Std.stoch(context, close, high, low, k);
+Std.plot(sk, "%K");
+Std.plot(sd, "%D");
+hline(80);
+hline(20);

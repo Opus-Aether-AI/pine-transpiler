@@ -1,0 +1,6 @@
+//@version=5
+indicator("RSI", overlay=false)
+length = input.int(14, "Length")
+plot(ta.rsi(close, length), "RSI", color=color.purple)
+hline(70)
+hline(30)

@@ -1,0 +1,9 @@
+//@version=5
+indicator("Stochastic", overlay=false)
+k = input.int(14, "%K")
+d = input.int(3, "%D")
+[sk, sd] = ta.stoch(close, high, low, k)
+plot(sk, "%K", color=color.blue)
+plot(sd, "%D", color=color.orange)
+hline(80)
+hline(20)

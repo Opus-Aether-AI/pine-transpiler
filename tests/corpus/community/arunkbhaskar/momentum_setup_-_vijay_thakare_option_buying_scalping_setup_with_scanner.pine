@@ -1,0 +1,691 @@
+// Source: github.com/ArunKBhaskar/PineScript/Momentum%20Setup%20-%20Vijay%20Thakare%20Option%20Buying%20Scalping%20Setup/Momentum%20Setup%20-%20Vijay%20Thakare%20Option%20Buying%20Scalping%20Setup%20with%20Scanner.txt
+// Vendored as a corpus fixture. License is the repo's — see the upstream LICENSE.
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Arun_K_Bhaskar
+
+//@version=5
+indicator(title='Momentum Setup: Vijay Thakare Option Buying Scalping Setup Scanner', shorttitle='VT Scalp Scan', overlay=true, max_bars_back=500, max_lines_count=500, max_boxes_count=500)
+
+//_____________________________ Menu Screener Start
+
+g_scrtb = '█████████████████ Screener █████████████████'
+
+string i_scr_choose = input.string(defval='Continuous Signals', title='Screening Method', options=['Continuous Signals', 'Flip Signals'], group=g_scrtb)
+
+tt_is = "• Reads only up to first 40 symbols." +
+     "\n• Total characters cannot exceed 4096." +
+     "\n• Use comma as delimiter without any space." +
+     "\n• Eg: EXCHANGE:SYMBOL_A,EXCHANGE:SYMBOL_B"
+
+string i_symbols = input.text_area(
+ defval="NSE:NIFTY,NSE:NIFTYJR,NSE:BANKNIFTY,NSE:CNXFINANCE,NSE:NIFTY_MID_SELECT,BSE:SENSEX,BSE:SNSX50,BSE:BANK,NSE:ASHOKLEY,NSE:BANKBARODA,NSE:BANKINDIA,NSE:BEL,NSE:BHEL,NSE:CANBK,NSE:COALINDIA,NSE:ENGINERSIN,NSE:GAIL,NSE:HINDCOPPER,NSE:HUDCO,NSE:IEX,NSE:IRCON,NSE:IRFC,NSE:JSWINFRA,NSE:MOTHERSON,NSE:NATIONALUM,NSE:NBCC,NSE:NCC,NSE:NHPC,NSE:NMDC,NSE:NTPC,NSE:ONGC,NSE:PFC,NSE:PNB,NSE:POWERGRID,NSE:RAILTEL,NSE:RVNL,NSE:SAIL,NSE:SJVN,NSE:UNIONBANK,NSE:VEDL,NSE:ZEEL,NSE:ZOMATO", 
+ title="Paste Symbols", tooltip=tt_is, group=g_scrtb)
+
+string i_scr_direction = input.string(defval='Both', title='Direction', options=['Both', 'Long', 'Short'], inline='tb_1', group=g_scrtb)
+bool i_scr_show_bull  = input.bool(defval=true, title='Only Long', inline='tb_2', group=g_scrtb)
+bool i_scr_show_bear  = input.bool(defval=true, title='Only Short', inline='tb_2', group=g_scrtb)
+
+int i_scr_tbl_disp_rows = input.int(defval=12, title='Display Rows', minval=0, maxval=100, group=g_scrtb)
+string i_scr_tbl_position = input.string(defval=position.bottom_left, title='Table Position', options=[position.top_left, position.top_center, position.top_right, position.middle_left, position.middle_center, position.middle_right, position.bottom_left, position.bottom_center, position.bottom_right], group=g_scrtb)
+string i_scr_tbl_text_size = input.string(defval=size.small, title='Table Size', options=[size.auto, size.tiny, size.small, size.normal, size.large, size.huge], group=g_scrtb)
+
+//_____________________________ Menu Screener End
+
+//_____________________________ Menu Indicators Start
+
+g_st = '█████████████████ Supertrend █████████████████'
+//bool i_st_display = input.bool(defval=true, title='Display', group=g_st)
+int i_st_atr_period = input.int(defval=10, title="ATR Length", minval=1, group=g_st)
+float i_st_factor = input.float(defval=3.0, title="Factor", minval=0.01, step=0.01, group=g_st)
+
+gp_ma = '████████ Exponential Moving Average (EMA) ████████'
+bool i_ma_display = input.bool(defval=true, title='Display', group=gp_ma)
+int i_ma_len_1 = input.int(defval=20, title='Length', minval=1, group=gp_ma)
+int i_ma_len_2 = input.int(defval=50, title='Length', minval=1, group=gp_ma)
+int i_ma_len_3 = input.int(defval=100, title='Length', minval=1, group=gp_ma)
+int i_ma_len_4 = input.int(defval=200, title='Length', minval=1, group=gp_ma)
+
+g_vwap = '████████████████ VWAP / TWAP ████████████████'
+tt_vt = "• Choose TWAP if Volume is not available for the Symbol."
+bool i_vtwap_display = input.bool(defval=true, title='Display', group=g_vwap)
+string i_vtwap_choice = input.string(defval = "VWAP", title="Choose", options=["VWAP", "TWAP"], tooltip=tt_vt, group=g_vwap)
+string i_vtwap_timeframe = input.timeframe(defval = "1D", title = "Timeframe", group=g_vwap)
+
+g_macd = '███████████████████ MACD ███████████████████'
+bool i_macd_display = input.bool(defval=true, title='Display', group=g_macd)
+int i_macd_fast_len = input.int(defval=3, title='Fast Length', minval=1, group=g_macd)
+int i_macd_slow_len = input.int(defval=9, title='Slow Length', minval=1, group=g_macd)
+int i_macd_signal_len = input.int(defval=15, title='Signal Smoothing', minval=1, group=g_macd)
+float i_macd_voffset = input.float(defval=0.5, title='Vertical Offset', step=0.1, group=g_macd)
+float i_macd_height = input.float(defval=0.7, title='Height', step=0.1, group=g_macd)
+
+g_stoc = '█████████████████ Stochastic █████████████████'
+bool i_stoc_display = input.bool(defval=true, title='Display', group=g_stoc)
+int i_stoc_k_len = input.int(defval=5, title='%K Length', minval=1, group=g_stoc)
+int i_stoc_k_smooth = input.int(defval=3, title='%K Smoothing', minval=1, group=g_stoc)
+int i_stoc_d_smooth = input.int(defval=3, title='%D Smoothing', minval=1, group=g_stoc)
+int i_stoc_over_bought = input.int(defval=60, title='Over Bought', minval=1, group=g_stoc)
+int i_stoc_over_sold = input.int(defval=40, title='Over Sold', minval=1, group=g_stoc)
+float i_stoc_voffset = input.float(defval=1.8, title='Vertical Offset', step=0.1, group=g_stoc)// 1.1
+float i_stoc_height = input.float(defval=0.6, title='Height', step=0.1, group=g_stoc)//1.0
+
+g_vol = '██████████████████ Volume ██████████████████'
+bool i_vol_display = input.bool(defval=true, title='Display', inline='VOL', group=g_vol)
+//int i_vol_sma_length = input.int(defval=20, title='MA Length', minval=1, group=g_vol)
+string i_vol_type   = input.string(defval='Regular Volume', title='Type', options=['Buying/Selling Volume', 'Regular Volume', 'None'], group = g_vol)
+i_vol_hoffset = 0
+float i_vol_voffset = input.float(defval=0.5, title='Vertical Offset', step=0.1, group=g_vol)
+float i_vol_height = input.float(defval=0.6, title='Height', step=0.1, group=g_vol)
+
+//_____________________________ Menu Indicators End
+
+//_____________________________ Menu Additional Fiters Start
+
+g_af = '███████████████ Additional Fiters ███████████████'
+
+tt_atr = "ATR helps filter out longer or more volatile signal candles."
+tt_atr_mul = "Higher multiplier value filters a longer or more volatile signal candle."
+
+tt_bf = "If the input is '80', it means the body covers over 80% of the candle."
+
+tt_bs = '2 means the candle is 2 times larger than the previous candle.'
+
+tt_vol = "Filter out a candle when its volume is greater than the SMA of the volume."
+
+tt_rv = "Filter out a candle when its volume is greater than the Relative Volume."
+
+tt_tf = "Filter out a signals between the given Time."
+
+bool i_atr_filter = input.bool(defval=false, title='Apply ATR Filter', tooltip=tt_atr, group=g_af)
+int i_atr_length = input.int(defval=14, minval=1, title='ATR Length', group=g_af)
+float i_atr_multi = input.float(defval=1, title='ATR Multiplier', minval=1, group=g_af)
+
+bool i_body_filter = input.bool(defval=false, title='Apply Body % Filter', tooltip=tt_bf, group=g_af)
+float i_body_percent = input.float(defval=80, title='Body % Above', minval=0, maxval=100, group=g_af) / 100
+
+bool i_body_size_filter = input.bool(defval=false, title='Apply Body Size Filter', tooltip=tt_bs, group=g_af)
+int i_body_size_multiplier = input.int(defval=2, title='Body Size Multiplier (x)', minval=0,  group=g_af)
+
+bool i_volume_filter = input.bool(defval=false, title='Apply Volume Filter', tooltip=tt_vol, group=g_af)
+int i_vol_sma_length = input.int(defval=20, minval=1, title='Volume SMA Length', group=g_af)
+
+bool i_rel_vol_filter = input.bool(defval=false, title='Apply Relative Volume Filter', tooltip=tt_rv, group=g_af)
+int i_rel_vol_avg_vol_len = input.int(defval=90, title='Relative Volume Length', minval=2, group=g_af)
+float i_rel_vol_avg_vol_multi = input.float(defval=2, title='Rel Vol SMA Multiplier', minval=0, group=g_af)
+
+bool i_time_filter = input.bool(defval=false, title='Apply Time Filter', tooltip=tt_tf, group=g_af)
+int i_hour_1 = input.int(defval=9, minval=0, title='Time From', inline='t_1', group=g_af)
+int i_minute_1 = input.int(defval=15, minval=0, title=':', inline='t_1', group=g_af)
+int i_hour_2 = input.int(defval=10, minval=0, title='Time To ', inline='t_2', group=g_af)
+int i_minute_2 = input.int(defval=15, minval=0, title=':', inline='t_2', group=g_af)
+
+//_____________________________ Menu Additional Fiters End
+
+//_____________________________ Chart Settings Start
+
+g_ch = '███████████████ Chart Settings ███████████████'
+int i_display_len = input.int(defval=50, title='Display Length', minval=1, group=g_ch)
+color i_pos_color = input.color(defval=#26A69A, title='Positive', group=g_ch)
+color i_pos_light_color = input.color(defval=#ACE5DC, title='Positive Light', group=g_ch)
+color i_neu_color = input.color(defval=#D1D4DC, title='Neutral', group=g_ch)
+color i_neg_light_color = input.color(defval=#FCCBCD, title='Negative Light', group=g_ch)
+color i_neg_color = input.color(defval=#FF5252, title='Negative', group=g_ch)
+color i_indicator_color = input.color(defval=#2962FF, title='Indicator', group=g_ch)
+color i_signal_color = input.color(defval=#FF6D00, title='Signal', group=g_ch)
+
+//_____________________________ Chart Settings End
+
+//_____________________________ 1. EMA 20, 50, 100, 200 Start
+
+float ema_1 = ta.ema(close, i_ma_len_1)
+float ema_2 = ta.ema(close, i_ma_len_2)
+float ema_3 = ta.ema(close, i_ma_len_3)
+float ema_4 = ta.ema(close, i_ma_len_4)
+
+plot(series=i_ma_display ? ema_1 : na, title='EMA 1', color=i_pos_color)
+plot(series=i_ma_display ? ema_2 : na, title='EMA 2', color=i_indicator_color)
+plot(series=i_ma_display ? ema_3 : na, title='EMA 3', color=i_signal_color)
+plot(series=i_ma_display ? ema_4 : na, title='EMA 4', color=i_neg_color)
+
+//_____________________________ 1. EMA 20, 50, 100, 200 End
+
+//_____________________________ 2. VWAP / TWAP Start
+
+// VWAP
+float vwap = na
+[_vwap, _stdevUpper, _] = ta.vwap(hlc3, timeframe.change(i_vtwap_timeframe), 1)
+vwap := _vwap
+
+// TWAP
+twap(source, anchorChange) =>
+    var prices = 0.0
+    var count = 0
+
+    if anchorChange
+        prices := 0
+        count := 0
+
+	prices += source
+	count += 1
+
+    prices / count
+
+twapValue = twap(ohlc4, timeframe.change(i_vtwap_timeframe))
+
+vwap_twap_choice = i_vtwap_choice == "VWAP" ? vwap : twapValue
+plot(series = i_vtwap_display ? vwap_twap_choice : na, title = "VWAP/TWAP", color=i_neu_color)
+
+//_____________________________ 2. VWAP / TWAP End
+
+//_____________________________ 3. MACD: 3, 9, 15 Start
+
+[macdLine, signalLine, histLine] = ta.macd(close, i_macd_fast_len, i_macd_slow_len, i_macd_signal_len)
+
+//_____________________________ 3. MACD: 3, 9, 15 End
+
+//_____________________________ 4. Stochastic: 5, 3, 3 Start
+
+float stoc_k = ta.sma(ta.stoch(close, high, low, i_stoc_k_len), i_stoc_k_smooth)
+float stoc_d = ta.sma(stoc_k, i_stoc_d_smooth)
+
+//_____________________________ 4. Stochastic: 5, 3, 3 End
+
+//_____________________________ 5. Volume: 20 SMA Start
+
+vol_sma = ta.sma(volume, i_vol_sma_length)
+
+//_____________________________ 5. Volume: 20 SMA End
+
+//_____________________________ 6. Supertrend Start
+
+[supertrend, direction] = ta.supertrend(i_st_factor, i_st_atr_period)
+
+supertrend := barstate.isfirst ? na : supertrend
+upTrend = plot(series=direction < 0 ? supertrend : na, title="Supertrend Up", color = i_pos_color, style = plot.style_linebr)
+downTrend = plot(series=direction < 0 ? na : supertrend, title="Supertrend Down", color = i_neg_color, style = plot.style_linebr)
+bodyMiddle = plot(series=barstate.isfirst ? na : ohlc4, title="Body Middle", display = display.none)
+
+fill(plot1=bodyMiddle, plot2=upTrend, color=color.new(i_pos_color, 90), fillgaps=false, display=display.none)
+fill(plot1=bodyMiddle, plot2=downTrend, color=color.new(i_neg_color, 90), fillgaps=false, display=display.none)
+
+//_____________________________ 6. Supertrend End
+
+//_____________________________ Additional Filters Start
+
+// ATR Filter
+bool atr_filter = true
+if i_atr_filter
+    atr_filter := (high - low) > ta.atr(i_atr_length) * i_atr_multi
+
+// Body Percent Filter
+bool body_filter = true
+if i_body_filter
+    body_filter := (math.abs(close - open)) / (high - low) >= i_body_percent
+
+// Body Size Filter
+bool body_size_filter = true
+if i_body_size_filter
+    body_size_filter := (math.abs(close - open)) / (high - low) >= i_body_percent and (high - low) >= (high[1] - low[1]) * i_body_size_multiplier
+
+// Volume SMA Filter
+bool volume_filter = true
+if i_volume_filter
+    volume_filter := volume > ta.sma(volume, i_vol_sma_length)
+
+// Relative Volume Filter
+average_volume = ta.sma(volume, i_rel_vol_avg_vol_len)
+relative_volume = volume / average_volume[1]
+rel_vol_sma_multiplier = ta.sma(relative_volume, i_rel_vol_avg_vol_len) * i_rel_vol_avg_vol_multi
+
+bool rel_vol_filter = true
+if i_rel_vol_filter
+    rel_vol_filter := relative_volume > rel_vol_sma_multiplier
+
+// Time Filter
+bool time_filter = true
+if i_time_filter
+    time_filter := (hour > i_hour_1 or (hour == i_hour_1 and minute >= i_minute_1)) and (hour < i_hour_2 or (hour == i_hour_2 and minute < i_minute_2))
+
+//_____________________________ Additional Filters End
+
+//_____________________________ Retracement Signals Start
+// Short Retracement Start
+
+// Short Condition 1
+short_ret_cont_1 = macdLine > 0
+
+// Short Condition 2
+short_ret_cont_2 = 
+ close < supertrend and 
+ close < vwap_twap_choice and 
+ stoc_k < i_stoc_over_bought and 
+ stoc_k < stoc_d and 
+ macdLine < 0 and
+ macdLine < signalLine and
+ macdLine < histLine and
+ atr_filter and
+ body_filter and
+ body_size_filter and
+ volume_filter and
+ rel_vol_filter and
+ time_filter and
+ barstate.isconfirmed
+
+// Short Retracement Trigger
+var bear_break_current_state = 0
+bear_break_previous_state = nz(bear_break_current_state[1])
+bear_break_current_state := bear_break_previous_state == 2 ? 0 : bear_break_previous_state
+if short_ret_cont_1 and bear_break_current_state == 0
+    bear_break_current_state := 1
+if short_ret_cont_2 and bear_break_current_state == 1
+    bear_break_current_state := 2
+
+short_ret_trigger = bear_break_current_state == 2 ? true : false
+
+//___________________________ Short Retracement End
+
+//___________________________ Long Retracement Start
+// Long Retracement Start
+
+// Long Condition 1
+long_ret_cont_1 = macdLine < 0
+
+// Long Condition 2
+long_ret_cont_2 = 
+ close > supertrend and 
+ close > vwap_twap_choice and 
+ stoc_k > i_stoc_over_sold and 
+ stoc_k > stoc_d and 
+ macdLine > 0 and
+ macdLine > signalLine and
+ macdLine > histLine and
+ atr_filter and
+ body_filter and
+ body_size_filter and
+ volume_filter and
+ rel_vol_filter and
+ time_filter and
+ barstate.isconfirmed
+
+// Long  Retracement Trigger
+var bull_break_current_state = 0
+bull_break_previous_state = nz(bull_break_current_state[1])
+bull_break_current_state := bull_break_previous_state == 2 ? 0 : bull_break_previous_state
+if long_ret_cont_1 and bull_break_current_state == 0
+    bull_break_current_state := 1
+if long_ret_cont_2 and bull_break_current_state == 1
+    bull_break_current_state := 2
+
+long_ret_trigger = bull_break_current_state == 2 ? true : false
+
+//___________________________ Long Retracement End
+
+
+//_______________________ Signals End
+
+
+//___________________________ Plot Retracements
+
+plotshape(series=i_scr_choose == 'Continuous Signals' and short_ret_trigger ? 3 : na, title='Short Continuous', style=shape.triangledown, location=location.abovebar, color=i_neg_light_color, size=size.tiny)
+plotshape(series=i_scr_choose == 'Continuous Signals' and long_ret_trigger ? 3 : na, title='Long Continuous', style=shape.triangleup, location=location.belowbar, color=i_pos_light_color, size=size.tiny)
+
+bgcolor(color=i_scr_choose == 'Continuous Signals' and short_ret_trigger ? color.new(i_neg_light_color, 90) : i_scr_choose == 'Continuous Signals' and long_ret_trigger ? color.new(i_pos_light_color, 90) : na, title='Continuous Bgcolor', show_last=i_display_len)
+barcolor(color=i_scr_choose == 'Continuous Signals' and short_ret_trigger ? i_neg_light_color : i_scr_choose == 'Continuous Signals' and long_ret_trigger ? i_pos_light_color : na, title='Continuous Candle')
+
+//_____________________________ Retracement Signals End
+
+//_____________________________ Flip Signals Start
+
+// Signal Generation Function
+exrem(condition_1, condition_2) =>
+    var entry_signal = 0
+    entry_signal := condition_1 ? 1 : condition_2 ? -1 : entry_signal[1]
+    entry = entry_signal != entry_signal[1]
+    long = entry and entry_signal == 1
+    short = entry and entry_signal == -1
+    [long, short]
+
+[long_entry, short_entry] = exrem(long_ret_cont_2, short_ret_cont_2)
+
+//___________________________ Plot Flip
+
+plotshape(series=i_scr_choose == 'Flip Signals' ? short_entry : na, title='Short Flip', style=shape.triangledown, location=location.abovebar, color=i_neg_light_color, size=size.tiny)
+plotshape(series=i_scr_choose == 'Flip Signals' ? long_entry  : na, title='Long Flip', style=shape.triangleup, location=location.belowbar, color=i_pos_light_color, size=size.tiny)
+
+bgcolor(color=i_scr_choose == 'Flip Signals' and short_entry ? color.new(i_neg_light_color, 90) : i_scr_choose == 'Flip Signals' and long_entry ? color.new(i_pos_light_color, 90) : na, title='Flip Bgcolor', show_last=i_display_len)
+barcolor(color=i_scr_choose == 'Flip Signals' and short_entry ? i_neg_light_color : i_scr_choose == 'Flip Signals' and long_entry ? i_pos_light_color : na, title='Flip Candle')
+
+//plotshape(series=short_ret_cont_2, title='Short Shape', style=shape.diamond, location=location.top, color=color.new(i_neg_color, 50), size=size.tiny, display=display.none)
+//plotshape(series=long_ret_cont_2, title='Long Shape', style=shape.diamond, location=location.bottom, color=color.new(i_pos_color, 50), size=size.tiny, display=display.none)
+
+//_____________________________ Flip Signals End
+
+//_____________________________ Signals End
+
+//_____________________________ Overlay Charts Start 
+
+// Acknowledgement & Reference
+// Trader: 'dgtrd'
+// Indicator Title: 'Technical Analyst by DGT'
+// Indicator Link: 'https://www.tradingview.com/script/r2kuEi0l-Technical-Analyst-by-DGT/'
+
+// Functions  ----------------------------------------------------------------------------------- //
+
+f_drawLabelX(_x, _y, _text, _xloc, _yloc, _color, _style, _textcolor, _size, _textalign, _tooltip) =>
+    var id = label.new(_x, _y, _text, _xloc, _yloc, _color, _style, _textcolor, _size, _textalign, _tooltip)
+    label.set_text(id, _text)
+    label.set_tooltip(id, _tooltip)
+    label.set_xy(id, _x, _y)
+    label.set_textcolor(id, _textcolor)
+
+// -Calculations ================================================================================ //
+
+source   = close
+nzVolume = nz(volume)
+
+//------------------------------------------------------------------------------
+// Momentum : MACD Oscillator
+
+histColor = histLine >= 0 ? histLine[1] < histLine ? i_pos_color : i_pos_light_color : histLine[1] < histLine ? i_neg_light_color : i_neg_color
+
+//------------------------------------------------------------------------------
+// Volume
+
+volMa = ta.sma(nzVolume, i_vol_sma_length)
+
+B = nzVolume * (close - low) / (high - low)
+S = nzVolume * (high - close) / (high - low)
+
+// Draw Charts
+var a_lines       = array.new_line()
+var a_hist        = array.new_box()
+
+//i_display_len = 50
+priceHighest      = ta.highest(high, i_display_len)
+priceLowest       = ta.lowest (low , i_display_len)
+priceChangeRate   = (priceHighest - priceLowest) / priceHighest
+
+oscHighest        = 100//ta.highest(osc, i_display_len)
+macdHighest       = ta.highest(macdLine, i_display_len) - ta.lowest(macdLine, i_display_len)
+
+volumeMARate      = nzVolume / volMa
+volumeHighest     = ta.highest(nzVolume, i_display_len)
+bullCandle        = close > open
+
+if barstate.islast 
+    if array.size(a_lines) > 0
+        for i = 1 to array.size(a_lines)
+            line.delete(array.shift(a_lines))
+    
+    if array.size(a_hist) > 0
+        for i = 1 to array.size(a_hist)
+            box.delete(array.shift(a_hist))
+
+    if i_stoc_display
+        mid_line = math.avg(100, 0)
+        array.push(a_hist , box.new (bar_index[i_display_len], priceLowest * (1 - priceChangeRate * i_stoc_voffset) * (1 + i_stoc_over_bought / oscHighest * priceChangeRate * i_stoc_height), 
+                                     bar_index                   , priceLowest * (1 - priceChangeRate * i_stoc_voffset) * (1 + i_stoc_over_bought / oscHighest * priceChangeRate * i_stoc_height), color.new(i_neg_color  , 75), 1))
+        array.push(a_hist , box.new (bar_index[i_display_len], priceLowest * (1 - priceChangeRate * i_stoc_voffset) * (1 +        mid_line / oscHighest * priceChangeRate * i_stoc_height), 
+                                     bar_index                   , priceLowest * (1 - priceChangeRate * i_stoc_voffset) * (1 +        mid_line / oscHighest * priceChangeRate * i_stoc_height), color.new(i_neu_color  , 75), 1))
+        array.push(a_hist , box.new (bar_index[i_display_len], priceLowest * (1 - priceChangeRate * i_stoc_voffset) * (1 +   i_stoc_over_sold / oscHighest * priceChangeRate * i_stoc_height), 
+                                     bar_index                   , priceLowest * (1 - priceChangeRate * i_stoc_voffset) * (1 +   i_stoc_over_sold / oscHighest * priceChangeRate * i_stoc_height), color.new(i_pos_color, 75), 1))
+        f_drawLabelX(bar_index + 3,                                priceLowest * (1 - priceChangeRate * i_stoc_voffset) * (1 +        mid_line / oscHighest * priceChangeRate * i_stoc_height), 'STOC', xloc.bar_index, yloc.price, #00000000, label.style_label_left, chart.fg_color, size.tiny, text.align_center, '%stoc_k : ' + str.tostring(stoc_k, '#.##') + '\n%stoc_d : ' + str.tostring(stoc_d, '#.##'))
+
+    if i_macd_display
+        f_drawLabelX(bar_index + 3,  priceLowest * (1 - priceChangeRate * i_macd_voffset) * (1 +        50 / oscHighest * priceChangeRate * i_macd_height), 'MACD', xloc.bar_index, yloc.price, #00000000, label.style_label_left, chart.fg_color, size.tiny, text.align_center, '')//'macd : ' + str.tostring(macdLine, '#.##') + '\nsignal : ' + str.tostring(signalLine, '#.##'))
+    
+    if i_vol_type != 'None' 
+        f_drawLabelX(bar_index + 3,  priceHighest * (1 + priceChangeRate * i_vol_voffset), 'VOL', xloc.bar_index, yloc.price, #00000000, label.style_label_left, chart.fg_color, size.tiny, text.align_center, 'buying volume : ' + str.tostring(B / (B + S) * 100, '#.##') + '%\nselling volume : ' + str.tostring(S / (B + S) * 100, '#.##') + '%\nlast volume : ' + str.tostring(nzVolume, format.volume) + '\naverage volume : ' + str.tostring(volMa, format.volume))
+
+    for barIndex = 0 to i_display_len - 1
+        if array.size(a_lines) < 500
+
+            if i_stoc_display
+                array.push(a_lines, line.new(bar_index[barIndex], priceLowest * (1 - priceChangeRate * i_stoc_voffset) * (1 + stoc_k[barIndex]     / oscHighest * priceChangeRate * i_stoc_height), 
+                                         bar_index[barIndex + 1], priceLowest * (1 - priceChangeRate * i_stoc_voffset) * (1 + stoc_k[barIndex + 1] / oscHighest * priceChangeRate * i_stoc_height), xloc.bar_index, extend.none, i_indicator_color   , line.style_solid, 1))
+                array.push(a_lines, line.new(bar_index[barIndex], priceLowest * (1 - priceChangeRate * i_stoc_voffset) * (1 + stoc_d[barIndex]     / oscHighest * priceChangeRate * i_stoc_height), 
+                                         bar_index[barIndex + 1], priceLowest * (1 - priceChangeRate * i_stoc_voffset) * (1 + stoc_d[barIndex + 1] / oscHighest * priceChangeRate * i_stoc_height), xloc.bar_index, extend.none, i_signal_color   , line.style_solid, 1))
+
+            if i_macd_display
+                array.push(a_lines, line.new(bar_index[barIndex], priceLowest * (1 - priceChangeRate * i_macd_voffset) * (1 + macdLine[barIndex]       / macdHighest * priceChangeRate * i_macd_height ), 
+                                         bar_index[barIndex + 1], priceLowest * (1 - priceChangeRate * i_macd_voffset) * (1 + macdLine[barIndex + 1]   / macdHighest * priceChangeRate * i_macd_height ), xloc.bar_index, extend.none, i_indicator_color   , line.style_solid, 1))
+                array.push(a_lines, line.new(bar_index[barIndex], priceLowest * (1 - priceChangeRate * i_macd_voffset) * (1 + signalLine[barIndex]     / macdHighest * priceChangeRate * i_macd_height ), 
+                                         bar_index[barIndex + 1], priceLowest * (1 - priceChangeRate * i_macd_voffset) * (1 + signalLine[barIndex + 1] / macdHighest * priceChangeRate * i_macd_height ), xloc.bar_index, extend.none, i_signal_color   , line.style_solid, 1))
+
+                array.push(a_hist , box.new (bar_index[barIndex], priceLowest * (1 - priceChangeRate * i_macd_voffset), 
+                                             bar_index[barIndex], priceLowest * (1 - priceChangeRate * i_macd_voffset) * (1 + histLine[barIndex] / macdHighest * priceChangeRate * i_macd_height), histColor[barIndex], 2))
+
+            if nzVolume
+                if i_vol_type != 'None' 
+                    array.push(a_hist , box.new (bar_index[barIndex] + i_vol_hoffset,  priceHighest * (1 + priceChangeRate * i_vol_voffset), 
+                                                 bar_index[barIndex] + i_vol_hoffset,  priceHighest * (1 + priceChangeRate * i_vol_voffset) * (1 + nzVolume[barIndex] / volumeHighest * priceChangeRate * i_vol_height), i_vol_type == 'Buying/Selling Volume' ? color.new(i_pos_color, 0) : bullCandle[barIndex] ? color.new(i_pos_color, 0) : color.new(i_neg_color, 0), 2, bgcolor = i_vol_type == 'Buying/Selling Volume' ? color.new(i_pos_color, 0) : bullCandle[barIndex] ? color.new(i_pos_color, 0) : color.new(i_neg_color, 0)))
+                    if i_vol_type == 'Buying/Selling Volume'
+                        array.push(a_hist , box.new (bar_index[barIndex] + i_vol_hoffset,   priceHighest * (1 + priceChangeRate * i_vol_voffset), 
+                                                     bar_index[barIndex] + i_vol_hoffset,   priceHighest * (1 + priceChangeRate * i_vol_voffset) * (1 + S[barIndex]            / volumeHighest * priceChangeRate * i_vol_height), color.new(i_neg_color, 0), 2, bgcolor = color.new(i_neg_color, 0)))
+                    // Voumme MA
+                    if i_vol_display
+                        array.push(a_lines, line.new(bar_index[barIndex] + i_vol_hoffset,     priceHighest * (1 + priceChangeRate * i_vol_voffset) * (1 + nzVolume[barIndex]     / volumeHighest * priceChangeRate * i_vol_height / volumeMARate[barIndex]), 
+                                                   bar_index[barIndex + 1] + i_vol_hoffset, priceHighest * (1 + priceChangeRate * i_vol_voffset) * (1 + nzVolume[barIndex + 1] / volumeHighest * priceChangeRate * i_vol_height / volumeMARate[barIndex + 1]), xloc.bar_index, extend.none, i_neu_color, line.style_solid, 1))
+
+//_____________________________ Overlay Charts End 
+
+//_____________________________ Get Symbols for Screener Start
+
+// Acknowledgement & Reference
+// Trader: 'allanster'
+// Indicator Title: 'How To Input CSV List Of Symbol Data Used For Screener'
+// Indicator Link: 'https://www.tradingview.com/script/KfqHqHUH-How-To-Input-CSV-List-Of-Symbol-Data-Used-For-Screener/'
+
+feed(back) =>                                             // extract tickerid and decrement list of ticker IDs
+    loop  = back                                          // declare string variable to hold content list
+    getT  = string(na)                                    // declare string variable to hold tickerid
+    if str.length(loop) == 0                              // if list is empty
+        getT := string(na)                                // assign na to tickerid variable
+        loop := string(na)                                // assign na to list of ticker Ids variable
+    else                                                  // else extract first tickerid
+        getP  = nz(str.pos(loop, ','), str.length(loop))  // get position of first comma or last character
+        getT := str.substring(loop, 0, getP)              // get tickerid in first position of list
+        loop := str.replace(loop, getT + ',', '')         // clear tickerid + delimiter character from list
+    [getT, loop]                                          // return tickerid in first position & truncated list
+
+[tid_01, out_01] = feed(i_symbols), [tid_02, out_02] = feed(out_01), [tid_03, out_03] = feed(out_02), [tid_04, out_04] = feed(out_03),
+[tid_05, out_05] = feed(out_04), [tid_06, out_06] = feed(out_05), [tid_07, out_07] = feed(out_06), [tid_08, out_08] = feed(out_07),
+[tid_09, out_09] = feed(out_08), [tid_10, out_10] = feed(out_09), [tid_11, out_11] = feed(out_10), [tid_12, out_12] = feed(out_11),
+[tid_13, out_13] = feed(out_12), [tid_14, out_14] = feed(out_13), [tid_15, out_15] = feed(out_14), [tid_16, out_16] = feed(out_15),
+[tid_17, out_17] = feed(out_16), [tid_18, out_18] = feed(out_17), [tid_19, out_19] = feed(out_18), [tid_20, out_20] = feed(out_19),
+[tid_21, out_21] = feed(out_20), [tid_22, out_22] = feed(out_21), [tid_23, out_23] = feed(out_22), [tid_24, out_24] = feed(out_23),
+[tid_25, out_25] = feed(out_24), [tid_26, out_26] = feed(out_25), [tid_27, out_27] = feed(out_26), [tid_28, out_28] = feed(out_27),
+[tid_29, out_29] = feed(out_28), [tid_30, out_30] = feed(out_29), [tid_31, out_31] = feed(out_30), [tid_32, out_32] = feed(out_31),
+[tid_33, out_33] = feed(out_32), [tid_34, out_34] = feed(out_33), [tid_35, out_35] = feed(out_34), [tid_36, out_36] = feed(out_35),
+[tid_37, out_37] = feed(out_36), [tid_38, out_38] = feed(out_37), [tid_39, out_39] = feed(out_38), [tid_40, out_40] = feed(out_39)
+
+//_____________________________ Get Symbols for Screener End
+
+//_____________________________ Screener Start
+
+// Acknowledgement & Reference
+// Trader: 'MUQWISHI'
+// Indicator Title: 'Candlestick Patterns Screener [By MUQWISHI]'
+// Indicator Link: 'https://www.tradingview.com/script/xiWQuGOq-Candlestick-Patterns-Screener-By-MUQWISHI/'
+
+// Choose Screening Method
+bear_method = 
+ i_scr_choose == 'Continuous Signals' ? short_ret_trigger : 
+ i_scr_choose == 'Flip Signals' ? short_entry : na
+
+bull_method = 
+ i_scr_choose == 'Continuous Signals' ? long_ret_trigger : 
+ i_scr_choose == 'Flip Signals' ? long_entry : na
+
+// Screener Conditions
+bearish_cond = bear_method
+bullish_cond = bull_method 
+
+// Define Bull and Bear Conditions
+bull = not(i_scr_direction == "Short")
+bear = not(i_scr_direction == "Long")
+
+// Function for Screener Indicator Calculation
+indicator_calculation() =>
+    // Initialize variables
+    price = float(na)
+    _time = int(na)
+    signal = int(na) 
+
+    if barstate.isconfirmed
+        // Check for Short Momentum Candle and conditions (Modify here to customize indicators)
+        if i_scr_show_bull and bearish_cond and bear 
+            signal := -1
+
+        // Check for Long Momentum Candle and conditions (Modify here to customize indicators)
+        else if i_scr_show_bear and bullish_cond and bull
+            signal := 1
+
+        // Update price and time if signal is not null
+        if not na(signal)
+            price := math.round_to_mintick(close)
+            _time := time
+
+    [_time, price, signal]
+
+// Function to format time
+format_time(x) =>
+    timezone = syminfo.timezone
+    timeframe.isintraday ? str.format_time(x, "HH:mm  dd-MM-yyyy", timezone) : str.format_time(x, "dd-MM-yyyy", timezone)
+
+// Function to extract symbol name
+symbol(s) => 
+    array.get(str.split(s, ":"), 1)
+
+// Matrix setup
+var matrix = matrix.new<string>(0, 4, na)
+
+// Function to add rows to the matrix
+mtxFun(symbol, _time, price, signal) =>
+    matrix.add_row(matrix, 0, array.from(symbol, _time, price, signal))
+
+// Screener function to collect data
+screener(s) =>
+    sym = ticker.modify(s, syminfo.session)
+    [_time, price, signal] = request.security(sym, timeframe.period, indicator_calculation())
+
+    // Check if the signal is not na and the time matches
+    if not na(signal) and _time == time
+        symbolName = symbol(s)
+        formattedTime = format_time(_time)
+        strPrice = str.tostring(price)
+        strSignal = str.tostring(signal)
+        
+        // Add data to the matrix
+        mtxFun(symbolName, formattedTime, strPrice, strSignal)
+
+// Call Screener function for multiple symbols
+screener(tid_01), screener(tid_02), screener(tid_03), screener(tid_04), screener(tid_05), screener(tid_06), screener(tid_07),
+screener(tid_08), screener(tid_09), screener(tid_10), screener(tid_11), screener(tid_12), screener(tid_13), screener(tid_14),
+screener(tid_15), screener(tid_16), screener(tid_17), screener(tid_18), screener(tid_19), screener(tid_20), screener(tid_21),
+screener(tid_22), screener(tid_23), screener(tid_24), screener(tid_25), screener(tid_26), screener(tid_27), screener(tid_28),
+screener(tid_29), screener(tid_30), screener(tid_31), screener(tid_32), screener(tid_33), screener(tid_34), screener(tid_35),
+screener(tid_36), screener(tid_37), screener(tid_38), screener(tid_39), screener(tid_40)
+
+// Trim excess rows in the matrix
+if matrix.rows(matrix) > i_scr_tbl_disp_rows
+    while matrix.rows(matrix) > i_scr_tbl_disp_rows
+        matrix.remove_row(matrix, matrix.rows(matrix)-1)
+
+// Plot Table
+// Create table with specified properties
+var table scr_tbl = table.new(position=i_scr_tbl_position, columns=3, rows=102, border_width=1)
+
+// Function to populate cells in the table
+scr_cell_title(col, row, txt) => 
+    table.cell(scr_tbl, col, row, text = txt, text_color = i_neu_color, text_halign=text.align_center, bgcolor = color.new(i_neu_color, 90), text_size=i_scr_tbl_text_size)
+
+scr_cell(col, row, txt, color) => 
+    table.cell(scr_tbl, col, row, text = txt, text_color = color, text_halign=text.align_left, bgcolor = color.new(color, 90), text_size=i_scr_tbl_text_size)
+
+// Check if it's the last bar
+if barstate.islast
+    // Clear existing data in the table
+    table.clear(scr_tbl, 0, 0, 2, 101)
+
+    scr_cell_title(0, 0, i_scr_choose)
+    table.merge_cells(table_id=scr_tbl, start_column=0, start_row=0, end_column=2, end_row=0)
+    scr_cell_title(0, 1, "Symbol")
+    scr_cell_title(1, 1, "Time")
+    scr_cell_title(2, 1, "Price")
+
+    j = 2
+    // Populate table with matrix data
+    if matrix.rows(matrix) > 0
+        for i = 0 to matrix.rows(matrix) - 1
+            // Determine color based on the signal
+            col = matrix.get(matrix, i, 3) ==  "1" ? i_pos_color :
+                  matrix.get(matrix, i, 3) == "-1" ? i_neg_color : i_neu_color
+
+            // Populate cells in the table
+            scr_cell(0, j, matrix.get(matrix, i, 0), col)
+            scr_cell(1, j, matrix.get(matrix, i, 1), col)
+            scr_cell(2, j, matrix.get(matrix, i, 2), col)
+
+            j += 1
+
+//_____________________________ Screener End
+
+//_____________________________ Code End
+
+// Readme First:
+// 
+// About:
+// This is a BANKNIFTY option buying or scalping setup shared by trader Vijay S. Thakare on YouTube.
+// 
+// Strategy Reference Video:
+// Vijay Thakare at Traders Carnival Seminar:
+// Video Title: "Vijay Thakare: An Excellent Option Scalper Sharing His Knowledge @ Traders Carnival"
+// Video Link: https://www.youtube.com/watch?v=6INokexfeLc
+// 
+// Explanation Video from His YouTube Channel:
+// Video Title: "Setup Video"
+// Video Link: https://www.youtube.com/watch?v=KK5j1dgklIY&t=9150s
+// 
+// Strategy Type: Momentum
+// Bias: Strongly Directional
+// Trading Style: Scalping
+// Instrument: Option - Buying
+// Original Symbol: NSE:BANKNIFTY (Works with other symbols as well)
+// Timeframe: 5 minute
+// 
+// Risk Reward Ratio: 1:2
+// Stop Loss: Rs. 20 on the premium chart
+// Target: Rs. 40 on the premium chart
+// 
+// Charts Referred:
+// - BANKNIFTY Futures Chart
+// - BANKNIFTY Options Premium Chart
+// 
+// Indicator Used and Settings:
+// 1. EMA: Close, 20, 50, 100, 200
+// 2. VWAP: Daily VWAP
+// 3. MACD: Fast Length - 3, Slow Length - 9, Signal Smoothing - 15
+// 4. Stochastic: %K Length - 5, %K Smoothing - 3, %D Smoothing - 3
+// 
+// Long Entry Rules:
+// - Close above VWAP
+// - Close above Supertrend (Not in original strategy. It avoids many false signals.)
+// - MACD above 0
+// - Stochastic above 40
+// - Consider VWAP, EMA 20, 50, 100, 200 are closer to each other
+// - Rising volume (optional)
+// 
+// Short Entry Rules:
+// - Close below VWAP
+// - Close below Supertrend (Not in original strategy. It avoids many false signals.)
+// - MACD below 0
+// - Stochastic below 60
+// - Consider VWAP, EMA 20, 50, 100, 200 are closer to each other
+// - Rising volume (optional)
+//
+// Update 09 June 2024
+// 1. Added Supertrend filter.
+// 2. Added TWAP to use it with Symbols without Volume.
+// 3. Removed indicator values Table.
+// 4. Two types of scanners are available. One generates continuous signals and one generates flip signals.

@@ -1,0 +1,8 @@
+//@version=5
+indicator("Plotshape Buy Sell", overlay=true)
+fast = ta.ema(close, 9)
+slow = ta.ema(close, 21)
+buy = ta.crossover(fast, slow)
+sell = ta.crossunder(fast, slow)
+plotshape(buy, "Buy", style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small)
+plotshape(sell, "Sell", style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small)

@@ -11,6 +11,14 @@ export const ARRAY_FUNCTION_MAPPINGS: Record<
   string,
   { stdName: string; description: string }
 > = {
+  // Pine v6 generic syntax `array.new<float>(...)` is parsed with the
+  // type parameter stripped, leaving the bare `array.new` callee. Map
+  // it to the float constructor — `_arrayNewFloat` defaults the fill
+  // value to NaN, which is compatible with int/bool/string usage too.
+  'array.new': {
+    stdName: '_arrayNewFloat',
+    description: 'Create new array (Pine v6 generic, type stripped by parser)',
+  },
   'array.new_float': {
     stdName: '_arrayNewFloat',
     description: 'Create new float array',

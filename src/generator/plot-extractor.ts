@@ -135,7 +135,11 @@ export class PlotExtractor {
       id: `plot_${this.plotCount - 1}`,
       title,
       varName: `plot_${this.plotCount - 1}`,
-      type: 'shape',
+      // 'char' maps to PineJS 'chars' plot type via plotTypeToMetainfoType.
+      // Previously this returned 'shape', which conflated plotchar with
+      // plotshape — both rendered as 'shapes' in metainfo, and the
+      // 'chars' branch of the union was unreachable.
+      type: 'char',
       color: '#000000',
       linewidth: 1,
     };

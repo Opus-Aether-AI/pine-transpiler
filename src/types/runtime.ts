@@ -396,7 +396,10 @@ export interface StudyPlotInfo {
   /** Unique plot identifier */
   id: string;
 
-  /** Plot type/style */
+  /** Plot type/style. The 'shapes', 'chars', 'bg_colorer' members are
+   *  the PineJS metainfo types emitted by `buildPlotsMetadata` for
+   *  plotshape / plotchar / bgcolor calls; the rest are AST-side names
+   *  used by the metadata visitor. */
   type:
     | 'line'
     | 'histogram'
@@ -406,7 +409,10 @@ export interface StudyPlotInfo {
     | 'stepline'
     | 'cross'
     | 'shape'
-    | 'hline';
+    | 'shapes'
+    | 'chars'
+    | 'hline'
+    | 'bg_colorer';
 
   /** Optional price for hline */
   price?: number;
@@ -547,16 +553,28 @@ export interface CustomIndicator {
  * This is the main export from transpileToPineJS().
  * It takes a PineJS runtime and returns a CustomIndicator.
  *
+ * The factory carries an optional `__pineJsBody` property — the literal
+ * transpiled JS source string the factory will execute via
+ * `new Function(...)`. Useful for editors that want to surface what's
+ * actually compiled (e.g. a "Compiled" preview pane). Defined as a
+ * non-enumerable property so it doesn't leak via spread / structured
+ * cloning.
+ *
  * @example
  * ```typescript
  * const result = transpileToPineJS(pineScriptCode, 'my-indicator');
  * if (result.success && result.indicatorFactory) {
  *   const indicator = result.indicatorFactory(PineJS);
- *   // Use indicator with TradingView chart
+ *   const body = result.indicatorFactory.__pineJsBody; // optional
  * }
  * ```
  */
-export type IndicatorFactory = (PineJS: PineJSRuntime) => CustomIndicator;
+export interface IndicatorFactory {
+  (PineJS: PineJSRuntime): CustomIndicator;
+  /** Literal transpiled JS body (Pine path) or the user's PineJS
+   *  source after export-stripping (PineJS path). Non-enumerable. */
+  readonly __pineJsBody?: string;
+}
 
 /**
  * Result of transpiling Pine Script to PineJS

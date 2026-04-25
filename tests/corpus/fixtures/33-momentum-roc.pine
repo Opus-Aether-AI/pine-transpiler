@@ -1,0 +1,5 @@
+//@version=5
+indicator("Momentum & ROC", overlay=false)
+length = input.int(10, "Length")
+plot(ta.mom(close, length), "Momentum", color=color.blue)
+plot(ta.roc(close, length), "ROC", color=color.orange)

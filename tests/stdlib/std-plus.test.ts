@@ -4,7 +4,7 @@
  * Tests for the StdPlus polyfill library that provides missing PineJS functions.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { STD_PLUS_LIBRARY } from '../../src/stdlib/index';
 import { transpile } from '../utils';
 
@@ -316,21 +316,37 @@ plot(middle)`;
     });
   });
 
-  describe('Caching Patterns', () => {
-    it('should use Map for caching HMA diff series', () => {
-      expect(STD_PLUS_LIBRARY).toContain('ctx._hma_diff_series = new Map()');
+  describe('State Persistence (post Phase 1.1 — no manual caching)', () => {
+    // Earlier versions cached derived series in ctx._hma_diff_series /
+    // ctx._macd_series and called .set() on subsequent bars. Because
+    // PineSeries.set() OVERWRITES the latest history slot instead of
+    // appending, the cached series stayed at length 1 and EMA/WMA over
+    // it returned NaN forever. Phase 1.1 replaces the cache with a
+    // direct ctx.new_var(value) per bar.
+    it('does not manually cache HMA diff series in ctx', () => {
+      expect(STD_PLUS_LIBRARY).not.toContain(
+        'ctx._hma_diff_series = new Map()',
+      );
     });
 
-    it('should use Map for caching MACD series', () => {
-      expect(STD_PLUS_LIBRARY).toContain('ctx._macd_series = new Map()');
+    it('does not manually cache MACD series in ctx', () => {
+      expect(STD_PLUS_LIBRARY).not.toContain('ctx._macd_series = new Map()');
     });
 
-    it('should use unique key based on series and parameters', () => {
-      // HMA uses series key
-      expect(STD_PLUS_LIBRARY).toContain("String(series) + '_' + length");
+    it('uses ctx.new_var per bar to persist series', () => {
+      // Both hma and macd reach for the documented PineJS persistence
+      // primitive directly.
+      const macdMatch = STD_PLUS_LIBRARY.match(
+        /macd:[\s\S]*?ctx\.new_var\(macdLine\)/,
+      );
+      expect(macdMatch).not.toBeNull();
+      const hmaMatch = STD_PLUS_LIBRARY.match(
+        /hma:[\s\S]*?ctx\.new_var\(diff\)/,
+      );
+      expect(hmaMatch).not.toBeNull();
     });
 
-    it('should use ctx.new_var for persistent series', () => {
+    it('still uses ctx.new_var (the persistence primitive)', () => {
       expect(STD_PLUS_LIBRARY).toContain('ctx.new_var(');
     });
   });

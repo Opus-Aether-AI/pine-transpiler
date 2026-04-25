@@ -4,7 +4,7 @@
  * Tests for tokenizing different types of tokens in Pine Script.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { lexTokens } from '../utils';
 
 describe('Lexer - Tokens', () => {

@@ -1,0 +1,6 @@
+//@version=5
+indicator("Var State", overlay=false)
+var int trades = 0
+if ta.crossover(ta.ema(close, 9), ta.ema(close, 21))
+    trades := trades + 1
+plot(trades, "Crosses")

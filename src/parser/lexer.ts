@@ -23,6 +23,12 @@ export class Lexer {
   private column = 1;
   private indentStack: number[] = [0]; // Stack of indentation levels (spaces)
   private tokens: Token[] = [];
+  /** Bracket depth: increments on `(`, `[`, `{`; decrements on the
+   *  matching close. While depth > 0 we suppress NEWLINE emission so
+   *  multi-line calls like `f(a,\n  b=1,\n  c)` don't leak named-arg
+   *  pairs out as top-level statements. The Python lexer uses the same
+   *  rule (PEP 8 line continuation inside brackets). */
+  private bracketDepth = 0;
 
   constructor(code: string) {
     // Normalize line endings
@@ -137,7 +143,54 @@ export class Lexer {
     });
   }
 
+  /**
+   * Pine lets binary/assignment/comma sequences span newlines without an
+   * explicit continuation marker:
+   *   tt = "first" +
+   *        "second"
+   * The lexer should treat the newline after `+` (or `=`, or `,`, or
+   * `:=`, etc.) as soft continuation, not a statement boundary. This
+   * mirrors how Python's tokenizer handles operators inside an
+   * expression context. Returns `true` when the most recently emitted
+   * token is one that *cannot* legally end a statement.
+   */
+  private lastTokenIsContinuationCue(): boolean {
+    if (this.tokens.length === 0) return false;
+    const last = this.tokens[this.tokens.length - 1];
+    if (last.type === TokenType.COMMA) return true;
+    if (last.type !== TokenType.OPERATOR) return false;
+    // `=>` deliberately ends a line — a multi-line arrow function body
+    // starts on the indented next line. Treating `=>` as continuation
+    // would swallow the NEWLINE the parser uses to recognise the
+    // multi-line `=>\n<INDENT>...<DEDENT>` block form.
+    if (last.value === '=>') return false;
+    // Every other operator (`+`, `-`, `=`, `:=`, `==`, `?`, `:`, `and`,
+    // `or`, etc.) at end of line means the expression continues on the
+    // next line. Pine convention.
+    return true;
+  }
+
   private handleNewline(): void {
+    // Inside a bracketed expression (`(...)`, `[...]`, `{...}`),
+    // newlines are line continuations — Pine multi-line function calls
+    // and array literals span them freely. Skip the newline and any
+    // following indentation without emitting NEWLINE / INDENT / DEDENT
+    // tokens so the parser sees the construct as a single statement.
+    //
+    // Same rule applies after a trailing binary operator / assignment /
+    // separator: `tt = \n "abc" + \n "def"` is a single Pine expression.
+    // The last emitted token tells us whether we're mid-expression.
+    if (this.bracketDepth > 0 || this.lastTokenIsContinuationCue()) {
+      this.advance();
+      while (
+        this.pos < this.code.length &&
+        (this.code[this.pos] === ' ' || this.code[this.pos] === '\t')
+      ) {
+        this.advance();
+      }
+      return;
+    }
+
     // 1. Emit NEWLINE token
     // We want to emit NEWLINE unless it's an empty line (handled by skipWhitespace logic mostly, but let's be careful)
     this.addToken(TokenType.NEWLINE, '\n', 1);
@@ -418,8 +471,22 @@ export class Lexer {
         end: this.pos,
       });
     } else if (value === 'na') {
+      // Pine has BOTH `na` as a literal NaN constant AND `na(x)` as a
+      // builtin function (returns true when x is NaN). Distinguish by
+      // looking ahead: if the next non-whitespace char is `(`, this is
+      // a function call → emit IDENTIFIER so the function-mapping
+      // registry maps it to `Std.na`. Otherwise emit the NA literal
+      // token, which the generator emits as `NaN`.
+      let probe = this.pos;
+      while (
+        probe < this.code.length &&
+        (this.code[probe] === ' ' || this.code[probe] === '\t')
+      ) {
+        probe++;
+      }
+      const isCall = this.code[probe] === '(';
       this.tokens.push({
-        type: TokenType.NA,
+        type: isCall ? TokenType.IDENTIFIER : TokenType.NA,
         value,
         line: this.line,
         column: this.column - value.length,
@@ -501,6 +568,15 @@ export class Lexer {
     };
 
     if (map[char]) {
+      // Track bracket depth so handleNewline() can suppress NEWLINEs
+      // inside multi-line calls / array literals / braces. Without this
+      // a Pine call like `f(a,\n  b=1)` emits a NEWLINE between args
+      // and the parser interprets `b=1` as a top-level VariableDecl.
+      if (char === '(' || char === '[' || char === '{') {
+        this.bracketDepth++;
+      } else if (char === ')' || char === ']' || char === '}') {
+        if (this.bracketDepth > 0) this.bracketDepth--;
+      }
       this.addToken(map[char], char, 1);
       this.advance();
       return true;
