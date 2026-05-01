@@ -41,6 +41,8 @@
     "test": "bun test tests/",
     "test:coverage": "bun test --coverage tests/",
     "corpus": "bun scripts/corpus/report.ts",
+    "corpus:strict": "bun scripts/corpus/strict-audit.ts",
+    "corpus:matrix": "bun scripts/corpus/indicator-matrix.ts",
     "corpus:snap": "UPDATE_SNAPSHOTS=1 bun test tests/corpus/",
     "prepare": "vite build"
   },

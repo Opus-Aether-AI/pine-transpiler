@@ -325,12 +325,16 @@ export class StatementGenerator implements StatementGeneratorInterface {
     // separate, deeper bug), which produces JS like:
     //   let yValue = a;
     //   let yValue = b;   ← SyntaxError on redeclaration
-    // Switching `let` → `var` makes the redeclaration legal in JS
-    // without changing observable Pine semantics — Pine doesn't have
-    // TDZ semantics, and `var`'s function-scope hoisting matches
-    // Pine's "sequential" reading. `const` (rare in our emit) stays
-    // as-is.
+    // Switching `let` → `var` makes redeclaration legal in JS when the
+    // parser flattens sibling scopes. Keep that for non-const paths.
+    // `var`/`varip` declarations are emitted via runtime-backed helper
+    // initializers so values persist across bars.
     const kind = stmt.kind === 'const' ? 'const' : 'var';
+    const isPersistent = stmt.kind === 'var' || stmt.kind === 'varip';
+    const isVarip = stmt.kind === 'varip';
+    const initExpr = stmt.init
+      ? this.expressionGen.generateExpression(stmt.init)
+      : 'NaN';
     const init = stmt.init
       ? ` = ${this.expressionGen.generateExpression(stmt.init)}`
       : '';
@@ -351,7 +355,16 @@ export class StatementGenerator implements StatementGeneratorInterface {
       }
     } else {
       const safeName = sanitizeIdentifier(stmt.id.name);
-      code = `${indent(this.indentLevel)}${prefix}${kind} ${safeName}${init};`;
+      if (isPersistent) {
+        const helper = isVarip ? '_pineVarip' : '_pineVar';
+        code = `${indent(this.indentLevel)}${prefix}${kind} ${safeName} = ${helper}(${JSON.stringify(safeName)}, () => (${initExpr}));`;
+        this.expressionGen.markPersistentIdentifier(
+          safeName,
+          isVarip ? 'varip' : 'var',
+        );
+      } else {
+        code = `${indent(this.indentLevel)}${prefix}${kind} ${safeName}${init};`;
+      }
       if (this.historicalVars.has(stmt.id.name)) {
         code += `\n${indent(this.indentLevel)}const _series_${safeName} = context.new_var(${safeName});`;
         code += `\n${indent(this.indentLevel)}_getHistorical_${safeName} = (offset) => _series_${safeName}.get(offset);`;
@@ -365,8 +378,9 @@ export class StatementGenerator implements StatementGeneratorInterface {
     if (stmt.type !== 'FunctionDeclaration') {
       throw new Error('Expected FunctionDeclaration');
     }
-    const name = sanitizeIdentifier(stmt.id.name);
-    const params = stmt.params
+    const originalName = stmt.id.name;
+    const name = sanitizeIdentifier(originalName);
+    const paramNames = stmt.params
       .map((p) => sanitizeIdentifier(p.name))
       .join(', ');
     const prefix = stmt.export ? 'export ' : '';
@@ -379,7 +393,32 @@ export class StatementGenerator implements StatementGeneratorInterface {
       body = `{\n${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(stmt.body as Expression)};\n${indent(this.indentLevel, -1)}}`;
     }
 
-    return `${indent(this.indentLevel)}${prefix}function ${name}(${params}) ${body}`;
+    let out = `${indent(this.indentLevel)}${prefix}function ${name}(${paramNames}) ${body}`;
+
+    // Pine `method` declarations are emitted as plain functions where
+    // the first parameter is the receiver (typed as the defining
+    // `type`, e.g. `method Process(ImbalanceStructure IS, ...)`).
+    // Rebind them onto the receiver prototype so member-call syntax
+    // (`instance.Process(...)`) resolves at runtime.
+    if (stmt.isMethod && stmt.params.length > 0) {
+      const receiverType = stmt.params[0]?.typeAnnotation?.name;
+      if (receiverType) {
+        const receiverName = sanitizeIdentifier(receiverType);
+        const methodParams = stmt.params
+          .slice(1)
+          .map((p) => sanitizeIdentifier(p.name));
+        const methodParamsDecl = methodParams.join(', ');
+        const callArgs = methodParams.length > 0 ? `, ${methodParamsDecl}` : '';
+        out += `\n${indent(this.indentLevel)}if (${receiverName}?.prototype && typeof ${receiverName}.prototype.${name} !== 'function') {\n${indent(this.indentLevel, 1)}${receiverName}.prototype.${name} = function(${methodParamsDecl}) { return ${name}(this${callArgs}); };\n${indent(this.indentLevel)}}`;
+        if (originalName !== name) {
+          // Preserve source-level method names (e.g. `delete`) when
+          // sanitization rewrites the function identifier.
+          out += `\n${indent(this.indentLevel)}if (${receiverName}?.prototype && typeof ${receiverName}.prototype[${JSON.stringify(originalName)}] !== 'function') {\n${indent(this.indentLevel, 1)}${receiverName}.prototype[${JSON.stringify(originalName)}] = function(${methodParamsDecl}) { return ${name}(this${callArgs}); };\n${indent(this.indentLevel)}}`;
+        }
+      }
+    }
+
+    return out;
   }
 
   /**

@@ -48,3 +48,9 @@ jobs:
 
       - name: Run Corpus
         run: bun run corpus
+
+      - name: Run Corpus Strict Audit
+        run: bun run corpus:strict
+
+      - name: Run Indicator Matrix
+        run: bun run corpus:matrix

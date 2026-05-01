@@ -119,11 +119,12 @@ export class Parser extends ExpressionParser {
         case 'var':
         case 'varip':
         case 'const':
+        case 'let':
           // Pine v6 added `const` qualifier (e.g. `const color buyColor
           // = color.blue`); same parser path as var/varip — the
           // VariableDeclaration node carries `kind` and the generator
           // emits `const` for it.
-          return this.parseVariableDeclaration(keyword);
+          return this.parseQualifiedDeclarationList(keyword);
         case 'switch':
           return this.parseSwitchStatement();
         case 'type':
@@ -191,7 +192,31 @@ export class Parser extends ExpressionParser {
     }
 
     const expr = this.parseExpression();
-    if (this.match(TokenType.NEWLINE) || this.isAtEnd()) {
+    if (this.check(TokenType.COMMA)) {
+      const items: Statement[] = [
+        { type: 'ExpressionStatement', expression: expr },
+      ];
+      while (this.match(TokenType.COMMA)) {
+        items.push({
+          type: 'ExpressionStatement',
+          expression: this.parseExpression(),
+        });
+      }
+      if (
+        this.match(TokenType.NEWLINE) ||
+        this.check(TokenType.DEDENT) ||
+        this.isAtEnd()
+      ) {
+        return { type: 'BlockStatement', body: items };
+      }
+      throw this.error(this.peek(), 'Expected newline after statement.');
+    }
+
+    if (
+      this.match(TokenType.NEWLINE) ||
+      this.check(TokenType.DEDENT) ||
+      this.isAtEnd()
+    ) {
       return { type: 'ExpressionStatement', expression: expr };
     }
 
@@ -199,6 +224,17 @@ export class Parser extends ExpressionParser {
   }
 
   private parseBlock(): BlockStatement {
+    // Permit blank/comment-only lines at the start of a block:
+    //   f() =>
+    //
+    //     // comment
+    //     x = 1
+    // Lexer emits NEWLINEs for those lines and delays INDENT until the
+    // first real statement line, so requiring immediate INDENT here
+    // spuriously fails.
+    while (this.match(TokenType.NEWLINE)) {
+      // skip
+    }
     this.consume(TokenType.INDENT, 'Expected indentation for block.');
 
     const body: Statement[] = [];
@@ -596,28 +632,7 @@ export class Parser extends ExpressionParser {
   }
 
   private parseVariableOrAssignment(): Statement {
-    let typeAnnotation: TypeAnnotation | undefined;
-    if (this.checkTypeAnnotation()) {
-      typeAnnotation = this.parseTypeAnnotation();
-    } else if (this.isUserTypePrefix()) {
-      // Pine v6 allows user-defined types as type annotations:
-      //   `MyType x = MyType.new()`
-      // checkTypeAnnotation only recognises the built-in type keywords;
-      // a user type sits as an Identifier in the token stream. When we
-      // see two identifiers in a row followed by `=`, the first is a
-      // type annotation. Consume and discard it (we don't enforce types
-      // at codegen anyway).
-      this.advance();
-      // Also consume `[]` if it's a typed-array annotation (`MyType[]
-      // arr = …`).
-      while (
-        this.check(TokenType.LBRACKET) &&
-        this.peekNext()?.type === TokenType.RBRACKET
-      ) {
-        this.advance();
-        this.advance();
-      }
-    }
+    const typeAnnotation = this.tryParseLeadingTypeAnnotation();
 
     let id: Identifier | Expression | Identifier[];
     if (this.match(TokenType.LBRACKET)) {
@@ -639,8 +654,7 @@ export class Parser extends ExpressionParser {
       let expr: Expression = { type: 'Identifier', name };
 
       while (this.match(TokenType.DOT)) {
-        const prop = this.consume(
-          TokenType.IDENTIFIER,
+        const prop = this.consumeIdentifierLike(
           'Expected property name after .',
         ).value;
         expr = {
@@ -717,10 +731,7 @@ export class Parser extends ExpressionParser {
   }
 
   private parseVariableDeclaration(kind: string): VariableDeclaration {
-    let typeAnnotation: TypeAnnotation | undefined;
-    if (this.checkTypeAnnotation()) {
-      typeAnnotation = this.parseTypeAnnotation();
-    }
+    const typeAnnotation = this.tryParseLeadingTypeAnnotation();
 
     const name = this.consume(
       TokenType.IDENTIFIER,
@@ -734,7 +745,79 @@ export class Parser extends ExpressionParser {
       type: 'VariableDeclaration',
       id: { type: 'Identifier', name },
       init,
-      kind: kind as 'var' | 'const' | 'let',
+      kind: kind as 'var' | 'varip' | 'const' | 'let',
+      typeAnnotation,
+    };
+  }
+
+  /**
+   * Parse declarations introduced by a qualifier keyword (`var`, `varip`,
+   * `const`, `let`). Pine allows comma-chaining:
+   *   var int dir = 0, dir := cond ? 1 : dir
+   *   var a = array.new_line(), var b = array.new_line()
+   */
+  private parseQualifiedDeclarationList(kind: string): Statement {
+    const first = this.parseVariableDeclaration(kind);
+    if (!this.check(TokenType.COMMA)) {
+      return first;
+    }
+
+    const items: Statement[] = [first];
+    while (this.match(TokenType.COMMA)) {
+      let itemKind = kind;
+      if (
+        this.check(TokenType.KEYWORD) &&
+        ['var', 'varip', 'const', 'let'].includes(this.peek().value)
+      ) {
+        itemKind = this.advance().value;
+      }
+      items.push(this.parseQualifiedListItem(itemKind));
+    }
+
+    return { type: 'BlockStatement', body: items };
+  }
+
+  /**
+   * Parse one comma-chained element in a qualified declaration list.
+   * Items can be either fresh declarations (`x = ...`) or reassignments
+   * (`x := ...`, `x += ...`).
+   */
+  private parseQualifiedListItem(kind: string): Statement {
+    const typeAnnotation = this.tryParseLeadingTypeAnnotation();
+
+    const name = this.consume(
+      TokenType.IDENTIFIER,
+      'Expected variable name.',
+    ).value;
+    const operatorToken = this.consume(TokenType.OPERATOR, 'Expected = or :=');
+    const operator = operatorToken.value;
+    const COMPOUND_ASSIGN = new Set(['+=', '-=', '*=', '/=', '%=']);
+    if (
+      operator !== '=' &&
+      operator !== ':=' &&
+      !COMPOUND_ASSIGN.has(operator)
+    ) {
+      throw this.error(operatorToken, 'Expected = or := in assignment.');
+    }
+
+    const init = this.parseExpression();
+    if (operator === ':=' || COMPOUND_ASSIGN.has(operator)) {
+      return {
+        type: 'ExpressionStatement',
+        expression: {
+          type: 'AssignmentExpression',
+          operator: operator === ':=' ? ':=' : operator,
+          left: { type: 'Identifier', name },
+          right: init,
+        },
+      };
+    }
+
+    return {
+      type: 'VariableDeclaration',
+      id: { type: 'Identifier', name },
+      init,
+      kind: kind as 'var' | 'varip' | 'const' | 'let',
       typeAnnotation,
     };
   }
@@ -764,7 +847,7 @@ export class Parser extends ExpressionParser {
         node.export = true;
         return node;
       }
-      if (['var', 'const', 'let'].includes(keyword)) {
+      if (['var', 'varip', 'const', 'let'].includes(keyword)) {
         this.advance();
         const node = this.parseVariableDeclaration(keyword);
         node.export = true;
@@ -835,11 +918,40 @@ export class Parser extends ExpressionParser {
     return { type: 'TypeAnnotation', name, arguments: args };
   }
 
+  /**
+   * Parse an optional leading type annotation only when it is
+   * syntactically unambiguous that a variable name follows. This avoids
+   * misclassifying identifiers that happen to share built-in type names
+   * (e.g. `var matrix = ...`, `box = ...`) as declarations-with-type.
+   */
+  private tryParseLeadingTypeAnnotation(): TypeAnnotation | undefined {
+    if (!this.checkTypeAnnotation() && !this.isUserTypePrefix()) {
+      return undefined;
+    }
+
+    const saved = this.current;
+    try {
+      const parsed = this.parseTypeAnnotation();
+      if (!this.check(TokenType.IDENTIFIER)) {
+        this.current = saved;
+        return undefined;
+      }
+      return parsed;
+    } catch {
+      this.current = saved;
+      return undefined;
+    }
+  }
+
   // ==========================================================================
   // Primary Expressions
   // ==========================================================================
 
   protected parsePrimary(): Expression {
+    if (this.check(TokenType.KEYWORD) && this.peek().value === 'if') {
+      this.advance();
+      return this.parseIfExpression();
+    }
     if (this.check(TokenType.KEYWORD) && this.peek().value === 'switch') {
       this.advance();
       const stmt = this.parseSwitchStatement();
@@ -939,6 +1051,55 @@ export class Parser extends ExpressionParser {
     }
 
     throw this.error(this.peek(), 'Expect expression.');
+  }
+
+  /**
+   * Pine supports `if` as an expression:
+   *   x = if cond
+   *     1
+   *   else
+   *     0
+   * Reuse SwitchExpression-without-discriminant as the internal form
+   * because its generator already emits an if/else value expression.
+   */
+  private parseIfExpression(): Expression {
+    const cases: SwitchCase[] = [];
+
+    const firstTest = this.parseExpression();
+    const firstConsequent = this.parseIfExpressionConsequent();
+    cases.push({
+      type: 'SwitchCase',
+      test: firstTest,
+      consequent: firstConsequent,
+    });
+
+    while (this.check(TokenType.KEYWORD) && this.peek().value === 'else') {
+      this.advance(); // else
+      if (this.check(TokenType.KEYWORD) && this.peek().value === 'if') {
+        this.advance(); // if
+        const test = this.parseExpression();
+        const consequent = this.parseIfExpressionConsequent();
+        cases.push({ type: 'SwitchCase', test, consequent });
+        continue;
+      }
+
+      const consequent = this.parseIfExpressionConsequent();
+      cases.push({ type: 'SwitchCase', test: null, consequent });
+      break;
+    }
+
+    return {
+      type: 'SwitchExpression',
+      discriminant: undefined,
+      cases,
+    };
+  }
+
+  private parseIfExpressionConsequent(): BlockStatement | Expression {
+    if (this.match(TokenType.NEWLINE)) {
+      return this.parseBlock();
+    }
+    return this.parseExpression();
   }
 
   // ==========================================================================

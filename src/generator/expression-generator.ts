@@ -57,6 +57,18 @@ function isNamedArgument(arg: Expression): boolean {
   );
 }
 
+const BUILTIN_SERIES_IDENTIFIERS = new Set([
+  'open',
+  'high',
+  'low',
+  'close',
+  'volume',
+  'hl2',
+  'hlc3',
+  'ohlc4',
+  'time',
+]);
+
 /**
  * Interface for expression generation, used for dependency injection.
  */
@@ -64,6 +76,7 @@ export interface ExpressionGeneratorInterface {
   generateExpression(expr: Expression): string;
   generateMemberExpression(expr: MemberExpression): string;
   generateAssignmentExpression(expr: AssignmentExpression): string;
+  markPersistentIdentifier(identifier: string, kind: 'var' | 'varip'): void;
 }
 
 /**
@@ -98,6 +111,7 @@ buildUnifiedFunctionMap();
 export class ExpressionGenerator implements ExpressionGeneratorInterface {
   private indentLevel = 0;
   private statementGen: StatementGeneratorLike | null = null;
+  private persistentIdentifiers = new Map<string, 'var' | 'varip'>();
 
   public setIndentLevel(level: number): void {
     this.indentLevel = level;
@@ -113,6 +127,13 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
    */
   public setStatementGenerator(gen: StatementGeneratorLike): void {
     this.statementGen = gen;
+  }
+
+  public markPersistentIdentifier(
+    identifier: string,
+    kind: 'var' | 'varip',
+  ): void {
+    this.persistentIdentifiers.set(identifier, kind);
   }
 
   public generateExpression(expr: Expression): string {
@@ -173,25 +194,53 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
     // `color` variable (the COLOR_MAP) to a single hex string. Subsequent
     // calls that read `color.<name>` then crash on `undefined.purple`.
     //
-    // Resolution: drop named-arg pairs from the runtime emit. They're
-    // metadata-only — `metadata-visitor.ts` extracts them separately via
-    // `getArg(args, index, name)` for the indicator's metainfo, so the
-    // chart still picks up titles, colors, styles, etc. Only positional
-    // values need to reach the JS function.
-    const args = expr.arguments
-      .filter((a) => !isNamedArgument(a))
-      .map((a) => this.generateExpression(a));
+    // Resolution: emit ONLY the right-hand-side value for named args
+    // (`color.blue`), never the assignment form (`color = color.blue`).
+    // This preserves runtime values for functions that actually depend on
+    // named args at execution time (e.g. request.security/table.new),
+    // while still avoiding assignment-side shadowing bugs.
+    const runtimeArgExprs = expr.arguments.map((a) =>
+      isNamedArgument(a) ? (a as AssignmentExpression).right : a,
+    );
+    const args = runtimeArgExprs.map((a) => this.generateExpression(a));
 
     const mapping = UNIFIED_FUNCTION_MAP.get(callee);
 
     if (mapping) {
       callee = mapping.stdName || mapping.jsName || callee;
+      if (mapping.needsSeries && args.length > 0) {
+        args[0] = this.wrapSeriesArgument(runtimeArgExprs[0], args[0]);
+      }
       if (mapping.contextArg) {
         args.unshift('context');
       }
     }
 
     return `${callee}(${args.join(', ')})`;
+  }
+
+  /**
+   * TA mappings marked `needsSeries` must receive a Pine series object,
+   * not a scalar snapshot. For base sources we reuse the preamble's
+   * `_series_<name>` bindings; for computed expressions we materialize a
+   * per-call-site series via `context.new_var(expr)`.
+   */
+  private wrapSeriesArgument(argExpr: Expression, emittedArg: string): string {
+    if (
+      emittedArg.startsWith('_series_') ||
+      emittedArg.startsWith('context.new_var(')
+    ) {
+      return emittedArg;
+    }
+
+    if (
+      argExpr.type === 'Identifier' &&
+      BUILTIN_SERIES_IDENTIFIERS.has(argExpr.name)
+    ) {
+      return `_series_${sanitizeIdentifier(argExpr.name)}`;
+    }
+
+    return `context.new_var(${emittedArg})`;
   }
 
   public generateMemberExpression(expr: MemberExpression): string {
@@ -222,19 +271,45 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
 
   public generateAssignmentExpression(expr: AssignmentExpression): string {
     if (Array.isArray(expr.left)) {
-      const ids = expr.left.map((id) => id.name).join(', ');
+      const ids = expr.left.map((id) => sanitizeIdentifier(id.name)).join(', ');
       return `[${ids}] = ${this.generateExpression(expr.right)}`;
     }
 
-    const left =
-      expr.left.type === 'Identifier'
-        ? expr.left.name
-        : this.generateMemberExpression(expr.left as MemberExpression);
+    const leftIdentifier =
+      !Array.isArray(expr.left) && expr.left.type === 'Identifier'
+        ? expr.left
+        : null;
+    const isIdentifierLeft = leftIdentifier !== null;
+    const left = leftIdentifier
+      ? sanitizeIdentifier(leftIdentifier.name)
+      : this.generateMemberExpression(expr.left as MemberExpression);
 
     let op = expr.operator;
     if (op === ':=') op = '=';
 
-    return `${left} ${op} ${this.generateExpression(expr.right)}`;
+    const right = this.generateExpression(expr.right);
+    const persistentKind = this.persistentIdentifiers.get(left);
+    if (isIdentifierLeft && persistentKind) {
+      const setter =
+        persistentKind === 'varip' ? '_pineSetVarip' : '_pineSetVar';
+      const key = JSON.stringify(left);
+      if (op === '=') {
+        return `(${left} = ${setter}(${key}, ${right}))`;
+      }
+      const compoundToBinary: Record<string, string> = {
+        '+=': '+',
+        '-=': '-',
+        '*=': '*',
+        '/=': '/',
+        '%=': '%',
+      };
+      const binaryOp = compoundToBinary[op];
+      if (binaryOp) {
+        return `(${left} = ${setter}(${key}, (${left} ${binaryOp} ${right})))`;
+      }
+    }
+
+    return `${left} ${op} ${right}`;
   }
 
   private generateLiteral(expr: Literal): string {

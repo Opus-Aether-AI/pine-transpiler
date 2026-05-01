@@ -1,6 +1,6 @@
 const _series_close = context.new_var(close);
 const _getHistorical_close = (offset) => _series_close.get(offset);
-indicator("For Accumulate");
+indicator("For Accumulate", false);
 var length = input.int(20, "Length");
 var sum = 0;
 let _loop_0 = 0;

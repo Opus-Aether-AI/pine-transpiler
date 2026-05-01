@@ -5,11 +5,11 @@ This document details the limitations and unsupported features of the Pine Scrip
 ## Unsupported Features
 
 ### External Data Requests
-The following `request.*` functions are **not supported** and will generate warnings:
+The following `request.*` functions are limited. `request.security` has partial passthrough support; others are not supported.
 
 | Function | Description |
 |----------|-------------|
-| `request.security` | Multi-timeframe data requests |
+| `request.security` | Partial passthrough of `expression`; no real MTF aggregation/data fetch |
 | `request.financial` | Financial statement data |
 | `request.quandl` | Quandl data provider |
 | `request.seed` | Seed-based data |
@@ -42,23 +42,23 @@ The following `request.*` functions are **not supported** and will generate warn
 
 These features work but with limitations:
 
-### Drawing Functions (Stubs)
-Drawing functions return no-ops and emit warnings. They do not render on charts.
+### Drawing Functions (Runtime-compatible, no rendering)
+Drawing functions now create stateful handles and support common mutators/getters so scripts execute correctly. They still do not render visuals on charts.
 
 | Function | Status |
 |----------|--------|
-| `box.new` | Stub (no visual output) |
-| `box.delete` | Stub |
-| `line.new` | Stub (no visual output) |
-| `line.delete` | Stub |
-| `label.new` | Stub (no visual output) |
-| `label.delete` | Stub |
+| `box.new` | Runtime-compatible handle (no visual output) |
+| `box.delete` | Runtime-compatible no-op |
+| `line.new` | Runtime-compatible handle (no visual output) |
+| `line.delete` | Runtime-compatible no-op |
+| `label.new` | Runtime-compatible handle (no visual output) |
+| `label.delete` | Runtime-compatible no-op |
 
-### Table Functions (Stubs)
+### Table Functions (Runtime-compatible, no rendering)
 | Function | Status |
 |----------|--------|
-| `table.new` | Stub (no visual output) |
-| `table.cell` | Stub |
+| `table.new` | Runtime-compatible handle (no visual output) |
+| `table.cell` | Runtime-compatible no-op |
 
 ### Plot Variants
 | Function | Status |
@@ -71,16 +71,17 @@ Drawing functions return no-ops and emit warnings. They do not render on charts.
 | `barcolor` | Stub (no visual output) |
 
 ### Bar State Detection
-The `barstate.*` properties return **hardcoded values** since actual bar state detection requires deeper runtime integration:
+`barstate.*` now uses runtime bar context (`barIndex`, `totalBars`, `time`, `isRealtime`) when available, with compatibility fallbacks when the host runtime does not expose these fields.
 
-| Property | Hardcoded Value |
-|----------|-----------------|
-| `barstate.islast` | `true` |
-| `barstate.isrealtime` | `true` |
-| `barstate.isnew` | `false` |
-| `barstate.isconfirmed` | `true` |
-| `barstate.isfirst` | Not implemented |
-| `barstate.ishistory` | Not implemented |
+| Property | Current Behavior |
+|----------|------------------|
+| `barstate.isfirst` | `true` on first bar when bar index is available |
+| `barstate.islast` | `true` on last bar when total bars are known; fallback `true` in legacy contexts |
+| `barstate.ishistory` | `!isRealtime` |
+| `barstate.isrealtime` | Runtime `isRealtime` flag (fallback `false`) |
+| `barstate.isnew` | `currentTime !== previousTime` |
+| `barstate.isconfirmed` | `!isRealtime` |
+| `barstate.islastconfirmedhistory` | Best-effort using bar index/total bars |
 
 ## Strategy Mode
 

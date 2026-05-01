@@ -9,9 +9,9 @@ const _colorG = (color) => parseInt(color.slice(3, 5), 16);
 const _colorB = (color) => parseInt(color.slice(5, 7), 16);
 const _colorT = (color) => 0;
 
-indicator("Bgcolor Zones");
+indicator("Bgcolor Zones", true);
 var length = input.int(14);
-var rsi = Std.rsi(context, close, length);
+var rsi = Std.rsi(context, _series_close, length);
 var ob = (rsi > 70);
 var os = (rsi < 30);
 Std.bgcolor((ob ? _colorNew(color.red, 80) : (os ? _colorNew(color.green, 80) : NaN)));

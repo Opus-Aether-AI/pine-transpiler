@@ -20,6 +20,7 @@ import {
   COMPARISON_FUNCTION_MAPPINGS,
   getUtilityMapping,
   isUtilityFunction,
+  MATRIX_FUNCTION_MAPPINGS,
   NA_FUNCTION_MAPPINGS,
   STRING_FUNCTION_MAPPINGS,
   SYMINFO_MAPPINGS,
@@ -172,6 +173,10 @@ describe('Utility Mappings', () => {
     it('should have barstate.isconfirmed mapping', () => {
       expect(BARSTATE_MAPPINGS['barstate.isconfirmed']).toBeDefined();
     });
+
+    it('should have barstate.islastconfirmedhistory mapping', () => {
+      expect(BARSTATE_MAPPINGS['barstate.islastconfirmedhistory']).toBeDefined();
+    });
   });
 
   describe('Color Function Mappings', () => {
@@ -263,8 +268,20 @@ describe('Utility Mappings', () => {
       expect(ARRAY_FUNCTION_MAPPINGS['array.new_string']).toBeDefined();
     });
 
+    it('should have array.new_line mapping', () => {
+      expect(ARRAY_FUNCTION_MAPPINGS['array.new_line']).toBeDefined();
+    });
+
     it('should have array.push mapping', () => {
       expect(ARRAY_FUNCTION_MAPPINGS['array.push']).toBeDefined();
+    });
+
+    it('should have array.remove mapping', () => {
+      expect(ARRAY_FUNCTION_MAPPINGS['array.remove']).toBeDefined();
+    });
+
+    it('should have array.from mapping', () => {
+      expect(ARRAY_FUNCTION_MAPPINGS['array.from']).toBeDefined();
     });
 
     it('should have array.pop mapping', () => {
@@ -317,6 +334,20 @@ describe('Utility Mappings', () => {
 
     it('should have array.indexof mapping', () => {
       expect(ARRAY_FUNCTION_MAPPINGS['array.indexof']).toBeDefined();
+    });
+  });
+
+  describe('Matrix Function Mappings', () => {
+    it('should have matrix.new mapping', () => {
+      expect(MATRIX_FUNCTION_MAPPINGS['matrix.new']).toBeDefined();
+    });
+
+    it('should have matrix.add_row mapping', () => {
+      expect(MATRIX_FUNCTION_MAPPINGS['matrix.add_row']).toBeDefined();
+    });
+
+    it('should have matrix.get mapping', () => {
+      expect(MATRIX_FUNCTION_MAPPINGS['matrix.get']).toBeDefined();
     });
   });
 
@@ -398,6 +429,22 @@ describe('Utility Mappings', () => {
       const code = 'plot(close)';
       const js = transpile(code);
       expect(js).toContain('Std.plot');
+    });
+
+    it('should transpile array.new_line and array.from helpers', () => {
+      const code = 'arr = array.new_line(0)\nrow = array.from("A", "B")';
+      const js = transpile(code);
+      expect(js).toContain('_arrayNewAny');
+      expect(js).toContain('_arrayFrom');
+    });
+
+    it('should transpile matrix helpers', () => {
+      const code =
+        'var matrix = matrix.new<string>(0, 2, na)\nmatrix.add_row(matrix, 0, array.from("A", "B"))';
+      const js = transpile(code);
+      expect(js).toContain('_matrixNew');
+      expect(js).toContain('_matrixAddRow');
+      expect(js).toContain('_arrayFrom');
     });
   });
 });

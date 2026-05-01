@@ -15,6 +15,7 @@ This tool allows you to run Pine Script indicators directly within the Charting 
 - [Architecture](#architecture)
 - [Environment Support](#environment-support)
 - [Limitations & Known Issues](#limitations--known-issues)
+- [Future Parity Roadmap](#future-parity-roadmap)
 - [Development](#development)
 - [Changelog](#changelog)
 - [Contributing](#contributing)
@@ -330,10 +331,10 @@ While the transpiler covers a significant portion of Pine Script, there are inhe
 | Feature | Status | Notes |
 |---------|--------|-------|
 | `strategy.*` | ❌ Not Supported | Indicators only; no backtesting |
-| `request.security` | ❌ Not Supported | Requires async data fetching |
+| `request.security` | ⚠️ Partial | Passthrough of `expression` only; no true MTF aggregation/data fetch |
 | `request.financial` | ❌ Not Supported | External data sources |
 | `matrix.*` | ❌ Not Supported | Parsed but not implemented |
-| `line.*`, `label.*`, `box.*`, `table.*` | ⚠️ Parsed | No-op stubs; no drawing output |
+| `line.*`, `label.*`, `box.*`, `table.*` | ⚠️ Partial | Stateful runtime-compatible objects; no visual rendering output |
 
 ### Known Limitations
 
@@ -356,6 +357,14 @@ While the transpiler covers a significant portion of Pine Script, there are inhe
 | CLI | ✅ Good | 15+ | Command-line interface |
 | StdPlus | ✅ Good | 50+ | Polyfill functions |
 | Integration | ✅ Good | 50+ | End-to-end transpilation |
+
+## Future Parity Roadmap
+
+The next accuracy/support roadmap is documented in [FUTURE_PARITY_ROADMAP.md](./FUTURE_PARITY_ROADMAP.md), including:
+
+- phase-by-phase coverage tracking
+- parity KPIs and acceptance gates
+- execution order for semantic, visual, and MTF parity work
 
 ## Development
 
@@ -380,6 +389,19 @@ pnpm lint
 
 # Lint with auto-fix
 pnpm lint:fix
+```
+
+### Corpus & Parity Checks
+
+```bash
+# Full corpus scorecard (pass/total + top failures)
+bun run corpus
+
+# Strict numeric parity checks on core indicators
+bun run corpus:strict
+
+# 67-indicator parity matrix (PASS/FAIL/NOT_FOUND)
+bun run corpus:matrix
 ```
 
 ## Changelog
@@ -418,4 +440,3 @@ This project is an independent, open-source initiative and is **not** affiliated
 - **TradingView** and **Pine Script** are trademarks of TradingView Inc.
 - This transpiler is a clean-room implementation based on public documentation and behavior observation. It does not use or contain any proprietary code from TradingView.
 - Use this tool at your own risk. The authors assume no responsibility for trading decisions or financial losses resulting from the use of this software.
-

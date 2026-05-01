@@ -59,7 +59,6 @@ export interface SessionVariable {
  * Unsupported function categories for warning generation
  */
 const UNSUPPORTED_FUNCTIONS = new Set([
-  'request.security',
   'request.financial',
   'request.quandl',
   'request.seed',
@@ -81,6 +80,7 @@ const UNSUPPORTED_FUNCTIONS = new Set([
  * Partially supported functions that may have limited functionality
  */
 const PARTIALLY_SUPPORTED_FUNCTIONS = new Set([
+  'request.security',
   'plotshape',
   'plotchar',
   'plotarrow',
@@ -332,12 +332,14 @@ export class MetadataVisitor {
       const plot = this.plotExtractor.extractPlotChar(expr);
       plot.id = `plot_${this.plots.length}`;
       this.plots.push(plot);
+    } else if (name === 'plotarrow') {
+      const plot = this.plotExtractor.extractPlotArrow(expr);
+      plot.id = `plot_${this.plots.length}`;
+      this.plots.push(plot);
     } else if (name === 'hline') {
       const plot = this.plotExtractor.extractHline(expr);
-      if (plot) {
-        plot.id = `plot_${this.plots.length}`;
-        this.plots.push(plot);
-      }
+      plot.id = `plot_${this.plots.length}`;
+      this.plots.push(plot);
     } else if (name === 'bgcolor') {
       this.extractBgcolor(expr);
     }

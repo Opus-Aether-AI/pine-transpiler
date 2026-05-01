@@ -134,10 +134,10 @@ export const OSCILLATOR_MAPPINGS: Record<string, TAFunctionMapping> = {
   },
   'ta.cci': {
     stdName: 'Std.cci',
-    needsSeries: false,
+    needsSeries: true,
     contextArg: true,
-    argCount: 1,
-    description: 'Commodity Channel Index',
+    argCount: 2,
+    description: 'Commodity Channel Index (source, length)',
   },
   'ta.mfi': {
     stdName: 'Std.mfi',
@@ -415,7 +415,7 @@ export const VOLUME_MAPPINGS: Record<string, TAFunctionMapping> = {
     description: 'Accumulation/Distribution Index',
   },
   'ta.vwap': {
-    stdName: 'Std.vwap',
+    stdName: 'StdPlus.vwap',
     needsSeries: false,
     contextArg: true,
     argCount: 0,

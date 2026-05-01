@@ -10,6 +10,18 @@ This is the score we're driving up. Re-run with `bun run corpus`.
 | 2026-04-25 (post Phase 1.0) | 39/40 = **98%** | `color=` named-arg shadowing fixed |
 | 2026-04-25 (post Phase 3) | 40/40 = **100%** | multi-line user functions return correctly |
 | 2026-04-25 (post Phase 4) | 79/92 = **86%** | + 52 community fixtures from 4 GitHub repos |
+| 2026-05-01 (rapid pass, start) | 64/92 = **70%** | Baseline before parser/runtime compatibility push |
+| 2026-05-01 (rapid pass, phase 1) | 68/92 = **74%** | Runtime compatibility core patch |
+| 2026-05-01 (rapid pass, phase 2) | 73/92 = **79%** | Stub namespace expansion (table/label/strategy) |
+| 2026-05-01 (rapid pass, phase 3) | 84/92 = **91%** | Additional table/label methods + parity fixes |
+| 2026-05-01 (rapid pass, phase 4) | 90/92 = **98%** | Plot metadata extraction parity (`plotarrow`, dynamic `hline`) |
+| 2026-05-01 (rapid pass, phase 5) | 91/92 = **99%** | Math helper collision fix (`_sum` -> `_pineSum`) |
+| 2026-05-01 (rapid pass, phase 6) | 92/92 = **100%** | Runtime `order.*` namespace wiring for `array.sort` |
+| 2026-05-01 (rapid pass, phase 7) | 92/92 = **100%** | Named-arg runtime value emit + partial `request.security` passthrough + `time_close` wrapper binding; unimplemented Std calls now **0** in corpus report |
+| 2026-05-01 (rapid pass, phase 9) | 92/92 = **100%** | Drawing/table namespaces moved from warning stubs to stateful runtime-compatible handles (no rendering), stub warning noise removed from corpus runs |
+| 2026-05-02 (rapid pass, phase 10) | 92/92 = **100%** | Indicator parity matrix automation (`corpus:matrix`) + CI gating for strict parity and matrix health |
+| 2026-05-02 (rapid pass, phase 11) | 92/92 = **100%** | Strict numeric parity suite expanded from 4 to 11 checks (SMA, EMA, RSI, MACD, ATR, BB, KC, CCI, MFI, WPR, ROC); `ta.cci` mapping corrected to series-aware emit |
+| 2026-05-02 (rapid pass, phase 12) | 92/92 = **100%** | Time/session semantics conformance pass: runtime `session.*` namespace support (`ismarket`, `ispremarket`, `ispostmarket`) plus regression coverage for `time`, `time_close`, `time_tradingday` and custom symbol session windows |
 
 ## Phase 4: community corpus
 
@@ -57,12 +69,14 @@ deeper change deferred to a follow-up.
 ## Current score
 
 ```
-Total fixtures:        40
-Transpile success:     40   (100%)
-+ Instantiate:         40   (100%)
-+ Construct:           40   (100%)
-+ Full pass:           40   (100%)  ← AT TARGET
+Total fixtures:        92
+Transpile success:     92   (100%)
++ Instantiate:         92   (100%)
++ Construct:           92   (100%)
++ Full pass:           92   (100%)  ← AT TARGET
 ```
+
+`bun scripts/corpus/report.ts` now reports no `Unimplemented Std calls` section (all previously surfaced mock fallbacks covered).
 
 ## Initial baseline (2026-04-25)
 
@@ -136,6 +150,8 @@ Each Phase 1 / 2 task is rated by how it should move this number:
 
 ```bash
 bun run corpus            # markdown report
+bun run corpus:strict     # strict numeric checks on core indicators
+bun run corpus:matrix     # 67-indicator PASS/FAIL matrix artifact
 bun run corpus:snap       # refresh snapshots after intentional changes
 bun scripts/corpus/per-fixture.ts  # one-line PASS/FAIL per fixture
 bun scripts/corpus/debug-fixture.ts <name>.pine  # single-fixture debug

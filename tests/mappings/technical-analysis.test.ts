@@ -112,7 +112,8 @@ describe('Technical Analysis Mappings', () => {
 
     it('should have correct CCI mapping', () => {
       const mapping = OSCILLATOR_MAPPINGS['ta.cci'];
-      expect(mapping.needsSeries).toBe(false);
+      expect(mapping.needsSeries).toBe(true);
+      expect(mapping.argCount).toBe(2);
     });
   });
 
@@ -198,6 +199,7 @@ describe('Technical Analysis Mappings', () => {
 
     it('should have correct VWAP mapping', () => {
       const mapping = VOLUME_MAPPINGS['ta.vwap'];
+      expect(mapping.stdName).toBe('StdPlus.vwap');
       expect(mapping.argCount).toBe(0);
     });
 
@@ -283,6 +285,7 @@ describe('TA Transpilation', () => {
       const js = transpile(code);
       expect(js).toContain('Std.sma');
       expect(js).toContain('context');
+      expect(js).toContain('_series_close');
     });
 
     it('should transpile ta.ema correctly', () => {
@@ -324,9 +327,10 @@ describe('TA Transpilation', () => {
     });
 
     it('should transpile ta.cci correctly', () => {
-      const code = 'cciValue = ta.cci(14)';
+      const code = 'cciValue = ta.cci(close, 14)';
       const js = transpile(code);
       expect(js).toContain('Std.cci');
+      expect(js).toContain('_series_close');
     });
 
     it('should transpile ta.roc correctly', () => {
@@ -418,6 +422,7 @@ describe('TA Transpilation', () => {
       const code = 'doubleSmooth = ta.ema(ta.ema(close, 10), 10)';
       const js = transpile(code);
       expect(js).toContain('Std.ema');
+      expect(js).toContain('context.new_var(Std.ema(');
     });
 
     it('should transpile TA functions in expressions', () => {

@@ -181,7 +181,7 @@ export const MINMAX_MAPPINGS: Record<string, MathFunctionMapping> = {
     description: 'Average of values',
   },
   'math.sum': {
-    jsName: '_sum',
+    jsName: '_pineSum',
     isMath: false,
     minArgs: 1,
     description: 'Sum of values',

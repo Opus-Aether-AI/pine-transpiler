@@ -1,6 +1,6 @@
 const _series_close = context.new_var(close);
 const _getHistorical_close = (offset) => _series_close.get(offset);
-indicator("While Guarded");
+indicator("While Guarded", false);
 var i = 0;
 var total = 0;
 let _loop_0 = 0;

@@ -16,7 +16,7 @@ const _mapValues = (m) => Array.from(m.values());
 const _mapClear = (m) => { m.clear(); return m; };
 const _mapCopy = (m) => new Map(m);
 
-indicator("Map Basic");
+indicator("Map Basic", false);
 var counts = _mapNew();
 var key = ((close > open) ? "up" : "down");
 var prevCount = (_mapContains(counts, key) ? _mapGet(counts, key) : 0);

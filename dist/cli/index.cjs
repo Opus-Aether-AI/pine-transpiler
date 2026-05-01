@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const require_src = require("../src-HUNt1eQ9.cjs");
+const require_src = require("../src-BT_nhmYq.cjs");
 let node_fs = require("node:fs");
 let node_path = require("node:path");
 let node_url = require("node:url");
@@ -169,9 +169,8 @@ Supported Features:
   • Arrays and tuples
 
 Limitations:
-  • No request.security() support
-  • Limited drawing functions (box, line, label)
-  • No table support
+  • Partial request.security() passthrough (no true MTF aggregation)
+  • Drawing/table are runtime-compatible no-op objects (no visual rendering)
   • Some advanced Pine Script v5 features
 
 For more information, visit:

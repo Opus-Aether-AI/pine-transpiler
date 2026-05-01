@@ -16,8 +16,8 @@ describe('Pine Script Transpiler', () => {
   it('should transpile basic variable declaration', () => {
     const pine = 'var int x = 10';
     const js = transpile(pine);
-    // The transpiler currently maps 'var' (Pine) to 'let' (JS) for variables
-    expect(js).toContain('var x = 10;');
+    // Pine `var` uses runtime-backed persistence helpers.
+    expect(js).toContain('var x = _pineVar("x", () => (10));');
   });
 
   it('should transpile function calls', () => {
@@ -39,7 +39,7 @@ describe('Pine Script Transpiler', () => {
   it('should transpile array literals', () => {
     const code = 'var a = [1, 2, 3]';
     const result = transpile(code);
-    expect(result).toContain('var a = [1, 2, 3];');
+    expect(result).toContain('var a = _pineVar("a", () => ([1, 2, 3]));');
   });
 
   it('should transpile for...in loops', () => {

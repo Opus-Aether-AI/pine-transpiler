@@ -197,7 +197,8 @@ var NUMERIC_COMPARISON_MAPPINGS = {
 var MATH_HELPER_FUNCTIONS = `
 // Custom math helpers
 const _avg = (...args) => args.reduce((a, b) => a + b, 0) / args.length;
-const _sum = (...args) => args.reduce((a, b) => a + b, 0);
+// Namespaced to avoid collisions with user-defined _sum functions.
+const _pineSum = (...args) => args.reduce((a, b) => a + b, 0);
 const _toDegrees = (radians) => radians * (180 / Math.PI);
 const _toRadians = (degrees) => degrees * (Math.PI / 180);
 const _roundToMintick = (value) => {
@@ -335,6 +336,27 @@ const StdPlus = {
      */
     mom: function(ctx, source, length) {
         return Std.change(ctx, source, length);
+    },
+
+    /**
+     * VWAP wrapper
+     *
+     * Pine supports tuple form:
+     *   [vwap, upper, lower] = ta.vwap(source, anchor, stdevMult)
+     * while some runtimes only expose scalar VWAP.
+     */
+    vwap: function(ctx, source, anchor, stdevMult) {
+        const value = Std.vwap(ctx, source, anchor, stdevMult);
+        if (Array.isArray(value)) return value;
+
+        // Tuple form fallback for runtimes that only return scalar VWAP.
+        if (arguments.length >= 4) {
+            const basis = Number(value);
+            if (!Number.isFinite(basis)) return [NaN, NaN, NaN];
+            return [basis, basis, basis];
+        }
+
+        return value;
     },
 
     /**
@@ -652,7 +674,7 @@ var MINMAX_MAPPINGS = {
 		description: "Average of values"
 	},
 	"math.sum": {
-		jsName: "_sum",
+		jsName: "_pineSum",
 		isMath: false,
 		minArgs: 1,
 		description: "Sum of values"
@@ -859,10 +881,10 @@ var OSCILLATOR_MAPPINGS = {
 	},
 	"ta.cci": {
 		stdName: "Std.cci",
-		needsSeries: false,
+		needsSeries: true,
 		contextArg: true,
-		argCount: 1,
-		description: "Commodity Channel Index"
+		argCount: 2,
+		description: "Commodity Channel Index (source, length)"
 	},
 	"ta.mfi": {
 		stdName: "Std.mfi",
@@ -1115,7 +1137,7 @@ var VOLUME_MAPPINGS = {
 		description: "Accumulation/Distribution Index"
 	},
 	"ta.vwap": {
-		stdName: "Std.vwap",
+		stdName: "StdPlus.vwap",
 		needsSeries: false,
 		contextArg: true,
 		argCount: 0,
@@ -1452,8 +1474,36 @@ var TIME_FUNCTION_MAPPINGS = {
 */
 var ARRAY_FUNCTION_MAPPINGS = {
 	"array.new": {
-		stdName: "_arrayNewFloat",
+		stdName: "_arrayNew",
 		description: "Create new array (Pine v6 generic, type stripped by parser)"
+	},
+	"array.new_line": {
+		stdName: "_arrayNewAny",
+		description: "Create new line array"
+	},
+	"array.new_box": {
+		stdName: "_arrayNewAny",
+		description: "Create new box array"
+	},
+	"array.new_label": {
+		stdName: "_arrayNewAny",
+		description: "Create new label array"
+	},
+	"array.new_table": {
+		stdName: "_arrayNewAny",
+		description: "Create new table array"
+	},
+	"array.new_color": {
+		stdName: "_arrayNewAny",
+		description: "Create new color array"
+	},
+	"array.new_map": {
+		stdName: "_arrayNewAny",
+		description: "Create new map array"
+	},
+	"array.new_matrix": {
+		stdName: "_arrayNewAny",
+		description: "Create new matrix array"
 	},
 	"array.new_float": {
 		stdName: "_arrayNewFloat",
@@ -1475,9 +1525,21 @@ var ARRAY_FUNCTION_MAPPINGS = {
 		stdName: "_arrayPush",
 		description: "Add element to end"
 	},
+	"array.unshift": {
+		stdName: "_arrayUnshift",
+		description: "Add element to start"
+	},
 	"array.pop": {
 		stdName: "_arrayPop",
 		description: "Remove and return last element"
+	},
+	"array.shift": {
+		stdName: "_arrayShift",
+		description: "Remove and return first element"
+	},
+	"array.remove": {
+		stdName: "_arrayRemove",
+		description: "Remove and return element at index"
 	},
 	"array.get": {
 		stdName: "_arrayGet",
@@ -1554,6 +1616,10 @@ var ARRAY_FUNCTION_MAPPINGS = {
 	"array.join": {
 		stdName: "_arrayJoin",
 		description: "Join array to string"
+	},
+	"array.from": {
+		stdName: "_arrayFrom",
+		description: "Create array from argument list"
 	}
 };
 /**
@@ -1561,39 +1627,151 @@ var ARRAY_FUNCTION_MAPPINGS = {
 */
 var ARRAY_HELPER_FUNCTIONS = `
 // Array helpers
-const _arrayNewFloat = (size = 0, val = NaN) => Array(size).fill(val);
-const _arrayNewInt = (size = 0, val = 0) => Array(size).fill(val);
-const _arrayNewBool = (size = 0, val = false) => Array(size).fill(val);
-const _arrayNewString = (size = 0, val = '') => Array(size).fill(val);
-const _arrayPush = (arr, val) => { arr.push(val); return arr; };
-const _arrayPop = (arr) => arr.pop();
-const _arrayGet = (arr, i) => arr[i];
-const _arraySet = (arr, i, val) => { arr[i] = val; return arr; };
-const _arraySize = (arr) => arr.length;
-const _arrayAvg = (arr) => arr.reduce((a, b) => a + b, 0) / arr.length;
-const _arraySum = (arr) => arr.reduce((a, b) => a + b, 0);
-const _arrayMin = (arr) => Math.min(...arr);
-const _arrayMax = (arr) => Math.max(...arr);
+const _arraySafeSize = (size) => {
+  const n = Number(size);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(100000, Math.floor(n));
+};
+const _arrayEnsurePineMethods = (arr) => {
+  if (!Array.isArray(arr)) return arr;
+  if (typeof arr.size !== 'function') {
+    Object.defineProperty(arr, 'size', {
+      value: function() { return this.length; },
+      enumerable: false,
+    });
+  }
+  if (typeof arr.get !== 'function') {
+    Object.defineProperty(arr, 'get', {
+      value: function(i) { return this[i]; },
+      enumerable: false,
+    });
+  }
+  if (typeof arr.set !== 'function') {
+    Object.defineProperty(arr, 'set', {
+      value: function(i, v) { this[i] = v; return this; },
+      enumerable: false,
+    });
+  }
+  if (typeof arr.remove !== 'function') {
+    Object.defineProperty(arr, 'remove', {
+      value: function(i) {
+        const idx = Math.floor(Number(i));
+        if (!Number.isFinite(idx) || idx < 0 || idx >= this.length) return NaN;
+        const removed = this.splice(idx, 1);
+        return removed.length > 0 ? removed[0] : NaN;
+      },
+      enumerable: false,
+    });
+  }
+  if (typeof arr.clear !== 'function') {
+    Object.defineProperty(arr, 'clear', {
+      value: function() { this.length = 0; return this; },
+      enumerable: false,
+    });
+  }
+  if (typeof arr.first !== 'function') {
+    Object.defineProperty(arr, 'first', {
+      value: function() {
+        return this.length > 0 ? this[0] : NaN;
+      },
+      enumerable: false,
+    });
+  }
+  if (typeof arr.last !== 'function') {
+    Object.defineProperty(arr, 'last', {
+      value: function() {
+        return this.length > 0 ? this[this.length - 1] : NaN;
+      },
+      enumerable: false,
+    });
+  }
+  return arr;
+};
+const _arrayAsArray = (arr) => Array.isArray(arr) ? arr : [];
+const _arrayNumeric = (arr) => _arrayAsArray(arr).filter((v) => typeof v === 'number' && Number.isFinite(v));
+const _arrayNew = (size = 0, val = NaN) => _arrayEnsurePineMethods(Array(_arraySafeSize(size)).fill(val));
+const _arrayNewAny = (size = 0, val = NaN) => _arrayNew(size, val);
+const _arrayNewFloat = (size = 0, val = NaN) => _arrayNew(size, val);
+const _arrayNewInt = (size = 0, val = 0) => _arrayNew(size, val);
+const _arrayNewBool = (size = 0, val = false) => _arrayNew(size, val);
+const _arrayNewString = (size = 0, val = '') => _arrayNew(size, val);
+const _arrayFrom = (...values) => _arrayEnsurePineMethods([...values]);
+const _arrayPush = (arr, val) => {
+  if (Array.isArray(arr)) arr.push(val);
+  return arr;
+};
+const _arrayUnshift = (arr, val) => {
+  if (Array.isArray(arr)) arr.unshift(val);
+  return arr;
+};
+const _arrayPop = (arr) => (Array.isArray(arr) ? arr.pop() : NaN);
+const _arrayShift = (arr) => (Array.isArray(arr) ? arr.shift() : NaN);
+const _arrayRemove = (arr, i) => {
+  if (!Array.isArray(arr)) return NaN;
+  const idx = Math.floor(Number(i));
+  if (!Number.isFinite(idx) || idx < 0 || idx >= arr.length) return NaN;
+  const removed = arr.splice(idx, 1);
+  return removed.length > 0 ? removed[0] : NaN;
+};
+const _arrayGet = (arr, i) => (Array.isArray(arr) ? arr[i] : NaN);
+const _arraySet = (arr, i, val) => {
+  if (Array.isArray(arr)) arr[i] = val;
+  return arr;
+};
+const _arraySize = (arr) => {
+  if (Array.isArray(arr)) return arr.length;
+  if (arr && typeof arr.size === 'function') return Number(arr.size()) || 0;
+  return 0;
+};
+const _arrayAvg = (arr) => {
+  const xs = _arrayNumeric(arr);
+  if (xs.length === 0) return NaN;
+  return xs.reduce((a, b) => a + b, 0) / xs.length;
+};
+const _arraySum = (arr) => _arrayNumeric(arr).reduce((a, b) => a + b, 0);
+const _arrayMin = (arr) => {
+  const xs = _arrayNumeric(arr);
+  return xs.length === 0 ? NaN : Math.min(...xs);
+};
+const _arrayMax = (arr) => {
+  const xs = _arrayNumeric(arr);
+  return xs.length === 0 ? NaN : Math.max(...xs);
+};
 const _arrayStdev = (arr) => {
   const avg = _arrayAvg(arr);
-  const sqDiffs = arr.map(v => Math.pow(v - avg, 2));
+  if (isNaN(avg)) return NaN;
+  const xs = _arrayNumeric(arr);
+  const sqDiffs = xs.map(v => Math.pow(v - avg, 2));
   return Math.sqrt(_arrayAvg(sqDiffs));
 };
 const _arrayVariance = (arr) => {
   const avg = _arrayAvg(arr);
-  const sqDiffs = arr.map(v => Math.pow(v - avg, 2));
+  if (isNaN(avg)) return NaN;
+  const xs = _arrayNumeric(arr);
+  const sqDiffs = xs.map(v => Math.pow(v - avg, 2));
   return _arrayAvg(sqDiffs);
 };
-const _arraySort = (arr, asc = true) => [...arr].sort((a, b) => asc ? a - b : b - a);
-const _arrayReverse = (arr) => [...arr].reverse();
-const _arraySlice = (arr, start, end) => arr.slice(start, end);
-const _arrayConcat = (arr1, arr2) => arr1.concat(arr2);
-const _arrayCopy = (arr) => [...arr];
-const _arrayClear = (arr) => { arr.length = 0; return arr; };
-const _arrayIncludes = (arr, val) => arr.includes(val);
-const _arrayIndexOf = (arr, val) => arr.indexOf(val);
-const _arrayLastIndexOf = (arr, val) => arr.lastIndexOf(val);
-const _arrayJoin = (arr, sep = ',') => arr.join(sep);
+const _arraySort = (arr, asc = true) => {
+  if (!Array.isArray(arr)) return arr;
+  arr.sort((a, b) => asc ? a - b : b - a);
+  return arr;
+};
+const _arrayReverse = (arr) => {
+  if (!Array.isArray(arr)) return arr;
+  arr.reverse();
+  return arr;
+};
+const _arraySlice = (arr, start, end) => _arrayEnsurePineMethods(_arrayAsArray(arr).slice(start, end));
+const _arrayConcat = (arr1, arr2) => _arrayEnsurePineMethods(_arrayAsArray(arr1).concat(_arrayAsArray(arr2)));
+const _arrayCopy = (arr) => _arrayEnsurePineMethods([..._arrayAsArray(arr)]);
+const _arrayClear = (arr) => {
+  if (Array.isArray(arr)) arr.length = 0;
+  return arr;
+};
+const _arrayIncludes = (arr, val) => _arrayAsArray(arr).includes(val);
+const _arrayIndexOf = (arr, val) => _arrayAsArray(arr).indexOf(val);
+const _arrayLastIndexOf = (arr, val) => _arrayAsArray(arr).lastIndexOf(val);
+const _arrayJoin = (arr, sep = ',') => _arrayAsArray(arr).join(sep);
 `;
 //#endregion
 //#region src/mappings/barstate.ts
@@ -1629,6 +1807,10 @@ var BARSTATE_MAPPINGS = {
 	"barstate.isconfirmed": {
 		stdName: "_isConfirmedBar",
 		description: "Is bar confirmed (closed)"
+	},
+	"barstate.islastconfirmedhistory": {
+		stdName: "_isLastConfirmedHistoryBar",
+		description: "Is the last confirmed historical bar"
 	}
 };
 /**
@@ -1641,6 +1823,7 @@ const _isHistoryBar = true; // Assume history during replay
 const _isRealtimeBar = false;
 const _isNewBar = true; // Simplified
 const _isConfirmedBar = true; // Simplified
+const _isLastConfirmedHistoryBar = false; // Simplified
 `;
 //#endregion
 //#region src/mappings/color.ts
@@ -1770,6 +1953,102 @@ const _mapKeys = (m) => Array.from(m.keys());
 const _mapValues = (m) => Array.from(m.values());
 const _mapClear = (m) => { m.clear(); return m; };
 const _mapCopy = (m) => new Map(m);
+`;
+//#endregion
+//#region src/mappings/matrix.ts
+/**
+* Matrix Function Mappings (Pine v6)
+*
+* Pine `matrix.*` APIs are lowered to lightweight JS helpers so scripts
+* like `var matrix = matrix.new<string>(...)` don't depend on an
+* injected runtime namespace object.
+*/
+var MATRIX_FUNCTION_MAPPINGS = {
+	"matrix.new": {
+		stdName: "_matrixNew",
+		description: "Create a new matrix"
+	},
+	"matrix.rows": {
+		stdName: "_matrixRows",
+		description: "Get row count"
+	},
+	"matrix.columns": {
+		stdName: "_matrixColumns",
+		description: "Get column count"
+	},
+	"matrix.get": {
+		stdName: "_matrixGet",
+		description: "Read a matrix cell"
+	},
+	"matrix.set": {
+		stdName: "_matrixSet",
+		description: "Write a matrix cell"
+	},
+	"matrix.add_row": {
+		stdName: "_matrixAddRow",
+		description: "Insert a row"
+	},
+	"matrix.remove_row": {
+		stdName: "_matrixRemoveRow",
+		description: "Remove a row"
+	}
+};
+var MATRIX_HELPER_FUNCTIONS = `
+// Matrix helpers (Pine v6 matrix.*)
+const _matrixSafeInt = (v, fallback = 0) => {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, Math.floor(n));
+};
+const _matrixNew = (rows = 0, columns = 0, fill = NaN) => {
+  const r = _matrixSafeInt(rows, 0);
+  const c = _matrixSafeInt(columns, 0);
+  const data = Array.from({ length: r }, () => Array(c).fill(fill));
+  return { _rows: data, _columns: c, _fill: fill };
+};
+const _matrixRows = (m) => (Array.isArray(m?._rows) ? m._rows.length : 0);
+const _matrixColumns = (m) =>
+  typeof m?._columns === 'number' ? m._columns : 0;
+const _matrixNormalizeRow = (m, row) => {
+  const values = Array.isArray(row) ? [...row] : [row];
+  const width = _matrixColumns(m);
+  if (width === 0) return values;
+  if (values.length > width) return values.slice(0, width);
+  if (values.length < width) {
+    return values.concat(Array(width - values.length).fill(m?._fill ?? NaN));
+  }
+  return values;
+};
+const _matrixAddRow = (m, index, row) => {
+  if (!Array.isArray(m?._rows)) return m;
+  const at = _matrixSafeInt(index, m._rows.length);
+  const safeIndex = Math.min(at, m._rows.length);
+  m._rows.splice(safeIndex, 0, _matrixNormalizeRow(m, row));
+  return m;
+};
+const _matrixRemoveRow = (m, index) => {
+  if (!Array.isArray(m?._rows) || m._rows.length === 0) return [];
+  const at = _matrixSafeInt(index, m._rows.length - 1);
+  const safeIndex = Math.min(at, m._rows.length - 1);
+  const removed = m._rows.splice(safeIndex, 1);
+  return removed[0] ?? [];
+};
+const _matrixGet = (m, row, column) => {
+  if (!Array.isArray(m?._rows)) return NaN;
+  const r = _matrixSafeInt(row, 0);
+  const c = _matrixSafeInt(column, 0);
+  return m._rows[r]?.[c];
+};
+const _matrixSet = (m, row, column, value) => {
+  if (!Array.isArray(m?._rows)) return m;
+  const r = _matrixSafeInt(row, 0);
+  const c = _matrixSafeInt(column, 0);
+  if (!Array.isArray(m._rows[r])) {
+    m._rows[r] = Array(_matrixColumns(m)).fill(m?._fill ?? NaN);
+  }
+  m._rows[r][c] = value;
+  return m;
+};
 `;
 //#endregion
 //#region src/mappings/string.ts
@@ -2058,6 +2337,7 @@ var ALL_UTILITY_MAPPINGS = {
 	...STRING_FUNCTION_MAPPINGS,
 	...ARRAY_FUNCTION_MAPPINGS,
 	...MAP_FUNCTION_MAPPINGS,
+	...MATRIX_FUNCTION_MAPPINGS,
 	...RUNTIME_ERROR_MAPPING,
 	...PLOT_MAPPINGS
 };
@@ -2219,50 +2499,368 @@ function createPriceSources(Std, context) {
 }
 //#endregion
 //#region src/runtime/stub-namespaces.ts
-/** Track if we've already warned about stub usage to avoid console spam */
-var _stubWarningsShown = null;
-/**
-* Log a warning once per stub type
-*/
-function warnOnceAboutStub(stubName, message) {
-	if (!_stubWarningsShown) _stubWarningsShown = /* @__PURE__ */ new Set();
-	if (!_stubWarningsShown.has(stubName)) {
-		_stubWarningsShown.add(stubName);
-		console.warn(`[pine-transpiler] ${message}`);
-	}
+function toNumber(value, fallback = NaN) {
+	const n = Number(value);
+	return Number.isFinite(n) ? n : fallback;
+}
+function toInteger(value, fallback = 0) {
+	const n = Number(value);
+	return Number.isFinite(n) ? Math.trunc(n) : fallback;
+}
+function asHandle(value) {
+	if (typeof value !== "object" || value === null) return void 0;
+	const candidate = value;
+	if (typeof candidate.__id !== "number") return void 0;
+	return candidate;
+}
+function withConstantFallback(base, prefix) {
+	return new Proxy(base, { get(target, prop) {
+		if (typeof prop !== "string") return void 0;
+		if (prop in target) return target[prop];
+		return `${prefix}.${prop}`;
+	} });
+}
+function resolveHandle(value, store) {
+	const handle = asHandle(value);
+	if (!handle) return void 0;
+	const resolved = store.get(handle.__id);
+	if (!resolved || resolved.__deleted) return void 0;
+	return resolved;
+}
+function makeLineNamespace() {
+	let nextId = 1;
+	const lineStore = /* @__PURE__ */ new Map();
+	const deleteLine = (lineObj) => {
+		const h = resolveHandle(lineObj, lineStore);
+		if (!h) return;
+		h.__deleted = true;
+		lineStore.delete(h.__id);
+	};
+	const setX2 = (lineObj, x2) => {
+		const h = resolveHandle(lineObj, lineStore);
+		if (!h) return;
+		h.x2 = toNumber(x2);
+	};
+	const setColor = (lineObj, color) => {
+		const h = resolveHandle(lineObj, lineStore);
+		if (!h) return;
+		h.color = color;
+	};
+	const getX2 = (lineObj) => {
+		const h = resolveHandle(lineObj, lineStore);
+		return h ? toNumber(h.x2) : NaN;
+	};
+	const getY1 = (lineObj) => {
+		const h = resolveHandle(lineObj, lineStore);
+		return h ? toNumber(h.y1) : NaN;
+	};
+	const attachLineMethods = (h) => {
+		if (typeof h.delete !== "function") h.delete = () => deleteLine(h);
+		if (typeof h.set_x2 !== "function") h.set_x2 = (x2) => setX2(h, x2);
+		if (typeof h.set_color !== "function") h.set_color = (color) => setColor(h, color);
+		if (typeof h.get_x2 !== "function") h.get_x2 = () => getX2(h);
+		if (typeof h.get_y1 !== "function") h.get_y1 = () => getY1(h);
+	};
+	return withConstantFallback({
+		new: (...args) => {
+			const h = {
+				__id: nextId++,
+				__deleted: false,
+				x1: toNumber(args[0]),
+				y1: toNumber(args[1]),
+				x2: toNumber(args[2]),
+				y2: toNumber(args[3]),
+				color: args[4],
+				style: args[5],
+				width: toInteger(args[6], 1)
+			};
+			attachLineMethods(h);
+			lineStore.set(h.__id, h);
+			return h;
+		},
+		delete: deleteLine,
+		set_x2: setX2,
+		set_color: setColor,
+		get_x2: getX2,
+		get_y1: getY1,
+		style_solid: "line.style_solid",
+		style_dashed: "line.style_dashed",
+		style_dotted: "line.style_dotted"
+	}, "line");
+}
+function makeBoxNamespace() {
+	let nextId = 1;
+	const boxStore = /* @__PURE__ */ new Map();
+	const deleteBox = (boxObj) => {
+		const h = resolveHandle(boxObj, boxStore);
+		if (!h) return;
+		h.__deleted = true;
+		boxStore.delete(h.__id);
+	};
+	const setLeft = (boxObj, left) => {
+		const h = resolveHandle(boxObj, boxStore);
+		if (!h) return;
+		h.left = toNumber(left);
+	};
+	const setRight = (boxObj, right) => {
+		const h = resolveHandle(boxObj, boxStore);
+		if (!h) return;
+		h.right = toNumber(right);
+	};
+	const setExtend = (boxObj, extend) => {
+		const h = resolveHandle(boxObj, boxStore);
+		if (!h) return;
+		h.extend = extend;
+	};
+	const setBgcolor = (boxObj, color) => {
+		const h = resolveHandle(boxObj, boxStore);
+		if (!h) return;
+		h.bgcolor = color;
+	};
+	const setBorderColor = (boxObj, color) => {
+		const h = resolveHandle(boxObj, boxStore);
+		if (!h) return;
+		h.border_color = color;
+	};
+	const setTextColor = (boxObj, color) => {
+		const h = resolveHandle(boxObj, boxStore);
+		if (!h) return;
+		h.text_color = color;
+	};
+	const getTop = (boxObj) => {
+		const h = resolveHandle(boxObj, boxStore);
+		return h ? toNumber(h.top) : NaN;
+	};
+	const getBottom = (boxObj) => {
+		const h = resolveHandle(boxObj, boxStore);
+		return h ? toNumber(h.bottom) : NaN;
+	};
+	const getLeft = (boxObj) => {
+		const h = resolveHandle(boxObj, boxStore);
+		return h ? toNumber(h.left) : NaN;
+	};
+	const getRight = (boxObj) => {
+		const h = resolveHandle(boxObj, boxStore);
+		return h ? toNumber(h.right) : NaN;
+	};
+	const attachBoxMethods = (h) => {
+		if (typeof h.delete !== "function") h.delete = () => deleteBox(h);
+		if (typeof h.set_left !== "function") h.set_left = (left) => setLeft(h, left);
+		if (typeof h.set_right !== "function") h.set_right = (right) => setRight(h, right);
+		if (typeof h.set_extend !== "function") h.set_extend = (extend) => setExtend(h, extend);
+		if (typeof h.set_bgcolor !== "function") h.set_bgcolor = (color) => setBgcolor(h, color);
+		if (typeof h.set_border_color !== "function") h.set_border_color = (color) => setBorderColor(h, color);
+		if (typeof h.set_text_color !== "function") h.set_text_color = (color) => setTextColor(h, color);
+		if (typeof h.get_top !== "function") h.get_top = () => getTop(h);
+		if (typeof h.get_bottom !== "function") h.get_bottom = () => getBottom(h);
+		if (typeof h.get_left !== "function") h.get_left = () => getLeft(h);
+		if (typeof h.get_right !== "function") h.get_right = () => getRight(h);
+	};
+	return withConstantFallback({
+		new: (...args) => {
+			const h = {
+				__id: nextId++,
+				__deleted: false,
+				left: toNumber(args[0]),
+				top: toNumber(args[1]),
+				right: toNumber(args[2]),
+				bottom: toNumber(args[3]),
+				border_color: args[4],
+				bgcolor: args[5]
+			};
+			attachBoxMethods(h);
+			boxStore.set(h.__id, h);
+			return h;
+		},
+		delete: deleteBox,
+		set_left: setLeft,
+		set_right: setRight,
+		set_extend: setExtend,
+		set_bgcolor: setBgcolor,
+		set_border_color: setBorderColor,
+		set_text_color: setTextColor,
+		get_left: getLeft,
+		get_right: getRight,
+		get_top: getTop,
+		get_bottom: getBottom
+	}, "box");
+}
+function makeLabelNamespace() {
+	let nextId = 1;
+	const labelStore = /* @__PURE__ */ new Map();
+	const deleteLabel = (labelObj) => {
+		const h = resolveHandle(labelObj, labelStore);
+		if (!h) return;
+		h.__deleted = true;
+		labelStore.delete(h.__id);
+	};
+	const setText = (labelObj, text) => {
+		const h = resolveHandle(labelObj, labelStore);
+		if (!h) return;
+		h.text = text == null ? "" : String(text);
+	};
+	const setTooltip = (labelObj, tooltip) => {
+		const h = resolveHandle(labelObj, labelStore);
+		if (!h) return;
+		h.tooltip = tooltip == null ? "" : String(tooltip);
+	};
+	const setTextcolor = (labelObj, color) => {
+		const h = resolveHandle(labelObj, labelStore);
+		if (!h) return;
+		h.textcolor = color;
+	};
+	const setXY = (labelObj, x, y) => {
+		const h = resolveHandle(labelObj, labelStore);
+		if (!h) return;
+		h.x = toNumber(x);
+		h.y = toNumber(y);
+	};
+	const setX = (labelObj, x) => {
+		const h = resolveHandle(labelObj, labelStore);
+		if (!h) return;
+		h.x = toNumber(x);
+	};
+	const setY = (labelObj, y) => {
+		const h = resolveHandle(labelObj, labelStore);
+		if (!h) return;
+		h.y = toNumber(y);
+	};
+	const attachLabelMethods = (h) => {
+		if (typeof h.delete !== "function") h.delete = () => deleteLabel(h);
+		if (typeof h.set_text !== "function") h.set_text = (text) => setText(h, text);
+		if (typeof h.set_tooltip !== "function") h.set_tooltip = (tooltip) => setTooltip(h, tooltip);
+		if (typeof h.set_textcolor !== "function") h.set_textcolor = (color) => setTextcolor(h, color);
+		if (typeof h.set_xy !== "function") h.set_xy = (x, y) => setXY(h, x, y);
+		if (typeof h.set_x !== "function") h.set_x = (x) => setX(h, x);
+		if (typeof h.set_y !== "function") h.set_y = (y) => setY(h, y);
+	};
+	return withConstantFallback({
+		new: (...args) => {
+			const h = {
+				__id: nextId++,
+				__deleted: false,
+				x: toNumber(args[0]),
+				y: toNumber(args[1]),
+				text: args[2] == null ? "" : String(args[2]),
+				xloc: args[3],
+				yloc: args[4],
+				color: args[5],
+				style: args[6],
+				textcolor: args[7],
+				size: args[8],
+				textalign: args[9],
+				tooltip: args[10]
+			};
+			attachLabelMethods(h);
+			labelStore.set(h.__id, h);
+			return h;
+		},
+		delete: deleteLabel,
+		set_text: setText,
+		set_tooltip: setTooltip,
+		set_textcolor: setTextcolor,
+		set_xy: setXY,
+		set_x: setX,
+		set_y: setY,
+		style_none: "label.style_none",
+		style_label_up: "label.style_label_up",
+		style_label_down: "label.style_label_down",
+		style_label_left: "label.style_label_left",
+		style_label_right: "label.style_label_right",
+		style_label_lower_left: "label.style_label_lower_left",
+		style_label_lower_right: "label.style_label_lower_right",
+		style_label_upper_left: "label.style_label_upper_left",
+		style_label_upper_right: "label.style_label_upper_right",
+		style_label_center: "label.style_label_center"
+	}, "label");
+}
+function makeTableNamespace() {
+	let nextId = 1;
+	const tableStore = /* @__PURE__ */ new Map();
+	const keyFor = (col, row) => `${col}:${row}`;
+	const tableCell = (...args) => {
+		const t = resolveHandle(args[0], tableStore);
+		if (!t) return;
+		const col = toInteger(args[1], 0);
+		const row = toInteger(args[2], 0);
+		t.cells.set(keyFor(col, row), {
+			text: args[3],
+			textColor: args[4],
+			textHalign: args[5],
+			textSize: args[6],
+			bgcolor: args[7],
+			tooltip: args[8],
+			textValign: args[9]
+		});
+	};
+	const tableClear = (...args) => {
+		const t = resolveHandle(args[0], tableStore);
+		if (!t) return;
+		if (args.length <= 1) {
+			t.cells.clear();
+			t.merges = [];
+			return;
+		}
+		const startCol = toInteger(args[1], 0);
+		const startRow = toInteger(args[2], 0);
+		const endCol = toInteger(args[3], t.columns - 1);
+		const endRow = toInteger(args[4], t.rows - 1);
+		for (const key of t.cells.keys()) {
+			const [cStr, rStr] = key.split(":");
+			const c = Number(cStr);
+			const r = Number(rStr);
+			if (c >= startCol && c <= endCol && r >= startRow && r <= endRow) t.cells.delete(key);
+		}
+	};
+	const tableMergeCells = (...args) => {
+		const t = resolveHandle(args[0], tableStore);
+		if (!t) return;
+		const startCol = toInteger(args[1], 0);
+		const startRow = toInteger(args[2], 0);
+		const endCol = toInteger(args[3], startCol);
+		const endRow = toInteger(args[4], startRow);
+		t.merges.push([
+			startCol,
+			startRow,
+			endCol,
+			endRow
+		]);
+	};
+	const attachTableMethods = (t) => {
+		if (typeof t.cell !== "function") t.cell = (...args) => tableCell(t, ...args);
+		if (typeof t.clear !== "function") t.clear = (...args) => tableClear(t, ...args);
+		if (typeof t.merge_cells !== "function") t.merge_cells = (...args) => tableMergeCells(t, ...args);
+	};
+	return withConstantFallback({
+		new: (...args) => {
+			const t = {
+				__id: nextId++,
+				__deleted: false,
+				position: args[0],
+				columns: Math.max(0, toInteger(args[1], 0)),
+				rows: Math.max(0, toInteger(args[2], 0)),
+				cells: /* @__PURE__ */ new Map(),
+				merges: []
+			};
+			attachTableMethods(t);
+			tableStore.set(t.__id, t);
+			return t;
+		},
+		cell: tableCell,
+		clear: tableClear,
+		merge_cells: tableMergeCells
+	}, "table");
 }
 /**
-* Create stub namespaces for unsupported features
-* Drawing functions (box, line, label, table) are no-ops with warnings
-* barstate properties return sensible defaults with warnings
+* Create runtime compatibility namespaces.
+* Drawing/table namespaces are stateful no-op objects.
 */
 function createStubNamespaces() {
 	return {
-		box: {
-			new: () => {
-				warnOnceAboutStub("box.new", "box.new() is not supported - drawing functions are stubs");
-			},
-			delete: () => {},
-			set_left: () => {}
-		},
-		line: {
-			new: () => {
-				warnOnceAboutStub("line.new", "line.new() is not supported - drawing functions are stubs");
-			},
-			delete: () => {}
-		},
-		label: {
-			new: () => {
-				warnOnceAboutStub("label.new", "label.new() is not supported - drawing functions are stubs");
-			},
-			delete: () => {}
-		},
-		table: {
-			new: () => {
-				warnOnceAboutStub("table.new", "table.new() is not supported - table functions are stubs");
-			},
-			cell: () => {}
-		},
+		box: makeBoxNamespace(),
+		line: makeLineNamespace(),
+		label: makeLabelNamespace(),
+		table: makeTableNamespace(),
 		str: (() => {
 			const c = (v) => v == null ? "" : String(v);
 			return {
@@ -2308,6 +2906,10 @@ function createStubNamespaces() {
 *                  baseline)
 * - `isconfirmed`— !isrealtime; the last bar of historical replay is
 *                  always confirmed
+* - `islastconfirmedhistory`
+*                — best-effort Pine parity: when bar indexes are known,
+*                  true on the last historical bar (`isRealtime=false`)
+*                  or the bar immediately before realtime (`isRealtime=true`)
 */
 function createBarstate(ctx = {
 	currentTime: -1,
@@ -2333,6 +2935,13 @@ function createBarstate(ctx = {
 		},
 		get isconfirmed() {
 			return !isRealtime;
+		},
+		get islastconfirmedhistory() {
+			if (typeof totalBars === "number" && typeof barIndex === "number") {
+				if (isRealtime) return barIndex === totalBars - 2;
+				return barIndex === totalBars - 1;
+			}
+			return false;
 		}
 	};
 }
@@ -2395,19 +3004,79 @@ function readBooleanField(obj, key, fallback) {
 	const v = obj[key];
 	return typeof v === "boolean" ? v : fallback;
 }
+function readStringField(obj, key) {
+	const v = obj[key];
+	return typeof v === "string" ? v : void 0;
+}
+/**
+* Runtime helper bundle for persistent Pine variables.
+*
+* - `var`   values persist across all bars.
+* - `varip` values persist within a bar, then reset when bar identity
+*           (bar_index/time) changes.
+*
+* State is stored on `context` so it survives per-bar function calls.
+*/
+var STATE_HELPER_FUNCTIONS = `
+const _pineState = (() => {
+  const host = context;
+  if (!host.__pineState || typeof host.__pineState !== 'object') {
+    host.__pineState = {
+      var: Object.create(null),
+      varip: Object.create(null),
+      varipBarKey: null,
+    };
+  }
+  const state = host.__pineState;
+  const hasBarIndex = typeof bar_index === 'number' && Number.isFinite(bar_index);
+  const hasTime = typeof time === 'number' && Number.isFinite(time);
+  const currentBarKey = hasBarIndex
+    ? 'i:' + String(bar_index)
+    : hasTime
+      ? 't:' + String(time)
+      : 'unknown';
+  if (state.varipBarKey !== currentBarKey) {
+    state.varip = Object.create(null);
+    state.varipBarKey = currentBarKey;
+  }
+  return state;
+})();
+const _pineVar = (key, init) => {
+  if (!Object.prototype.hasOwnProperty.call(_pineState.var, key)) {
+    _pineState.var[key] = init();
+  }
+  return _pineState.var[key];
+};
+const _pineSetVar = (key, value) => {
+  _pineState.var[key] = value;
+  return value;
+};
+const _pineVarip = (key, init) => {
+  if (!Object.prototype.hasOwnProperty.call(_pineState.varip, key)) {
+    _pineState.varip[key] = init();
+  }
+  return _pineState.varip[key];
+};
+const _pineSetVarip = (key, value) => {
+  _pineState.varip[key] = value;
+  return value;
+};
+`;
 /**
 * Analyze which helpers are needed based on the transpiled code
 */
 function analyzeRequiredHelpers(mainBody) {
 	return {
-		needsMath: mainBody.includes("_avg(") || mainBody.includes("_sum(") || mainBody.includes("_toDegrees(") || mainBody.includes("_toRadians(") || mainBody.includes("_roundToMintick("),
+		needsMath: mainBody.includes("_avg(") || mainBody.includes("_pineSum(") || mainBody.includes("_toDegrees(") || mainBody.includes("_toRadians(") || mainBody.includes("_roundToMintick("),
 		needsSession: mainBody.includes("_isInSession(") || mainBody.includes("_isMarketSession(") || mainBody.includes("_isPremarket(") || mainBody.includes("_isPostmarket(") || mainBody.includes("_getTimeClose(") || mainBody.includes("_getTradingDayTime("),
 		needsStdPlus: mainBody.includes("StdPlus."),
-		needsArray: mainBody.includes("_arrayNew") || mainBody.includes("_arrayPush(") || mainBody.includes("_arrayPop(") || mainBody.includes("_arrayGet(") || mainBody.includes("_arraySet(") || mainBody.includes("_arraySize(") || mainBody.includes("_arrayAvg(") || mainBody.includes("_arraySum(") || mainBody.includes("_arrayMin(") || mainBody.includes("_arrayMax(") || mainBody.includes("_arrayStdev(") || mainBody.includes("_arrayVariance(") || mainBody.includes("_arraySort(") || mainBody.includes("_arrayReverse(") || mainBody.includes("_arraySlice(") || mainBody.includes("_arrayConcat(") || mainBody.includes("_arrayCopy(") || mainBody.includes("_arrayClear(") || mainBody.includes("_arrayIncludes(") || mainBody.includes("_arrayIndexOf(") || mainBody.includes("_arrayLastIndexOf(") || mainBody.includes("_arrayJoin("),
-		needsMap: mainBody.includes("_mapNew(") || mainBody.includes("_mapPut(") || mainBody.includes("_mapGet(") || mainBody.includes("_mapContains(") || mainBody.includes("_mapRemove(") || mainBody.includes("_mapSize(") || mainBody.includes("_mapKeys(") || mainBody.includes("_mapValues(") || mainBody.includes("_mapClear("),
+		needsArray: mainBody.includes("_arrayNew") || mainBody.includes("_arrayFrom(") || mainBody.includes("_arrayPush(") || mainBody.includes("_arrayUnshift(") || mainBody.includes("_arrayPop(") || mainBody.includes("_arrayShift(") || mainBody.includes("_arrayRemove(") || mainBody.includes("_arrayGet(") || mainBody.includes("_arraySet(") || mainBody.includes("_arraySize(") || mainBody.includes("_arrayAvg(") || mainBody.includes("_arraySum(") || mainBody.includes("_arrayMin(") || mainBody.includes("_arrayMax(") || mainBody.includes("_arrayStdev(") || mainBody.includes("_arrayVariance(") || mainBody.includes("_arraySort(") || mainBody.includes("_arrayReverse(") || mainBody.includes("_arraySlice(") || mainBody.includes("_arrayConcat(") || mainBody.includes("_arrayCopy(") || mainBody.includes("_arrayClear(") || mainBody.includes("_arrayIncludes(") || mainBody.includes("_arrayIndexOf(") || mainBody.includes("_arrayLastIndexOf(") || mainBody.includes("_arrayJoin("),
+		needsMap: mainBody.includes("_mapNew(") || mainBody.includes("_mapPut(") || mainBody.includes("_mapPutAll(") || mainBody.includes("_mapGet(") || mainBody.includes("_mapContains(") || mainBody.includes("_mapRemove(") || mainBody.includes("_mapSize(") || mainBody.includes("_mapKeys(") || mainBody.includes("_mapValues(") || mainBody.includes("_mapClear(") || mainBody.includes("_mapCopy("),
+		needsMatrix: mainBody.includes("_matrixNew(") || mainBody.includes("_matrixRows(") || mainBody.includes("_matrixColumns(") || mainBody.includes("_matrixGet(") || mainBody.includes("_matrixSet(") || mainBody.includes("_matrixAddRow(") || mainBody.includes("_matrixRemoveRow("),
 		needsColor: mainBody.includes("_colorNew("),
 		needsString: /\b_str[A-Z]/.test(mainBody),
-		needsUtility: mainBody.includes("_pineNa(") || mainBody.includes("_pineNz(") || mainBody.includes("_pineFixnan(")
+		needsUtility: mainBody.includes("_pineNa(") || mainBody.includes("_pineNz(") || mainBody.includes("_pineFixnan("),
+		needsState: mainBody.includes("_pineVar(") || mainBody.includes("_pineVarip(") || mainBody.includes("_pineSetVar(") || mainBody.includes("_pineSetVarip(")
 	};
 }
 /**
@@ -2415,20 +3084,34 @@ function analyzeRequiredHelpers(mainBody) {
 */
 function generatePreamble(usedSources, historicalAccess, mainBody = "") {
 	let preamble = "";
+	const declaredHistorical = /* @__PURE__ */ new Set();
 	for (const source of usedSources) {
 		preamble += `const _series_${source} = context.new_var(${source});\n`;
 		preamble += `const _getHistorical_${source} = (offset) => _series_${source}.get(offset);\n`;
+		declaredHistorical.add(source);
 	}
-	for (const v of historicalAccess) if (!usedSources.has(v)) preamble += `let _getHistorical_${v} = (offset) => NaN;\n`;
-	const { needsMath, needsSession, needsStdPlus, needsArray, needsMap, needsColor, needsString, needsUtility } = analyzeRequiredHelpers(mainBody);
+	for (const v of historicalAccess) if (!usedSources.has(v)) {
+		preamble += `let _getHistorical_${v} = (offset) => NaN;\n`;
+		declaredHistorical.add(v);
+	}
+	for (const match of mainBody.matchAll(/_getHistorical_([A-Za-z0-9_]+)\s*\(/g)) {
+		const v = match[1];
+		if (!declaredHistorical.has(v)) {
+			preamble += `let _getHistorical_${v} = (offset) => NaN;\n`;
+			declaredHistorical.add(v);
+		}
+	}
+	const { needsMath, needsSession, needsStdPlus, needsArray, needsMap, needsMatrix, needsColor, needsString, needsUtility, needsState } = analyzeRequiredHelpers(mainBody);
 	if (needsMath) preamble += `${MATH_HELPER_FUNCTIONS}\n`;
 	if (needsSession) preamble += `${ALL_TIME_HELPERS}\n`;
 	if (needsStdPlus) preamble += `${STD_PLUS_LIBRARY}\n`;
 	if (needsArray) preamble += `${ARRAY_HELPER_FUNCTIONS}\n`;
 	if (needsMap) preamble += `${MAP_HELPER_FUNCTIONS}\n`;
+	if (needsMatrix) preamble += `${MATRIX_HELPER_FUNCTIONS}\n`;
 	if (needsColor) preamble += `${COLOR_HELPER_FUNCTIONS}\n`;
 	if (needsString) preamble += `${STRING_HELPER_FUNCTIONS}\n`;
 	if (needsUtility) preamble += `${UTILITY_HELPER_FUNCTIONS}\n`;
+	if (needsState) preamble += `${STATE_HELPER_FUNCTIONS}\n`;
 	return preamble;
 }
 /**
@@ -2459,9 +3142,10 @@ function buildIndicatorFactory(options) {
 			},
 			constructor: () => {
 				let _previousBarTime = -1;
+				let _fallbackBarIndex = -1;
 				let compiledScript;
 				try {
-					compiledScript = new Function("Std", "context", "input", "plot", "indicator", "study", "strategy", "color", "ta", "math", "timeframe", "plotshape", "plotchar", "plotarrow", "hline", "bgcolor", "fill", "barcolor", "box", "line", "label", "table", "str", "syminfo", "barstate", "shape", "location", "size", "alertcondition", "alert", "request", "array", "time", "bar_index", "hour", "minute", "second", "year", "month", "dayofmonth", "dayofweek", "chart", "format", "string", "xloc", "yloc", "extend", "position", "text", "display", "ticker", "close", "open", "high", "low", "volume", "hl2", "hlc3", "ohlc4", body);
+					compiledScript = new Function("Std", "context", "input", "plot", "indicator", "study", "strategy", "color", "ta", "math", "timeframe", "plotshape", "plotchar", "plotarrow", "hline", "bgcolor", "fill", "barcolor", "box", "line", "label", "table", "str", "syminfo", "barstate", "shape", "location", "size", "alertcondition", "alert", "request", "session", "array", "time", "time_close", "time_tradingday", "bar_index", "hour", "minute", "second", "year", "month", "dayofmonth", "dayofweek", "timestamp", "chart", "format", "string", "xloc", "yloc", "extend", "position", "order", "text", "display", "ticker", "barmerge", "close", "open", "high", "low", "volume", "hl2", "hlc3", "ohlc4", body);
 				} catch (e) {
 					console.error("Compilation error", e);
 					const compileErr = e instanceof Error ? e : new Error(String(e));
@@ -2488,18 +3172,34 @@ function buildIndicatorFactory(options) {
 					const stubs = createStubNamespaces();
 					const sources = createPriceSources(stdLib, ctx);
 					const stdTime = stdLib.time;
-					const currentBarTime = typeof stdTime === "function" ? Number(stdTime(ctx)) : -1;
+					const rawBarTime = typeof stdTime === "function" ? Number(stdTime(ctx)) : -1;
+					const currentBarTime = Number.isFinite(rawBarTime) ? rawBarTime : -1;
+					const observedBarIndex = readNumberField(ctx, "barIndex");
+					const resolvedBarIndex = typeof observedBarIndex === "number" ? observedBarIndex : _fallbackBarIndex + 1;
+					_fallbackBarIndex = resolvedBarIndex;
+					const resolvedTotalBars = readNumberField(ctx.symbol, "bars") ?? readNumberField(ctx, "totalBars");
 					const barstate = createBarstate({
 						currentTime: currentBarTime,
 						previousTime: _previousBarTime,
-						totalBars: readNumberField(ctx.symbol, "bars"),
-						barIndex: readNumberField(ctx, "barIndex"),
-						isRealtime: readBooleanField(ctx, "isRealtime", true)
+						totalBars: resolvedTotalBars,
+						barIndex: resolvedBarIndex,
+						isRealtime: readBooleanField(ctx, "isRealtime", false)
 					});
 					_previousBarTime = currentBarTime;
 					const indicator = () => {};
 					const study = () => {};
-					const strategy = () => {};
+					const strategy = (() => {});
+					strategy.entry = () => {};
+					strategy.exit = () => {};
+					strategy.close = () => {};
+					strategy.close_all = () => {};
+					strategy.order = () => {};
+					strategy.cancel = () => {};
+					strategy.risk = new Proxy({}, { get: () => () => {} });
+					strategy.long = 1;
+					strategy.short = -1;
+					strategy.initial_capital = 1e5;
+					strategy.position_size = 0;
 					const plotshape = () => {
 						_plotValues.push(NaN);
 					};
@@ -2568,6 +3268,10 @@ function buildIndicatorFactory(options) {
 						both: "both"
 					};
 					const position = new Proxy({}, { get: (_t, p) => `position.${String(p)}` });
+					const order = {
+						ascending: true,
+						descending: false
+					};
 					const text = {
 						align_left: "left",
 						align_center: "center",
@@ -2577,16 +3281,29 @@ function buildIndicatorFactory(options) {
 					};
 					const display = new Proxy({}, { get: (_t, p) => `display.${String(p)}` });
 					const ticker = callableProxy("ticker");
+					const barmerge = {
+						lookahead_on: "lookahead_on",
+						lookahead_off: "lookahead_off",
+						gaps_on: "gaps_on",
+						gaps_off: "gaps_off"
+					};
 					const alertcondition = () => {};
 					const alert = () => {};
-					const naIterable = { [Symbol.iterator]() {
+					const makeNaIterable = () => ({ [Symbol.iterator]() {
 						return { next: () => ({
 							value: NaN,
 							done: false
 						}) };
-					} };
-					const naFallback = () => naIterable;
-					const request = new Proxy({}, { get: () => naFallback });
+					} });
+					const naFallback = () => makeNaIterable();
+					const requestSecurity = (...args) => {
+						if (args.length >= 3) return args[2];
+						return naFallback();
+					};
+					const request = new Proxy({ security: requestSecurity }, { get: (target, prop) => {
+						const fn = target[String(prop)];
+						return typeof fn === "function" ? fn : naFallback;
+					} });
 					const array = new Proxy({}, { get: () => naFallback });
 					const hour = (t) => new Date(t ?? time).getUTCHours();
 					const minute = (t) => new Date(t ?? time).getUTCMinutes();
@@ -2595,11 +3312,71 @@ function buildIndicatorFactory(options) {
 					const month = (t) => new Date(t ?? time).getUTCMonth() + 1;
 					const dayofmonth = (t) => new Date(t ?? time).getUTCDate();
 					const dayofweek = (t) => new Date(t ?? time).getUTCDay() + 1;
+					const timestamp = (...args) => {
+						const base = typeof args[0] === "string" ? 1 : 0;
+						const y = Number(args[base] ?? 1970);
+						const m = Number(args[base + 1] ?? 1);
+						const d = Number(args[base + 2] ?? 1);
+						const h = Number(args[base + 3] ?? 0);
+						const min = Number(args[base + 4] ?? 0);
+						const s = Number(args[base + 5] ?? 0);
+						const ms = Number(args[base + 6] ?? 0);
+						return Date.UTC(y, m - 1, d, h, min, s, ms);
+					};
 					const stdTimeFn = stdLib.time;
 					const time = typeof stdTimeFn === "function" ? Number(stdTimeFn(ctx)) : 0;
-					const bar_index = readNumberField(ctx, "barIndex") ?? 0;
+					const stdTimeCloseFn = stdLib.time_close;
+					const time_close = typeof stdTimeCloseFn === "function" ? Number(stdTimeCloseFn(ctx)) : time + 6e4;
+					const _td = new Date(time);
+					_td.setUTCHours(0, 0, 0, 0);
+					const time_tradingday = _td.getTime();
+					const bar_index = resolvedBarIndex;
+					const readClock = () => {
+						const stdHourFn = stdLib.hour;
+						const stdMinuteFn = stdLib.minute;
+						const stdDayOfWeekFn = stdLib.dayofweek;
+						const fallbackDate = new Date(time);
+						const hourVal = typeof stdHourFn === "function" ? Number(stdHourFn(ctx)) : fallbackDate.getUTCHours();
+						const minuteVal = typeof stdMinuteFn === "function" ? Number(stdMinuteFn(ctx)) : fallbackDate.getUTCMinutes();
+						const dayOfWeekVal = typeof stdDayOfWeekFn === "function" ? Number(stdDayOfWeekFn(ctx)) : fallbackDate.getUTCDay() + 1;
+						return {
+							hour: Number.isFinite(hourVal) ? hourVal : fallbackDate.getUTCHours(),
+							minute: Number.isFinite(minuteVal) ? minuteVal : fallbackDate.getUTCMinutes(),
+							dayOfWeek: Number.isFinite(dayOfWeekVal) ? dayOfWeekVal : fallbackDate.getUTCDay() + 1
+						};
+					};
+					const isInSession = (sessionStr) => {
+						if (!sessionStr) return false;
+						const [timeRangeRaw, daysRaw] = sessionStr.split(":");
+						const [startRaw = "", endRaw = ""] = (timeRangeRaw ?? "").split("-");
+						if (startRaw.length < 4 || endRaw.length < 4) return false;
+						const startHour = Number(startRaw.slice(0, 2));
+						const startMinute = Number(startRaw.slice(2, 4));
+						const endHour = Number(endRaw.slice(0, 2));
+						const endMinute = Number(endRaw.slice(2, 4));
+						if (!Number.isFinite(startHour) || !Number.isFinite(startMinute) || !Number.isFinite(endHour) || !Number.isFinite(endMinute)) return false;
+						const days = daysRaw ?? "1234567";
+						const { hour: currentHour, minute: currentMinute, dayOfWeek } = readClock();
+						if (!days.includes(String(dayOfWeek))) return false;
+						const current = currentHour * 60 + currentMinute;
+						const start = startHour * 60 + startMinute;
+						const end = endHour * 60 + endMinute;
+						if (start <= end) return current >= start && current < end;
+						return current >= start || current < end;
+					};
+					const session = {
+						get ismarket() {
+							return isInSession(readStringField(ctx.symbol, "session_regular") ?? "0930-1600");
+						},
+						get ispremarket() {
+							return isInSession(readStringField(ctx.symbol, "session_premarket") ?? "0400-0930");
+						},
+						get ispostmarket() {
+							return isInSession(readStringField(ctx.symbol, "session_postmarket") ?? "1600-2000");
+						}
+					};
 					try {
-						compiledScript(Std, context, input, plot, indicator, study, strategy, color, ta, math, timeframe, plotshape, plotchar, plotarrow, hline, bgcolor, fill, barcolor, stubs.box, stubs.line, stubs.label, stubs.table, stubs.str, syminfo, barstate, shape, location, size, alertcondition, alert, request, array, time, bar_index, hour, minute, second, year, month, dayofmonth, dayofweek, chart, format, string, xloc, yloc, extend, position, text, display, ticker, sources.close, sources.open, sources.high, sources.low, sources.volume, sources.hl2, sources.hlc3, sources.ohlc4);
+						compiledScript(Std, context, input, plot, indicator, study, strategy, color, ta, math, timeframe, plotshape, plotchar, plotarrow, hline, bgcolor, fill, barcolor, stubs.box, stubs.line, stubs.label, stubs.table, stubs.str, syminfo, barstate, shape, location, size, alertcondition, alert, request, session, array, time, time_close, time_tradingday, bar_index, hour, minute, second, year, month, dayofmonth, dayofweek, timestamp, chart, format, string, xloc, yloc, extend, position, order, text, display, ticker, barmerge, sources.close, sources.open, sources.high, sources.low, sources.volume, sources.hl2, sources.hlc3, sources.ohlc4);
 						return _plotValues;
 					} catch (e) {
 						if (!(typeof e === "object" && e !== null && e.__compileError === true)) console.error("Script execution error", e);
@@ -3019,6 +3796,17 @@ function indent(level, offset = 0) {
 function isNamedArgument(arg) {
 	return arg.type === "AssignmentExpression" && arg.operator === "=" && !Array.isArray(arg.left) && arg.left.type === "Identifier";
 }
+var BUILTIN_SERIES_IDENTIFIERS = new Set([
+	"open",
+	"high",
+	"low",
+	"close",
+	"volume",
+	"hl2",
+	"hlc3",
+	"ohlc4",
+	"time"
+]);
 /**
 * Unified lookup map for all Pine Script function mappings.
 * Built once at module load for O(1) lookup instead of O(k) sequential checks.
@@ -3042,6 +3830,7 @@ var ExpressionGenerator = class {
 	constructor() {
 		this.indentLevel = 0;
 		this.statementGen = null;
+		this.persistentIdentifiers = /* @__PURE__ */ new Map();
 	}
 	setIndentLevel(level) {
 		this.indentLevel = level;
@@ -3055,6 +3844,9 @@ var ExpressionGenerator = class {
 	*/
 	setStatementGenerator(gen) {
 		this.statementGen = gen;
+	}
+	markPersistentIdentifier(identifier, kind) {
+		this.persistentIdentifiers.set(identifier, kind);
 	}
 	generateExpression(expr) {
 		switch (expr.type) {
@@ -3087,13 +3879,26 @@ var ExpressionGenerator = class {
 	}
 	generateCallExpression(expr) {
 		let callee = this.generateExpression(expr.callee);
-		const args = expr.arguments.filter((a) => !isNamedArgument(a)).map((a) => this.generateExpression(a));
+		const runtimeArgExprs = expr.arguments.map((a) => isNamedArgument(a) ? a.right : a);
+		const args = runtimeArgExprs.map((a) => this.generateExpression(a));
 		const mapping = UNIFIED_FUNCTION_MAP.get(callee);
 		if (mapping) {
 			callee = mapping.stdName || mapping.jsName || callee;
+			if (mapping.needsSeries && args.length > 0) args[0] = this.wrapSeriesArgument(runtimeArgExprs[0], args[0]);
 			if (mapping.contextArg) args.unshift("context");
 		}
 		return `${callee}(${args.join(", ")})`;
+	}
+	/**
+	* TA mappings marked `needsSeries` must receive a Pine series object,
+	* not a scalar snapshot. For base sources we reuse the preamble's
+	* `_series_<name>` bindings; for computed expressions we materialize a
+	* per-call-site series via `context.new_var(expr)`.
+	*/
+	wrapSeriesArgument(argExpr, emittedArg) {
+		if (emittedArg.startsWith("_series_") || emittedArg.startsWith("context.new_var(")) return emittedArg;
+		if (argExpr.type === "Identifier" && BUILTIN_SERIES_IDENTIFIERS.has(argExpr.name)) return `_series_${sanitizeIdentifier(argExpr.name)}`;
+		return `context.new_var(${emittedArg})`;
 	}
 	generateMemberExpression(expr) {
 		const object = this.generateExpression(expr.object);
@@ -3111,11 +3916,28 @@ var ExpressionGenerator = class {
 		return `[${expr.elements.map((e) => this.generateExpression(e)).join(", ")}]`;
 	}
 	generateAssignmentExpression(expr) {
-		if (Array.isArray(expr.left)) return `[${expr.left.map((id) => id.name).join(", ")}] = ${this.generateExpression(expr.right)}`;
-		const left = expr.left.type === "Identifier" ? expr.left.name : this.generateMemberExpression(expr.left);
+		if (Array.isArray(expr.left)) return `[${expr.left.map((id) => sanitizeIdentifier(id.name)).join(", ")}] = ${this.generateExpression(expr.right)}`;
+		const leftIdentifier = !Array.isArray(expr.left) && expr.left.type === "Identifier" ? expr.left : null;
+		const isIdentifierLeft = leftIdentifier !== null;
+		const left = leftIdentifier ? sanitizeIdentifier(leftIdentifier.name) : this.generateMemberExpression(expr.left);
 		let op = expr.operator;
 		if (op === ":=") op = "=";
-		return `${left} ${op} ${this.generateExpression(expr.right)}`;
+		const right = this.generateExpression(expr.right);
+		const persistentKind = this.persistentIdentifiers.get(left);
+		if (isIdentifierLeft && persistentKind) {
+			const setter = persistentKind === "varip" ? "_pineSetVarip" : "_pineSetVar";
+			const key = JSON.stringify(left);
+			if (op === "=") return `(${left} = ${setter}(${key}, ${right}))`;
+			const binaryOp = {
+				"+=": "+",
+				"-=": "-",
+				"*=": "*",
+				"/=": "/",
+				"%=": "%"
+			}[op];
+			if (binaryOp) return `(${left} = ${setter}(${key}, (${left} ${binaryOp} ${right})))`;
+		}
+		return `${left} ${op} ${right}`;
 	}
 	generateLiteral(expr) {
 		if (expr.kind === "string" || expr.kind === "color") return JSON.stringify(expr.value);
@@ -3390,6 +4212,9 @@ var StatementGenerator = class {
 	}
 	generateVariableDeclaration(stmt) {
 		const kind = stmt.kind === "const" ? "const" : "var";
+		const isPersistent = stmt.kind === "var" || stmt.kind === "varip";
+		const isVarip = stmt.kind === "varip";
+		const initExpr = stmt.init ? this.expressionGen.generateExpression(stmt.init) : "NaN";
 		const init = stmt.init ? ` = ${this.expressionGen.generateExpression(stmt.init)}` : "";
 		const prefix = stmt.export ? "export " : "";
 		let code = "";
@@ -3405,7 +4230,11 @@ var StatementGenerator = class {
 			}
 		} else {
 			const safeName = sanitizeIdentifier(stmt.id.name);
-			code = `${indent(this.indentLevel)}${prefix}${kind} ${safeName}${init};`;
+			if (isPersistent) {
+				const helper = isVarip ? "_pineVarip" : "_pineVar";
+				code = `${indent(this.indentLevel)}${prefix}${kind} ${safeName} = ${helper}(${JSON.stringify(safeName)}, () => (${initExpr}));`;
+				this.expressionGen.markPersistentIdentifier(safeName, isVarip ? "varip" : "var");
+			} else code = `${indent(this.indentLevel)}${prefix}${kind} ${safeName}${init};`;
 			if (this.historicalVars.has(stmt.id.name)) {
 				code += `\n${indent(this.indentLevel)}const _series_${safeName} = context.new_var(${safeName});`;
 				code += `\n${indent(this.indentLevel)}_getHistorical_${safeName} = (offset) => _series_${safeName}.get(offset);`;
@@ -3415,8 +4244,9 @@ var StatementGenerator = class {
 	}
 	generateFunctionDeclaration(stmt) {
 		if (stmt.type !== "FunctionDeclaration") throw new Error("Expected FunctionDeclaration");
-		const name = sanitizeIdentifier(stmt.id.name);
-		const params = stmt.params.map((p) => sanitizeIdentifier(p.name)).join(", ");
+		const originalName = stmt.id.name;
+		const name = sanitizeIdentifier(originalName);
+		const paramNames = stmt.params.map((p) => sanitizeIdentifier(p.name)).join(", ");
 		const prefix = stmt.export ? "export " : "";
 		let body = "";
 		if (stmt.body.type === "BlockStatement") body = this.generateFunctionBody(stmt.body);
@@ -3424,7 +4254,19 @@ var StatementGenerator = class {
 			this.indentLevel++;
 			body = `{\n${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(stmt.body)};\n${indent(this.indentLevel, -1)}}`;
 		}
-		return `${indent(this.indentLevel)}${prefix}function ${name}(${params}) ${body}`;
+		let out = `${indent(this.indentLevel)}${prefix}function ${name}(${paramNames}) ${body}`;
+		if (stmt.isMethod && stmt.params.length > 0) {
+			const receiverType = stmt.params[0]?.typeAnnotation?.name;
+			if (receiverType) {
+				const receiverName = sanitizeIdentifier(receiverType);
+				const methodParams = stmt.params.slice(1).map((p) => sanitizeIdentifier(p.name));
+				const methodParamsDecl = methodParams.join(", ");
+				const callArgs = methodParams.length > 0 ? `, ${methodParamsDecl}` : "";
+				out += `\n${indent(this.indentLevel)}if (${receiverName}?.prototype && typeof ${receiverName}.prototype.${name} !== 'function') {\n${indent(this.indentLevel, 1)}${receiverName}.prototype.${name} = function(${methodParamsDecl}) { return ${name}(this${callArgs}); };\n${indent(this.indentLevel)}}`;
+				if (originalName !== name) out += `\n${indent(this.indentLevel)}if (${receiverName}?.prototype && typeof ${receiverName}.prototype[${JSON.stringify(originalName)}] !== 'function') {\n${indent(this.indentLevel, 1)}${receiverName}.prototype[${JSON.stringify(originalName)}] = function(${methodParamsDecl}) { return ${name}(this${callArgs}); };\n${indent(this.indentLevel)}}`;
+			}
+		}
+		return out;
 	}
 	/**
 	* Generate the body of a multi-line Pine function. Pine has implicit
@@ -3702,13 +4544,37 @@ var PlotExtractor = class {
 		};
 	}
 	/**
+	* Extract a plotarrow() call
+	*
+	* We model arrows as shape plots in metainfo to ensure they are
+	* counted as declared outputs in corpus parity checks.
+	*/
+	extractPlotArrow(expr) {
+		const args = expr.arguments;
+		const valueArg = getArg(args, 0, "series");
+		const valueExpr = valueArg ? this.exprToString(valueArg) : "";
+		const title = getStringValue(getArg(args, 1, "title")) || `Arrow ${++this.plotCount}`;
+		return {
+			id: `plot_${this.plotCount - 1}`,
+			title,
+			varName: `plot_${this.plotCount - 1}`,
+			type: "shape",
+			color: "#000000",
+			linewidth: 1,
+			valueExpr,
+			shape: "triangleup",
+			location: "abovebar"
+		};
+	}
+	/**
 	* Extract an hline() call
 	*/
 	extractHline(expr) {
 		const args = expr.arguments;
-		const price = getNumberValue(getArg(args, 0, "price"));
+		const priceArg = getArg(args, 0, "price");
+		const price = getNumberValue(priceArg);
+		const valueExpr = priceArg ? this.exprToString(priceArg) : "";
 		const title = getStringValue(getArg(args, 1, "title")) || `HLine ${++this.plotCount}`;
-		if (price === null) return null;
 		return {
 			id: `plot_${this.plotCount - 1}`,
 			title,
@@ -3716,7 +4582,8 @@ var PlotExtractor = class {
 			type: "hline",
 			color: "#787B86",
 			linewidth: 1,
-			price
+			price: price ?? void 0,
+			valueExpr
 		};
 	}
 	/**
@@ -3752,7 +4619,6 @@ var PlotExtractor = class {
 * Unsupported function categories for warning generation
 */
 var UNSUPPORTED_FUNCTIONS = new Set([
-	"request.security",
 	"request.financial",
 	"request.quandl",
 	"request.seed",
@@ -3773,6 +4639,7 @@ var UNSUPPORTED_FUNCTIONS = new Set([
 * Partially supported functions that may have limited functionality
 */
 var PARTIALLY_SUPPORTED_FUNCTIONS = new Set([
+	"request.security",
 	"plotshape",
 	"plotchar",
 	"plotarrow",
@@ -3959,12 +4826,14 @@ var MetadataVisitor = class {
 			const plot = this.plotExtractor.extractPlotChar(expr);
 			plot.id = `plot_${this.plots.length}`;
 			this.plots.push(plot);
+		} else if (name === "plotarrow") {
+			const plot = this.plotExtractor.extractPlotArrow(expr);
+			plot.id = `plot_${this.plots.length}`;
+			this.plots.push(plot);
 		} else if (name === "hline") {
 			const plot = this.plotExtractor.extractHline(expr);
-			if (plot) {
-				plot.id = `plot_${this.plots.length}`;
-				this.plots.push(plot);
-			}
+			plot.id = `plot_${this.plots.length}`;
+			this.plots.push(plot);
 		} else if (name === "bgcolor") this.extractBgcolor(expr);
 	}
 	/**
@@ -4485,12 +5354,38 @@ var Lexer = class {
 		if (this.tokens.length === 0) return false;
 		const last = this.tokens[this.tokens.length - 1];
 		if (last.type === TokenType.COMMA) return true;
+		if (last.type === TokenType.COLON) return true;
 		if (last.type !== TokenType.OPERATOR) return false;
 		if (last.value === "=>") return false;
 		return true;
 	}
+	/**
+	* Some Pine scripts continue an expression by placing the operator at
+	* the start of the next line, e.g.:
+	*   x = "a"
+	*     + "b"
+	* Treat that newline as a soft continuation.
+	*/
+	nextLineStartsWithContinuationCue() {
+		let i = this.pos + 1;
+		while (i < this.code.length && (this.code[i] === " " || this.code[i] === "	")) i++;
+		if (i >= this.code.length) return false;
+		if (this.code[i] === "\n") return false;
+		if (this.code[i] === "/" && this.code[i + 1] === "/") return false;
+		const ch = this.code[i];
+		if (ch === "+" || ch === "*" || ch === "/" || ch === "%") return true;
+		if (this.code.startsWith("and", i)) {
+			const end = this.code[i + 3] || "";
+			return !/[a-zA-Z0-9_]/.test(end);
+		}
+		if (this.code.startsWith("or", i)) {
+			const end = this.code[i + 2] || "";
+			return !/[a-zA-Z0-9_]/.test(end);
+		}
+		return false;
+	}
 	handleNewline() {
-		if (this.bracketDepth > 0 || this.lastTokenIsContinuationCue()) {
+		if (this.bracketDepth > 0 || this.lastTokenIsContinuationCue() || this.nextLineStartsWithContinuationCue()) {
 			this.advance();
 			while (this.pos < this.code.length && (this.code[this.pos] === " " || this.code[this.pos] === "	")) this.advance();
 			return;
@@ -5056,7 +5951,7 @@ var ExpressionParser = class extends ParserBase {
 		let expr = this.parsePrimary();
 		while (true) if (this.match(TokenType.LPAREN)) expr = this.finishCall(expr);
 		else if (this.match(TokenType.DOT)) {
-			const name = this.consume(TokenType.IDENTIFIER, "Expected property name after .");
+			const name = this.consumeIdentifierLike("Expected property name after .");
 			expr = {
 				type: "MemberExpression",
 				object: expr,
@@ -5075,20 +5970,17 @@ var ExpressionParser = class extends ParserBase {
 				property: index,
 				computed: true
 			};
-		} else if (this.check(TokenType.OPERATOR) && this.peek().value === "<") {
-			const next = this.peekNext();
-			if (next && (this.checkTypeAnnotationWithToken(next) || next.type === TokenType.IDENTIFIER && this.tokens[this.current + 2]?.value === ">")) {
+		} else if (this.isGenericCallStart()) {
+			this.advance();
+			const typeArgs = [];
+			do
+				typeArgs.push(this.parseTypeAnnotation());
+			while (this.match(TokenType.COMMA));
+			if (!this.matchOperator(">")) throw this.error(this.peek(), "Expected > after generic arguments.");
+			if (this.check(TokenType.LPAREN)) {
 				this.advance();
-				const typeArgs = [];
-				do
-					typeArgs.push(this.parseTypeAnnotation());
-				while (this.match(TokenType.COMMA));
-				if (!this.matchOperator(">")) throw this.error(this.peek(), "Expected > after generic arguments.");
-				if (this.check(TokenType.LPAREN)) {
-					this.advance();
-					expr = this.finishCall(expr, typeArgs);
-				} else throw this.error(this.peek(), "Expected ( after generic arguments.");
-			} else break;
+				expr = this.finishCall(expr, typeArgs);
+			} else throw this.error(this.peek(), "Expected ( after generic arguments.");
 		} else break;
 		return expr;
 	}
@@ -5098,8 +5990,8 @@ var ExpressionParser = class extends ParserBase {
 	finishCall(callee, typeArguments) {
 		const args = [];
 		if (!this.check(TokenType.RPAREN)) do
-			if (this.check(TokenType.IDENTIFIER) && this.peekNext()?.value === "=") {
-				const name = this.consume(TokenType.IDENTIFIER, "Expected argument name.").value;
+			if ((this.check(TokenType.IDENTIFIER) || this.check(TokenType.KEYWORD)) && this.peekNext()?.value === "=") {
+				const name = this.consumeIdentifierLike("Expected argument name.").value;
 				this.advance();
 				const value = this.parseExpression();
 				args.push({
@@ -5120,6 +6012,45 @@ var ExpressionParser = class extends ParserBase {
 			arguments: args,
 			typeArguments
 		};
+	}
+	/**
+	* Pine member properties / named-arg labels can be keyword tokens in our
+	* stream (e.g. `syminfo.type`, `foo(type=...)`), so callers need a
+	* broader "identifier-like" consume helper.
+	*/
+	consumeIdentifierLike(message) {
+		if (this.check(TokenType.IDENTIFIER) || this.check(TokenType.KEYWORD)) return this.advance();
+		throw this.error(this.peek(), message);
+	}
+	/**
+	* Detect whether a `<...>` sequence after an identifier/member is truly
+	* generic-call syntax (`fn<T>(...)`) versus a plain comparison
+	* (`value < array.get(...)`).
+	*/
+	isGenericCallStart() {
+		if (!(this.check(TokenType.OPERATOR) && this.peek().value === "<")) return false;
+		let i = this.current;
+		let depth = 0;
+		while (i < this.tokens.length) {
+			const token = this.tokens[i];
+			if (token.type === TokenType.OPERATOR && token.value === "<") {
+				depth++;
+				i++;
+				continue;
+			}
+			if (token.type === TokenType.OPERATOR && token.value === ">") {
+				depth--;
+				if (depth === 0) return this.tokens[i + 1]?.type === TokenType.LPAREN;
+				if (depth < 0) return false;
+				i++;
+				continue;
+			}
+			if (depth > 0) {
+				if (!(token.type === TokenType.IDENTIFIER || token.type === TokenType.KEYWORD || token.type === TokenType.COMMA || token.type === TokenType.LBRACKET || token.type === TokenType.RBRACKET)) return false;
+			}
+			i++;
+		}
+		return false;
 	}
 };
 //#endregion
@@ -5181,7 +6112,8 @@ var Parser = class extends ExpressionParser {
 				case "continue": return { type: "ContinueStatement" };
 				case "var":
 				case "varip":
-				case "const": return this.parseVariableDeclaration(keyword);
+				case "const":
+				case "let": return this.parseQualifiedDeclarationList(keyword);
 				case "switch": return this.parseSwitchStatement();
 				case "type": return this.parseTypeDefinition();
 				case "import": return this.parseImportStatement();
@@ -5210,13 +6142,29 @@ var Parser = class extends ExpressionParser {
 			}
 		}
 		const expr = this.parseExpression();
-		if (this.match(TokenType.NEWLINE) || this.isAtEnd()) return {
+		if (this.check(TokenType.COMMA)) {
+			const items = [{
+				type: "ExpressionStatement",
+				expression: expr
+			}];
+			while (this.match(TokenType.COMMA)) items.push({
+				type: "ExpressionStatement",
+				expression: this.parseExpression()
+			});
+			if (this.match(TokenType.NEWLINE) || this.check(TokenType.DEDENT) || this.isAtEnd()) return {
+				type: "BlockStatement",
+				body: items
+			};
+			throw this.error(this.peek(), "Expected newline after statement.");
+		}
+		if (this.match(TokenType.NEWLINE) || this.check(TokenType.DEDENT) || this.isAtEnd()) return {
 			type: "ExpressionStatement",
 			expression: expr
 		};
 		throw this.error(this.peek(), "Expected newline after statement.");
 	}
 	parseBlock() {
+		while (this.match(TokenType.NEWLINE));
 		this.consume(TokenType.INDENT, "Expected indentation for block.");
 		const body = [];
 		while (!this.check(TokenType.DEDENT) && !this.isAtEnd()) {
@@ -5521,15 +6469,7 @@ var Parser = class extends ExpressionParser {
 		].includes(after.value);
 	}
 	parseVariableOrAssignment() {
-		let typeAnnotation;
-		if (this.checkTypeAnnotation()) typeAnnotation = this.parseTypeAnnotation();
-		else if (this.isUserTypePrefix()) {
-			this.advance();
-			while (this.check(TokenType.LBRACKET) && this.peekNext()?.type === TokenType.RBRACKET) {
-				this.advance();
-				this.advance();
-			}
-		}
+		const typeAnnotation = this.tryParseLeadingTypeAnnotation();
 		let id;
 		if (this.match(TokenType.LBRACKET)) {
 			const ids = [];
@@ -5548,7 +6488,7 @@ var Parser = class extends ExpressionParser {
 				name: this.consume(TokenType.IDENTIFIER, "Expected identifier.").value
 			};
 			while (this.match(TokenType.DOT)) {
-				const prop = this.consume(TokenType.IDENTIFIER, "Expected property name after .").value;
+				const prop = this.consumeIdentifierLike("Expected property name after .").value;
 				expr = {
 					type: "MemberExpression",
 					object: expr,
@@ -5591,11 +6531,77 @@ var Parser = class extends ExpressionParser {
 		};
 	}
 	parseVariableDeclaration(kind) {
-		let typeAnnotation;
-		if (this.checkTypeAnnotation()) typeAnnotation = this.parseTypeAnnotation();
+		const typeAnnotation = this.tryParseLeadingTypeAnnotation();
 		const name = this.consume(TokenType.IDENTIFIER, "Expected variable name.").value;
 		this.consume(TokenType.OPERATOR, "Expected =");
 		const init = this.parseExpression();
+		return {
+			type: "VariableDeclaration",
+			id: {
+				type: "Identifier",
+				name
+			},
+			init,
+			kind,
+			typeAnnotation
+		};
+	}
+	/**
+	* Parse declarations introduced by a qualifier keyword (`var`, `varip`,
+	* `const`, `let`). Pine allows comma-chaining:
+	*   var int dir = 0, dir := cond ? 1 : dir
+	*   var a = array.new_line(), var b = array.new_line()
+	*/
+	parseQualifiedDeclarationList(kind) {
+		const first = this.parseVariableDeclaration(kind);
+		if (!this.check(TokenType.COMMA)) return first;
+		const items = [first];
+		while (this.match(TokenType.COMMA)) {
+			let itemKind = kind;
+			if (this.check(TokenType.KEYWORD) && [
+				"var",
+				"varip",
+				"const",
+				"let"
+			].includes(this.peek().value)) itemKind = this.advance().value;
+			items.push(this.parseQualifiedListItem(itemKind));
+		}
+		return {
+			type: "BlockStatement",
+			body: items
+		};
+	}
+	/**
+	* Parse one comma-chained element in a qualified declaration list.
+	* Items can be either fresh declarations (`x = ...`) or reassignments
+	* (`x := ...`, `x += ...`).
+	*/
+	parseQualifiedListItem(kind) {
+		const typeAnnotation = this.tryParseLeadingTypeAnnotation();
+		const name = this.consume(TokenType.IDENTIFIER, "Expected variable name.").value;
+		const operatorToken = this.consume(TokenType.OPERATOR, "Expected = or :=");
+		const operator = operatorToken.value;
+		const COMPOUND_ASSIGN = new Set([
+			"+=",
+			"-=",
+			"*=",
+			"/=",
+			"%="
+		]);
+		if (operator !== "=" && operator !== ":=" && !COMPOUND_ASSIGN.has(operator)) throw this.error(operatorToken, "Expected = or := in assignment.");
+		const init = this.parseExpression();
+		if (operator === ":=" || COMPOUND_ASSIGN.has(operator)) return {
+			type: "ExpressionStatement",
+			expression: {
+				type: "AssignmentExpression",
+				operator: operator === ":=" ? ":=" : operator,
+				left: {
+					type: "Identifier",
+					name
+				},
+				right: init
+			}
+		};
 		return {
 			type: "VariableDeclaration",
 			id: {
@@ -5631,6 +6637,7 @@ var Parser = class extends ExpressionParser {
 			}
 			if ([
 				"var",
+				"varip",
 				"const",
 				"let"
 			].includes(keyword)) {
@@ -5680,7 +6687,32 @@ var Parser = class extends ExpressionParser {
 			arguments: args
 		};
 	}
+	/**
+	* Parse an optional leading type annotation only when it is
+	* syntactically unambiguous that a variable name follows. This avoids
+	* misclassifying identifiers that happen to share built-in type names
+	* (e.g. `var matrix = ...`, `box = ...`) as declarations-with-type.
+	*/
+	tryParseLeadingTypeAnnotation() {
+		if (!this.checkTypeAnnotation() && !this.isUserTypePrefix()) return;
+		const saved = this.current;
+		try {
+			const parsed = this.parseTypeAnnotation();
+			if (!this.check(TokenType.IDENTIFIER)) {
+				this.current = saved;
+				return;
+			}
+			return parsed;
+		} catch {
+			this.current = saved;
+			return;
+		}
+	}
 	parsePrimary() {
+		if (this.check(TokenType.KEYWORD) && this.peek().value === "if") {
+			this.advance();
+			return this.parseIfExpression();
+		}
 		if (this.check(TokenType.KEYWORD) && this.peek().value === "switch") {
 			this.advance();
 			const stmt = this.parseSwitchStatement();
@@ -5760,6 +6792,55 @@ var Parser = class extends ExpressionParser {
 			}, startToken);
 		}
 		throw this.error(this.peek(), "Expect expression.");
+	}
+	/**
+	* Pine supports `if` as an expression:
+	*   x = if cond
+	*     1
+	*   else
+	*     0
+	* Reuse SwitchExpression-without-discriminant as the internal form
+	* because its generator already emits an if/else value expression.
+	*/
+	parseIfExpression() {
+		const cases = [];
+		const firstTest = this.parseExpression();
+		const firstConsequent = this.parseIfExpressionConsequent();
+		cases.push({
+			type: "SwitchCase",
+			test: firstTest,
+			consequent: firstConsequent
+		});
+		while (this.check(TokenType.KEYWORD) && this.peek().value === "else") {
+			this.advance();
+			if (this.check(TokenType.KEYWORD) && this.peek().value === "if") {
+				this.advance();
+				const test = this.parseExpression();
+				const consequent = this.parseIfExpressionConsequent();
+				cases.push({
+					type: "SwitchCase",
+					test,
+					consequent
+				});
+				continue;
+			}
+			const consequent = this.parseIfExpressionConsequent();
+			cases.push({
+				type: "SwitchCase",
+				test: null,
+				consequent
+			});
+			break;
+		}
+		return {
+			type: "SwitchExpression",
+			discriminant: void 0,
+			cases
+		};
+	}
+	parseIfExpressionConsequent() {
+		if (this.match(TokenType.NEWLINE)) return this.parseBlock();
+		return this.parseExpression();
 	}
 	isFunctionDeclaration() {
 		let temp = this.current + 1;
@@ -5896,4 +6977,4 @@ function executePineJS(code, indicatorId, indicatorName) {
 //#endregion
 export { MATH_FUNCTION_MAPPINGS as _, Parser as a, ASTGenerator as c, PRICE_SOURCES as d, getAllPineFunctionNames as f, TA_FUNCTION_MAPPINGS as g, MULTI_OUTPUT_MAPPINGS as h, transpileToPineJS as i, generateStandaloneFactory as l, TIME_FUNCTION_MAPPINGS as m, executePineJS as n, Lexer as o, getMappingStats as p, transpile as r, MetadataVisitor as s, canTranspilePineScript as t, COLOR_MAP as u };
 
-//# sourceMappingURL=src-BJfKjyvb.js.map
+//# sourceMappingURL=src-BeyYDheG.js.map

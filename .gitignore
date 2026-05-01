@@ -24,4 +24,5 @@ pnpm-debug.log*
 
 **/.turbo/
 tmp
+.tmp
 bun.lock

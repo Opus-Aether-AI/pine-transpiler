@@ -31,7 +31,11 @@ export interface RuntimeContextInternal {
     timezone?: string;
     minmov?: number;
     pricescale?: number;
+    bars?: number;
   };
+  barIndex?: number;
+  totalBars?: number;
+  isRealtime?: boolean;
   [key: string]: unknown;
 }
 

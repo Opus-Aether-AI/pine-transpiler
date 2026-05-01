@@ -352,15 +352,13 @@ z = high[3]
   });
 
   describe('Warning Generation', () => {
-    it('should warn on unsupported function request.security', () => {
+    it('should warn on partially supported function request.security', () => {
       const code = 'x = request.security("AAPL", "D", close)';
       const metadata = extractMetadata(code);
       expect(
         metadata.warnings.some((w) => w.functionName === 'request.security'),
       ).toBe(true);
-      expect(metadata.warnings.some((w) => w.type === 'unsupported')).toBe(
-        true,
-      );
+      expect(metadata.warnings.some((w) => w.type === 'partial')).toBe(true);
     });
 
     it('should warn on unsupported function alert', () => {

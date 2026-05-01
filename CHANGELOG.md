@@ -5,6 +5,68 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Major parity and runtime-compatibility upgrade focused on making PineScript
+execution behavior closer to TradingView for real-world indicators.
+
+### Added
+- **Strict numeric parity audit** (`bun run corpus:strict`) with deterministic
+  checks for SMA, EMA, RSI, MACD, ATR, BB, KC, CCI, MFI, WPR, and ROC.
+- **67-indicator parity matrix** (`bun run corpus:matrix`) with grouped
+  coverage output in `INDICATOR_TEST_MATRIX.md`.
+- **Matrix API support (`matrix.*`)** via new mappings/helpers:
+  `matrix.new`, `rows`, `columns`, `get`, `set`, `add_row`, `remove_row`.
+- **Persistent state helpers** for Pine semantics:
+  `_pineVar`, `_pineSetVar`, `_pineVarip`, `_pineSetVarip`.
+- **Runtime session/time bindings** for `session.ismarket`,
+  `session.ispremarket`, `session.ispostmarket`, `time_close`,
+  `time_tradingday`, and `timestamp`.
+- **New regression suites** for request-security behavior, state semantics,
+  time/session semantics, and drawing-handle method compatibility.
+
+### Changed
+- **`request.security` moved from unsupported to partial support**:
+  runtime now passes through the `expression` argument (including tuple
+  expressions), while true MTF aggregation remains out of scope.
+- **Drawing/table namespaces upgraded** from warning stubs to stateful
+  runtime-compatible handle objects (`line.*`, `box.*`, `label.*`, `table.*`)
+  with mutator/getter behavior (still no visual rendering).
+- **Named-argument emit behavior** now passes value-only arguments in runtime
+  calls, preventing assignment-style side effects while preserving call values.
+- **TA series argument handling** now wraps series-aware inputs correctly
+  (`_series_<source>` or `context.new_var(...)`) for mappings that need series.
+- **`ta.cci` mapping corrected** to source+length, series-aware signature.
+- **`ta.vwap` mapping switched to `StdPlus.vwap`** for scalar/tuple compatibility.
+- **`math.sum` helper renamed** from `_sum` to `_pineSum` to avoid
+  user-symbol collisions.
+
+### Fixed
+- **`var`/`varip` assignment correctness**: persistent declarations and later
+  reassignments now update shared runtime state correctly across bars.
+- **Parser generic-call ambiguity**: `<...>` generic parsing no longer
+  misclassifies ordinary comparison expressions.
+- **Parser/lexer resilience on real scripts**:
+  - if-expression parsing improved
+  - keyword-like member properties (e.g. `syminfo.type`) supported
+  - comma-chained statement/declaration forms handled
+  - block parsing tolerant of leading blank/comment lines
+  - newline continuation improved for leading-operator and ternary-colon lines
+- **Plot metadata extraction parity**:
+  - `plotarrow` now extracted and counted as declared output
+  - dynamic `hline(...)` values are preserved in metadata extraction
+- **Historical helper safety net**: missing `_getHistorical_*` references now
+  receive generated NaN fallbacks to avoid runtime crashes on edge scripts.
+
+### Quality / CI
+- CI now runs `bun run corpus:strict` and `bun run corpus:matrix` in addition
+  to existing checks.
+- Current verified parity baseline in this change set:
+  - corpus full pass: **92/92**
+  - indicator matrix: **67/67**
+  - strict numeric parity: **11/11**
+  - test suite: **1001 passing, 0 failing**
+
 ## [0.2.0] - 2026-04-25
 
 Major correctness pass driven by a real-world Pine corpus (40 curated
@@ -214,4 +276,3 @@ are now bound:
 - TypeScript type definitions with strict mode
 - StdPlus polyfill library for missing PineJS.Std functions
 - Request/Response based architecture for easy integration
-

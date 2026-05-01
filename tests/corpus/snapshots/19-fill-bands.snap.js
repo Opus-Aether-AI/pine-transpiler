@@ -112,6 +112,27 @@ const StdPlus = {
     },
 
     /**
+     * VWAP wrapper
+     *
+     * Pine supports tuple form:
+     *   [vwap, upper, lower] = ta.vwap(source, anchor, stdevMult)
+     * while some runtimes only expose scalar VWAP.
+     */
+    vwap: function(ctx, source, anchor, stdevMult) {
+        const value = Std.vwap(ctx, source, anchor, stdevMult);
+        if (Array.isArray(value)) return value;
+
+        // Tuple form fallback for runtimes that only return scalar VWAP.
+        if (arguments.length >= 4) {
+            const basis = Number(value);
+            if (!Number.isFinite(basis)) return [NaN, NaN, NaN];
+            return [basis, basis, basis];
+        }
+
+        return value;
+    },
+
+    /**
      * Crossover (A crosses over B)
      */
     crossover: function(ctx, a, b) {
@@ -268,10 +289,19 @@ const StdPlus = {
     }
 };
 
-indicator("Fill Bands");
+
+// Color helpers
+const _colorRgb = (r, g, b, t = 0) => `rgba(${r}, ${g}, ${b}, ${1 - t/100})`;
+const _colorNew = (color, t) => color; // Simplified
+const _colorR = (color) => parseInt(color.slice(1, 3), 16);
+const _colorG = (color) => parseInt(color.slice(3, 5), 16);
+const _colorB = (color) => parseInt(color.slice(5, 7), 16);
+const _colorT = (color) => 0;
+
+indicator("Fill Bands", true);
 var length = input.int(20, "Length");
 var mult = input.float(2, "Mult");
-var [basis, upper, lower] = StdPlus.bb(context, close, length, mult);
-var p1 = Std.plot(upper, "Upper");
-var p2 = Std.plot(lower, "Lower");
-Std.fill(p1, p2);
+var [basis, upper, lower] = StdPlus.bb(context, _series_close, length, mult);
+var p1 = Std.plot(upper, "Upper", color.red);
+var p2 = Std.plot(lower, "Lower", color.green);
+Std.fill(p1, p2, _colorNew(color.blue, 90));

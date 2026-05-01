@@ -14,6 +14,7 @@ import {
   COLOR_HELPER_FUNCTIONS,
   MAP_HELPER_FUNCTIONS,
   MATH_HELPER_FUNCTIONS,
+  MATRIX_HELPER_FUNCTIONS,
   SESSION_HELPER_FUNCTIONS,
   STRING_HELPER_FUNCTIONS,
   UTILITY_HELPER_FUNCTIONS,
@@ -96,6 +97,66 @@ function readBooleanField(
   return typeof v === 'boolean' ? v : fallback;
 }
 
+function readStringField(obj: unknown, key: string): string | undefined {
+  const v = (obj as Record<string, unknown>)[key];
+  return typeof v === 'string' ? v : undefined;
+}
+
+/**
+ * Runtime helper bundle for persistent Pine variables.
+ *
+ * - `var`   values persist across all bars.
+ * - `varip` values persist within a bar, then reset when bar identity
+ *           (bar_index/time) changes.
+ *
+ * State is stored on `context` so it survives per-bar function calls.
+ */
+const STATE_HELPER_FUNCTIONS = `
+const _pineState = (() => {
+  const host = context;
+  if (!host.__pineState || typeof host.__pineState !== 'object') {
+    host.__pineState = {
+      var: Object.create(null),
+      varip: Object.create(null),
+      varipBarKey: null,
+    };
+  }
+  const state = host.__pineState;
+  const hasBarIndex = typeof bar_index === 'number' && Number.isFinite(bar_index);
+  const hasTime = typeof time === 'number' && Number.isFinite(time);
+  const currentBarKey = hasBarIndex
+    ? 'i:' + String(bar_index)
+    : hasTime
+      ? 't:' + String(time)
+      : 'unknown';
+  if (state.varipBarKey !== currentBarKey) {
+    state.varip = Object.create(null);
+    state.varipBarKey = currentBarKey;
+  }
+  return state;
+})();
+const _pineVar = (key, init) => {
+  if (!Object.prototype.hasOwnProperty.call(_pineState.var, key)) {
+    _pineState.var[key] = init();
+  }
+  return _pineState.var[key];
+};
+const _pineSetVar = (key, value) => {
+  _pineState.var[key] = value;
+  return value;
+};
+const _pineVarip = (key, init) => {
+  if (!Object.prototype.hasOwnProperty.call(_pineState.varip, key)) {
+    _pineState.varip[key] = init();
+  }
+  return _pineState.varip[key];
+};
+const _pineSetVarip = (key, value) => {
+  _pineState.varip[key] = value;
+  return value;
+};
+`;
+
 /**
  * Analyze which helpers are needed based on the transpiled code
  */
@@ -105,15 +166,17 @@ function analyzeRequiredHelpers(mainBody: string): {
   needsStdPlus: boolean;
   needsArray: boolean;
   needsMap: boolean;
+  needsMatrix: boolean;
   needsColor: boolean;
   needsString: boolean;
   needsUtility: boolean;
+  needsState: boolean;
 } {
   return {
-    // Math helpers: _avg, _sum, _toDegrees, _toRadians, _roundToMintick
+    // Math helpers: _avg, _pineSum, _toDegrees, _toRadians, _roundToMintick
     needsMath:
       mainBody.includes('_avg(') ||
-      mainBody.includes('_sum(') ||
+      mainBody.includes('_pineSum(') ||
       mainBody.includes('_toDegrees(') ||
       mainBody.includes('_toRadians(') ||
       mainBody.includes('_roundToMintick('),
@@ -133,8 +196,12 @@ function analyzeRequiredHelpers(mainBody: string): {
     // factory's catch block silently returns NaN per declared plot.
     needsArray:
       mainBody.includes('_arrayNew') ||
+      mainBody.includes('_arrayFrom(') ||
       mainBody.includes('_arrayPush(') ||
+      mainBody.includes('_arrayUnshift(') ||
       mainBody.includes('_arrayPop(') ||
+      mainBody.includes('_arrayShift(') ||
+      mainBody.includes('_arrayRemove(') ||
       mainBody.includes('_arrayGet(') ||
       mainBody.includes('_arraySet(') ||
       mainBody.includes('_arraySize(') ||
@@ -158,13 +225,24 @@ function analyzeRequiredHelpers(mainBody: string): {
     needsMap:
       mainBody.includes('_mapNew(') ||
       mainBody.includes('_mapPut(') ||
+      mainBody.includes('_mapPutAll(') ||
       mainBody.includes('_mapGet(') ||
       mainBody.includes('_mapContains(') ||
       mainBody.includes('_mapRemove(') ||
       mainBody.includes('_mapSize(') ||
       mainBody.includes('_mapKeys(') ||
       mainBody.includes('_mapValues(') ||
-      mainBody.includes('_mapClear('),
+      mainBody.includes('_mapClear(') ||
+      mainBody.includes('_mapCopy('),
+    // Matrix helpers: Pine v6 matrix.* lowered to _matrix<X>.
+    needsMatrix:
+      mainBody.includes('_matrixNew(') ||
+      mainBody.includes('_matrixRows(') ||
+      mainBody.includes('_matrixColumns(') ||
+      mainBody.includes('_matrixGet(') ||
+      mainBody.includes('_matrixSet(') ||
+      mainBody.includes('_matrixAddRow(') ||
+      mainBody.includes('_matrixRemoveRow('),
     // Color helpers: _colorNew (the transpiled form of `color.new`)
     needsColor: mainBody.includes('_colorNew('),
     // String helpers: anything starting with _str
@@ -174,6 +252,12 @@ function analyzeRequiredHelpers(mainBody: string): {
       mainBody.includes('_pineNa(') ||
       mainBody.includes('_pineNz(') ||
       mainBody.includes('_pineFixnan('),
+    // Persistent-variable helpers emitted for Pine `var` / `varip`.
+    needsState:
+      mainBody.includes('_pineVar(') ||
+      mainBody.includes('_pineVarip(') ||
+      mainBody.includes('_pineSetVar(') ||
+      mainBody.includes('_pineSetVarip('),
   };
 }
 
@@ -186,17 +270,32 @@ export function generatePreamble(
   mainBody = '',
 ): string {
   let preamble = '';
+  const declaredHistorical = new Set<string>();
 
   // Historical helpers for sources
   for (const source of usedSources) {
     preamble += `const _series_${source} = context.new_var(${source});\n`;
     preamble += `const _getHistorical_${source} = (offset) => _series_${source}.get(offset);\n`;
+    declaredHistorical.add(source);
   }
 
   // Historical helpers for other variables
   for (const v of historicalAccess) {
     if (!usedSources.has(v)) {
       preamble += `let _getHistorical_${v} = (offset) => NaN;\n`;
+      declaredHistorical.add(v);
+    }
+  }
+
+  // Safety net: emit NaN fallbacks for any historical helper reference
+  // present in the generated body but missing from metadata extraction.
+  for (const match of mainBody.matchAll(
+    /_getHistorical_([A-Za-z0-9_]+)\s*\(/g,
+  )) {
+    const v = match[1];
+    if (!declaredHistorical.has(v)) {
+      preamble += `let _getHistorical_${v} = (offset) => NaN;\n`;
+      declaredHistorical.add(v);
     }
   }
 
@@ -207,9 +306,11 @@ export function generatePreamble(
     needsStdPlus,
     needsArray,
     needsMap,
+    needsMatrix,
     needsColor,
     needsString,
     needsUtility,
+    needsState,
   } = analyzeRequiredHelpers(mainBody);
 
   if (needsMath) {
@@ -227,6 +328,9 @@ export function generatePreamble(
   if (needsMap) {
     preamble += `${MAP_HELPER_FUNCTIONS}\n`;
   }
+  if (needsMatrix) {
+    preamble += `${MATRIX_HELPER_FUNCTIONS}\n`;
+  }
   if (needsColor) {
     preamble += `${COLOR_HELPER_FUNCTIONS}\n`;
   }
@@ -235,6 +339,9 @@ export function generatePreamble(
   }
   if (needsUtility) {
     preamble += `${UTILITY_HELPER_FUNCTIONS}\n`;
+  }
+  if (needsState) {
+    preamble += `${STATE_HELPER_FUNCTIONS}\n`;
   }
 
   return preamble;
@@ -290,6 +397,8 @@ export function buildIndicatorFactory(
         // it persists across main() invocations within one indicator
         // session, but resets cleanly when the chart re-instantiates.
         let _previousBarTime = -1;
+        // Fallback cursor when runtime context does not expose barIndex.
+        let _fallbackBarIndex = -1;
 
         // Compile the script once during initialization
         // biome-ignore lint/complexity/noBannedTypes: Function constructor required
@@ -327,8 +436,11 @@ export function buildIndicatorFactory(
             'alertcondition',
             'alert',
             'request',
+            'session',
             'array',
             'time',
+            'time_close',
+            'time_tradingday',
             'bar_index',
             'hour',
             'minute',
@@ -337,6 +449,7 @@ export function buildIndicatorFactory(
             'month',
             'dayofmonth',
             'dayofweek',
+            'timestamp',
             'chart',
             'format',
             'string',
@@ -344,9 +457,11 @@ export function buildIndicatorFactory(
             'yloc',
             'extend',
             'position',
+            'order',
             'text',
             'display',
             'ticker',
+            'barmerge',
             'close',
             'open',
             'high',
@@ -411,12 +526,24 @@ export function buildIndicatorFactory(
             // every new bar; isconfirmed/ishistory follow the runtime's
             // realtime signal when available.
             const stdTime = (stdLib as Record<string, unknown>).time;
-            const currentBarTime =
+            const rawBarTime =
               typeof stdTime === 'function'
                 ? Number(
                     (stdTime as (c: RuntimeContextInternal) => unknown)(ctx),
                   )
                 : -1;
+            const currentBarTime = Number.isFinite(rawBarTime)
+              ? rawBarTime
+              : -1;
+            const observedBarIndex = readNumberField(ctx, 'barIndex');
+            const resolvedBarIndex =
+              typeof observedBarIndex === 'number'
+                ? observedBarIndex
+                : _fallbackBarIndex + 1;
+            _fallbackBarIndex = resolvedBarIndex;
+            const resolvedTotalBars =
+              readNumberField(ctx.symbol, 'bars') ??
+              readNumberField(ctx, 'totalBars');
             const barstate = createBarstate({
               currentTime: currentBarTime,
               previousTime: _previousBarTime,
@@ -424,9 +551,11 @@ export function buildIndicatorFactory(
               // index on context.symbol; fall through to undefined so
               // createBarstate keeps the legacy `islast=true` default
               // when those fields aren't present.
-              totalBars: readNumberField(ctx.symbol, 'bars'),
-              barIndex: readNumberField(ctx, 'barIndex'),
-              isRealtime: readBooleanField(ctx, 'isRealtime', true),
+              totalBars: resolvedTotalBars,
+              barIndex: resolvedBarIndex,
+              // Historical-safe fallback: when runtime does not expose
+              // realtime status we default to historical bars.
+              isRealtime: readBooleanField(ctx, 'isRealtime', false),
             });
             // Update the closure cursor so the next main() invocation
             // sees this bar as the previous one.
@@ -435,7 +564,19 @@ export function buildIndicatorFactory(
             // No-op functions for indicator declarations
             const indicator = () => {};
             const study = () => {};
-            const strategy = () => {};
+            const strategy = (() => {}) as ((...args: unknown[]) => void) &
+              Record<string, unknown>;
+            strategy.entry = () => {};
+            strategy.exit = () => {};
+            strategy.close = () => {};
+            strategy.close_all = () => {};
+            strategy.order = () => {};
+            strategy.cancel = () => {};
+            strategy.risk = new Proxy({}, { get: () => () => {} });
+            strategy.long = 1;
+            strategy.short = -1;
+            strategy.initial_capital = 100000;
+            strategy.position_size = 0;
 
             // Plotting stubs that push NaN for unsupported plot types
             const plotshape = () => {
@@ -541,6 +682,10 @@ export function buildIndicatorFactory(
               {},
               { get: (_t, p) => `position.${String(p)}` },
             ) as Record<string, string>;
+            const order = {
+              ascending: true,
+              descending: false,
+            };
             const text = {
               align_left: 'left',
               align_center: 'center',
@@ -557,6 +702,12 @@ export function buildIndicatorFactory(
             // type-cast. Match the callable+member pattern used by
             // chart/format/string above.
             const ticker = callableProxy('ticker') as Record<string, string>;
+            const barmerge = {
+              lookahead_on: 'lookahead_on',
+              lookahead_off: 'lookahead_off',
+              gaps_on: 'gaps_on',
+              gaps_off: 'gaps_off',
+            };
 
             // Pine `alertcondition()` and `alert()` are no-ops at the
             // mock layer — the chart routes alerts via metadata, not
@@ -566,28 +717,39 @@ export function buildIndicatorFactory(
 
             // request.* and array (the namespace, distinct from the
             // array.* mappings) — Pine v6 multi-timeframe / collection
-            // APIs. `request.security` and friends need a real data
-            // layer; without one we can only stub. The bare `array`
-            // identifier lets Pine code that does `array<float>` type
-            // annotations or rare `array` namespace references not
-            // crash at the JS reference level.
+            // APIs.
             //
-            // The stub returns an object that's BOTH a NaN-when-coerced
-            // value AND a destructure-friendly iterable that yields
-            // NaN forever. Pine's `[a, b, c] = request.security(...)`
-            // destructure pattern is common in multi-tf scripts; a
-            // bare `() => NaN` would crash on "number is not iterable"
-            // and mask which fixtures actually need request support.
-            const naIterable: Iterable<number> = {
+            // `request.security` is PARTIALLY supported here as a
+            // synchronous passthrough: it returns the `expression`
+            // argument value (3rd positional arg), enabling many real
+            // scripts to run without collapsing to NaN. True MTF data
+            // fetching/aggregation is still out of scope without a real
+            // host data layer.
+            //
+            // Unknown request.* members and bare `array` namespace refs
+            // retain the prior NaN+iterable fallback.
+            const makeNaIterable = (): Iterable<number> => ({
               [Symbol.iterator]() {
                 return { next: () => ({ value: Number.NaN, done: false }) };
               },
+            });
+            const naFallback = () => makeNaIterable();
+            const requestSecurity = (...args: unknown[]): unknown => {
+              // Pine signature: request.security(symbol, timeframe,
+              // expression, ...)
+              if (args.length >= 3) return args[2];
+              return naFallback();
             };
-            const naFallback = () => naIterable;
-            const request = new Proxy({}, { get: () => naFallback }) as Record<
-              string,
-              (...args: unknown[]) => unknown
-            >;
+            const requestBase: Record<string, (...args: unknown[]) => unknown> =
+              {
+                security: requestSecurity,
+              };
+            const request = new Proxy(requestBase, {
+              get: (target, prop) => {
+                const fn = target[String(prop)];
+                return typeof fn === 'function' ? fn : naFallback;
+              },
+            }) as Record<string, (...args: unknown[]) => unknown>;
             const array = new Proxy({}, { get: () => naFallback }) as Record<
               string,
               (...args: unknown[]) => unknown
@@ -605,6 +767,18 @@ export function buildIndicatorFactory(
             const dayofmonth = (t?: number) => new Date(t ?? time).getUTCDate();
             const dayofweek = (t?: number) =>
               new Date(t ?? time).getUTCDay() + 1;
+            const timestamp = (...args: Array<number | string>) => {
+              const hasTimezone = typeof args[0] === 'string';
+              const base = hasTimezone ? 1 : 0;
+              const y = Number(args[base] ?? 1970);
+              const m = Number(args[base + 1] ?? 1);
+              const d = Number(args[base + 2] ?? 1);
+              const h = Number(args[base + 3] ?? 0);
+              const min = Number(args[base + 4] ?? 0);
+              const s = Number(args[base + 5] ?? 0);
+              const ms = Number(args[base + 6] ?? 0);
+              return Date.UTC(y, m - 1, d, h, min, s, ms);
+            };
 
             // Per-bar built-ins. `time` is the bar's open time; the
             // mock context exposes Std.time(ctx). `bar_index` is 0-based
@@ -616,7 +790,121 @@ export function buildIndicatorFactory(
                     (stdTimeFn as (c: RuntimeContextInternal) => unknown)(ctx),
                   )
                 : 0;
-            const bar_index = readNumberField(ctx, 'barIndex') ?? 0;
+            const stdTimeCloseFn = (stdLib as Record<string, unknown>)
+              .time_close;
+            const time_close =
+              typeof stdTimeCloseFn === 'function'
+                ? Number(
+                    (stdTimeCloseFn as (c: RuntimeContextInternal) => unknown)(
+                      ctx,
+                    ),
+                  )
+                : time + 60_000;
+            const _td = new Date(time);
+            _td.setUTCHours(0, 0, 0, 0);
+            const time_tradingday = _td.getTime();
+            const bar_index = resolvedBarIndex;
+            const readClock = () => {
+              const stdHourFn = (stdLib as Record<string, unknown>).hour;
+              const stdMinuteFn = (stdLib as Record<string, unknown>).minute;
+              const stdDayOfWeekFn = (stdLib as Record<string, unknown>)
+                .dayofweek;
+              const fallbackDate = new Date(time);
+              const hourVal =
+                typeof stdHourFn === 'function'
+                  ? Number(
+                      (
+                        stdHourFn as (
+                          c: RuntimeContextInternal,
+                          tz?: string,
+                        ) => unknown
+                      )(ctx),
+                    )
+                  : fallbackDate.getUTCHours();
+              const minuteVal =
+                typeof stdMinuteFn === 'function'
+                  ? Number(
+                      (
+                        stdMinuteFn as (
+                          c: RuntimeContextInternal,
+                          tz?: string,
+                        ) => unknown
+                      )(ctx),
+                    )
+                  : fallbackDate.getUTCMinutes();
+              const dayOfWeekVal =
+                typeof stdDayOfWeekFn === 'function'
+                  ? Number(
+                      (
+                        stdDayOfWeekFn as (
+                          c: RuntimeContextInternal,
+                          tz?: string,
+                        ) => unknown
+                      )(ctx),
+                    )
+                  : fallbackDate.getUTCDay() + 1;
+              return {
+                hour: Number.isFinite(hourVal)
+                  ? hourVal
+                  : fallbackDate.getUTCHours(),
+                minute: Number.isFinite(minuteVal)
+                  ? minuteVal
+                  : fallbackDate.getUTCMinutes(),
+                dayOfWeek: Number.isFinite(dayOfWeekVal)
+                  ? dayOfWeekVal
+                  : fallbackDate.getUTCDay() + 1,
+              };
+            };
+
+            const isInSession = (sessionStr: string): boolean => {
+              if (!sessionStr) return false;
+              const [timeRangeRaw, daysRaw] = sessionStr.split(':');
+              const [startRaw = '', endRaw = ''] = (timeRangeRaw ?? '').split(
+                '-',
+              );
+              if (startRaw.length < 4 || endRaw.length < 4) return false;
+              const startHour = Number(startRaw.slice(0, 2));
+              const startMinute = Number(startRaw.slice(2, 4));
+              const endHour = Number(endRaw.slice(0, 2));
+              const endMinute = Number(endRaw.slice(2, 4));
+              if (
+                !Number.isFinite(startHour) ||
+                !Number.isFinite(startMinute) ||
+                !Number.isFinite(endHour) ||
+                !Number.isFinite(endMinute)
+              ) {
+                return false;
+              }
+
+              const days = daysRaw ?? '1234567';
+              const {
+                hour: currentHour,
+                minute: currentMinute,
+                dayOfWeek,
+              } = readClock();
+              if (!days.includes(String(dayOfWeek))) return false;
+
+              const current = currentHour * 60 + currentMinute;
+              const start = startHour * 60 + startMinute;
+              const end = endHour * 60 + endMinute;
+              if (start <= end) return current >= start && current < end;
+              return current >= start || current < end;
+            };
+
+            const session = {
+              get ismarket() {
+                const regular = readStringField(ctx.symbol, 'session_regular');
+                return isInSession(regular ?? '0930-1600');
+              },
+              get ispremarket() {
+                const pre = readStringField(ctx.symbol, 'session_premarket');
+                return isInSession(pre ?? '0400-0930');
+              },
+              get ispostmarket() {
+                const post = readStringField(ctx.symbol, 'session_postmarket');
+                return isInSession(post ?? '1600-2000');
+              },
+            };
 
             // Execution
             try {
@@ -652,8 +940,11 @@ export function buildIndicatorFactory(
                 alertcondition,
                 alert,
                 request,
+                session,
                 array,
                 time,
+                time_close,
+                time_tradingday,
                 bar_index,
                 hour,
                 minute,
@@ -662,6 +953,7 @@ export function buildIndicatorFactory(
                 month,
                 dayofmonth,
                 dayofweek,
+                timestamp,
                 chart,
                 format,
                 string,
@@ -669,9 +961,11 @@ export function buildIndicatorFactory(
                 yloc,
                 extend,
                 position,
+                order,
                 text,
                 display,
                 ticker,
+                barmerge,
                 sources.close,
                 sources.open,
                 sources.high,

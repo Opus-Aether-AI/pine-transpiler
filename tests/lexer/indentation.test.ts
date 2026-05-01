@@ -120,6 +120,25 @@ y = 2`;
 
       expect(tokens).toBeDefined();
     });
+
+    it('should continue expression when next line starts with +', () => {
+      const code = `reportText = "A"
+    + "B"
+    + "C"`;
+      const tokens = lexTokens(code);
+
+      const indentTokens = tokens.filter((t) => t.type === 'INDENT');
+      expect(indentTokens.length).toBe(0);
+    });
+
+    it('should continue ternary expression after : across newline', () => {
+      const code = `x = cond ? a :
+    b`;
+      const tokens = lexTokens(code);
+
+      const indentTokens = tokens.filter((t) => t.type === 'INDENT');
+      expect(indentTokens.length).toBe(0);
+    });
   });
 
   describe('Complex Indentation Patterns', () => {

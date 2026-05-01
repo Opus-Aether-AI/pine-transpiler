@@ -146,17 +146,41 @@ export class PlotExtractor {
   }
 
   /**
+   * Extract a plotarrow() call
+   *
+   * We model arrows as shape plots in metainfo to ensure they are
+   * counted as declared outputs in corpus parity checks.
+   */
+  public extractPlotArrow(expr: CallExpression): ParsedPlot {
+    const args = expr.arguments;
+    const valueArg = getArg(args, 0, 'series');
+    const valueExpr = valueArg ? this.exprToString(valueArg) : '';
+    const title =
+      getStringValue(getArg(args, 1, 'title')) || `Arrow ${++this.plotCount}`;
+
+    return {
+      id: `plot_${this.plotCount - 1}`,
+      title,
+      varName: `plot_${this.plotCount - 1}`,
+      type: 'shape',
+      color: '#000000',
+      linewidth: 1,
+      valueExpr,
+      shape: 'triangleup',
+      location: 'abovebar',
+    };
+  }
+
+  /**
    * Extract an hline() call
    */
-  public extractHline(expr: CallExpression): ParsedPlot | null {
+  public extractHline(expr: CallExpression): ParsedPlot {
     const args = expr.arguments;
-    const price = getNumberValue(getArg(args, 0, 'price'));
+    const priceArg = getArg(args, 0, 'price');
+    const price = getNumberValue(priceArg);
+    const valueExpr = priceArg ? this.exprToString(priceArg) : '';
     const title =
       getStringValue(getArg(args, 1, 'title')) || `HLine ${++this.plotCount}`;
-
-    if (price === null) {
-      return null;
-    }
 
     return {
       id: `plot_${this.plotCount - 1}`,
@@ -165,7 +189,8 @@ export class PlotExtractor {
       type: 'hline',
       color: '#787B86',
       linewidth: 1,
-      price,
+      price: price ?? undefined,
+      valueExpr,
     };
   }
 

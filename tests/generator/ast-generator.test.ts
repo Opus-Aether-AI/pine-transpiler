@@ -284,16 +284,16 @@ export type MyType
       expect(js).toContain('var x = 42;');
     });
 
-    it('should generate var keyword as let', () => {
+    it('should generate var keyword with persistent helper', () => {
       const code = 'var x = 42';
       const js = generateCode(code);
-      expect(js).toContain('var x = 42;');
+      expect(js).toContain('var x = _pineVar("x", () => (42));');
     });
 
-    it('should generate varip keyword as let', () => {
+    it('should generate varip keyword with per-bar helper', () => {
       const code = 'varip x = 42';
       const js = generateCode(code);
-      expect(js).toContain('var x = 42;');
+      expect(js).toContain('var x = _pineVarip("x", () => (42));');
     });
 
     it('should handle const keyword', () => {
@@ -312,11 +312,7 @@ export type MyType
     it('should generate exported variable', () => {
       const code = 'export var x = 1';
       const js = generateCode(code);
-      // Pine's `var x = 1` and `x = 1` both emit JS `var x = 1;` after
-      // we switched the generator from `let` to `var` to allow safe
-      // redeclaration when the parser flattens block-scoped vars to
-      // top scope.
-      expect(js).toContain('export var x = 1;');
+      expect(js).toContain('export var x = _pineVar("x", () => (1));');
     });
   });
 

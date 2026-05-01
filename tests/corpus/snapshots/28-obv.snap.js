@@ -1,2 +1,2 @@
-indicator("OBV");
-Std.plot(ta.obv, "OBV");
+indicator("OBV", false);
+Std.plot(ta.obv, "OBV", color.blue);
