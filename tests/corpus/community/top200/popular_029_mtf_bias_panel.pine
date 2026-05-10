@@ -1,0 +1,10 @@
+//@version=5
+indicator("Popular 029 MTF Bias Panel", overlay=false)
+
+c1 = request.security(syminfo.tickerid, "15", close, barmerge.gaps_off, barmerge.lookahead_on)
+c2 = request.security(syminfo.tickerid, "60", close, barmerge.gaps_off, barmerge.lookahead_on)
+c3 = request.security(syminfo.tickerid, "D", close, barmerge.gaps_off, barmerge.lookahead_on)
+
+bias = (c1 > c1[1] ? 1 : -1) + (c2 > c2[1] ? 1 : -1) + (c3 > c3[1] ? 1 : -1)
+plot(bias, "Bias", color=color.aqua, style=plot.style_histogram)
+plot(0, "Zero", color=color.gray)

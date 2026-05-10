@@ -1,0 +1,15 @@
+//@version=5
+indicator("Popular 037 Donchian Breakout Suite", overlay=true)
+
+hh = ta.highest(high, 23)
+ll = ta.lowest(low, 23)
+mid = (hh + ll) / 2.0
+
+longBreak = ta.crossover(close, hh[1])
+shortBreak = ta.crossunder(close, ll[1])
+
+plot(hh, "Upper", color=color.new(color.red, 0))
+plot(ll, "Lower", color=color.new(color.green, 0))
+plot(mid, "Mid", color=color.new(color.blue, 0))
+plotshape(longBreak, title="Long", style=shape.triangleup, location=location.belowbar, color=color.lime, size=size.tiny)
+plotshape(shortBreak, title="Short", style=shape.triangledown, location=location.abovebar, color=color.red, size=size.tiny)

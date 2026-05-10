@@ -1,0 +1,90 @@
+{
+  "fixture": "16-plotshape-buy-sell.pine",
+  "stageReached": "complete",
+  "pass": true,
+  "error": null,
+  "runtime": {
+    "barsCompleted": 200,
+    "barsErrored": 0,
+    "declaredPlotCount": 2,
+    "actualPlotCount": 2,
+    "visualEventCount": 2,
+    "visualCalls": [
+      {
+        "call": "Std.plotshape",
+        "count": 2
+      }
+    ],
+    "topRuntimeErrors": [],
+    "unimplementedStdCalls": []
+  },
+  "metainfo": {
+    "plotCount": 2,
+    "plots": [
+      {
+        "id": "plot_0",
+        "type": "shapes",
+        "price": null
+      },
+      {
+        "id": "plot_1",
+        "type": "shapes",
+        "price": null
+      }
+    ],
+    "inputCount": 0,
+    "inputs": [],
+    "styleKeys": [
+      "plot_0",
+      "plot_1"
+    ],
+    "styles": [
+      {
+        "id": "plot_0",
+        "title": "Buy",
+        "histogramBase": 0
+      },
+      {
+        "id": "plot_1",
+        "title": "Sell",
+        "histogramBase": 0
+      }
+    ],
+    "defaultStyles": [
+      {
+        "id": "plot_0",
+        "plottype": 6,
+        "linewidth": 1,
+        "linestyle": 0,
+        "color": "#000000",
+        "transparency": 0,
+        "visible": true,
+        "trackPrice": false
+      },
+      {
+        "id": "plot_1",
+        "plottype": 6,
+        "linewidth": 1,
+        "linestyle": 0,
+        "color": "#000000",
+        "transparency": 0,
+        "visible": true,
+        "trackPrice": false
+      }
+    ]
+  },
+  "visualCallCounts": {
+    "Std.plot": 0,
+    "Std.plotshape": 2,
+    "Std.plotchar": 0,
+    "Std.plotarrow": 0,
+    "hline": 0,
+    "Std.bgcolor": 0,
+    "Std.fill": 0,
+    "Std.barcolor": 0,
+    "line.new": 0,
+    "label.new": 0,
+    "box.new": 0,
+    "table.new": 0
+  }
+}

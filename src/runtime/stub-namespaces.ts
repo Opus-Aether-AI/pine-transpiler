@@ -43,6 +43,8 @@ export interface BoxStub {
   delete: (boxObj: unknown) => void;
   set_left: (boxObj: unknown, left: unknown) => void;
   set_right: (boxObj: unknown, right: unknown) => void;
+  set_top: (boxObj: unknown, top: unknown) => void;
+  set_bottom: (boxObj: unknown, bottom: unknown) => void;
   set_extend: (boxObj: unknown, extend: unknown) => void;
   set_bgcolor: (boxObj: unknown, color: unknown) => void;
   set_border_color: (boxObj: unknown, color: unknown) => void;
@@ -59,9 +61,12 @@ export interface LineStub {
   new: (...args: unknown[]) => DrawingHandle;
   delete: (lineObj: unknown) => void;
   set_x2: (lineObj: unknown, x2: unknown) => void;
+  set_xy1: (lineObj: unknown, x1: unknown, y1: unknown) => void;
+  set_xy2: (lineObj: unknown, x2: unknown, y2: unknown) => void;
   set_color: (lineObj: unknown, color: unknown) => void;
   get_x2: (lineObj: unknown) => number;
   get_y1: (lineObj: unknown) => number;
+  get_y2: (lineObj: unknown) => number;
   [key: string]: unknown;
 }
 
@@ -70,11 +75,14 @@ export interface LabelStub {
   new: (...args: unknown[]) => DrawingHandle;
   delete: (labelObj: unknown) => void;
   set_text: (labelObj: unknown, text: unknown) => void;
+  get_text: (labelObj: unknown) => string;
   set_tooltip: (labelObj: unknown, tooltip: unknown) => void;
   set_textcolor: (labelObj: unknown, color: unknown) => void;
+  set_style: (labelObj: unknown, style: unknown) => void;
   set_xy: (labelObj: unknown, x: unknown, y: unknown) => void;
   set_x: (labelObj: unknown, x: unknown) => void;
   set_y: (labelObj: unknown, y: unknown) => void;
+  get_y: (labelObj: unknown) => number;
   [key: string]: unknown;
 }
 
@@ -202,6 +210,20 @@ function makeLineNamespace(): LineStub {
     h.x2 = toNumber(x2);
   };
 
+  const setXY1 = (lineObj: unknown, x1: unknown, y1: unknown) => {
+    const h = resolveHandle(lineObj, lineStore);
+    if (!h) return;
+    h.x1 = toNumber(x1);
+    h.y1 = toNumber(y1);
+  };
+
+  const setXY2 = (lineObj: unknown, x2: unknown, y2: unknown) => {
+    const h = resolveHandle(lineObj, lineStore);
+    if (!h) return;
+    h.x2 = toNumber(x2);
+    h.y2 = toNumber(y2);
+  };
+
   const setColor = (lineObj: unknown, color: unknown) => {
     const h = resolveHandle(lineObj, lineStore);
     if (!h) return;
@@ -218,12 +240,23 @@ function makeLineNamespace(): LineStub {
     return h ? toNumber(h.y1) : Number.NaN;
   };
 
+  const getY2 = (lineObj: unknown) => {
+    const h = resolveHandle(lineObj, lineStore);
+    return h ? toNumber(h.y2) : Number.NaN;
+  };
+
   const attachLineMethods = (h: DrawingHandle): void => {
     if (typeof h.delete !== 'function') {
       h.delete = () => deleteLine(h);
     }
     if (typeof h.set_x2 !== 'function') {
       h.set_x2 = (x2: unknown) => setX2(h, x2);
+    }
+    if (typeof h.set_xy1 !== 'function') {
+      h.set_xy1 = (x1: unknown, y1: unknown) => setXY1(h, x1, y1);
+    }
+    if (typeof h.set_xy2 !== 'function') {
+      h.set_xy2 = (x2: unknown, y2: unknown) => setXY2(h, x2, y2);
     }
     if (typeof h.set_color !== 'function') {
       h.set_color = (color: unknown) => setColor(h, color);
@@ -233,6 +266,9 @@ function makeLineNamespace(): LineStub {
     }
     if (typeof h.get_y1 !== 'function') {
       h.get_y1 = () => getY1(h);
+    }
+    if (typeof h.get_y2 !== 'function') {
+      h.get_y2 = () => getY2(h);
     }
   };
 
@@ -255,9 +291,12 @@ function makeLineNamespace(): LineStub {
     },
     delete: deleteLine,
     set_x2: setX2,
+    set_xy1: setXY1,
+    set_xy2: setXY2,
     set_color: setColor,
     get_x2: getX2,
     get_y1: getY1,
+    get_y2: getY2,
     style_solid: 'line.style_solid',
     style_dashed: 'line.style_dashed',
     style_dotted: 'line.style_dotted',
@@ -287,6 +326,18 @@ function makeBoxNamespace(): BoxStub {
     const h = resolveHandle(boxObj, boxStore);
     if (!h) return;
     h.right = toNumber(right);
+  };
+
+  const setTop = (boxObj: unknown, top: unknown) => {
+    const h = resolveHandle(boxObj, boxStore);
+    if (!h) return;
+    h.top = toNumber(top);
+  };
+
+  const setBottom = (boxObj: unknown, bottom: unknown) => {
+    const h = resolveHandle(boxObj, boxStore);
+    if (!h) return;
+    h.bottom = toNumber(bottom);
   };
 
   const setExtend = (boxObj: unknown, extend: unknown) => {
@@ -343,6 +394,12 @@ function makeBoxNamespace(): BoxStub {
     if (typeof h.set_right !== 'function') {
       h.set_right = (right: unknown) => setRight(h, right);
     }
+    if (typeof h.set_top !== 'function') {
+      h.set_top = (top: unknown) => setTop(h, top);
+    }
+    if (typeof h.set_bottom !== 'function') {
+      h.set_bottom = (bottom: unknown) => setBottom(h, bottom);
+    }
     if (typeof h.set_extend !== 'function') {
       h.set_extend = (extend: unknown) => setExtend(h, extend);
     }
@@ -388,6 +445,8 @@ function makeBoxNamespace(): BoxStub {
     delete: deleteBox,
     set_left: setLeft,
     set_right: setRight,
+    set_top: setTop,
+    set_bottom: setBottom,
     set_extend: setExtend,
     set_bgcolor: setBgcolor,
     set_border_color: setBorderColor,
@@ -418,6 +477,12 @@ function makeLabelNamespace(): LabelStub {
     h.text = text == null ? '' : String(text);
   };
 
+  const getText = (labelObj: unknown) => {
+    const h = resolveHandle(labelObj, labelStore);
+    if (!h) return '';
+    return h.text == null ? '' : String(h.text);
+  };
+
   const setTooltip = (labelObj: unknown, tooltip: unknown) => {
     const h = resolveHandle(labelObj, labelStore);
     if (!h) return;
@@ -428,6 +493,12 @@ function makeLabelNamespace(): LabelStub {
     const h = resolveHandle(labelObj, labelStore);
     if (!h) return;
     h.textcolor = color;
+  };
+
+  const setStyle = (labelObj: unknown, style: unknown) => {
+    const h = resolveHandle(labelObj, labelStore);
+    if (!h) return;
+    h.style = style;
   };
 
   const setXY = (labelObj: unknown, x: unknown, y: unknown) => {
@@ -449,6 +520,11 @@ function makeLabelNamespace(): LabelStub {
     h.y = toNumber(y);
   };
 
+  const getY = (labelObj: unknown) => {
+    const h = resolveHandle(labelObj, labelStore);
+    return h ? toNumber(h.y) : Number.NaN;
+  };
+
   const attachLabelMethods = (h: DrawingHandle): void => {
     if (typeof h.delete !== 'function') {
       h.delete = () => deleteLabel(h);
@@ -456,11 +532,17 @@ function makeLabelNamespace(): LabelStub {
     if (typeof h.set_text !== 'function') {
       h.set_text = (text: unknown) => setText(h, text);
     }
+    if (typeof h.get_text !== 'function') {
+      h.get_text = () => getText(h);
+    }
     if (typeof h.set_tooltip !== 'function') {
       h.set_tooltip = (tooltip: unknown) => setTooltip(h, tooltip);
     }
     if (typeof h.set_textcolor !== 'function') {
       h.set_textcolor = (color: unknown) => setTextcolor(h, color);
+    }
+    if (typeof h.set_style !== 'function') {
+      h.set_style = (style: unknown) => setStyle(h, style);
     }
     if (typeof h.set_xy !== 'function') {
       h.set_xy = (x: unknown, y: unknown) => setXY(h, x, y);
@@ -470,6 +552,9 @@ function makeLabelNamespace(): LabelStub {
     }
     if (typeof h.set_y !== 'function') {
       h.set_y = (y: unknown) => setY(h, y);
+    }
+    if (typeof h.get_y !== 'function') {
+      h.get_y = () => getY(h);
     }
   };
 
@@ -496,11 +581,14 @@ function makeLabelNamespace(): LabelStub {
     },
     delete: deleteLabel,
     set_text: setText,
+    get_text: getText,
     set_tooltip: setTooltip,
     set_textcolor: setTextcolor,
+    set_style: setStyle,
     set_xy: setXY,
     set_x: setX,
     set_y: setY,
+    get_y: getY,
     style_none: 'label.style_none',
     style_label_up: 'label.style_label_up',
     style_label_down: 'label.style_label_down',

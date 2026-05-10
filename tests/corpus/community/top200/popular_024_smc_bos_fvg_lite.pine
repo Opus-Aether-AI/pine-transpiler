@@ -1,0 +1,11 @@
+//@version=5
+indicator("Popular 024 SMC BOS FVG Lite", overlay=true)
+
+bosBull = close > ta.highest(high[1], 18)
+bosBear = close < ta.lowest(low[1], 18)
+fvgBull = low > high[2]
+fvgBear = high < low[2]
+
+plotshape(bosBull, title="BOS Bull", style=shape.labelup, location=location.belowbar, color=color.lime, text="BOS")
+plotshape(bosBear, title="BOS Bear", style=shape.labeldown, location=location.abovebar, color=color.red, text="BOS")
+plotshape(fvgBull or fvgBear, title="FVG", style=shape.circle, location=location.abovebar, color=color.orange, size=size.tiny)

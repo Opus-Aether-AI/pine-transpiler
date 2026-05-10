@@ -1,0 +1,79 @@
+{
+  "fixture": "18-bgcolor-zones.pine",
+  "stageReached": "complete",
+  "pass": true,
+  "error": null,
+  "runtime": {
+    "barsCompleted": 200,
+    "barsErrored": 0,
+    "declaredPlotCount": 1,
+    "actualPlotCount": 1,
+    "visualEventCount": 2,
+    "visualCalls": [
+      {
+        "call": "Std.bgcolor",
+        "count": 1
+      },
+      {
+        "call": "Std.plot",
+        "count": 1
+      }
+    ],
+    "topRuntimeErrors": [],
+    "unimplementedStdCalls": []
+  },
+  "metainfo": {
+    "plotCount": 1,
+    "plots": [
+      {
+        "id": "plot_0",
+        "type": "line",
+        "price": null
+      }
+    ],
+    "inputCount": 1,
+    "inputs": [
+      {
+        "id": "in_0",
+        "type": "integer",
+        "defval": 14
+      }
+    ],
+    "styleKeys": [
+      "plot_0"
+    ],
+    "styles": [
+      {
+        "id": "plot_0",
+        "title": "Plot 1",
+        "histogramBase": 0
+      }
+    ],
+    "defaultStyles": [
+      {
+        "id": "plot_0",
+        "plottype": 0,
+        "linewidth": 1,
+        "linestyle": 0,
+        "color": "#2962FF",
+        "transparency": 0,
+        "visible": true,
+        "trackPrice": false
+      }
+    ]
+  },
+  "visualCallCounts": {
+    "Std.plot": 1,
+    "Std.plotshape": 0,
+    "Std.plotchar": 0,
+    "Std.plotarrow": 0,
+    "hline": 0,
+    "Std.bgcolor": 1,
+    "Std.fill": 0,
+    "Std.barcolor": 0,
+    "line.new": 0,
+    "label.new": 0,
+    "box.new": 0,
+    "table.new": 0
+  }
+}

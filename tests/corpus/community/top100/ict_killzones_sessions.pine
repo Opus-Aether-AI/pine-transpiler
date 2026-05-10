@@ -1,0 +1,12 @@
+//@version=5
+indicator("ICT Killzones + Sessions", overlay=true)
+
+premarket = session.ispremarket
+market = session.ismarket
+postmarket = session.ispostmarket
+
+bgcolor(premarket ? color.new(color.orange, 88) : na)
+bgcolor(market ? color.new(color.green, 90) : na)
+bgcolor(postmarket ? color.new(color.purple, 90) : na)
+
+plot(market ? close : na, "Market Active", color=color.new(color.green, 0), display=display.none)

@@ -1,0 +1,21 @@
+//@version=5
+indicator("Auto Fibonacci Retracement Pro", overlay=true)
+
+lookback = input.int(100, "Lookback", minval=10)
+hh = ta.highest(high, lookback)
+ll = ta.lowest(low, lookback)
+range = hh - ll
+
+l236 = hh - range * 0.236
+l382 = hh - range * 0.382
+l500 = hh - range * 0.500
+l618 = hh - range * 0.618
+l786 = hh - range * 0.786
+
+plot(hh, "Fib 0", color=color.gray)
+plot(l236, "Fib 0.236", color=color.new(color.yellow, 0))
+plot(l382, "Fib 0.382", color=color.new(color.orange, 0))
+plot(l500, "Fib 0.5", color=color.new(color.blue, 0))
+plot(l618, "Fib 0.618", color=color.new(color.purple, 0))
+plot(l786, "Fib 0.786", color=color.new(color.red, 0))
+plot(ll, "Fib 1", color=color.gray)

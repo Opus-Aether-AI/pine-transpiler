@@ -1,0 +1,13 @@
+//@version=5
+indicator("ICT Unicorn Model Detector", overlay=true)
+
+fvgBull = low > high[2]
+breakerBull = close > ta.highest(high[1], 20)
+unicornBull = fvgBull and breakerBull
+
+fvgBear = high < low[2]
+breakerBear = close < ta.lowest(low[1], 20)
+unicornBear = fvgBear and breakerBear
+
+plotshape(unicornBull, title="Unicorn Bull", style=shape.star, location=location.belowbar, color=color.lime, size=size.tiny)
+plotshape(unicornBear, title="Unicorn Bear", style=shape.star, location=location.abovebar, color=color.red, size=size.tiny)

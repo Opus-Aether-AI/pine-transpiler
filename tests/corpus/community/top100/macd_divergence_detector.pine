@@ -1,0 +1,15 @@
+//@version=5
+indicator("MACD Divergence Detector", overlay=true)
+
+fast = input.int(12, "Fast", minval=1)
+slow = input.int(26, "Slow", minval=2)
+sig = input.int(9, "Signal", minval=1)
+
+[macdLine, signalLine, _hist] = ta.macd(close, fast, slow, sig)
+
+bullDiv = low < low[1] and macdLine > macdLine[1]
+bearDiv = high > high[1] and macdLine < macdLine[1]
+
+plotshape(bullDiv, title="Bull Div", style=shape.circle, location=location.belowbar, color=color.green, size=size.tiny)
+plotshape(bearDiv, title="Bear Div", style=shape.circle, location=location.abovebar, color=color.red, size=size.tiny)
+plot(macdLine - signalLine, "MACD Spread", color=color.new(color.blue, 60), display=display.none)

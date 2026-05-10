@@ -236,7 +236,8 @@ type Point
     float y
 `;
       const js = generateCode(code);
-      expect(js).toContain('class Point');
+      expect(js).toContain('var __type_Point = class Point');
+      expect(js).toContain('var Point;');
       expect(js).toContain('constructor(x, y)');
       expect(js).toContain('this.x = x;');
       expect(js).toContain('this.y = y;');
@@ -259,7 +260,8 @@ export type MyType
     int value
 `;
       const js = generateCode(code);
-      expect(js).toContain('export class MyType');
+      expect(js).toContain('var __type_MyType = class MyType');
+      expect(js).toContain('export var MyType;');
     });
   });
 
@@ -374,6 +376,12 @@ export type MyType
         const code = 'x = close[n]';
         const js = generateCode(code);
         expect(js).toContain('_getHistorical_close(n)');
+      });
+
+      it('should materialize history for non-identifier expressions', () => {
+        const code = 'x = (high + low)[1]';
+        const js = generateCode(code);
+        expect(js).toContain('context.new_var((high + low)).get(1)');
       });
     });
 

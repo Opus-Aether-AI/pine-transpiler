@@ -15,6 +15,15 @@ execution behavior closer to TradingView for real-world indicators.
   checks for SMA, EMA, RSI, MACD, ATR, BB, KC, CCI, MFI, WPR, and ROC.
 - **67-indicator parity matrix** (`bun run corpus:matrix`) with grouped
   coverage output in `INDICATOR_TEST_MATRIX.md`.
+- **TradingView Top-100 matrix** (`bun run corpus:tv100`) with
+  lane/authenticity/source splits in `TRADINGVIEW_TOP100_MATRIX.md`.
+- **TradingView Top-200 matrix** (`bun run corpus:tv200`) covering
+  top-100 plus 100 additional popular/custom fixtures in
+  `TRADINGVIEW_TOP200_MATRIX.md`.
+- **Corpus manifest layer** (`tests/corpus/manifest.ts`) with per-fixture
+  metadata: source, lane, authenticity, category, and inferred feature tags.
+- **Corpus stability gate** (`bun run corpus:gate`) with configurable
+  per-lane and per-authenticity budgets for CI.
 - **Matrix API support (`matrix.*`)** via new mappings/helpers:
   `matrix.new`, `rows`, `columns`, `get`, `set`, `add_row`, `remove_row`.
 - **Persistent state helpers** for Pine semantics:
@@ -28,10 +37,13 @@ execution behavior closer to TradingView for real-world indicators.
 ### Changed
 - **`request.security` moved from unsupported to partial support**:
   runtime now passes through the `expression` argument (including tuple
-  expressions), while true MTF aggregation remains out of scope.
+  expressions), plus deterministic higher-timeframe bucket merge subset;
+  true full MTF parity remains out of scope.
 - **Drawing/table namespaces upgraded** from warning stubs to stateful
   runtime-compatible handle objects (`line.*`, `box.*`, `label.*`, `table.*`)
   with mutator/getter behavior (still no visual rendering).
+- **Corpus report output expanded** with lane/authenticity/category pass
+  rates and top feature coverage sections.
 - **Named-argument emit behavior** now passes value-only arguments in runtime
   calls, preventing assignment-style side effects while preserving call values.
 - **TA series argument handling** now wraps series-aware inputs correctly
@@ -59,13 +71,16 @@ execution behavior closer to TradingView for real-world indicators.
   receive generated NaN fallbacks to avoid runtime crashes on edge scripts.
 
 ### Quality / CI
-- CI now runs `bun run corpus:strict` and `bun run corpus:matrix` in addition
-  to existing checks.
+- CI quality checks now include `bun run corpus:strict`,
+  `bun run corpus:matrix`, and `bun run corpus:gate`.
 - Current verified parity baseline in this change set:
-  - corpus full pass: **92/92**
+  - corpus full pass: **234/234**
+  - parse-clean: **234/234**
   - indicator matrix: **67/67**
+  - TradingView top-100: **100/100**
+  - TradingView top-200: **200/200**
   - strict numeric parity: **11/11**
-  - test suite: **1001 passing, 0 failing**
+  - gate status: **PASS**
 
 ## [0.2.0] - 2026-04-25
 

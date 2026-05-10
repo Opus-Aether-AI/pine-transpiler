@@ -1,0 +1,10 @@
+//@version=5
+indicator("Popular 016 Volume Surge Radar", overlay=false)
+
+base = ta.sma(volume, 20)
+ratio = volume / math.max(base, 1)
+surge = ratio > 1.8
+
+plot(ratio, "Volume Ratio", color=color.aqua)
+plotshape(surge, title="Surge", style=shape.diamond, location=location.top, color=color.orange, size=size.tiny)
+plot(1, "Baseline", color=color.gray)

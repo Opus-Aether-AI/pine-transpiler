@@ -97,6 +97,43 @@ plot(session.ismarket ? 1 : 0)
     expect(outCustomSession[0]).toBe(0);
   });
 
+  it('supports cross-midnight session windows with day filters', () => {
+    const source = `//@version=5
+indicator("session-overnight")
+plot(session.ismarket ? 1 : 0)
+`;
+
+    const inSessionBeforeMidnight = runOneBar(source, {
+      hour: 23,
+      minute: 0,
+      dayOfWeek: 2, // Monday
+      symbolRegular: '2200-0200:12345',
+    });
+    const inSessionAfterMidnight = runOneBar(source, {
+      hour: 1,
+      minute: 30,
+      dayOfWeek: 3, // Tuesday
+      symbolRegular: '2200-0200:12345',
+    });
+    const outSessionHour = runOneBar(source, {
+      hour: 3,
+      minute: 0,
+      dayOfWeek: 3, // Tuesday
+      symbolRegular: '2200-0200:12345',
+    });
+    const outSessionDay = runOneBar(source, {
+      hour: 23,
+      minute: 0,
+      dayOfWeek: 7, // Saturday
+      symbolRegular: '2200-0200:12345',
+    });
+
+    expect(inSessionBeforeMidnight[0]).toBe(1);
+    expect(inSessionAfterMidnight[0]).toBe(1);
+    expect(outSessionHour[0]).toBe(0);
+    expect(outSessionDay[0]).toBe(0);
+  });
+
   it('binds `time`, `time_close`, and `time_tradingday` coherently', () => {
     const source = `//@version=5
 indicator("time-bindings")
@@ -109,6 +146,37 @@ plot(time_tradingday > time ? 1 : 0)
     expect(plots[0]).toBe(60_000);
     expect(plots[1]).toBe(1);
     expect(plots[2]).toBe(0);
+  });
+
+  it('treats `time(..., bars_back=1)` as `na` on the first bar', () => {
+    const source = `//@version=6
+indicator("time-bars-back")
+inNow = not na(time("", "0000-2359:1234567", "GMT+0"))
+inPrev = not na(time("", "0000-2359:1234567", "GMT+0", bars_back = 1))
+plot(inNow ? 1 : 0)
+plot(inPrev ? 1 : 0)
+`;
+
+    const plots = runOneBar(source, { time: Date.UTC(2024, 0, 1, 9, 30, 0) });
+    expect(plots[0]).toBe(1);
+    expect(plots[1]).toBe(0);
+  });
+
+  it('applies `time()` session windows using timezone strings', () => {
+    const source = `//@version=6
+indicator("time-session-window")
+plot(na(time("", "0930-1000:1234567", "GMT+0")) ? 0 : 1)
+`;
+
+    const inSession = runOneBar(source, {
+      time: Date.UTC(2024, 0, 1, 9, 45, 0),
+    });
+    const outSession = runOneBar(source, {
+      time: Date.UTC(2024, 0, 1, 10, 30, 0),
+    });
+
+    expect(inSession[0]).toBe(1);
+    expect(outSession[0]).toBe(0);
   });
 
   it('does not throw when using `session.ismarket` directly in expressions', () => {

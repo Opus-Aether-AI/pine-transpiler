@@ -102,6 +102,147 @@ function readStringField(obj: unknown, key: string): string | undefined {
   return typeof v === 'string' ? v : undefined;
 }
 
+function ensureArrayPrototypeCompat(): void {
+  const define = (
+    name: string,
+    value: (this: unknown[], ...args: unknown[]) => unknown,
+  ) => {
+    const proto = Array.prototype as unknown as Record<string, unknown>;
+    if (typeof proto[name] === 'function') return;
+    Object.defineProperty(Array.prototype, name, {
+      value,
+      enumerable: false,
+      configurable: true,
+      writable: true,
+    });
+  };
+
+  const numeric = (arr: unknown[]): number[] =>
+    arr.filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+
+  define('min', function min(this: unknown[]): number {
+    const xs = numeric(this);
+    return xs.length === 0 ? Number.NaN : Math.min(...xs);
+  });
+  define('max', function max(this: unknown[]): number {
+    const xs = numeric(this);
+    return xs.length === 0 ? Number.NaN : Math.max(...xs);
+  });
+  define('sum', function sum(this: unknown[]): number {
+    return numeric(this).reduce((acc, v) => acc + v, 0);
+  });
+  define('avg', function avg(this: unknown[]): number {
+    const xs = numeric(this);
+    if (xs.length === 0) return Number.NaN;
+    return xs.reduce((acc, v) => acc + v, 0) / xs.length;
+  });
+  define('variance', function variance(this: unknown[]): number {
+    const xs = numeric(this);
+    if (xs.length === 0) return Number.NaN;
+    const mean = xs.reduce((acc, v) => acc + v, 0) / xs.length;
+    const sq = xs.map((v) => (v - mean) * (v - mean));
+    return sq.reduce((acc, v) => acc + v, 0) / xs.length;
+  });
+  define('stdev', function stdev(this: unknown[]): number {
+    const v = (this as unknown[] as { variance?: () => number }).variance?.();
+    return typeof v === 'number' ? Math.sqrt(v) : Number.NaN;
+  });
+}
+
+interface VisualEvent {
+  call: string;
+  args: unknown[];
+  barIndex: number;
+}
+
+const VISUAL_STD_CALLS = new Set([
+  'plot',
+  'plotshape',
+  'plotchar',
+  'plotarrow',
+  'hline',
+  'bgcolor',
+  'fill',
+  'barcolor',
+]);
+
+function createVisualStdProxy(
+  std: Record<string, unknown>,
+  pushEvent: (event: VisualEvent) => void,
+  barIndex: number,
+): Record<string, unknown> {
+  return new Proxy(std, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver);
+      if (typeof prop !== 'string') return value;
+      if (!VISUAL_STD_CALLS.has(prop)) return value;
+      if (typeof value !== 'function') return value;
+      return (...args: unknown[]) => {
+        pushEvent({
+          call: `Std.${prop}`,
+          args,
+          barIndex,
+        });
+        return (value as (...inner: unknown[]) => unknown).apply(target, args);
+      };
+    },
+  });
+}
+
+function wrapVisualHandle(
+  namespace: string,
+  handle: unknown,
+  pushEvent: (event: VisualEvent) => void,
+  barIndex: number,
+): unknown {
+  if (typeof handle !== 'object' || handle === null) return handle;
+  return new Proxy(handle as Record<string, unknown>, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver);
+      if (typeof prop !== 'string') return value;
+      if (typeof value !== 'function') return value;
+      return (...args: unknown[]) => {
+        pushEvent({
+          call: `${namespace}.${prop}`,
+          args,
+          barIndex,
+        });
+        return (value as (...inner: unknown[]) => unknown).apply(target, args);
+      };
+    },
+  });
+}
+
+function createVisualNamespaceProxy(
+  namespace: string,
+  ns: Record<string, unknown>,
+  pushEvent: (event: VisualEvent) => void,
+  barIndex: number,
+): Record<string, unknown> {
+  return new Proxy(ns, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver);
+      if (typeof prop !== 'string') return value;
+      if (typeof value !== 'function') return value;
+      return (...args: unknown[]) => {
+        pushEvent({
+          call: `${namespace}.${prop}`,
+          args,
+          barIndex,
+        });
+        const result = (value as (...inner: unknown[]) => unknown).apply(
+          target,
+          args,
+        );
+        if (prop === 'new') {
+          return wrapVisualHandle(namespace, result, pushEvent, barIndex);
+        }
+        return result;
+      };
+    },
+  });
+}
+
 /**
  * Runtime helper bundle for persistent Pine variables.
  *
@@ -399,6 +540,16 @@ export function buildIndicatorFactory(
         let _previousBarTime = -1;
         // Fallback cursor when runtime context does not expose barIndex.
         let _fallbackBarIndex = -1;
+        // Persistent per-call-site state for request.security() MTF
+        // aggregation. Lives for the lifetime of one indicator instance.
+        const _requestSecurityState = new Map<
+          string,
+          {
+            lastBucket: number;
+            currentValue: unknown;
+            confirmedValue: unknown;
+          }
+        >();
 
         // Compile the script once during initialization
         // biome-ignore lint/complexity/noBannedTypes: Function constructor required
@@ -500,12 +651,13 @@ export function buildIndicatorFactory(
         return {
           main: (context, inputCallback) => {
             // Create runtime mocks using factory functions
-            const ta = Std;
             const _plotValues: number[] = [];
+            const _visualEvents: VisualEvent[] = [];
 
             // Cast to internal types for type safety
             const stdLib = Std as StdLibraryInternal;
             const ctx = context as RuntimeContextInternal;
+            ensureArrayPrototypeCompat();
 
             const input = createInputMock(
               inputCallback as (index: number) => InputValue,
@@ -516,7 +668,7 @@ export function buildIndicatorFactory(
             const math = createMathMock();
             const timeframe = createTimeframeMock(stdLib, ctx);
             const syminfo = createSyminfoMock(ctx);
-            const stubs = createStubNamespaces();
+            const stubsRaw = createStubNamespaces();
             const sources = createPriceSources(stdLib, ctx);
 
             // Real-ish barstate: read the current bar's time from the
@@ -544,6 +696,227 @@ export function buildIndicatorFactory(
             const resolvedTotalBars =
               readNumberField(ctx.symbol, 'bars') ??
               readNumberField(ctx, 'totalBars');
+            const pushVisualEvent = (event: VisualEvent) => {
+              _visualEvents.push(event);
+            };
+            const stubs = {
+              ...stubsRaw,
+              line: createVisualNamespaceProxy(
+                'line',
+                stubsRaw.line as Record<string, unknown>,
+                pushVisualEvent,
+                resolvedBarIndex,
+              ),
+              box: createVisualNamespaceProxy(
+                'box',
+                stubsRaw.box as Record<string, unknown>,
+                pushVisualEvent,
+                resolvedBarIndex,
+              ),
+              label: createVisualNamespaceProxy(
+                'label',
+                stubsRaw.label as Record<string, unknown>,
+                pushVisualEvent,
+                resolvedBarIndex,
+              ),
+              table: createVisualNamespaceProxy(
+                'table',
+                stubsRaw.table as Record<string, unknown>,
+                pushVisualEvent,
+                resolvedBarIndex,
+              ),
+            };
+            const stdWithVisual = createVisualStdProxy(
+              Std as Record<string, unknown>,
+              pushVisualEvent,
+              resolvedBarIndex,
+            ) as StdLibraryInternal;
+            const parseTimeframeToMs = (raw: unknown): number | null => {
+              const tf = String(raw ?? '').trim();
+              if (!tf) return null;
+              const upper = tf.toUpperCase();
+              const m = upper.match(/^(\d+)?([SMHDWMY])?$/);
+              if (!m) return null;
+              const num = Number(m[1] ?? 1);
+              if (!Number.isFinite(num) || num <= 0) return null;
+              const unit = m[2] ?? '';
+              if (!unit) return num * 60_000;
+              if (unit === 'S') return num * 1_000;
+              if (unit === 'H') return num * 3_600_000;
+              if (unit === 'D') return num * 86_400_000;
+              if (unit === 'W') return num * 604_800_000;
+              if (unit === 'M') return num * 2_592_000_000;
+              if (unit === 'Y') return num * 31_536_000_000;
+              return null;
+            };
+            const parseOffsetMinutes = (raw: string): number | null => {
+              const normalized = raw.trim().toUpperCase();
+              if (
+                normalized === 'GMT' ||
+                normalized === 'UTC' ||
+                normalized === 'GMT+0' ||
+                normalized === 'GMT-0'
+              ) {
+                return 0;
+              }
+              const m = normalized.match(
+                /^(?:GMT|UTC)([+-])(\d{1,2})(?::?(\d{2}))?$/,
+              );
+              if (!m) return null;
+              const sign = m[1] === '-' ? -1 : 1;
+              const hours = Number(m[2]);
+              const minutes = Number(m[3] ?? 0);
+              if (
+                !Number.isFinite(hours) ||
+                !Number.isFinite(minutes) ||
+                hours > 14 ||
+                minutes > 59
+              ) {
+                return null;
+              }
+              return sign * (hours * 60 + minutes);
+            };
+            const weekdayToPine = (weekday: string): number | null => {
+              const upper = weekday.slice(0, 3).toUpperCase();
+              if (upper === 'SUN') return 1;
+              if (upper === 'MON') return 2;
+              if (upper === 'TUE') return 3;
+              if (upper === 'WED') return 4;
+              if (upper === 'THU') return 5;
+              if (upper === 'FRI') return 6;
+              if (upper === 'SAT') return 7;
+              return null;
+            };
+            const readClockAt = (
+              timestamp: number,
+              timezone: unknown,
+            ): { hour: number; minute: number; dayOfWeek: number } => {
+              if (typeof timezone === 'string' && timezone.trim()) {
+                const offset = parseOffsetMinutes(timezone);
+                if (offset !== null) {
+                  const shifted = new Date(timestamp + offset * 60_000);
+                  return {
+                    hour: shifted.getUTCHours(),
+                    minute: shifted.getUTCMinutes(),
+                    dayOfWeek: shifted.getUTCDay() + 1,
+                  };
+                }
+                try {
+                  const parts = new Intl.DateTimeFormat('en-US', {
+                    timeZone: timezone,
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    weekday: 'short',
+                  }).formatToParts(new Date(timestamp));
+                  const hour = Number(
+                    parts.find((p) => p.type === 'hour')?.value ?? Number.NaN,
+                  );
+                  const minute = Number(
+                    parts.find((p) => p.type === 'minute')?.value ?? Number.NaN,
+                  );
+                  const dayOfWeek = weekdayToPine(
+                    parts.find((p) => p.type === 'weekday')?.value ?? '',
+                  );
+                  if (
+                    Number.isFinite(hour) &&
+                    Number.isFinite(minute) &&
+                    dayOfWeek !== null
+                  ) {
+                    return { hour, minute, dayOfWeek };
+                  }
+                } catch {
+                  // Ignore invalid IANA names and fall back to UTC below.
+                }
+              }
+              const d = new Date(timestamp);
+              return {
+                hour: d.getUTCHours(),
+                minute: d.getUTCMinutes(),
+                dayOfWeek: d.getUTCDay() + 1,
+              };
+            };
+            const isInSessionAt = (
+              timestamp: number,
+              sessionRaw: string,
+              timezone: unknown,
+            ): boolean => {
+              const [timeRangeRaw, daysRaw] = sessionRaw.split(':');
+              const [startRaw = '', endRaw = ''] = (timeRangeRaw ?? '').split(
+                '-',
+              );
+              if (startRaw.length < 4 || endRaw.length < 4) return false;
+              const startHour = Number(startRaw.slice(0, 2));
+              const startMinute = Number(startRaw.slice(2, 4));
+              const endHour = Number(endRaw.slice(0, 2));
+              const endMinute = Number(endRaw.slice(2, 4));
+              if (
+                !Number.isFinite(startHour) ||
+                !Number.isFinite(startMinute) ||
+                !Number.isFinite(endHour) ||
+                !Number.isFinite(endMinute)
+              ) {
+                return false;
+              }
+
+              const { hour, minute, dayOfWeek } = readClockAt(
+                timestamp,
+                timezone,
+              );
+              const days = (daysRaw ?? '1234567').trim();
+              if (days && !days.includes(String(dayOfWeek))) return false;
+
+              const current = hour * 60 + minute;
+              const start = startHour * 60 + startMinute;
+              const end = endHour * 60 + endMinute;
+              if (start <= end) return current >= start && current < end;
+              return current >= start || current < end;
+            };
+            const chartTimeframeMs =
+              parseTimeframeToMs(timeframe.period) ?? 60_000;
+            const resolveBarsBackTime = (
+              timeframeArg: unknown,
+              barsBackArg: unknown,
+            ): number => {
+              const barsBackValue = Number(barsBackArg ?? 0);
+              const barsBack =
+                Number.isFinite(barsBackValue) && barsBackValue > 0
+                  ? Math.trunc(barsBackValue)
+                  : 0;
+              if (barsBack > resolvedBarIndex) return Number.NaN;
+              if (!Number.isFinite(currentBarTime)) return Number.NaN;
+              if (barsBack === 0) return currentBarTime;
+              const timeframeMs =
+                parseTimeframeToMs(timeframeArg) ?? chartTimeframeMs;
+              if (!Number.isFinite(timeframeMs) || timeframeMs <= 0) {
+                return Number.NaN;
+              }
+              return currentBarTime - barsBack * timeframeMs;
+            };
+            const compatTime = (...args: unknown[]): number => {
+              const timeframeArg = args[0];
+              const sessionArg = args[1];
+              const timezoneArg = args[2];
+              const barsBackArg = args[3];
+              const timestamp = resolveBarsBackTime(timeframeArg, barsBackArg);
+              if (!Number.isFinite(timestamp)) return Number.NaN;
+              const sessionStr =
+                typeof sessionArg === 'string' ? sessionArg.trim() : '';
+              if (!sessionStr) return timestamp;
+              return isInSessionAt(timestamp, sessionStr, timezoneArg)
+                ? timestamp
+                : Number.NaN;
+            };
+            const stdWithCompatTime = new Proxy(
+              stdWithVisual as Record<string, unknown>,
+              {
+                get(target, prop, receiver) {
+                  if (prop === 'time') return compatTime;
+                  return Reflect.get(target, prop, receiver);
+                },
+              },
+            ) as StdLibraryInternal;
+            const ta = stdWithCompatTime;
             const barstate = createBarstate({
               currentTime: currentBarTime,
               previousTime: _previousBarTime,
@@ -579,23 +952,61 @@ export function buildIndicatorFactory(
             strategy.position_size = 0;
 
             // Plotting stubs that push NaN for unsupported plot types
-            const plotshape = () => {
+            const plotshape = (...args: unknown[]) => {
+              _visualEvents.push({
+                call: 'plotshape',
+                args,
+                barIndex: resolvedBarIndex,
+              });
               _plotValues.push(NaN);
             };
-            const plotchar = () => {
+            const plotchar = (...args: unknown[]) => {
+              _visualEvents.push({
+                call: 'plotchar',
+                args,
+                barIndex: resolvedBarIndex,
+              });
               _plotValues.push(NaN);
             };
-            const plotarrow = () => {
+            const plotarrow = (...args: unknown[]) => {
+              _visualEvents.push({
+                call: 'plotarrow',
+                args,
+                barIndex: resolvedBarIndex,
+              });
               _plotValues.push(NaN);
             };
-            const hline = () => {
+            const hline = (...args: unknown[]) => {
+              _visualEvents.push({
+                call: 'hline',
+                args,
+                barIndex: resolvedBarIndex,
+              });
               _plotValues.push(NaN);
             };
-            const bgcolor = () => {};
-            const fill = () => {};
+            const bgcolor = (...args: unknown[]) => {
+              _visualEvents.push({
+                call: 'bgcolor',
+                args,
+                barIndex: resolvedBarIndex,
+              });
+            };
+            const fill = (...args: unknown[]) => {
+              _visualEvents.push({
+                call: 'fill',
+                args,
+                barIndex: resolvedBarIndex,
+              });
+            };
             // barcolor is a metainfo concern (per-bar color) — runtime
             // no-op like bgcolor.
-            const barcolor = () => {};
+            const barcolor = (...args: unknown[]) => {
+              _visualEvents.push({
+                call: 'barcolor',
+                args,
+                barIndex: resolvedBarIndex,
+              });
+            };
 
             // Color mapping
             const color = COLOR_MAP;
@@ -734,11 +1145,118 @@ export function buildIndicatorFactory(
               },
             });
             const naFallback = () => makeNaIterable();
+            let _requestSecurityCallIndex = 0;
+            const cloneValue = (value: unknown): unknown => {
+              if (Array.isArray(value)) {
+                return value.map((v) => cloneValue(v));
+              }
+              return value;
+            };
+            const naLike = (value: unknown): unknown => {
+              if (Array.isArray(value)) {
+                return value.map(() => Number.NaN);
+              }
+              return Number.NaN;
+            };
+            const parseTimeframeToMinutes = (raw: unknown): number | null => {
+              const tf = String(raw ?? '').trim();
+              if (!tf) return null;
+              const upper = tf.toUpperCase();
+              const m = upper.match(/^(\d+)?([SMHDWMY])?$/);
+              if (!m) return null;
+              const num = Number(m[1] ?? 1);
+              if (!Number.isFinite(num) || num <= 0) return null;
+              const unit = m[2] ?? '';
+              if (!unit) return num;
+              if (unit === 'S') return num / 60;
+              if (unit === 'M') return num * 43800;
+              if (unit === 'H') return num * 60;
+              if (unit === 'D') return num * 1440;
+              if (unit === 'W') return num * 10080;
+              if (unit === 'Y') return num * 525600;
+              return null;
+            };
+            const resolveMergeMode = (extras: unknown[]) => {
+              let gaps = 'gaps_off';
+              let lookahead = 'lookahead_off';
+              for (const extra of extras) {
+                const s = String(extra ?? '');
+                if (s.includes('gaps_on')) gaps = 'gaps_on';
+                if (s.includes('gaps_off')) gaps = 'gaps_off';
+                if (s.includes('lookahead_on')) lookahead = 'lookahead_on';
+                if (s.includes('lookahead_off')) lookahead = 'lookahead_off';
+              }
+              return { gaps, lookahead };
+            };
             const requestSecurity = (...args: unknown[]): unknown => {
               // Pine signature: request.security(symbol, timeframe,
               // expression, ...)
-              if (args.length >= 3) return args[2];
-              return naFallback();
+              if (args.length < 3) return naFallback();
+              const symbolArg = args[0];
+              const timeframeArg = args[1];
+              const expressionArg = args[2];
+              const merge = resolveMergeMode(args.slice(3));
+              const callSite = _requestSecurityCallIndex++;
+
+              const currentTfRaw =
+                typeof stdLib.period === 'function' ? stdLib.period(ctx) : null;
+              const currentTfMins = parseTimeframeToMinutes(currentTfRaw);
+              const targetTfMins = parseTimeframeToMinutes(timeframeArg);
+
+              // Subset support: only higher-timeframe merge. Same/lower
+              // timeframes keep passthrough behaviour.
+              if (
+                currentTfMins === null ||
+                targetTfMins === null ||
+                targetTfMins <= currentTfMins
+              ) {
+                return expressionArg;
+              }
+
+              // Current bar time is required for deterministic bucket
+              // mapping. If unavailable, keep passthrough behavior.
+              if (!Number.isFinite(currentBarTime) || currentBarTime < 0) {
+                return expressionArg;
+              }
+
+              const bucketSizeMs = targetTfMins * 60_000;
+              if (!Number.isFinite(bucketSizeMs) || bucketSizeMs <= 0) {
+                return expressionArg;
+              }
+
+              const bucket = Math.floor(currentBarTime / bucketSizeMs);
+              const key = `${callSite}|${String(symbolArg)}|${String(timeframeArg)}|${merge.gaps}|${merge.lookahead}`;
+
+              const existing = _requestSecurityState.get(key);
+              let changedBucket = false;
+              if (!existing) {
+                _requestSecurityState.set(key, {
+                  lastBucket: bucket,
+                  currentValue: cloneValue(expressionArg),
+                  confirmedValue: naLike(expressionArg),
+                });
+                changedBucket = true;
+              } else if (existing.lastBucket !== bucket) {
+                existing.confirmedValue = cloneValue(existing.currentValue);
+                existing.currentValue = cloneValue(expressionArg);
+                existing.lastBucket = bucket;
+                changedBucket = true;
+              } else {
+                existing.currentValue = cloneValue(expressionArg);
+              }
+
+              const state = _requestSecurityState.get(key);
+              if (!state) return expressionArg;
+
+              const merged =
+                merge.lookahead === 'lookahead_on'
+                  ? state.currentValue
+                  : state.confirmedValue;
+
+              if (merge.gaps === 'gaps_on' && !changedBucket) {
+                return naLike(expressionArg);
+              }
+              return cloneValue(merged);
             };
             const requestBase: Record<string, (...args: unknown[]) => unknown> =
               {
@@ -909,7 +1427,7 @@ export function buildIndicatorFactory(
             // Execution
             try {
               compiledScript(
-                Std,
+                stdWithCompatTime,
                 context,
                 input,
                 plot,
@@ -976,6 +1494,12 @@ export function buildIndicatorFactory(
                 sources.ohlc4,
               );
 
+              Object.defineProperty(_plotValues, '__visualEvents', {
+                value: _visualEvents,
+                enumerable: false,
+                writable: false,
+                configurable: false,
+              });
               return _plotValues;
             } catch (e) {
               // Suppress the per-bar console.error when the error is
@@ -998,6 +1522,12 @@ export function buildIndicatorFactory(
               // surface the underlying error instead of silently
               // marking the bar as a pass.
               const fallback = plots.map((_p) => NaN);
+              Object.defineProperty(fallback, '__visualEvents', {
+                value: _visualEvents,
+                enumerable: false,
+                writable: false,
+                configurable: false,
+              });
               // Preserve the raw error (instance + stack) on the array
               // so consumers can surface the full diagnostic, not just
               // the message. Non-enumerable so spread / JSON.stringify

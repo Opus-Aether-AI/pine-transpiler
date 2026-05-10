@@ -1,0 +1,24 @@
+//@version=5
+indicator("SMC Composite Index", overlay=false)
+
+len = input.int(20, "Lookback", minval=2)
+
+mssBull = close > ta.highest(high[1], len)
+mssBear = close < ta.lowest(low[1], len)
+liqSweepBear = high > ta.highest(high[1], 10) and close < close[1]
+liqSweepBull = low < ta.lowest(low[1], 10) and close > close[1]
+fvgBull = low > high[2]
+fvgBear = high < low[2]
+
+score =
+     (mssBull ? 2.0 : 0.0)
+   + (mssBear ? -2.0 : 0.0)
+   + (liqSweepBull ? 1.0 : 0.0)
+   + (liqSweepBear ? -1.0 : 0.0)
+   + (fvgBull ? 1.0 : 0.0)
+   + (fvgBear ? -1.0 : 0.0)
+
+composite = ta.ema(score, 5)
+
+plot(composite, "Composite", color=color.aqua)
+plot(0, "Zero", color=color.gray)

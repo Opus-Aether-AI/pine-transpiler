@@ -209,6 +209,7 @@ export class StatementGenerator implements StatementGeneratorInterface {
     const name = stmt.name;
     const prefix = stmt.export ? 'export ' : '';
     const fields = stmt.fields;
+    const typeCtor = `__type_${sanitizeIdentifier(name)}`;
 
     let constructorBody = '';
     this.indentLevel++;
@@ -234,11 +235,16 @@ export class StatementGenerator implements StatementGeneratorInterface {
       })
       .join(', ');
 
-    // Pine v6 calls type constructors via `MyType.new(args)` (a static
-    // factory). Emit a static `new` method that forwards to the
-    // standard JS constructor so `MyType.new(...)` resolves correctly
-    // alongside `new MyType(...)`.
-    return `${indent(this.indentLevel)}${prefix}class ${name} {\n${indent(this.indentLevel, 1)}constructor(${paramsWithDefaults}) {\n${indent(this.indentLevel, 2)}${constructorBody.trim()}\n${indent(this.indentLevel, 1)}}\n${indent(this.indentLevel, 1)}static new(...args) { return new ${name}(...args); }\n${indent(this.indentLevel)}}`;
+    // Pine keeps type and function namespaces separate (same identifier
+    // can be both a type and a function). JS does not. Emit an internal
+    // type constructor and then:
+    // 1) if the public name already resolves to a function (hoisted),
+    //    attach `.new` on that function; or
+    // 2) bind the public name to the type constructor.
+    //
+    // This preserves both `Foo(...)` and `Foo.new(...)` when names
+    // collide, while keeping `Foo.prototype` available for `method`.
+    return `${indent(this.indentLevel)}var ${typeCtor} = class ${name} {\n${indent(this.indentLevel, 1)}constructor(${paramsWithDefaults}) {\n${indent(this.indentLevel, 2)}${constructorBody.trim()}\n${indent(this.indentLevel, 1)}}\n${indent(this.indentLevel, 1)}static new(...args) { return new ${typeCtor}(...args); }\n${indent(this.indentLevel)}};\n${indent(this.indentLevel)}${prefix}var ${name};\n${indent(this.indentLevel)}if (typeof ${name} === 'function') {\n${indent(this.indentLevel, 1)}if (typeof ${name}.new !== 'function') {\n${indent(this.indentLevel, 2)}${name}.new = (...args) => new ${typeCtor}(...args);\n${indent(this.indentLevel, 1)}}\n${indent(this.indentLevel)}} else {\n${indent(this.indentLevel, 1)}${name} = ${typeCtor};\n${indent(this.indentLevel)}}`;
   }
 
   private generateForStatement(stmt: ForStatement): string {

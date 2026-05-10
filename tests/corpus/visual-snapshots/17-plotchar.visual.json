@@ -1,0 +1,69 @@
+{
+  "fixture": "17-plotchar.pine",
+  "stageReached": "complete",
+  "pass": true,
+  "error": null,
+  "runtime": {
+    "barsCompleted": 200,
+    "barsErrored": 0,
+    "declaredPlotCount": 1,
+    "actualPlotCount": 1,
+    "visualEventCount": 1,
+    "visualCalls": [
+      {
+        "call": "Std.plotchar",
+        "count": 1
+      }
+    ],
+    "topRuntimeErrors": [],
+    "unimplementedStdCalls": []
+  },
+  "metainfo": {
+    "plotCount": 1,
+    "plots": [
+      {
+        "id": "plot_0",
+        "type": "chars",
+        "price": null
+      }
+    ],
+    "inputCount": 0,
+    "inputs": [],
+    "styleKeys": [
+      "plot_0"
+    ],
+    "styles": [
+      {
+        "id": "plot_0",
+        "title": "Up",
+        "histogramBase": 0
+      }
+    ],
+    "defaultStyles": [
+      {
+        "id": "plot_0",
+        "plottype": 7,
+        "linewidth": 1,
+        "linestyle": 0,
+        "color": "#000000",
+        "transparency": 0,
+        "visible": true,
+        "trackPrice": false
+      }
+    ]
+  },
+  "visualCallCounts": {
+    "Std.plot": 0,
+    "Std.plotshape": 0,
+    "Std.plotchar": 1,
+    "Std.plotarrow": 0,
+    "hline": 0,
+    "Std.bgcolor": 0,
+    "Std.fill": 0,
+    "Std.barcolor": 0,
+    "line.new": 0,
+    "label.new": 0,
+    "box.new": 0,
+    "table.new": 0
+  }
+}

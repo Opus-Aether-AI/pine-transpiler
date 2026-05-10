@@ -373,6 +373,22 @@ describe('TA Transpilation', () => {
       const js = transpile(code);
       expect(js).toContain('Std.lowest');
     });
+
+    it('should inject implicit source for one-arg ta.lowest/ta.highest', () => {
+      const lowJs = transpile('a = ta.lowest(14)');
+      const highJs = transpile('b = ta.highest(14)');
+      expect(lowJs).toContain('Std.lowest(context, context.new_var(low), 14)');
+      expect(highJs).toContain(
+        'Std.highest(context, context.new_var(high), 14)',
+      );
+    });
+
+    it('should preserve history operator on ta range calls', () => {
+      const js = transpile('x = ta.lowest(14)[1]');
+      expect(js).toContain(
+        'context.new_var(Std.lowest(context, context.new_var(low), 14)).get(1)',
+      );
+    });
   });
 
   describe('Cross Detection', () => {

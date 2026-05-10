@@ -2,8 +2,15 @@ import { describe, expect, it } from 'bun:test';
 import { transpileToPineJS } from '../../src/index';
 import { createMockRuntime } from '../corpus/mock-runtime';
 
-function runBars(source: string, barCount = 5): number[][] {
-  const result = transpileToPineJS(source, 'state_semantics_regression', 'State');
+function buildInstance(source: string, barCount = 5): {
+  runtime: ReturnType<typeof createMockRuntime>;
+  main: (ctx: unknown, cb: (index: number) => number) => unknown;
+} {
+  const result = transpileToPineJS(
+    source,
+    'state_semantics_regression',
+    'State',
+  );
   if (!result.success || !result.indicatorFactory) {
     throw new Error(result.error ?? 'transpile failed');
   }
@@ -11,14 +18,32 @@ function runBars(source: string, barCount = 5): number[][] {
   const runtime = createMockRuntime({ barCount });
   const indicator = result.indicatorFactory(runtime.pineJs);
   const instance = indicator.constructor();
+  return {
+    runtime,
+    main: instance.main as (
+      ctx: unknown,
+      cb: (index: number) => number,
+    ) => unknown,
+  };
+}
+
+function runOneStep(
+  runtime: ReturnType<typeof createMockRuntime>,
+  main: (ctx: unknown, cb: (index: number) => number) => unknown,
+): number[] {
+  runtime.resetVarPointer();
+  runtime.resetCurrentBarPlots();
+  const returned = main(runtime.context, () => 14);
+  const factoryPlots = Array.isArray(returned) ? returned : [];
+  return [...runtime.currentBarPlots, ...factoryPlots];
+}
+
+function runBars(source: string, barCount = 5): number[][] {
+  const { runtime, main } = buildInstance(source, barCount);
   const outputs: number[][] = [];
 
   for (let i = 0; i < barCount; i++) {
-    runtime.resetVarPointer();
-    runtime.resetCurrentBarPlots();
-    const returned = instance.main(runtime.context, () => 14);
-    const factoryPlots = Array.isArray(returned) ? returned : [];
-    outputs.push([...runtime.currentBarPlots, ...factoryPlots]);
+    outputs.push(runOneStep(runtime, main));
     runtime.advanceBar();
   }
 
@@ -46,6 +71,46 @@ plot(ticks)
 `;
     const outputs = runBars(source, 4);
     expect(outputs.map((row) => row[0])).toEqual([1, 1, 1, 1]);
+  });
+
+  it('keeps `varip` across intrabar ticks and resets only on new bars', () => {
+    const source = `//@version=5
+indicator("varip-intrabar")
+var int bars = 0
+varip int ticks = 0
+if barstate.isnew
+    bars += 1
+ticks += 1
+plot(bars)
+plot(ticks)
+`;
+
+    const { runtime, main } = buildInstance(source, 2);
+    const tick1 = runOneStep(runtime, main);
+    const tick2 = runOneStep(runtime, main);
+    const tick3 = runOneStep(runtime, main);
+    runtime.advanceBar();
+    const nextBar = runOneStep(runtime, main);
+
+    expect(tick1).toEqual([1, 1]);
+    expect(tick2).toEqual([1, 2]);
+    expect(tick3).toEqual([1, 3]);
+    expect(nextBar).toEqual([2, 1]);
+  });
+
+  it('applies compound assignments to persistent variables', () => {
+    const source = `//@version=5
+indicator("var-compound")
+var int acc = 1
+varip int ticks = 1
+acc *= 2
+ticks += 1
+plot(acc)
+plot(ticks)
+`;
+    const outputs = runBars(source, 4);
+    expect(outputs.map((row) => row[0])).toEqual([2, 4, 8, 16]);
+    expect(outputs.map((row) => row[1])).toEqual([2, 2, 2, 2]);
   });
 
   it('exposes barstate flags with deterministic bar-index semantics', () => {

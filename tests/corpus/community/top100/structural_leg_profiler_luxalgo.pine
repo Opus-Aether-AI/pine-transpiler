@@ -1,0 +1,26 @@
+//@version=5
+indicator("Structural Leg Profiler [LuxAlgo]", overlay=true)
+
+atrLen = input.int(14, "ATR Length", minval=1)
+swingMult = input.float(1.5, "Swing Mult", minval=0.1)
+
+atr = ta.atr(atrLen)
+upLeg = close - close[1] > atr * swingMult * 0.2
+dnLeg = close[1] - close > atr * swingMult * 0.2
+
+var float legVolume = 0.0
+var int legDir = 0
+
+if upLeg
+    legDir := 1
+    legVolume := volume
+else if dnLeg
+    legDir := -1
+    legVolume := volume
+else
+    legVolume += volume
+
+poc = ta.vwap(hlc3)
+plot(poc, "Leg POC", color=color.yellow)
+plot(legDir, "Leg Direction", color=color.new(color.gray, 100), display=display.none)
+plot(legVolume, "Leg Volume", color=color.new(color.blue, 70), display=display.none)

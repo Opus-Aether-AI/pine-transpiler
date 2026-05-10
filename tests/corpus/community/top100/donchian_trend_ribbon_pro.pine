@@ -1,0 +1,15 @@
+//@version=5
+indicator("Donchian Trend Ribbon Pro", overlay=true)
+
+len = input.int(20, "Length", minval=1)
+upper = ta.highest(high, len)
+lower = ta.lowest(low, len)
+mid = (upper + lower) / 2.0
+
+trend = close > mid ? 1 : close < mid ? -1 : 0
+
+pU = plot(upper, "Upper", color=color.new(color.red, 0))
+pL = plot(lower, "Lower", color=color.new(color.green, 0))
+plot(mid, "Mid", color=color.new(color.blue, 0))
+fill(pU, pL, color=trend >= 0 ? color.new(color.green, 85) : color.new(color.red, 85))
+plot(trend, "Trend", color=color.new(color.gray, 100), display=display.none)

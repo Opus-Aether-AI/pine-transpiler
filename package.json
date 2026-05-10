@@ -43,7 +43,11 @@
     "corpus": "bun scripts/corpus/report.ts",
     "corpus:strict": "bun scripts/corpus/strict-audit.ts",
     "corpus:matrix": "bun scripts/corpus/indicator-matrix.ts",
-    "corpus:snap": "UPDATE_SNAPSHOTS=1 bun test tests/corpus/",
+    "corpus:tv100": "bun scripts/corpus/tradingview-top100-matrix.ts",
+    "corpus:tv200": "bun scripts/corpus/tradingview-top200-matrix.ts",
+    "corpus:gate": "bun scripts/corpus/gate.ts",
+    "corpus:visual": "bun scripts/corpus/visual-parity.ts",
+    "corpus:snap": "UPDATE_SNAPSHOTS=1 bun test tests/corpus/ && UPDATE_VISUAL_SNAPSHOTS=1 bun run corpus:visual",
     "prepare": "vite build"
   },
   "keywords": [

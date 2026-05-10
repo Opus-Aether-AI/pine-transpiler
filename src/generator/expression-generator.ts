@@ -48,7 +48,9 @@ import {
  * side-effecting reassignment in an argument position, NOT a named arg.
  * Only the `=` form is dropped.
  */
-function isNamedArgument(arg: Expression): boolean {
+function isNamedArgument(
+  arg: Expression,
+): arg is AssignmentExpression & { left: Identifier } {
   return (
     arg.type === 'AssignmentExpression' &&
     arg.operator === '=' &&
@@ -68,6 +70,13 @@ const BUILTIN_SERIES_IDENTIFIERS = new Set([
   'ohlc4',
   'time',
 ]);
+
+const IMPLICIT_SERIES_BY_TA_CALL: Record<string, string> = {
+  'ta.highest': 'context.new_var(high)',
+  'ta.lowest': 'context.new_var(low)',
+  'ta.highestbars': 'context.new_var(high)',
+  'ta.lowestbars': 'context.new_var(low)',
+};
 
 /**
  * Interface for expression generation, used for dependency injection.
@@ -187,6 +196,11 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
 
   private generateCallExpression(expr: CallExpression): string {
     let callee = this.generateExpression(expr.callee as Expression);
+    const pineCallee = callee;
+    const normalizedArgs = this.normalizeCallArguments(
+      pineCallee,
+      expr.arguments,
+    );
 
     // Pine call syntax allows named arguments: `plot(close, color=color.blue)`.
     // Naïvely emitting `Std.plot(close, color = color.blue)` makes JS read
@@ -199,7 +213,7 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
     // This preserves runtime values for functions that actually depend on
     // named args at execution time (e.g. request.security/table.new),
     // while still avoiding assignment-side shadowing bugs.
-    const runtimeArgExprs = expr.arguments.map((a) =>
+    const runtimeArgExprs = normalizedArgs.map((a) =>
       isNamedArgument(a) ? (a as AssignmentExpression).right : a,
     );
     const args = runtimeArgExprs.map((a) => this.generateExpression(a));
@@ -209,7 +223,15 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
     if (mapping) {
       callee = mapping.stdName || mapping.jsName || callee;
       if (mapping.needsSeries && args.length > 0) {
-        args[0] = this.wrapSeriesArgument(runtimeArgExprs[0], args[0]);
+        const implicitSeries = this.resolveImplicitSeriesArg(
+          pineCallee,
+          runtimeArgExprs.length,
+        );
+        if (implicitSeries) {
+          args.unshift(implicitSeries);
+        } else {
+          args[0] = this.wrapSeriesArgument(runtimeArgExprs[0], args[0]);
+        }
       }
       if (mapping.contextArg) {
         args.unshift('context');
@@ -217,6 +239,71 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
     }
 
     return `${callee}(${args.join(', ')})`;
+  }
+
+  /**
+   * Pine named args can be supplied out of order for request.security().
+   * Runtime execution, however, needs the first three positional slots to
+   * resolve as symbol/timeframe/expression. Normalize only this call so we
+   * keep generic value-only named-arg emit elsewhere.
+   */
+  private normalizeCallArguments(
+    pineCallee: string,
+    args: Expression[],
+  ): Expression[] {
+    if (pineCallee !== 'request.security') return args;
+
+    const positional: Expression[] = [];
+    const namedOrdered: Array<{ name: string; value: Expression }> = [];
+
+    for (const arg of args) {
+      if (isNamedArgument(arg)) {
+        namedOrdered.push({ name: arg.left.name, value: arg.right });
+      } else {
+        positional.push(arg);
+      }
+    }
+
+    if (namedOrdered.length === 0) return args;
+
+    const namedLookup = new Map<string, Expression>();
+    for (const entry of namedOrdered) {
+      namedLookup.set(entry.name, entry.value);
+    }
+
+    let positionalCursor = 0;
+    const takePositional = (): Expression | undefined => {
+      const value = positional[positionalCursor];
+      positionalCursor += 1;
+      return value;
+    };
+
+    const symbol = namedLookup.get('symbol') ?? takePositional();
+    const timeframe = namedLookup.get('timeframe') ?? takePositional();
+    const expression = namedLookup.get('expression') ?? takePositional();
+
+    const normalized: Expression[] = [];
+    if (symbol) normalized.push(symbol);
+    if (timeframe) normalized.push(timeframe);
+    if (expression) normalized.push(expression);
+
+    while (positionalCursor < positional.length) {
+      normalized.push(positional[positionalCursor] as Expression);
+      positionalCursor += 1;
+    }
+
+    for (const entry of namedOrdered) {
+      if (
+        entry.name === 'symbol' ||
+        entry.name === 'timeframe' ||
+        entry.name === 'expression'
+      ) {
+        continue;
+      }
+      normalized.push(entry.value);
+    }
+
+    return normalized;
   }
 
   /**
@@ -243,6 +330,21 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
     return `context.new_var(${emittedArg})`;
   }
 
+  /**
+   * A handful of TA calls allow omitted source args in Pine and default
+   * to built-in series. When only one argument is supplied we inject the
+   * implicit series so the mapped Std call keeps Pine-compatible arity.
+   */
+  private resolveImplicitSeriesArg(
+    pineCallee: string,
+    providedArgCount: number,
+  ): string | null {
+    const implicit = IMPLICIT_SERIES_BY_TA_CALL[pineCallee];
+    if (!implicit) return null;
+    if (providedArgCount !== 1) return null;
+    return implicit;
+  }
+
   public generateMemberExpression(expr: MemberExpression): string {
     const object = this.generateExpression(expr.object);
 
@@ -251,7 +353,11 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
       if (expr.object.type === 'Identifier') {
         return `_getHistorical_${object}(${property})`;
       }
-      return `${object}[${property}]`;
+      // Pine history operator can target arbitrary expressions:
+      //   ta.sma(close, 14)[1]
+      //   (high + low)[1]
+      // For non-identifier expressions materialize a series on-the-fly.
+      return `context.new_var(${object}).get(${property})`;
     }
 
     const property = (expr.property as Identifier).name;

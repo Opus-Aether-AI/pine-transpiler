@@ -2541,6 +2541,18 @@ function makeLineNamespace() {
 		if (!h) return;
 		h.x2 = toNumber(x2);
 	};
+	const setXY1 = (lineObj, x1, y1) => {
+		const h = resolveHandle(lineObj, lineStore);
+		if (!h) return;
+		h.x1 = toNumber(x1);
+		h.y1 = toNumber(y1);
+	};
+	const setXY2 = (lineObj, x2, y2) => {
+		const h = resolveHandle(lineObj, lineStore);
+		if (!h) return;
+		h.x2 = toNumber(x2);
+		h.y2 = toNumber(y2);
+	};
 	const setColor = (lineObj, color) => {
 		const h = resolveHandle(lineObj, lineStore);
 		if (!h) return;
@@ -2554,12 +2566,19 @@ function makeLineNamespace() {
 		const h = resolveHandle(lineObj, lineStore);
 		return h ? toNumber(h.y1) : NaN;
 	};
+	const getY2 = (lineObj) => {
+		const h = resolveHandle(lineObj, lineStore);
+		return h ? toNumber(h.y2) : NaN;
+	};
 	const attachLineMethods = (h) => {
 		if (typeof h.delete !== "function") h.delete = () => deleteLine(h);
 		if (typeof h.set_x2 !== "function") h.set_x2 = (x2) => setX2(h, x2);
+		if (typeof h.set_xy1 !== "function") h.set_xy1 = (x1, y1) => setXY1(h, x1, y1);
+		if (typeof h.set_xy2 !== "function") h.set_xy2 = (x2, y2) => setXY2(h, x2, y2);
 		if (typeof h.set_color !== "function") h.set_color = (color) => setColor(h, color);
 		if (typeof h.get_x2 !== "function") h.get_x2 = () => getX2(h);
 		if (typeof h.get_y1 !== "function") h.get_y1 = () => getY1(h);
+		if (typeof h.get_y2 !== "function") h.get_y2 = () => getY2(h);
 	};
 	return withConstantFallback({
 		new: (...args) => {
@@ -2580,9 +2599,12 @@ function makeLineNamespace() {
 		},
 		delete: deleteLine,
 		set_x2: setX2,
+		set_xy1: setXY1,
+		set_xy2: setXY2,
 		set_color: setColor,
 		get_x2: getX2,
 		get_y1: getY1,
+		get_y2: getY2,
 		style_solid: "line.style_solid",
 		style_dashed: "line.style_dashed",
 		style_dotted: "line.style_dotted"
@@ -2606,6 +2628,16 @@ function makeBoxNamespace() {
 		const h = resolveHandle(boxObj, boxStore);
 		if (!h) return;
 		h.right = toNumber(right);
+	};
+	const setTop = (boxObj, top) => {
+		const h = resolveHandle(boxObj, boxStore);
+		if (!h) return;
+		h.top = toNumber(top);
+	};
+	const setBottom = (boxObj, bottom) => {
+		const h = resolveHandle(boxObj, boxStore);
+		if (!h) return;
+		h.bottom = toNumber(bottom);
 	};
 	const setExtend = (boxObj, extend) => {
 		const h = resolveHandle(boxObj, boxStore);
@@ -2647,6 +2679,8 @@ function makeBoxNamespace() {
 		if (typeof h.delete !== "function") h.delete = () => deleteBox(h);
 		if (typeof h.set_left !== "function") h.set_left = (left) => setLeft(h, left);
 		if (typeof h.set_right !== "function") h.set_right = (right) => setRight(h, right);
+		if (typeof h.set_top !== "function") h.set_top = (top) => setTop(h, top);
+		if (typeof h.set_bottom !== "function") h.set_bottom = (bottom) => setBottom(h, bottom);
 		if (typeof h.set_extend !== "function") h.set_extend = (extend) => setExtend(h, extend);
 		if (typeof h.set_bgcolor !== "function") h.set_bgcolor = (color) => setBgcolor(h, color);
 		if (typeof h.set_border_color !== "function") h.set_border_color = (color) => setBorderColor(h, color);
@@ -2675,6 +2709,8 @@ function makeBoxNamespace() {
 		delete: deleteBox,
 		set_left: setLeft,
 		set_right: setRight,
+		set_top: setTop,
+		set_bottom: setBottom,
 		set_extend: setExtend,
 		set_bgcolor: setBgcolor,
 		set_border_color: setBorderColor,
@@ -2699,6 +2735,11 @@ function makeLabelNamespace() {
 		if (!h) return;
 		h.text = text == null ? "" : String(text);
 	};
+	const getText = (labelObj) => {
+		const h = resolveHandle(labelObj, labelStore);
+		if (!h) return "";
+		return h.text == null ? "" : String(h.text);
+	};
 	const setTooltip = (labelObj, tooltip) => {
 		const h = resolveHandle(labelObj, labelStore);
 		if (!h) return;
@@ -2708,6 +2749,11 @@ function makeLabelNamespace() {
 		const h = resolveHandle(labelObj, labelStore);
 		if (!h) return;
 		h.textcolor = color;
+	};
+	const setStyle = (labelObj, style) => {
+		const h = resolveHandle(labelObj, labelStore);
+		if (!h) return;
+		h.style = style;
 	};
 	const setXY = (labelObj, x, y) => {
 		const h = resolveHandle(labelObj, labelStore);
@@ -2725,14 +2771,21 @@ function makeLabelNamespace() {
 		if (!h) return;
 		h.y = toNumber(y);
 	};
+	const getY = (labelObj) => {
+		const h = resolveHandle(labelObj, labelStore);
+		return h ? toNumber(h.y) : NaN;
+	};
 	const attachLabelMethods = (h) => {
 		if (typeof h.delete !== "function") h.delete = () => deleteLabel(h);
 		if (typeof h.set_text !== "function") h.set_text = (text) => setText(h, text);
+		if (typeof h.get_text !== "function") h.get_text = () => getText(h);
 		if (typeof h.set_tooltip !== "function") h.set_tooltip = (tooltip) => setTooltip(h, tooltip);
 		if (typeof h.set_textcolor !== "function") h.set_textcolor = (color) => setTextcolor(h, color);
+		if (typeof h.set_style !== "function") h.set_style = (style) => setStyle(h, style);
 		if (typeof h.set_xy !== "function") h.set_xy = (x, y) => setXY(h, x, y);
 		if (typeof h.set_x !== "function") h.set_x = (x) => setX(h, x);
 		if (typeof h.set_y !== "function") h.set_y = (y) => setY(h, y);
+		if (typeof h.get_y !== "function") h.get_y = () => getY(h);
 	};
 	return withConstantFallback({
 		new: (...args) => {
@@ -2757,11 +2810,14 @@ function makeLabelNamespace() {
 		},
 		delete: deleteLabel,
 		set_text: setText,
+		get_text: getText,
 		set_tooltip: setTooltip,
 		set_textcolor: setTextcolor,
+		set_style: setStyle,
 		set_xy: setXY,
 		set_x: setX,
 		set_y: setY,
+		get_y: getY,
 		style_none: "label.style_none",
 		style_label_up: "label.style_label_up",
 		style_label_down: "label.style_label_down",
@@ -3008,6 +3064,103 @@ function readStringField(obj, key) {
 	const v = obj[key];
 	return typeof v === "string" ? v : void 0;
 }
+function ensureArrayPrototypeCompat() {
+	const define = (name, value) => {
+		if (typeof Array.prototype[name] === "function") return;
+		Object.defineProperty(Array.prototype, name, {
+			value,
+			enumerable: false,
+			configurable: true,
+			writable: true
+		});
+	};
+	const numeric = (arr) => arr.filter((v) => typeof v === "number" && Number.isFinite(v));
+	define("min", function min() {
+		const xs = numeric(this);
+		return xs.length === 0 ? NaN : Math.min(...xs);
+	});
+	define("max", function max() {
+		const xs = numeric(this);
+		return xs.length === 0 ? NaN : Math.max(...xs);
+	});
+	define("sum", function sum() {
+		return numeric(this).reduce((acc, v) => acc + v, 0);
+	});
+	define("avg", function avg() {
+		const xs = numeric(this);
+		if (xs.length === 0) return NaN;
+		return xs.reduce((acc, v) => acc + v, 0) / xs.length;
+	});
+	define("variance", function variance() {
+		const xs = numeric(this);
+		if (xs.length === 0) return NaN;
+		const mean = xs.reduce((acc, v) => acc + v, 0) / xs.length;
+		return xs.map((v) => (v - mean) * (v - mean)).reduce((acc, v) => acc + v, 0) / xs.length;
+	});
+	define("stdev", function stdev() {
+		const v = this.variance?.();
+		return typeof v === "number" ? Math.sqrt(v) : NaN;
+	});
+}
+var VISUAL_STD_CALLS = new Set([
+	"plot",
+	"plotshape",
+	"plotchar",
+	"plotarrow",
+	"hline",
+	"bgcolor",
+	"fill",
+	"barcolor"
+]);
+function createVisualStdProxy(std, pushEvent, barIndex) {
+	return new Proxy(std, { get(target, prop, receiver) {
+		const value = Reflect.get(target, prop, receiver);
+		if (typeof prop !== "string") return value;
+		if (!VISUAL_STD_CALLS.has(prop)) return value;
+		if (typeof value !== "function") return value;
+		return (...args) => {
+			pushEvent({
+				call: `Std.${prop}`,
+				args,
+				barIndex
+			});
+			return value.apply(target, args);
+		};
+	} });
+}
+function wrapVisualHandle(namespace, handle, pushEvent, barIndex) {
+	if (typeof handle !== "object" || handle === null) return handle;
+	return new Proxy(handle, { get(target, prop, receiver) {
+		const value = Reflect.get(target, prop, receiver);
+		if (typeof prop !== "string") return value;
+		if (typeof value !== "function") return value;
+		return (...args) => {
+			pushEvent({
+				call: `${namespace}.${prop}`,
+				args,
+				barIndex
+			});
+			return value.apply(target, args);
+		};
+	} });
+}
+function createVisualNamespaceProxy(namespace, ns, pushEvent, barIndex) {
+	return new Proxy(ns, { get(target, prop, receiver) {
+		const value = Reflect.get(target, prop, receiver);
+		if (typeof prop !== "string") return value;
+		if (typeof value !== "function") return value;
+		return (...args) => {
+			pushEvent({
+				call: `${namespace}.${prop}`,
+				args,
+				barIndex
+			});
+			const result = value.apply(target, args);
+			if (prop === "new") return wrapVisualHandle(namespace, result, pushEvent, barIndex);
+			return result;
+		};
+	} });
+}
 /**
 * Runtime helper bundle for persistent Pine variables.
 *
@@ -3143,6 +3296,7 @@ function buildIndicatorFactory(options) {
 			constructor: () => {
 				let _previousBarTime = -1;
 				let _fallbackBarIndex = -1;
+				const _requestSecurityState = /* @__PURE__ */ new Map();
 				let compiledScript;
 				try {
 					compiledScript = new Function("Std", "context", "input", "plot", "indicator", "study", "strategy", "color", "ta", "math", "timeframe", "plotshape", "plotchar", "plotarrow", "hline", "bgcolor", "fill", "barcolor", "box", "line", "label", "table", "str", "syminfo", "barstate", "shape", "location", "size", "alertcondition", "alert", "request", "session", "array", "time", "time_close", "time_tradingday", "bar_index", "hour", "minute", "second", "year", "month", "dayofmonth", "dayofweek", "timestamp", "chart", "format", "string", "xloc", "yloc", "extend", "position", "order", "text", "display", "ticker", "barmerge", "close", "open", "high", "low", "volume", "hl2", "hlc3", "ohlc4", body);
@@ -3160,16 +3314,17 @@ function buildIndicatorFactory(options) {
 					};
 				}
 				return { main: (context, inputCallback) => {
-					const ta = Std;
 					const _plotValues = [];
+					const _visualEvents = [];
 					const stdLib = Std;
 					const ctx = context;
+					ensureArrayPrototypeCompat();
 					const input = createInputMock(inputCallback, stdLib, ctx);
 					const plot = createPlotMock(_plotValues);
 					const math = createMathMock();
 					const timeframe = createTimeframeMock(stdLib, ctx);
 					const syminfo = createSyminfoMock(ctx);
-					const stubs = createStubNamespaces();
+					const stubsRaw = createStubNamespaces();
 					const sources = createPriceSources(stdLib, ctx);
 					const stdTime = stdLib.time;
 					const rawBarTime = typeof stdTime === "function" ? Number(stdTime(ctx)) : -1;
@@ -3178,6 +3333,137 @@ function buildIndicatorFactory(options) {
 					const resolvedBarIndex = typeof observedBarIndex === "number" ? observedBarIndex : _fallbackBarIndex + 1;
 					_fallbackBarIndex = resolvedBarIndex;
 					const resolvedTotalBars = readNumberField(ctx.symbol, "bars") ?? readNumberField(ctx, "totalBars");
+					const pushVisualEvent = (event) => {
+						_visualEvents.push(event);
+					};
+					const stubs = {
+						...stubsRaw,
+						line: createVisualNamespaceProxy("line", stubsRaw.line, pushVisualEvent, resolvedBarIndex),
+						box: createVisualNamespaceProxy("box", stubsRaw.box, pushVisualEvent, resolvedBarIndex),
+						label: createVisualNamespaceProxy("label", stubsRaw.label, pushVisualEvent, resolvedBarIndex),
+						table: createVisualNamespaceProxy("table", stubsRaw.table, pushVisualEvent, resolvedBarIndex)
+					};
+					const stdWithVisual = createVisualStdProxy(Std, pushVisualEvent, resolvedBarIndex);
+					const parseTimeframeToMs = (raw) => {
+						const tf = String(raw ?? "").trim();
+						if (!tf) return null;
+						const m = tf.toUpperCase().match(/^(\d+)?([SMHDWMY])?$/);
+						if (!m) return null;
+						const num = Number(m[1] ?? 1);
+						if (!Number.isFinite(num) || num <= 0) return null;
+						const unit = m[2] ?? "";
+						if (!unit) return num * 6e4;
+						if (unit === "S") return num * 1e3;
+						if (unit === "H") return num * 36e5;
+						if (unit === "D") return num * 864e5;
+						if (unit === "W") return num * 6048e5;
+						if (unit === "M") return num * 2592e6;
+						if (unit === "Y") return num * 31536e6;
+						return null;
+					};
+					const parseOffsetMinutes = (raw) => {
+						const normalized = raw.trim().toUpperCase();
+						if (normalized === "GMT" || normalized === "UTC" || normalized === "GMT+0" || normalized === "GMT-0") return 0;
+						const m = normalized.match(/^(?:GMT|UTC)([+-])(\d{1,2})(?::?(\d{2}))?$/);
+						if (!m) return null;
+						const sign = m[1] === "-" ? -1 : 1;
+						const hours = Number(m[2]);
+						const minutes = Number(m[3] ?? 0);
+						if (!Number.isFinite(hours) || !Number.isFinite(minutes) || hours > 14 || minutes > 59) return null;
+						return sign * (hours * 60 + minutes);
+					};
+					const weekdayToPine = (weekday) => {
+						const upper = weekday.slice(0, 3).toUpperCase();
+						if (upper === "SUN") return 1;
+						if (upper === "MON") return 2;
+						if (upper === "TUE") return 3;
+						if (upper === "WED") return 4;
+						if (upper === "THU") return 5;
+						if (upper === "FRI") return 6;
+						if (upper === "SAT") return 7;
+						return null;
+					};
+					const readClockAt = (timestamp, timezone) => {
+						if (typeof timezone === "string" && timezone.trim()) {
+							const offset = parseOffsetMinutes(timezone);
+							if (offset !== null) {
+								const shifted = new Date(timestamp + offset * 6e4);
+								return {
+									hour: shifted.getUTCHours(),
+									minute: shifted.getUTCMinutes(),
+									dayOfWeek: shifted.getUTCDay() + 1
+								};
+							}
+							try {
+								const parts = new Intl.DateTimeFormat("en-US", {
+									timeZone: timezone,
+									hour12: false,
+									hour: "2-digit",
+									minute: "2-digit",
+									weekday: "short"
+								}).formatToParts(new Date(timestamp));
+								const hour = Number(parts.find((p) => p.type === "hour")?.value ?? NaN);
+								const minute = Number(parts.find((p) => p.type === "minute")?.value ?? NaN);
+								const dayOfWeek = weekdayToPine(parts.find((p) => p.type === "weekday")?.value ?? "");
+								if (Number.isFinite(hour) && Number.isFinite(minute) && dayOfWeek !== null) return {
+									hour,
+									minute,
+									dayOfWeek
+								};
+							} catch {}
+						}
+						const d = new Date(timestamp);
+						return {
+							hour: d.getUTCHours(),
+							minute: d.getUTCMinutes(),
+							dayOfWeek: d.getUTCDay() + 1
+						};
+					};
+					const isInSessionAt = (timestamp, sessionRaw, timezone) => {
+						const [timeRangeRaw, daysRaw] = sessionRaw.split(":");
+						const [startRaw = "", endRaw = ""] = (timeRangeRaw ?? "").split("-");
+						if (startRaw.length < 4 || endRaw.length < 4) return false;
+						const startHour = Number(startRaw.slice(0, 2));
+						const startMinute = Number(startRaw.slice(2, 4));
+						const endHour = Number(endRaw.slice(0, 2));
+						const endMinute = Number(endRaw.slice(2, 4));
+						if (!Number.isFinite(startHour) || !Number.isFinite(startMinute) || !Number.isFinite(endHour) || !Number.isFinite(endMinute)) return false;
+						const { hour, minute, dayOfWeek } = readClockAt(timestamp, timezone);
+						const days = (daysRaw ?? "1234567").trim();
+						if (days && !days.includes(String(dayOfWeek))) return false;
+						const current = hour * 60 + minute;
+						const start = startHour * 60 + startMinute;
+						const end = endHour * 60 + endMinute;
+						if (start <= end) return current >= start && current < end;
+						return current >= start || current < end;
+					};
+					const chartTimeframeMs = parseTimeframeToMs(timeframe.period) ?? 6e4;
+					const resolveBarsBackTime = (timeframeArg, barsBackArg) => {
+						const barsBackValue = Number(barsBackArg ?? 0);
+						const barsBack = Number.isFinite(barsBackValue) && barsBackValue > 0 ? Math.trunc(barsBackValue) : 0;
+						if (barsBack > resolvedBarIndex) return NaN;
+						if (!Number.isFinite(currentBarTime)) return NaN;
+						if (barsBack === 0) return currentBarTime;
+						const timeframeMs = parseTimeframeToMs(timeframeArg) ?? chartTimeframeMs;
+						if (!Number.isFinite(timeframeMs) || timeframeMs <= 0) return NaN;
+						return currentBarTime - barsBack * timeframeMs;
+					};
+					const compatTime = (...args) => {
+						const timeframeArg = args[0];
+						const sessionArg = args[1];
+						const timezoneArg = args[2];
+						const barsBackArg = args[3];
+						const timestamp = resolveBarsBackTime(timeframeArg, barsBackArg);
+						if (!Number.isFinite(timestamp)) return NaN;
+						const sessionStr = typeof sessionArg === "string" ? sessionArg.trim() : "";
+						if (!sessionStr) return timestamp;
+						return isInSessionAt(timestamp, sessionStr, timezoneArg) ? timestamp : NaN;
+					};
+					const stdWithCompatTime = new Proxy(stdWithVisual, { get(target, prop, receiver) {
+						if (prop === "time") return compatTime;
+						return Reflect.get(target, prop, receiver);
+					} });
+					const ta = stdWithCompatTime;
 					const barstate = createBarstate({
 						currentTime: currentBarTime,
 						previousTime: _previousBarTime,
@@ -3200,21 +3486,59 @@ function buildIndicatorFactory(options) {
 					strategy.short = -1;
 					strategy.initial_capital = 1e5;
 					strategy.position_size = 0;
-					const plotshape = () => {
+					const plotshape = (...args) => {
+						_visualEvents.push({
+							call: "plotshape",
+							args,
+							barIndex: resolvedBarIndex
+						});
 						_plotValues.push(NaN);
 					};
-					const plotchar = () => {
+					const plotchar = (...args) => {
+						_visualEvents.push({
+							call: "plotchar",
+							args,
+							barIndex: resolvedBarIndex
+						});
 						_plotValues.push(NaN);
 					};
-					const plotarrow = () => {
+					const plotarrow = (...args) => {
+						_visualEvents.push({
+							call: "plotarrow",
+							args,
+							barIndex: resolvedBarIndex
+						});
 						_plotValues.push(NaN);
 					};
-					const hline = () => {
+					const hline = (...args) => {
+						_visualEvents.push({
+							call: "hline",
+							args,
+							barIndex: resolvedBarIndex
+						});
 						_plotValues.push(NaN);
 					};
-					const bgcolor = () => {};
-					const fill = () => {};
-					const barcolor = () => {};
+					const bgcolor = (...args) => {
+						_visualEvents.push({
+							call: "bgcolor",
+							args,
+							barIndex: resolvedBarIndex
+						});
+					};
+					const fill = (...args) => {
+						_visualEvents.push({
+							call: "fill",
+							args,
+							barIndex: resolvedBarIndex
+						});
+					};
+					const barcolor = (...args) => {
+						_visualEvents.push({
+							call: "barcolor",
+							args,
+							barIndex: resolvedBarIndex
+						});
+					};
 					const color = COLOR_MAP;
 					const shape = {
 						triangleup: "shape_triangle_up",
@@ -3296,9 +3620,82 @@ function buildIndicatorFactory(options) {
 						}) };
 					} });
 					const naFallback = () => makeNaIterable();
+					let _requestSecurityCallIndex = 0;
+					const cloneValue = (value) => {
+						if (Array.isArray(value)) return value.map((v) => cloneValue(v));
+						return value;
+					};
+					const naLike = (value) => {
+						if (Array.isArray(value)) return value.map(() => NaN);
+						return NaN;
+					};
+					const parseTimeframeToMinutes = (raw) => {
+						const tf = String(raw ?? "").trim();
+						if (!tf) return null;
+						const m = tf.toUpperCase().match(/^(\d+)?([SMHDWMY])?$/);
+						if (!m) return null;
+						const num = Number(m[1] ?? 1);
+						if (!Number.isFinite(num) || num <= 0) return null;
+						const unit = m[2] ?? "";
+						if (!unit) return num;
+						if (unit === "S") return num / 60;
+						if (unit === "M") return num * 43800;
+						if (unit === "H") return num * 60;
+						if (unit === "D") return num * 1440;
+						if (unit === "W") return num * 10080;
+						if (unit === "Y") return num * 525600;
+						return null;
+					};
+					const resolveMergeMode = (extras) => {
+						let gaps = "gaps_off";
+						let lookahead = "lookahead_off";
+						for (const extra of extras) {
+							const s = String(extra ?? "");
+							if (s.includes("gaps_on")) gaps = "gaps_on";
+							if (s.includes("gaps_off")) gaps = "gaps_off";
+							if (s.includes("lookahead_on")) lookahead = "lookahead_on";
+							if (s.includes("lookahead_off")) lookahead = "lookahead_off";
+						}
+						return {
+							gaps,
+							lookahead
+						};
+					};
 					const requestSecurity = (...args) => {
-						if (args.length >= 3) return args[2];
-						return naFallback();
+						if (args.length < 3) return naFallback();
+						const symbolArg = args[0];
+						const timeframeArg = args[1];
+						const expressionArg = args[2];
+						const merge = resolveMergeMode(args.slice(3));
+						const callSite = _requestSecurityCallIndex++;
+						const currentTfMins = parseTimeframeToMinutes(typeof stdLib.period === "function" ? stdLib.period(ctx) : null);
+						const targetTfMins = parseTimeframeToMinutes(timeframeArg);
+						if (currentTfMins === null || targetTfMins === null || targetTfMins <= currentTfMins) return expressionArg;
+						if (!Number.isFinite(currentBarTime) || currentBarTime < 0) return expressionArg;
+						const bucketSizeMs = targetTfMins * 6e4;
+						if (!Number.isFinite(bucketSizeMs) || bucketSizeMs <= 0) return expressionArg;
+						const bucket = Math.floor(currentBarTime / bucketSizeMs);
+						const key = `${callSite}|${String(symbolArg)}|${String(timeframeArg)}|${merge.gaps}|${merge.lookahead}`;
+						const existing = _requestSecurityState.get(key);
+						let changedBucket = false;
+						if (!existing) {
+							_requestSecurityState.set(key, {
+								lastBucket: bucket,
+								currentValue: cloneValue(expressionArg),
+								confirmedValue: naLike(expressionArg)
+							});
+							changedBucket = true;
+						} else if (existing.lastBucket !== bucket) {
+							existing.confirmedValue = cloneValue(existing.currentValue);
+							existing.currentValue = cloneValue(expressionArg);
+							existing.lastBucket = bucket;
+							changedBucket = true;
+						} else existing.currentValue = cloneValue(expressionArg);
+						const state = _requestSecurityState.get(key);
+						if (!state) return expressionArg;
+						const merged = merge.lookahead === "lookahead_on" ? state.currentValue : state.confirmedValue;
+						if (merge.gaps === "gaps_on" && !changedBucket) return naLike(expressionArg);
+						return cloneValue(merged);
 					};
 					const request = new Proxy({ security: requestSecurity }, { get: (target, prop) => {
 						const fn = target[String(prop)];
@@ -3376,11 +3773,23 @@ function buildIndicatorFactory(options) {
 						}
 					};
 					try {
-						compiledScript(Std, context, input, plot, indicator, study, strategy, color, ta, math, timeframe, plotshape, plotchar, plotarrow, hline, bgcolor, fill, barcolor, stubs.box, stubs.line, stubs.label, stubs.table, stubs.str, syminfo, barstate, shape, location, size, alertcondition, alert, request, session, array, time, time_close, time_tradingday, bar_index, hour, minute, second, year, month, dayofmonth, dayofweek, timestamp, chart, format, string, xloc, yloc, extend, position, order, text, display, ticker, barmerge, sources.close, sources.open, sources.high, sources.low, sources.volume, sources.hl2, sources.hlc3, sources.ohlc4);
+						compiledScript(stdWithCompatTime, context, input, plot, indicator, study, strategy, color, ta, math, timeframe, plotshape, plotchar, plotarrow, hline, bgcolor, fill, barcolor, stubs.box, stubs.line, stubs.label, stubs.table, stubs.str, syminfo, barstate, shape, location, size, alertcondition, alert, request, session, array, time, time_close, time_tradingday, bar_index, hour, minute, second, year, month, dayofmonth, dayofweek, timestamp, chart, format, string, xloc, yloc, extend, position, order, text, display, ticker, barmerge, sources.close, sources.open, sources.high, sources.low, sources.volume, sources.hl2, sources.hlc3, sources.ohlc4);
+						Object.defineProperty(_plotValues, "__visualEvents", {
+							value: _visualEvents,
+							enumerable: false,
+							writable: false,
+							configurable: false
+						});
 						return _plotValues;
 					} catch (e) {
 						if (!(typeof e === "object" && e !== null && e.__compileError === true)) console.error("Script execution error", e);
 						const fallback = plots.map((_p) => NaN);
+						Object.defineProperty(fallback, "__visualEvents", {
+							value: _visualEvents,
+							enumerable: false,
+							writable: false,
+							configurable: false
+						});
 						Object.defineProperty(fallback, "__caughtError", {
 							value: e,
 							enumerable: false,
@@ -3807,6 +4216,12 @@ var BUILTIN_SERIES_IDENTIFIERS = new Set([
 	"ohlc4",
 	"time"
 ]);
+var IMPLICIT_SERIES_BY_TA_CALL = {
+	"ta.highest": "context.new_var(high)",
+	"ta.lowest": "context.new_var(low)",
+	"ta.highestbars": "context.new_var(high)",
+	"ta.lowestbars": "context.new_var(low)"
+};
 /**
 * Unified lookup map for all Pine Script function mappings.
 * Built once at module load for O(1) lookup instead of O(k) sequential checks.
@@ -3879,15 +4294,61 @@ var ExpressionGenerator = class {
 	}
 	generateCallExpression(expr) {
 		let callee = this.generateExpression(expr.callee);
-		const runtimeArgExprs = expr.arguments.map((a) => isNamedArgument(a) ? a.right : a);
+		const pineCallee = callee;
+		const runtimeArgExprs = this.normalizeCallArguments(pineCallee, expr.arguments).map((a) => isNamedArgument(a) ? a.right : a);
 		const args = runtimeArgExprs.map((a) => this.generateExpression(a));
 		const mapping = UNIFIED_FUNCTION_MAP.get(callee);
 		if (mapping) {
 			callee = mapping.stdName || mapping.jsName || callee;
-			if (mapping.needsSeries && args.length > 0) args[0] = this.wrapSeriesArgument(runtimeArgExprs[0], args[0]);
+			if (mapping.needsSeries && args.length > 0) {
+				const implicitSeries = this.resolveImplicitSeriesArg(pineCallee, runtimeArgExprs.length);
+				if (implicitSeries) args.unshift(implicitSeries);
+				else args[0] = this.wrapSeriesArgument(runtimeArgExprs[0], args[0]);
+			}
 			if (mapping.contextArg) args.unshift("context");
 		}
 		return `${callee}(${args.join(", ")})`;
+	}
+	/**
+	* Pine named args can be supplied out of order for request.security().
+	* Runtime execution, however, needs the first three positional slots to
+	* resolve as symbol/timeframe/expression. Normalize only this call so we
+	* keep generic value-only named-arg emit elsewhere.
+	*/
+	normalizeCallArguments(pineCallee, args) {
+		if (pineCallee !== "request.security") return args;
+		const positional = [];
+		const namedOrdered = [];
+		for (const arg of args) if (isNamedArgument(arg)) namedOrdered.push({
+			name: arg.left.name,
+			value: arg.right
+		});
+		else positional.push(arg);
+		if (namedOrdered.length === 0) return args;
+		const namedLookup = /* @__PURE__ */ new Map();
+		for (const entry of namedOrdered) namedLookup.set(entry.name, entry.value);
+		let positionalCursor = 0;
+		const takePositional = () => {
+			const value = positional[positionalCursor];
+			positionalCursor += 1;
+			return value;
+		};
+		const symbol = namedLookup.get("symbol") ?? takePositional();
+		const timeframe = namedLookup.get("timeframe") ?? takePositional();
+		const expression = namedLookup.get("expression") ?? takePositional();
+		const normalized = [];
+		if (symbol) normalized.push(symbol);
+		if (timeframe) normalized.push(timeframe);
+		if (expression) normalized.push(expression);
+		while (positionalCursor < positional.length) {
+			normalized.push(positional[positionalCursor]);
+			positionalCursor += 1;
+		}
+		for (const entry of namedOrdered) {
+			if (entry.name === "symbol" || entry.name === "timeframe" || entry.name === "expression") continue;
+			normalized.push(entry.value);
+		}
+		return normalized;
 	}
 	/**
 	* TA mappings marked `needsSeries` must receive a Pine series object,
@@ -3900,12 +4361,23 @@ var ExpressionGenerator = class {
 		if (argExpr.type === "Identifier" && BUILTIN_SERIES_IDENTIFIERS.has(argExpr.name)) return `_series_${sanitizeIdentifier(argExpr.name)}`;
 		return `context.new_var(${emittedArg})`;
 	}
+	/**
+	* A handful of TA calls allow omitted source args in Pine and default
+	* to built-in series. When only one argument is supplied we inject the
+	* implicit series so the mapped Std call keeps Pine-compatible arity.
+	*/
+	resolveImplicitSeriesArg(pineCallee, providedArgCount) {
+		const implicit = IMPLICIT_SERIES_BY_TA_CALL[pineCallee];
+		if (!implicit) return null;
+		if (providedArgCount !== 1) return null;
+		return implicit;
+	}
 	generateMemberExpression(expr) {
 		const object = this.generateExpression(expr.object);
 		if (expr.computed) {
 			const property = this.generateExpression(expr.property);
 			if (expr.object.type === "Identifier") return `_getHistorical_${object}(${property})`;
-			return `${object}[${property}]`;
+			return `context.new_var(${object}).get(${property})`;
 		}
 		return `${object}.${expr.property.name}`;
 	}
@@ -4147,6 +4619,7 @@ var StatementGenerator = class {
 		const name = stmt.name;
 		const prefix = stmt.export ? "export " : "";
 		const fields = stmt.fields;
+		const typeCtor = `__type_${sanitizeIdentifier(name)}`;
 		let constructorBody = "";
 		this.indentLevel++;
 		this.indentLevel++;
@@ -4161,7 +4634,7 @@ var StatementGenerator = class {
 			if (f.init) return `${fname} = ${this.expressionGen.generateExpression(f.init)}`;
 			return fname;
 		}).join(", ");
-		return `${indent(this.indentLevel)}${prefix}class ${name} {\n${indent(this.indentLevel, 1)}constructor(${paramsWithDefaults}) {\n${indent(this.indentLevel, 2)}${constructorBody.trim()}\n${indent(this.indentLevel, 1)}}\n${indent(this.indentLevel, 1)}static new(...args) { return new ${name}(...args); }\n${indent(this.indentLevel)}}`;
+		return `${indent(this.indentLevel)}var ${typeCtor} = class ${name} {\n${indent(this.indentLevel, 1)}constructor(${paramsWithDefaults}) {\n${indent(this.indentLevel, 2)}${constructorBody.trim()}\n${indent(this.indentLevel, 1)}}\n${indent(this.indentLevel, 1)}static new(...args) { return new ${typeCtor}(...args); }\n${indent(this.indentLevel)}};\n${indent(this.indentLevel)}${prefix}var ${name};\n${indent(this.indentLevel)}if (typeof ${name} === 'function') {\n${indent(this.indentLevel, 1)}if (typeof ${name}.new !== 'function') {\n${indent(this.indentLevel, 2)}${name}.new = (...args) => new ${typeCtor}(...args);\n${indent(this.indentLevel, 1)}}\n${indent(this.indentLevel)}} else {\n${indent(this.indentLevel, 1)}${name} = ${typeCtor};\n${indent(this.indentLevel)}}`;
 	}
 	generateForStatement(stmt) {
 		let loopVarName = "";
@@ -6975,107 +7448,6 @@ function executePineJS(code, indicatorId, indicatorName) {
 	}
 }
 //#endregion
-Object.defineProperty(exports, "ASTGenerator", {
-	enumerable: true,
-	get: function() {
-		return ASTGenerator;
-	}
-});
-Object.defineProperty(exports, "COLOR_MAP", {
-	enumerable: true,
-	get: function() {
-		return COLOR_MAP;
-	}
-});
-Object.defineProperty(exports, "Lexer", {
-	enumerable: true,
-	get: function() {
-		return Lexer;
-	}
-});
-Object.defineProperty(exports, "MATH_FUNCTION_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return MATH_FUNCTION_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "MULTI_OUTPUT_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return MULTI_OUTPUT_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "MetadataVisitor", {
-	enumerable: true,
-	get: function() {
-		return MetadataVisitor;
-	}
-});
-Object.defineProperty(exports, "PRICE_SOURCES", {
-	enumerable: true,
-	get: function() {
-		return PRICE_SOURCES;
-	}
-});
-Object.defineProperty(exports, "Parser", {
-	enumerable: true,
-	get: function() {
-		return Parser;
-	}
-});
-Object.defineProperty(exports, "TA_FUNCTION_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return TA_FUNCTION_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "TIME_FUNCTION_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return TIME_FUNCTION_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "canTranspilePineScript", {
-	enumerable: true,
-	get: function() {
-		return canTranspilePineScript;
-	}
-});
-Object.defineProperty(exports, "executePineJS", {
-	enumerable: true,
-	get: function() {
-		return executePineJS;
-	}
-});
-Object.defineProperty(exports, "generateStandaloneFactory", {
-	enumerable: true,
-	get: function() {
-		return generateStandaloneFactory;
-	}
-});
-Object.defineProperty(exports, "getAllPineFunctionNames", {
-	enumerable: true,
-	get: function() {
-		return getAllPineFunctionNames;
-	}
-});
-Object.defineProperty(exports, "getMappingStats", {
-	enumerable: true,
-	get: function() {
-		return getMappingStats;
-	}
-});
-Object.defineProperty(exports, "transpile", {
-	enumerable: true,
-	get: function() {
-		return transpile;
-	}
-});
-Object.defineProperty(exports, "transpileToPineJS", {
-	enumerable: true,
-	get: function() {
-		return transpileToPineJS;
-	}
-});
+export { MATH_FUNCTION_MAPPINGS as _, Parser as a, ASTGenerator as c, PRICE_SOURCES as d, getAllPineFunctionNames as f, TA_FUNCTION_MAPPINGS as g, MULTI_OUTPUT_MAPPINGS as h, transpileToPineJS as i, generateStandaloneFactory as l, TIME_FUNCTION_MAPPINGS as m, executePineJS as n, Lexer as o, getMappingStats as p, transpile as r, MetadataVisitor as s, canTranspilePineScript as t, COLOR_MAP as u };
 
-//# sourceMappingURL=src-BT_nhmYq.cjs.map
+//# sourceMappingURL=src-ByX3nbM2.js.map

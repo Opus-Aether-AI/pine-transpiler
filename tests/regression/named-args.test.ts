@@ -8,8 +8,9 @@
  * Now emits:      Std.plot(close, color.purple)  // value-only, no assignment
  *
  * The metadata visitor still picks up named args via getArg() for the
- * indicator's metainfo (titles, colors, styles), while runtime calls
- * receive the named-arg values in source order.
+ * indicator's metainfo (titles, colors, styles). Runtime calls receive
+ * value-only args, with request.security additionally normalizing the
+ * first three slots to symbol/timeframe/expression.
  */
 
 import { describe, expect, it } from 'bun:test';
@@ -83,6 +84,24 @@ describe('named arguments — no closure-shadowing assignment emit', () => {
     expect(out).not.toContain('expression =');
     expect(out).toContain(
       'request.security(syminfo.tickerid, "60", close, barmerge.lookahead_on)',
+    );
+  });
+
+  it('normalizes out-of-order request.security named args', () => {
+    const out = transpile(
+      'x = request.security(expression=close, lookahead=barmerge.lookahead_on, timeframe="60", symbol=syminfo.tickerid)',
+    );
+    expect(out).toContain(
+      'request.security(syminfo.tickerid, "60", close, barmerge.lookahead_on)',
+    );
+  });
+
+  it('normalizes mixed positional + named request.security args', () => {
+    const out = transpile(
+      'x = request.security(syminfo.tickerid, expression=close, timeframe="60", gaps=barmerge.gaps_on)',
+    );
+    expect(out).toContain(
+      'request.security(syminfo.tickerid, "60", close, barmerge.gaps_on)',
     );
   });
 });

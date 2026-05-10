@@ -21,7 +21,8 @@ export type Point
     float y
 `;
     const js = transpile(pine);
-    expect(js).toContain('export class Point');
+    expect(js).toContain('var __type_Point = class Point');
+    expect(js).toContain('export var Point;');
   });
 
   it('should transpile method declaration', () => {

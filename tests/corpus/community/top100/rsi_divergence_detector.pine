@@ -1,0 +1,12 @@
+//@version=5
+indicator("RSI Divergence Detector", overlay=true)
+
+len = input.int(14, "RSI Length", minval=1)
+r = ta.rsi(close, len)
+
+bullDiv = low < low[1] and r > r[1]
+bearDiv = high > high[1] and r < r[1]
+
+plotshape(bullDiv, title="Bull Div", style=shape.triangleup, location=location.belowbar, color=color.lime, size=size.tiny)
+plotshape(bearDiv, title="Bear Div", style=shape.triangledown, location=location.abovebar, color=color.red, size=size.tiny)
+plot(r, "RSI", color=color.aqua, display=display.none)
