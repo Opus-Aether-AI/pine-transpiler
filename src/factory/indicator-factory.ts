@@ -832,18 +832,28 @@ export function buildIndicatorFactory(
     6: { name: 'Session 6' },
     7: { name: 'Session 7' },
   };
+  // Palette defaults intentionally tuned to be a faint hint, not a
+  // full fill. The bg_colorer plot is fundamentally full-column (TV
+  // API limitation — `bg_colorer` colors the whole vertical strip per
+  // bar). When the host VisualEventsRenderer is wired, it draws
+  // proper price-constrained rectangles from `box.new` events; the
+  // bands underneath must not visually fight those rectangles.
+  //
+  // Users who want louder bands can crank transparency down from the
+  // TV indicator Style panel; users who don't have a renderer yet
+  // still get a soft session hint.
   const AUTO_BG_PALETTE_DEFAULTS: Record<
     number,
     { color: string; width: number; style: number }
   > = {
     0: { color: 'rgba(0, 0, 0, 0)', width: 1, style: 0 },
-    1: { color: 'rgba(33, 150, 243, 0.18)', width: 1, style: 0 },
-    2: { color: 'rgba(244, 67, 54, 0.18)', width: 1, style: 0 },
-    3: { color: 'rgba(76, 175, 80, 0.18)', width: 1, style: 0 },
-    4: { color: 'rgba(255, 235, 59, 0.18)', width: 1, style: 0 },
-    5: { color: 'rgba(156, 39, 176, 0.18)', width: 1, style: 0 },
-    6: { color: 'rgba(255, 152, 0, 0.18)', width: 1, style: 0 },
-    7: { color: 'rgba(0, 188, 212, 0.18)', width: 1, style: 0 },
+    1: { color: 'rgba(33, 150, 243, 0.08)', width: 1, style: 0 },
+    2: { color: 'rgba(244, 67, 54, 0.08)', width: 1, style: 0 },
+    3: { color: 'rgba(76, 175, 80, 0.08)', width: 1, style: 0 },
+    4: { color: 'rgba(255, 235, 59, 0.08)', width: 1, style: 0 },
+    5: { color: 'rgba(156, 39, 176, 0.08)', width: 1, style: 0 },
+    6: { color: 'rgba(255, 152, 0, 0.08)', width: 1, style: 0 },
+    7: { color: 'rgba(0, 188, 212, 0.08)', width: 1, style: 0 },
   };
   const AUTO_BG_VAL_TO_INDEX: Record<number, number> = {
     0: 0,
@@ -861,7 +871,10 @@ export function buildIndicatorFactory(
     linewidth: 1,
     plottype: 'bg_colorer',
     color: 'rgba(0, 0, 0, 0)',
-    transparency: 70,
+    // Layered on top of the already-faint palette alpha so the
+    // bg_colorer reads as a session hint, not a fill. Renderer-drawn
+    // rectangles on top remain visually dominant.
+    transparency: 85,
     trackPrice: false,
   };
   const totalPlotCount = plots.length + (hasAutoBgColorer ? 1 : 0);

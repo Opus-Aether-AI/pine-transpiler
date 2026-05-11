@@ -3621,37 +3621,37 @@ function buildIndicatorFactory(options) {
 			style: 0
 		},
 		1: {
-			color: "rgba(33, 150, 243, 0.18)",
+			color: "rgba(33, 150, 243, 0.08)",
 			width: 1,
 			style: 0
 		},
 		2: {
-			color: "rgba(244, 67, 54, 0.18)",
+			color: "rgba(244, 67, 54, 0.08)",
 			width: 1,
 			style: 0
 		},
 		3: {
-			color: "rgba(76, 175, 80, 0.18)",
+			color: "rgba(76, 175, 80, 0.08)",
 			width: 1,
 			style: 0
 		},
 		4: {
-			color: "rgba(255, 235, 59, 0.18)",
+			color: "rgba(255, 235, 59, 0.08)",
 			width: 1,
 			style: 0
 		},
 		5: {
-			color: "rgba(156, 39, 176, 0.18)",
+			color: "rgba(156, 39, 176, 0.08)",
 			width: 1,
 			style: 0
 		},
 		6: {
-			color: "rgba(255, 152, 0, 0.18)",
+			color: "rgba(255, 152, 0, 0.08)",
 			width: 1,
 			style: 0
 		},
 		7: {
-			color: "rgba(0, 188, 212, 0.18)",
+			color: "rgba(0, 188, 212, 0.08)",
 			width: 1,
 			style: 0
 		}
@@ -3672,7 +3672,7 @@ function buildIndicatorFactory(options) {
 		linewidth: 1,
 		plottype: "bg_colorer",
 		color: "rgba(0, 0, 0, 0)",
-		transparency: 70,
+		transparency: 85,
 		trackPrice: false
 	};
 	const totalPlotCount = plots.length + (hasAutoBgColorer ? 1 : 0);
@@ -8292,4 +8292,4 @@ function executePineJS(code, indicatorId, indicatorName) {
 //#endregion
 export { MATH_FUNCTION_MAPPINGS as _, Parser as a, ASTGenerator as c, PRICE_SOURCES as d, getAllPineFunctionNames as f, TA_FUNCTION_MAPPINGS as g, MULTI_OUTPUT_MAPPINGS as h, transpileToPineJS as i, generateStandaloneFactory as l, TIME_FUNCTION_MAPPINGS as m, executePineJS as n, Lexer as o, getMappingStats as p, transpile as r, MetadataVisitor as s, canTranspilePineScript as t, COLOR_MAP as u };
 
-//# sourceMappingURL=src-CQSFV4d_.js.map
+//# sourceMappingURL=src-BMfFBdlq.js.map

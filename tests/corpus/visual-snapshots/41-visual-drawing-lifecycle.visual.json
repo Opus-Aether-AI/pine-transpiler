@@ -217,7 +217,7 @@
         "linewidth": 1,
         "linestyle": 0,
         "color": "rgba(0, 0, 0, 0)",
-        "transparency": 70,
+        "transparency": 85,
         "visible": true,
         "trackPrice": false
       },
