@@ -727,7 +727,7 @@ function get_text_color(c) {
 function dwm_sep(tf, use, arr, col) {
   if (use) {
     if (timeframe.change(tf)) {
-      arr.unshift(line.new(bar_index, (high * 1.0001), bar_index, low, htf_style, htf_width, extend.both, col));
+      arr.unshift(line.new(bar_index, (high * 1.0001), bar_index, low, NaN, extend.both, col, htf_style, htf_width));
       if ((!sep_unlimited && (arr.size() > max_days))) {
         arr.pop().delete();
       }
@@ -741,8 +741,8 @@ function dwm_open(tf, use, lns, lbls, n, col) {
       lbls.get(0).set_x(time);
     }
     if (timeframe.change(tf)) {
-      lns.unshift(line.new(time, n.o, time, n.o, xloc.bar_time, htf_style, htf_width, col));
-      lbls.unshift(label.new(time, n.o, (tf + " OPEN"), xloc.bar_time, label.style_label_left, transparent, txt_color, lbl_size));
+      lns.unshift(line.new(time, n.o, time, n.o, xloc.bar_time, NaN, col, htf_style, htf_width));
+      lbls.unshift(label.new(time, n.o, (tf + " OPEN"), xloc.bar_time, NaN, transparent, label.style_label_left, txt_color, lbl_size));
       if ((!sep_unlimited && (lns.size() > max_days))) {
         lns.pop().delete();
         lbls.pop().delete();
@@ -759,10 +759,10 @@ function dwm_hl(tf, use, hl, n, col) {
       hl.lo_label.get(0).set_x(time);
     }
     if (timeframe.change(tf)) {
-      hl.hi_line.unshift(line.new(time, n.ph, time, n.ph, xloc.bar_time, htf_style, htf_width, col));
-      hl.lo_line.unshift(line.new(time, n.pl, time, n.pl, xloc.bar_time, htf_style, htf_width, col));
-      hl.hi_label.unshift(label.new(time, n.ph, (("P" + tf) + "H"), xloc.bar_time, label.style_label_left, transparent, txt_color, lbl_size));
-      hl.lo_label.unshift(label.new(time, n.pl, (("P" + tf) + "L"), xloc.bar_time, label.style_label_left, transparent, txt_color, lbl_size));
+      hl.hi_line.unshift(line.new(time, n.ph, time, n.ph, xloc.bar_time, NaN, col, htf_style, htf_width));
+      hl.lo_line.unshift(line.new(time, n.pl, time, n.pl, xloc.bar_time, NaN, col, htf_style, htf_width));
+      hl.hi_label.unshift(label.new(time, n.ph, (("P" + tf) + "H"), xloc.bar_time, NaN, transparent, label.style_label_left, txt_color, lbl_size));
+      hl.lo_label.unshift(label.new(time, n.pl, (("P" + tf) + "L"), xloc.bar_time, NaN, transparent, label.style_label_left, txt_color, lbl_size));
       hl.hit_high = false;
       hl.hit_low = false;
       if ((!sep_unlimited && (hl.hi_line.size() > max_days))) {
@@ -803,7 +803,7 @@ function vline(_pine_this) {
   var arr = _pine_this.lines;
   var col = _pine_this.c;
   if ((t && !t_prev)) {
-    arr.unshift(line.new(bar_index, (high * 1.0001), bar_index, low, vl_style, vl_width, extend.both, col));
+    arr.unshift(line.new(bar_index, (high * 1.0001), bar_index, low, NaN, extend.both, col, vl_style, vl_width));
   }
   if (!v_unlimited) {
     if ((arr.size() > max_days)) {
@@ -828,8 +828,8 @@ function hz_line(_pine_this) {
   var txt = _pine_this.h_text;
   var col = _pine_this.h_color;
   if ((t && !t_prev)) {
-    hz.LN.unshift(line.new(bar_index, open, bar_index, open, hz_style, hz_width, col));
-    hz.LB.unshift(label.new(bar_index, open, txt, label.style_label_left, transparent, txt_color, lbl_size));
+    hz.LN.unshift(line.new(bar_index, open, bar_index, open, NaN, NaN, col, hz_style, hz_width));
+    hz.LB.unshift(label.new(bar_index, open, txt, NaN, NaN, transparent, label.style_label_left, txt_color, lbl_size));
     _arrayUnshift(hz.CO, false);
     if ((!open_unlimited && (hz.LN.size() > max_days))) {
       hz.LN.pop().delete();
@@ -1012,12 +1012,12 @@ function manage_kz(_pine_this) {
     if ((t && !t_prev)) {
       var _c = get_box_color(c);
       var _t = get_text_color(c);
-      kz._box.unshift(box.new(time, high, time, low, xloc.bar_time, (show_kz ? _c : NaN), (show_kz ? _c : NaN), ((show_kz && show_kz_text) ? box_txt : NaN), _t));
+      kz._box.unshift(box.new(time, high, time, low, (show_kz ? _c : NaN), NaN, NaN, NaN, xloc.bar_time, (show_kz ? _c : NaN), ((show_kz && show_kz_text) ? box_txt : NaN), NaN, _t));
       if (show_pivots) {
-        kz._hi_line.unshift(line.new(time, high, time, high, xloc.bar_time, kzp_style, c, kzp_width));
-        kz._lo_line.unshift(line.new(time, low, time, low, xloc.bar_time, kzp_style, c, kzp_width));
+        kz._hi_line.unshift(line.new(time, high, time, high, xloc.bar_time, NaN, c, kzp_style, kzp_width));
+        kz._lo_line.unshift(line.new(time, low, time, low, xloc.bar_time, NaN, c, kzp_style, kzp_width));
         if (show_midpoints) {
-          kz._md_line.unshift(line.new(time, _avg(high, low), time, _avg(high, low), xloc.bar_time, kzm_style, c, kzm_width));
+          kz._md_line.unshift(line.new(time, _avg(high, low), time, _avg(high, low), xloc.bar_time, NaN, c, kzm_style, kzm_width));
           _arrayUnshift(kz._md_valid, true);
         }
         _arrayUnshift(kz._hi_valid, true);
@@ -1026,11 +1026,11 @@ function manage_kz(_pine_this) {
           var _hi_txt = (label_price ? _strFormat("{0} ({1})", hi_txt, high) : hi_txt);
           var _lo_txt = (label_price ? _strFormat("{0} ({1})", lo_txt, low) : lo_txt);
           if (label_right) {
-            kz._hi_label.unshift(label.new(time, high, _hi_txt, xloc.bar_time, transparent, txt_color, label.style_label_left, lbl_size));
-            kz._lo_label.unshift(label.new(time, low, _lo_txt, xloc.bar_time, transparent, txt_color, label.style_label_left, lbl_size));
+            kz._hi_label.unshift(label.new(time, high, _hi_txt, xloc.bar_time, NaN, transparent, label.style_label_left, txt_color, lbl_size));
+            kz._lo_label.unshift(label.new(time, low, _lo_txt, xloc.bar_time, NaN, transparent, label.style_label_left, txt_color, lbl_size));
           } else {
-            kz._hi_label.unshift(label.new(time, high, _hi_txt, xloc.bar_time, transparent, txt_color, label.style_label_down, lbl_size));
-            kz._lo_label.unshift(label.new(time, low, _lo_txt, xloc.bar_time, transparent, txt_color, label.style_label_up, lbl_size));
+            kz._hi_label.unshift(label.new(time, high, _hi_txt, xloc.bar_time, NaN, transparent, label.style_label_down, txt_color, lbl_size));
+            kz._lo_label.unshift(label.new(time, low, _lo_txt, xloc.bar_time, NaN, transparent, label.style_label_up, txt_color, lbl_size));
           }
         }
       }
@@ -1077,10 +1077,10 @@ function get_min_days_stored() {
   return store.min();
 }
 function set_table(tbl, kz, row, txt, t, col) {
-  table.cell(tbl, 0, row, txt, range_size, get_box_color(col), txt_color);
-  table.cell(tbl, 1, row, String(kz._range_current), range_size, (t ? get_box_color(col) : NaN), txt_color);
+  table.cell(tbl, 0, row, txt, NaN, NaN, txt_color, NaN, NaN, range_size, get_box_color(col));
+  table.cell(tbl, 1, row, String(kz._range_current), NaN, NaN, txt_color, NaN, NaN, range_size, (t ? get_box_color(col) : NaN));
   if (show_range_avg) {
-    table.cell(tbl, 2, row, String(kz._range_store.avg()), range_size, txt_color);
+    table.cell(tbl, 2, row, String(kz._range_store.avg()), NaN, NaN, txt_color, NaN, NaN, range_size);
   }
 }
 if (table?.prototype && typeof table.prototype.set_table !== 'function') {
@@ -1088,10 +1088,10 @@ if (table?.prototype && typeof table.prototype.set_table !== 'function') {
 }
 if ((show_range && barstate.islast)) {
   var tbl = _pineVar("tbl", () => (table.new(range_pos, 10, 10, chart.bg_color, chart.fg_color, 2, chart.fg_color, 1)));
-  table.cell(tbl, 0, 0, "Killzone", range_size, txt_color);
-  table.cell(tbl, 1, 0, "Range", range_size, txt_color);
+  table.cell(tbl, 0, 0, "Killzone", NaN, NaN, txt_color, NaN, NaN, range_size);
+  table.cell(tbl, 1, 0, "Range", NaN, NaN, txt_color, NaN, NaN, range_size);
   if (show_range_avg) {
-    table.cell(tbl, 2, 0, (("Avg (" + String(get_min_days_stored())) + ")"), range_size, txt_color);
+    table.cell(tbl, 2, 0, (("Avg (" + String(get_min_days_stored())) + ")"), NaN, NaN, txt_color, NaN, NaN, range_size);
   }
   for (const [index, value] of _kz.entries()) {
     set_table(tbl, value._kz, (index + 1), value.box_txt, !Std.na(Std.time("", value.session, gmt_tz)), value.c);

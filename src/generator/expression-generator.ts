@@ -59,6 +59,96 @@ function isNamedArgument(
   );
 }
 
+/**
+ * Pine v6 canonical positional-arg order for drawing-namespace
+ * constructors and table.cell. When a user calls these with named
+ * args (`box.new(time, high, time, low, bgcolor = c, text = t)`),
+ * the parser preserves the source order — but downstream consumers
+ * (runtime stubs, the host VisualEventsRenderer that reads
+ * `__visualEvents[*].args`) need a deterministic layout. We reorder
+ * named args into these slots and pad missing slots with `na` so
+ * `args[i]` always means the same Pine parameter.
+ *
+ * Order taken directly from Pine v6 reference signatures.
+ */
+const DRAWING_CANONICAL_ARG_ORDER: Record<string, string[]> = {
+  'box.new': [
+    'left',
+    'top',
+    'right',
+    'bottom',
+    'border_color',
+    'border_width',
+    'border_style',
+    'extend',
+    'xloc',
+    'bgcolor',
+    'text',
+    'text_size',
+    'text_color',
+    'text_halign',
+    'text_valign',
+    'text_wrap',
+    'force_overlay',
+    'text_font_family',
+  ],
+  'line.new': [
+    'x1',
+    'y1',
+    'x2',
+    'y2',
+    'xloc',
+    'extend',
+    'color',
+    'style',
+    'width',
+    'force_overlay',
+  ],
+  'label.new': [
+    'x',
+    'y',
+    'text',
+    'xloc',
+    'yloc',
+    'color',
+    'style',
+    'textcolor',
+    'size',
+    'textalign',
+    'tooltip',
+    'text_font_family',
+    'force_overlay',
+    'text_formatting',
+  ],
+  'table.new': [
+    'position',
+    'columns',
+    'rows',
+    'bgcolor',
+    'frame_color',
+    'frame_width',
+    'border_color',
+    'border_width',
+    'force_overlay',
+  ],
+  'table.cell': [
+    'table_id',
+    'column',
+    'row',
+    'text',
+    'width',
+    'height',
+    'text_color',
+    'text_halign',
+    'text_valign',
+    'text_size',
+    'bgcolor',
+    'tooltip',
+    'text_font_family',
+    'text_formatting',
+  ],
+};
+
 const BUILTIN_SERIES_IDENTIFIERS = new Set([
   'open',
   'high',
@@ -242,17 +332,37 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
   }
 
   /**
-   * Pine named args can be supplied out of order for request.security().
-   * Runtime execution, however, needs the first three positional slots to
-   * resolve as symbol/timeframe/expression. Normalize only this call so we
-   * keep generic value-only named-arg emit elsewhere.
+   * Pine named args can be supplied out of order. Most callers can emit
+   * runtime args in source order, but a few call families need a
+   * deterministic positional layout downstream:
+   *
+   *   • `request.security` — runtime needs symbol/timeframe/expression
+   *     at the first three positional slots
+   *   • Drawing constructors (`box.new`, `line.new`, `label.new`,
+   *     `table.new`, `table.cell`) — runtime stubs and the host
+   *     VisualEventsRenderer read `args[i]` knowing it means a specific
+   *     Pine parameter; without reordering, named-arg scripts pass
+   *     bgcolor through the slot the runtime expects to hold
+   *     border_color, etc.
+   *
+   * Reordering is local to these specific callees. Everything else
+   * keeps the generic value-only named-arg emit (see `isNamedArgument`).
    */
   private normalizeCallArguments(
     pineCallee: string,
     args: Expression[],
   ): Expression[] {
-    if (pineCallee !== 'request.security') return args;
+    if (pineCallee === 'request.security') {
+      return this.normalizeRequestSecurityArgs(args);
+    }
+    const canonicalOrder = DRAWING_CANONICAL_ARG_ORDER[pineCallee];
+    if (canonicalOrder) {
+      return this.normalizeByCanonicalOrder(args, canonicalOrder);
+    }
+    return args;
+  }
 
+  private normalizeRequestSecurityArgs(args: Expression[]): Expression[] {
     const positional: Expression[] = [];
     const namedOrdered: Array<{ name: string; value: Expression }> = [];
 
@@ -301,6 +411,71 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
         continue;
       }
       normalized.push(entry.value);
+    }
+
+    return normalized;
+  }
+
+  /**
+   * Drawing-namespace `.new` and `table.cell` reorder.
+   *
+   * Splits args into positional + named; positional args bind to the
+   * first N canonical slots (preserving source order); named args fill
+   * their declared slot from `canonicalOrder`. Missing slots are padded
+   * with a synthesized `na` Identifier so `args[i]` is always present
+   * and means the same parameter regardless of which args the script
+   * supplied.
+   *
+   * Named args whose name isn't in `canonicalOrder` are dropped — that
+   * shouldn't happen for the supported callees, but if Pine adds a new
+   * param we don't know about yet, dropping it is safer than shifting
+   * subsequent slots.
+   */
+  private normalizeByCanonicalOrder(
+    args: Expression[],
+    canonicalOrder: string[],
+  ): Expression[] {
+    const positional: Expression[] = [];
+    const namedLookup = new Map<string, Expression>();
+
+    for (const arg of args) {
+      if (isNamedArgument(arg)) {
+        namedLookup.set(arg.left.name, arg.right);
+      } else {
+        positional.push(arg);
+      }
+    }
+
+    if (namedLookup.size === 0) return args;
+
+    // Pine `na` literal — lowers to `NaN` via generateLiteral. Using a
+    // bare `{ type: 'Identifier', name: 'na' }` would emit the literal
+    // text `na` (undefined at runtime, throws ReferenceError in strict
+    // mode); the Literal form goes through the proper na→NaN path.
+    const naExpr: Literal = {
+      type: 'Literal',
+      value: null,
+      raw: 'na',
+      kind: 'na',
+    };
+    const highestNamedSlot = Math.max(
+      -1,
+      ...[...namedLookup.keys()].map((name) => canonicalOrder.indexOf(name)),
+    );
+    const fillLength = Math.max(positional.length, highestNamedSlot + 1);
+
+    const normalized: Expression[] = [];
+    for (let i = 0; i < fillLength; i++) {
+      const paramName = canonicalOrder[i];
+      if (i < positional.length) {
+        normalized.push(positional[i] as Expression);
+        continue;
+      }
+      if (paramName && namedLookup.has(paramName)) {
+        normalized.push(namedLookup.get(paramName) as Expression);
+        continue;
+      }
+      normalized.push(naExpr);
     }
 
     return normalized;

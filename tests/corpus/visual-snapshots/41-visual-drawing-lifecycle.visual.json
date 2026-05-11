@@ -119,6 +119,7 @@
         25
       ],
       "linewidthValues": [
+        1,
         2,
         3
       ],
@@ -213,12 +214,12 @@
       {
         "id": "__auto_bg__",
         "plottype": null,
-        "linewidth": null,
-        "linestyle": null,
-        "color": null,
+        "linewidth": 1,
+        "linestyle": 0,
+        "color": "rgba(0, 0, 0, 0)",
         "transparency": 70,
-        "visible": null,
-        "trackPrice": null
+        "visible": true,
+        "trackPrice": false
       },
       {
         "id": "plot_0",

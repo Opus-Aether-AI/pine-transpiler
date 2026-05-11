@@ -160,6 +160,24 @@ Exit criteria:
 - `HOST_RENDERING_CONTRACT.md` is referenced from `LIMITATIONS.md` as
   the authoritative renderer-side reference
 
+Progress (2026-05-12, tranche 1):
+
+- `tests/contract/visual-events-shape.test.ts` now validates
+  `__visualEvents` field/type/version invariants across the full corpus
+  and retains deep lifecycle continuity checks on
+  `fixtures/ict-killzones.pine`
+- `scripts/corpus/chart-safety.ts` now enforces:
+  - metainfo schema gate (`styles` + `defaults.styles`, `bg_colorer`
+    palette linkage, `chars` glyphs, `shapes` plottype)
+  - handle lifecycle gate (no mutation/delete against unseen or deleted
+    `pineHandleId`)
+  - `__visualEventsVersion >= 1` contract check
+- drawing no-op mutations with null handles (`label.delete(na)` style
+  calls) are now omitted from lifecycle events so host renderers only
+  see events with stable `pineHandleId`
+- chart safety gate is green with explicit counters:
+  `Metainfo schema failures: 0`, `Handle lifecycle failures: 0`
+
 ### Phase 15: `request.security` MTF Parity Expansion
 
 Goal: move beyond subset support to broader practical MTF correctness.

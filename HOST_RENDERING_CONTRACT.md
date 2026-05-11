@@ -76,6 +76,11 @@ Plot-level calls (`plot`, `plotchar`, `plotshape`, `plotarrow`,
 diagnostic purposes but **do not carry `pineHandleId`** — they're
 rendered by TV's native plot output, not by a host renderer.
 
+No-op drawing mutations with no concrete handle (for example
+`label.delete(na)`) are intentionally omitted from `__visualEvents`.
+The stream only contains lifecycle events that can be keyed by a valid
+`(namespace, pineHandleId)`.
+
 ## Lifecycle invariants
 
 For every distinct `pineHandleId` `K` observed in a single indicator
@@ -104,10 +109,115 @@ bar window.
 | `top` / `bottom` (box) / `y1` / `y2` (line) / `y` (label) / `price` | `number` | Price in instrument units |
 | Color args | `string` | CSS color literal (`#RRGGBB` or `rgba(...)`); the string `'NaN'` or `'na'` means "do not render" |
 | `xloc` arg | `string` | Pine `xloc.bar_time` or `xloc.bar_index` member name |
+| `NaN` in any slot | numeric `NaN` | Pine `na` — slot was unsupplied or explicitly `na`. Renderers should treat as "use default / skip rendering this property" |
 
 Host renderers must convert epoch milliseconds to TradingView's
 expected time unit (seconds) when forwarding to widget APIs that
 expect TV time.
+
+## Canonical positional arg order for `.new` events
+
+The transpiler normalizes `box.new` / `line.new` / `label.new` /
+`table.new` / `table.cell` calls so `args[i]` always refers to the
+same Pine parameter regardless of whether the source used positional,
+named, or mixed args. Missing slots are padded with `NaN`.
+
+This is locked by [tests/contract/canonical-arg-order.test.ts](tests/contract/canonical-arg-order.test.ts).
+
+### `box.new`
+
+| `args[i]` | Pine param |
+|---|---|
+| 0 | `left` |
+| 1 | `top` |
+| 2 | `right` |
+| 3 | `bottom` |
+| 4 | `border_color` |
+| 5 | `border_width` |
+| 6 | `border_style` |
+| 7 | `extend` |
+| 8 | `xloc` |
+| 9 | `bgcolor` |
+| 10 | `text` |
+| 11 | `text_size` |
+| 12 | `text_color` |
+| 13 | `text_halign` |
+| 14 | `text_valign` |
+| 15 | `text_wrap` |
+| 16 | `force_overlay` |
+| 17 | `text_font_family` |
+
+### `line.new`
+
+| `args[i]` | Pine param |
+|---|---|
+| 0 | `x1` |
+| 1 | `y1` |
+| 2 | `x2` |
+| 3 | `y2` |
+| 4 | `xloc` |
+| 5 | `extend` |
+| 6 | `color` |
+| 7 | `style` |
+| 8 | `width` |
+| 9 | `force_overlay` |
+
+### `label.new`
+
+| `args[i]` | Pine param |
+|---|---|
+| 0 | `x` |
+| 1 | `y` |
+| 2 | `text` |
+| 3 | `xloc` |
+| 4 | `yloc` |
+| 5 | `color` |
+| 6 | `style` |
+| 7 | `textcolor` |
+| 8 | `size` |
+| 9 | `textalign` |
+| 10 | `tooltip` |
+| 11 | `text_font_family` |
+| 12 | `force_overlay` |
+| 13 | `text_formatting` |
+
+### `table.new`
+
+| `args[i]` | Pine param |
+|---|---|
+| 0 | `position` |
+| 1 | `columns` |
+| 2 | `rows` |
+| 3 | `bgcolor` |
+| 4 | `frame_color` |
+| 5 | `frame_width` |
+| 6 | `border_color` |
+| 7 | `border_width` |
+| 8 | `force_overlay` |
+
+### `table.cell`
+
+| `args[i]` | Pine param |
+|---|---|
+| 0 | `table_id` |
+| 1 | `column` |
+| 2 | `row` |
+| 3 | `text` |
+| 4 | `width` |
+| 5 | `height` |
+| 6 | `text_color` |
+| 7 | `text_halign` |
+| 8 | `text_valign` |
+| 9 | `text_size` |
+| 10 | `bgcolor` |
+| 11 | `tooltip` |
+| 12 | `text_font_family` |
+| 13 | `text_formatting` |
+
+For `<ns>.set_*` events, the args are always `[newValue]` (the single
+property being mutated). The mapping from `set_*` method name to which
+Pine param it mutates follows Pine's documented API and isn't repeated
+here.
 
 ## Versioning
 

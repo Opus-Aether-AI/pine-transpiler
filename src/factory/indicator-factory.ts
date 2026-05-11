@@ -40,6 +40,7 @@ import type {
   ParsedBgcolor,
   ParsedInput,
   ParsedPlot,
+  PlotStyle,
 } from '../types';
 import { COLOR_MAP } from '../types';
 import {
@@ -488,12 +489,14 @@ function wrapVisualHandle(
       if (typeof prop !== 'string') return value;
       if (typeof value !== 'function') return value;
       return (...args: unknown[]) => {
-        pushEvent({
-          call: `${namespace}.${prop}`,
-          args,
-          barIndex,
-          ...(handleId !== undefined ? { pineHandleId: handleId } : {}),
-        });
+        if (handleId !== undefined) {
+          pushEvent({
+            call: `${namespace}.${prop}`,
+            args,
+            barIndex,
+            pineHandleId: handleId,
+          });
+        }
         return (value as (...inner: unknown[]) => unknown).apply(target, args);
       };
     },
@@ -522,12 +525,18 @@ function createVisualNamespaceProxy(
         );
         const handleId =
           prop === 'new' ? extractHandleId(result) : extractHandleId(args[0]);
-        pushEvent({
-          call: `${namespace}.${prop}`,
-          args,
-          barIndex,
-          ...(handleId !== undefined ? { pineHandleId: handleId } : {}),
-        });
+        // Calls like `label.delete(na)` are legal Pine no-ops and can
+        // show up in corpus scripts. Do not emit lifecycle events for
+        // unknown handles; renderer-side consumers require stable
+        // `pineHandleId` for every drawing mutation event.
+        if (handleId !== undefined) {
+          pushEvent({
+            call: `${namespace}.${prop}`,
+            args,
+            barIndex,
+            pineHandleId: handleId,
+          });
+        }
         if (prop === 'new') {
           return wrapVisualHandle(namespace, result, pushEvent, barIndex);
         }
@@ -846,6 +855,15 @@ export function buildIndicatorFactory(
     6: 6,
     7: 7,
   };
+  const AUTO_BG_DEFAULT_STYLE: PlotStyle = {
+    linestyle: 0,
+    visible: true,
+    linewidth: 1,
+    plottype: 'bg_colorer',
+    color: 'rgba(0, 0, 0, 0)',
+    transparency: 70,
+    trackPrice: false,
+  };
   const totalPlotCount = plots.length + (hasAutoBgColorer ? 1 : 0);
 
   const indicatorFactory: IndicatorFactory = (PineJS) => {
@@ -881,7 +899,7 @@ export function buildIndicatorFactory(
       ? { ...baseStyles, [AUTO_BG_PLOT_ID]: { title: 'Session Background' } }
       : baseStyles;
     const augmentedDefaultStyles = hasAutoBgColorer
-      ? { ...baseDefaultStyles, [AUTO_BG_PLOT_ID]: { transparency: 70 } }
+      ? { ...baseDefaultStyles, [AUTO_BG_PLOT_ID]: AUTO_BG_DEFAULT_STYLE }
       : baseDefaultStyles;
 
     return {

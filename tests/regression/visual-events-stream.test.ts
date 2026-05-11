@@ -6,6 +6,7 @@ interface VisualEvent {
   call: string;
   args: unknown[];
   barIndex: number;
+  pineHandleId?: number;
   style?: {
     colors: string[];
     transp: number | null;
@@ -179,5 +180,21 @@ table.clear(t)
     expect(events.some((e) => e.call === 'table.cell')).toBe(true);
     expect(events.some((e) => e.call === 'table.merge_cells')).toBe(true);
     expect(events.some((e) => e.call === 'table.clear')).toBe(true);
+  });
+
+  it('omits drawing lifecycle events when no valid handle exists', () => {
+    const output = executeOneBar(`
+indicator("No-op Handle Mutations", true)
+label.delete(na)
+line.delete(na)
+box.delete(na)
+`);
+
+    expect(output.__caughtError).toBeUndefined();
+    const events = output.__visualEvents ?? [];
+
+    expect(events.some((e) => e.call === 'label.delete')).toBe(false);
+    expect(events.some((e) => e.call === 'line.delete')).toBe(false);
+    expect(events.some((e) => e.call === 'box.delete')).toBe(false);
   });
 });

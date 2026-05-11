@@ -312,23 +312,6 @@ function isColorLike(v: unknown): boolean {
   return v.startsWith('#') || v.startsWith('rgb') || v.startsWith('hsl');
 }
 
-function pickBgcolorFromArgs(args: unknown[]): unknown {
-  // Pine `box.new(...)` is typically invoked with named args
-  // (xloc=, border_color=, bgcolor=, text=, text_color=). The transpiler
-  // emits these positionally in source order, so the canonical
-  // border_color/bgcolor slots are not at fixed indices. Scan args[4..]
-  // for color-like strings; prefer the SECOND match (bgcolor commonly
-  // follows border_color in user code), else the first match, else
-  // args[5] verbatim.
-  const colors: unknown[] = [];
-  for (let i = 4; i < args.length; i++) {
-    if (isColorLike(args[i])) colors.push(args[i]);
-  }
-  if (colors.length >= 2) return colors[1];
-  if (colors.length === 1) return colors[0];
-  return args[5];
-}
-
 function makeBoxNamespace(): BoxStub {
   let nextId = 1;
   const boxStore = new Map<number, DrawingHandle>();
@@ -461,6 +444,9 @@ function makeBoxNamespace(): BoxStub {
   };
 
   const box: Record<string, unknown> = {
+    // Args land in Pine v6 canonical positional order — the generator's
+    // `normalizeByCanonicalOrder` reorders named args before emission.
+    // See DRAWING_CANONICAL_ARG_ORDER in src/generator/expression-generator.ts.
     new: (...args: unknown[]) => {
       const h: DrawingHandle = {
         __id: nextId++,
@@ -470,8 +456,16 @@ function makeBoxNamespace(): BoxStub {
         right: toNumber(args[2]),
         bottom: toNumber(args[3]),
         border_color: args[4],
-        bgcolor: pickBgcolorFromArgs(args),
-        border_width: toInteger(args[6], 1),
+        border_width: toInteger(args[5], 1),
+        border_style: args[6],
+        extend: args[7],
+        xloc: args[8],
+        bgcolor: args[9],
+        text: args[10],
+        text_size: args[11],
+        text_color: args[12],
+        text_halign: args[13],
+        text_valign: args[14],
       };
       attachBoxMethods(h);
       boxStore.set(h.__id, h);

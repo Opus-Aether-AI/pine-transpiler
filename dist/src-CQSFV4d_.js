@@ -2730,13 +2730,6 @@ function isColorLike(v) {
 	if (v === "NaN" || v === "na") return false;
 	return v.startsWith("#") || v.startsWith("rgb") || v.startsWith("hsl");
 }
-function pickBgcolorFromArgs(args) {
-	const colors = [];
-	for (let i = 4; i < args.length; i++) if (isColorLike(args[i])) colors.push(args[i]);
-	if (colors.length >= 2) return colors[1];
-	if (colors.length === 1) return colors[0];
-	return args[5];
-}
 function makeBoxNamespace() {
 	let nextId = 1;
 	const boxStore = /* @__PURE__ */ new Map();
@@ -2834,8 +2827,16 @@ function makeBoxNamespace() {
 				right: toNumber(args[2]),
 				bottom: toNumber(args[3]),
 				border_color: args[4],
-				bgcolor: pickBgcolorFromArgs(args),
-				border_width: toInteger(args[6], 1)
+				border_width: toInteger(args[5], 1),
+				border_style: args[6],
+				extend: args[7],
+				xloc: args[8],
+				bgcolor: args[9],
+				text: args[10],
+				text_size: args[11],
+				text_color: args[12],
+				text_halign: args[13],
+				text_valign: args[14]
 			};
 			attachBoxMethods(h);
 			boxStore.set(h.__id, h);
@@ -3459,11 +3460,11 @@ function wrapVisualHandle(namespace, handle, pushEvent, barIndex) {
 		if (typeof prop !== "string") return value;
 		if (typeof value !== "function") return value;
 		return (...args) => {
-			pushEvent({
+			if (handleId !== void 0) pushEvent({
 				call: `${namespace}.${prop}`,
 				args,
 				barIndex,
-				...handleId !== void 0 ? { pineHandleId: handleId } : {}
+				pineHandleId: handleId
 			});
 			return value.apply(target, args);
 		};
@@ -3477,11 +3478,11 @@ function createVisualNamespaceProxy(namespace, ns, pushEvent, barIndex) {
 		return (...args) => {
 			const result = value.apply(target, args);
 			const handleId = prop === "new" ? extractHandleId(result) : extractHandleId(args[0]);
-			pushEvent({
+			if (handleId !== void 0) pushEvent({
 				call: `${namespace}.${prop}`,
 				args,
 				barIndex,
-				...handleId !== void 0 ? { pineHandleId: handleId } : {}
+				pineHandleId: handleId
 			});
 			if (prop === "new") return wrapVisualHandle(namespace, result, pushEvent, barIndex);
 			return result;
@@ -3665,6 +3666,15 @@ function buildIndicatorFactory(options) {
 		6: 6,
 		7: 7
 	};
+	const AUTO_BG_DEFAULT_STYLE = {
+		linestyle: 0,
+		visible: true,
+		linewidth: 1,
+		plottype: "bg_colorer",
+		color: "rgba(0, 0, 0, 0)",
+		transparency: 70,
+		trackPrice: false
+	};
 	const totalPlotCount = plots.length + (hasAutoBgColorer ? 1 : 0);
 	const indicatorFactory = (PineJS) => {
 		const Std = PineJS.Std;
@@ -3692,7 +3702,7 @@ function buildIndicatorFactory(options) {
 		} : baseStyles;
 		const augmentedDefaultStyles = hasAutoBgColorer ? {
 			...baseDefaultStyles,
-			[AUTO_BG_PLOT_ID]: { transparency: 70 }
+			[AUTO_BG_PLOT_ID]: AUTO_BG_DEFAULT_STYLE
 		} : baseDefaultStyles;
 		return {
 			name: `User_${safeId}`,
@@ -4809,6 +4819,95 @@ function indent(level, offset = 0) {
 function isNamedArgument(arg) {
 	return arg.type === "AssignmentExpression" && arg.operator === "=" && !Array.isArray(arg.left) && arg.left.type === "Identifier";
 }
+/**
+* Pine v6 canonical positional-arg order for drawing-namespace
+* constructors and table.cell. When a user calls these with named
+* args (`box.new(time, high, time, low, bgcolor = c, text = t)`),
+* the parser preserves the source order — but downstream consumers
+* (runtime stubs, the host VisualEventsRenderer that reads
+* `__visualEvents[*].args`) need a deterministic layout. We reorder
+* named args into these slots and pad missing slots with `na` so
+* `args[i]` always means the same Pine parameter.
+*
+* Order taken directly from Pine v6 reference signatures.
+*/
+var DRAWING_CANONICAL_ARG_ORDER = {
+	"box.new": [
+		"left",
+		"top",
+		"right",
+		"bottom",
+		"border_color",
+		"border_width",
+		"border_style",
+		"extend",
+		"xloc",
+		"bgcolor",
+		"text",
+		"text_size",
+		"text_color",
+		"text_halign",
+		"text_valign",
+		"text_wrap",
+		"force_overlay",
+		"text_font_family"
+	],
+	"line.new": [
+		"x1",
+		"y1",
+		"x2",
+		"y2",
+		"xloc",
+		"extend",
+		"color",
+		"style",
+		"width",
+		"force_overlay"
+	],
+	"label.new": [
+		"x",
+		"y",
+		"text",
+		"xloc",
+		"yloc",
+		"color",
+		"style",
+		"textcolor",
+		"size",
+		"textalign",
+		"tooltip",
+		"text_font_family",
+		"force_overlay",
+		"text_formatting"
+	],
+	"table.new": [
+		"position",
+		"columns",
+		"rows",
+		"bgcolor",
+		"frame_color",
+		"frame_width",
+		"border_color",
+		"border_width",
+		"force_overlay"
+	],
+	"table.cell": [
+		"table_id",
+		"column",
+		"row",
+		"text",
+		"width",
+		"height",
+		"text_color",
+		"text_halign",
+		"text_valign",
+		"text_size",
+		"bgcolor",
+		"tooltip",
+		"text_font_family",
+		"text_formatting"
+	]
+};
 var BUILTIN_SERIES_IDENTIFIERS = new Set([
 	"open",
 	"high",
@@ -4914,13 +5013,29 @@ var ExpressionGenerator = class {
 		return `${callee}(${args.join(", ")})`;
 	}
 	/**
-	* Pine named args can be supplied out of order for request.security().
-	* Runtime execution, however, needs the first three positional slots to
-	* resolve as symbol/timeframe/expression. Normalize only this call so we
-	* keep generic value-only named-arg emit elsewhere.
+	* Pine named args can be supplied out of order. Most callers can emit
+	* runtime args in source order, but a few call families need a
+	* deterministic positional layout downstream:
+	*
+	*   • `request.security` — runtime needs symbol/timeframe/expression
+	*     at the first three positional slots
+	*   • Drawing constructors (`box.new`, `line.new`, `label.new`,
+	*     `table.new`, `table.cell`) — runtime stubs and the host
+	*     VisualEventsRenderer read `args[i]` knowing it means a specific
+	*     Pine parameter; without reordering, named-arg scripts pass
+	*     bgcolor through the slot the runtime expects to hold
+	*     border_color, etc.
+	*
+	* Reordering is local to these specific callees. Everything else
+	* keeps the generic value-only named-arg emit (see `isNamedArgument`).
 	*/
 	normalizeCallArguments(pineCallee, args) {
-		if (pineCallee !== "request.security") return args;
+		if (pineCallee === "request.security") return this.normalizeRequestSecurityArgs(args);
+		const canonicalOrder = DRAWING_CANONICAL_ARG_ORDER[pineCallee];
+		if (canonicalOrder) return this.normalizeByCanonicalOrder(args, canonicalOrder);
+		return args;
+	}
+	normalizeRequestSecurityArgs(args) {
 		const positional = [];
 		const namedOrdered = [];
 		for (const arg of args) if (isNamedArgument(arg)) namedOrdered.push({
@@ -4951,6 +5066,50 @@ var ExpressionGenerator = class {
 		for (const entry of namedOrdered) {
 			if (entry.name === "symbol" || entry.name === "timeframe" || entry.name === "expression") continue;
 			normalized.push(entry.value);
+		}
+		return normalized;
+	}
+	/**
+	* Drawing-namespace `.new` and `table.cell` reorder.
+	*
+	* Splits args into positional + named; positional args bind to the
+	* first N canonical slots (preserving source order); named args fill
+	* their declared slot from `canonicalOrder`. Missing slots are padded
+	* with a synthesized `na` Identifier so `args[i]` is always present
+	* and means the same parameter regardless of which args the script
+	* supplied.
+	*
+	* Named args whose name isn't in `canonicalOrder` are dropped — that
+	* shouldn't happen for the supported callees, but if Pine adds a new
+	* param we don't know about yet, dropping it is safer than shifting
+	* subsequent slots.
+	*/
+	normalizeByCanonicalOrder(args, canonicalOrder) {
+		const positional = [];
+		const namedLookup = /* @__PURE__ */ new Map();
+		for (const arg of args) if (isNamedArgument(arg)) namedLookup.set(arg.left.name, arg.right);
+		else positional.push(arg);
+		if (namedLookup.size === 0) return args;
+		const naExpr = {
+			type: "Literal",
+			value: null,
+			raw: "na",
+			kind: "na"
+		};
+		const highestNamedSlot = Math.max(-1, ...[...namedLookup.keys()].map((name) => canonicalOrder.indexOf(name)));
+		const fillLength = Math.max(positional.length, highestNamedSlot + 1);
+		const normalized = [];
+		for (let i = 0; i < fillLength; i++) {
+			const paramName = canonicalOrder[i];
+			if (i < positional.length) {
+				normalized.push(positional[i]);
+				continue;
+			}
+			if (paramName && namedLookup.has(paramName)) {
+				normalized.push(namedLookup.get(paramName));
+				continue;
+			}
+			normalized.push(naExpr);
 		}
 		return normalized;
 	}
@@ -8133,4 +8292,4 @@ function executePineJS(code, indicatorId, indicatorName) {
 //#endregion
 export { MATH_FUNCTION_MAPPINGS as _, Parser as a, ASTGenerator as c, PRICE_SOURCES as d, getAllPineFunctionNames as f, TA_FUNCTION_MAPPINGS as g, MULTI_OUTPUT_MAPPINGS as h, transpileToPineJS as i, generateStandaloneFactory as l, TIME_FUNCTION_MAPPINGS as m, executePineJS as n, Lexer as o, getMappingStats as p, transpile as r, MetadataVisitor as s, canTranspilePineScript as t, COLOR_MAP as u };
 
-//# sourceMappingURL=src-CdEgCkDh.js.map
+//# sourceMappingURL=src-CQSFV4d_.js.map

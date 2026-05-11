@@ -8,14 +8,25 @@
  * Contracts:
  *  1) Constructor contract: `new indicator.constructor()` succeeds and yields
  *     a callable `main(context, inputCallback)`.
- *  2) Plot contract (per bar):
+ *  2) Metainfo schema contract:
+ *     - every `metainfo.plots[]` id has matching `styles` + `defaults.styles`
+ *     - chars plots carry non-empty glyph metadata (`style.char`)
+ *     - shapes plots carry plottype metadata (`style.plottype`)
+ *     - bg_colorer plots reference an existing palette in both
+ *       `metainfo.palettes` and `defaults.palettes`.
+ *  3) Plot contract (per bar):
  *     - `main()` returns an array
  *     - output length equals `metainfo.plots.length`
  *     - no `undefined` slots
  *     - every slot is a number (finite or NaN)
- *  3) Visual payload contract (per bar):
+ *  4) Visual payload contract (per bar):
  *     - `__visualEvents` (if present) is an array of valid event objects
  *     - style payload fields are normalized and shape-safe
+ *     - `__visualEventsVersion` is a finite integer >= 1.
+ *  5) Handle lifecycle contract (cross-bar):
+ *     - drawing events carry `pineHandleId`
+ *     - no `<ns>.set_*` / `<ns>.delete` against unseen ids
+ *     - no mutations after delete.
  *
  * On any failure, write artifacts to `.tmp/chart-safety/`:
  *  - failing fixture source (`*.pine`)
@@ -172,6 +183,138 @@ function toErrorMessage(error: unknown): string {
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+const DRAWING_NAMESPACES = new Set(['box', 'line', 'label', 'table']);
+
+function hasNonEmptyString(value: unknown): boolean {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function toHandleKey(namespace: string, id: number): string {
+  return `${namespace}:${id}`;
+}
+
+function validateMetainfoSchema(
+  fixture: string,
+  indicator: CustomIndicator,
+): string | null {
+  const plotsRaw = indicator.metainfo?.plots;
+  const plots = Array.isArray(plotsRaw) ? plotsRaw : [];
+  const styles = isPlainObject(indicator.metainfo?.styles)
+    ? indicator.metainfo.styles
+    : {};
+  const defaultStylesRaw = indicator.metainfo?.defaults?.styles;
+  const defaultStyles = isPlainObject(defaultStylesRaw) ? defaultStylesRaw : {};
+  const metainfoAny = indicator.metainfo as unknown as Record<string, unknown>;
+  const palettes = isPlainObject(metainfoAny?.palettes) ? metainfoAny.palettes : {};
+  const defaultsAny = indicator.metainfo?.defaults as unknown as
+    | Record<string, unknown>
+    | undefined;
+  const defaultPalettes = isPlainObject(defaultsAny?.palettes)
+    ? defaultsAny.palettes
+    : {};
+
+  for (let i = 0; i < plots.length; i++) {
+    const plot = (plots[i] ?? {}) as MetainfoPlotLike;
+    const plotId = String(plot.id ?? '').trim();
+    if (!plotId) {
+      return `${fixture}: metainfo.plots[${i}] has empty id`;
+    }
+
+    const style = (styles as Record<string, unknown>)[plotId];
+    if (!isPlainObject(style)) {
+      return `${fixture}: metainfo.styles is missing key for plot "${plotId}"`;
+    }
+
+    const defaultStyle = (defaultStyles as Record<string, unknown>)[plotId];
+    if (!isPlainObject(defaultStyle)) {
+      return `${fixture}: metainfo.defaults.styles is missing key for plot "${plotId}"`;
+    }
+
+    const type = String(plot.type ?? '');
+    if (type === 'bg_colorer') {
+      const paletteId = String(plot.palette ?? '').trim();
+      if (!paletteId) {
+        return `${fixture}: bg_colorer plot "${plotId}" is missing palette`;
+      }
+      if (!isPlainObject((palettes as Record<string, unknown>)[paletteId])) {
+        return `${fixture}: bg_colorer plot "${plotId}" references missing metainfo.palettes["${paletteId}"]`;
+      }
+      if (
+        !isPlainObject(
+          (defaultPalettes as Record<string, unknown>)[paletteId],
+        )
+      ) {
+        return `${fixture}: bg_colorer plot "${plotId}" references missing defaults.palettes["${paletteId}"]`;
+      }
+    }
+
+    if (type === 'chars') {
+      const charValue =
+        (defaultStyle as Record<string, unknown>).char ?? plot.char;
+      if (!hasNonEmptyString(charValue)) {
+        return `${fixture}: chars plot "${plotId}" is missing non-empty style.char`;
+      }
+    }
+
+    if (type === 'shapes') {
+      const plottypeValue =
+        (defaultStyle as Record<string, unknown>).plottype ?? plot.plottype;
+      if (plottypeValue === undefined || plottypeValue === null) {
+        return `${fixture}: shapes plot "${plotId}" is missing style.plottype`;
+      }
+    }
+  }
+
+  return null;
+}
+
+function validateHandleLifecycle(
+  fixture: string,
+  barIndex: number,
+  eventsRaw: unknown,
+  lifecycle: HandleLifecycleState,
+): string | null {
+  if (!Array.isArray(eventsRaw)) return null;
+
+  for (let i = 0; i < eventsRaw.length; i++) {
+    const eventRaw = eventsRaw[i];
+    if (!isPlainObject(eventRaw)) continue;
+    const event = eventRaw as VisualEventPayload;
+    if (!hasNonEmptyString(event.call)) continue;
+
+    const [namespace, op] = event.call.split('.');
+    if (!DRAWING_NAMESPACES.has(namespace)) continue;
+
+    if (typeof event.pineHandleId !== 'number' || !Number.isFinite(event.pineHandleId)) {
+      return `${fixture}: bar ${barIndex} event ${i} (${event.call}) missing numeric pineHandleId`;
+    }
+
+    const handleKey = toHandleKey(namespace, event.pineHandleId);
+
+    if (op === 'new') {
+      if (lifecycle.created.has(handleKey) && !lifecycle.deleted.has(handleKey)) {
+        return `${fixture}: bar ${barIndex} event ${i} duplicates ${handleKey}.new before delete`;
+      }
+      lifecycle.created.add(handleKey);
+      lifecycle.deleted.delete(handleKey);
+      continue;
+    }
+
+    if (!lifecycle.created.has(handleKey)) {
+      return `${fixture}: bar ${barIndex} event ${i} mutates unseen handle ${handleKey}`;
+    }
+    if (lifecycle.deleted.has(handleKey)) {
+      return `${fixture}: bar ${barIndex} event ${i} mutates deleted handle ${handleKey}`;
+    }
+
+    if (op === 'delete') {
+      lifecycle.deleted.add(handleKey);
+    }
+  }
+
+  return null;
 }
 
 function validateVisualStyle(
@@ -348,6 +491,24 @@ function runFixtureSafety(
     ? indicator.metainfo.plots.length
     : 0;
 
+  const metainfoError = validateMetainfoSchema(id, indicator);
+  if (metainfoError) {
+    return {
+      fixture: id,
+      pass: false,
+      stage: 'metainfo-schema',
+      declaredPlotCount,
+      barsValidated: 0,
+      failure: {
+        fixture: id,
+        stage: 'metainfo-schema',
+        message: metainfoError,
+        declaredPlotCount,
+        transpiledBody,
+      },
+    };
+  }
+
   let constructed: {
     main: (
       context: unknown,
@@ -397,6 +558,10 @@ function runFixtureSafety(
   }
 
   const inputCallback = buildInputCallback();
+  const lifecycle: HandleLifecycleState = {
+    created: new Set<string>(),
+    deleted: new Set<string>(),
+  };
 
   for (let barIndex = 0; barIndex < runtime.totalBars; barIndex++) {
     runtime.resetVarPointer();
@@ -557,6 +722,60 @@ function runFixtureSafety(
       };
     }
 
+    const version = (result as { __visualEventsVersion?: unknown })
+      .__visualEventsVersion;
+    if (!Number.isInteger(version) || Number(version) < 1) {
+      return {
+        fixture: id,
+        pass: false,
+        stage: 'visual-contract',
+        declaredPlotCount,
+        barsValidated: barIndex,
+        failure: {
+          fixture: id,
+          stage: 'visual-contract',
+          barIndex,
+          message: `${id}: bar ${barIndex} missing/invalid __visualEventsVersion`,
+          declaredPlotCount,
+          outputLength: result.length,
+          outputPreview: result.slice(0, 16),
+          visualEventPreview: Array.isArray(result.__visualEvents)
+            ? (result.__visualEvents as unknown[]).slice(0, 8)
+            : undefined,
+          transpiledBody,
+        },
+      };
+    }
+
+    const lifecycleError = validateHandleLifecycle(
+      id,
+      barIndex,
+      result.__visualEvents,
+      lifecycle,
+    );
+    if (lifecycleError) {
+      return {
+        fixture: id,
+        pass: false,
+        stage: 'handle-lifecycle',
+        declaredPlotCount,
+        barsValidated: barIndex,
+        failure: {
+          fixture: id,
+          stage: 'handle-lifecycle',
+          barIndex,
+          message: lifecycleError,
+          declaredPlotCount,
+          outputLength: result.length,
+          outputPreview: result.slice(0, 16),
+          visualEventPreview: Array.isArray(result.__visualEvents)
+            ? (result.__visualEvents as unknown[]).slice(0, 8)
+            : undefined,
+          transpiledBody,
+        },
+      };
+    }
+
     runtime.advanceBar();
   }
 
@@ -612,10 +831,16 @@ function printSummary(
   const passPct = total === 0 ? 0 : (pass / total) * 100;
 
   const constructorFailures = failures.filter((f) => f.stage === 'construct').length;
+  const metainfoSchemaFailures = failures.filter(
+    (f) => f.stage === 'metainfo-schema',
+  ).length;
   const plotFailures = failures.filter(
     (f) => f.stage === 'plot-contract' || f.stage === 'run-bars',
   ).length;
   const visualFailures = failures.filter((f) => f.stage === 'visual-contract').length;
+  const handleLifecycleFailures = failures.filter(
+    (f) => f.stage === 'handle-lifecycle',
+  ).length;
 
   console.log('# Chart Safety Gate');
   console.log('');
@@ -625,8 +850,10 @@ function printSummary(
   console.log(`Bar index start: ${barIndexStart}`);
   console.log(`Pass: ${pass}/${total} (${passPct.toFixed(2)}%)`);
   console.log(`Constructor contract failures: ${constructorFailures}`);
+  console.log(`Metainfo schema failures: ${metainfoSchemaFailures}`);
   console.log(`Plot contract failures: ${plotFailures}`);
   console.log(`Visual contract failures: ${visualFailures}`);
+  console.log(`Handle lifecycle failures: ${handleLifecycleFailures}`);
   console.log(`Artifacts dir: ${ARTIFACT_DIR}`);
   console.log('');
 
