@@ -3474,7 +3474,7 @@ function buildIndicatorFactory(options) {
 				styles: buildStylesMetadata(plots),
 				inputs: buildInputsMetadata(inputs)
 			},
-			constructor: () => {
+			constructor: function() {
 				let _previousBarTime = -1;
 				let _fallbackBarIndex = -1;
 				const _requestSecurityState = /* @__PURE__ */ new Map();
@@ -7751,4 +7751,4 @@ Object.defineProperty(exports, "transpileToPineJS", {
 	}
 });
 
-//# sourceMappingURL=src-tf-UfVhO.cjs.map
+//# sourceMappingURL=src-o2FWOkgZ.cjs.map

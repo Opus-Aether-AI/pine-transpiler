@@ -223,20 +223,20 @@ export function runFixture(
   baseResult.stageReached = 'construct';
   baseResult.declaredPlotCount = declaredPlotCount(indicator);
 
-  // Stage 3 — call constructor() to get { main }
+  // Stage 3 — instantiate constructor with `new` (matches TradingView)
   let constructed: { main: (ctx: unknown, cb: unknown) => unknown };
   try {
-    const ctor = indicator.constructor as () => {
+    const ctor = indicator.constructor as new () => {
       main: (ctx: unknown, cb: unknown) => unknown;
     };
-    constructed = ctor();
+    constructed = new ctor();
   } catch (error) {
     baseResult.error = error instanceof Error ? error.message : String(error);
     return baseResult;
   }
 
   if (typeof constructed?.main !== 'function') {
-    baseResult.error = 'constructor() did not produce a callable main()';
+    baseResult.error = 'new constructor() did not produce a callable main()';
     return baseResult;
   }
 

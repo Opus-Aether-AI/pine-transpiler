@@ -782,7 +782,7 @@ export function buildIndicatorFactory(
         styles: buildStylesMetadata(plots),
         inputs: buildInputsMetadata(inputs),
       },
-      constructor: () => {
+      constructor: function () {
         // Track the previous bar's open time so barstate.isnew can flip
         // when a new bar arrives. Lives on the per-instance closure so
         // it persists across main() invocations within one indicator

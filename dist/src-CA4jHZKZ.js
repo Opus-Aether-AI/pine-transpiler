@@ -3474,7 +3474,7 @@ function buildIndicatorFactory(options) {
 				styles: buildStylesMetadata(plots),
 				inputs: buildInputsMetadata(inputs)
 			},
-			constructor: () => {
+			constructor: function() {
 				let _previousBarTime = -1;
 				let _fallbackBarIndex = -1;
 				const _requestSecurityState = /* @__PURE__ */ new Map();
@@ -7650,4 +7650,4 @@ function executePineJS(code, indicatorId, indicatorName) {
 //#endregion
 export { MATH_FUNCTION_MAPPINGS as _, Parser as a, ASTGenerator as c, PRICE_SOURCES as d, getAllPineFunctionNames as f, TA_FUNCTION_MAPPINGS as g, MULTI_OUTPUT_MAPPINGS as h, transpileToPineJS as i, generateStandaloneFactory as l, TIME_FUNCTION_MAPPINGS as m, executePineJS as n, Lexer as o, getMappingStats as p, transpile as r, MetadataVisitor as s, canTranspilePineScript as t, COLOR_MAP as u };
 
-//# sourceMappingURL=src-Cb5LQ2VQ.js.map
+//# sourceMappingURL=src-CA4jHZKZ.js.map

@@ -104,7 +104,11 @@ describe('ICT Killzones Tier-0 corpus guard', () => {
     expect(plotIds.length).toBe(expected.plotCount);
     expect(plotIds).toEqual(expected.plotIds);
 
-    const constructed = indicator.constructor();
+    const ctor = indicator.constructor as new () => {
+      main: (ctx: unknown, cb: unknown) => unknown;
+    };
+    const constructed = new ctor();
+    expect(typeof constructed.main).toBe('function');
     for (let i = 0; i < runtime.totalBars; i++) {
       runtime.resetVarPointer();
       runtime.resetCurrentBarPlots();
