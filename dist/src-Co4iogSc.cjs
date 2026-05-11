@@ -1520,19 +1520,19 @@ var ARRAY_FUNCTION_MAPPINGS = {
 		description: "Create new array (Pine v6 generic, type stripped by parser)"
 	},
 	"array.new_line": {
-		stdName: "_arrayNewAny",
+		stdName: "_arrayNewLine",
 		description: "Create new line array"
 	},
 	"array.new_box": {
-		stdName: "_arrayNewAny",
+		stdName: "_arrayNewBox",
 		description: "Create new box array"
 	},
 	"array.new_label": {
-		stdName: "_arrayNewAny",
+		stdName: "_arrayNewLabel",
 		description: "Create new label array"
 	},
 	"array.new_table": {
-		stdName: "_arrayNewAny",
+		stdName: "_arrayNewTable",
 		description: "Create new table array"
 	},
 	"array.new_color": {
@@ -1674,6 +1674,31 @@ const _arraySafeSize = (size) => {
   if (!Number.isFinite(n) || n <= 0) return 0;
   return Math.min(100000, Math.floor(n));
 };
+const _arrayMissingDrawingHandle = new Proxy({}, {
+  get: (_target, prop) => {
+    if (prop === Symbol.toPrimitive) return () => NaN;
+    if (prop === 'valueOf') return () => NaN;
+    if (prop === 'toString') return () => 'na';
+    if (typeof prop === 'string' && prop.startsWith('get_')) {
+      return () => NaN;
+    }
+    // set_* / delete / unknown handle members become no-ops.
+    return () => undefined;
+  },
+});
+const _arrayDrawingKinds = new Set(['line', 'box', 'label', 'table']);
+const _arrayMarkKind = (arr, kind) => {
+  if (!Array.isArray(arr)) return arr;
+  if (typeof kind === 'string' && kind) {
+    Object.defineProperty(arr, '__pineKind', {
+      value: kind,
+      enumerable: false,
+      configurable: true,
+      writable: true,
+    });
+  }
+  return arr;
+};
 const _arrayEnsurePineMethods = (arr) => {
   if (!Array.isArray(arr)) return arr;
   if (typeof arr.size !== 'function') {
@@ -1684,7 +1709,17 @@ const _arrayEnsurePineMethods = (arr) => {
   }
   if (typeof arr.get !== 'function') {
     Object.defineProperty(arr, 'get', {
-      value: function(i) { return this[i]; },
+      value: function(i) {
+        const idx = Math.floor(Number(i));
+        if (Number.isFinite(idx) && idx >= 0 && idx < this.length) {
+          return this[idx];
+        }
+        const kind = this.__pineKind;
+        if (typeof kind === 'string' && _arrayDrawingKinds.has(kind)) {
+          return _arrayMissingDrawingHandle;
+        }
+        return NaN;
+      },
       enumerable: false,
     });
   }
@@ -1733,6 +1768,10 @@ const _arrayAsArray = (arr) => Array.isArray(arr) ? arr : [];
 const _arrayNumeric = (arr) => _arrayAsArray(arr).filter((v) => typeof v === 'number' && Number.isFinite(v));
 const _arrayNew = (size = 0, val = NaN) => _arrayEnsurePineMethods(Array(_arraySafeSize(size)).fill(val));
 const _arrayNewAny = (size = 0, val = NaN) => _arrayNew(size, val);
+const _arrayNewLine = (size = 0, val = NaN) => _arrayMarkKind(_arrayNewAny(size, val), 'line');
+const _arrayNewBox = (size = 0, val = NaN) => _arrayMarkKind(_arrayNewAny(size, val), 'box');
+const _arrayNewLabel = (size = 0, val = NaN) => _arrayMarkKind(_arrayNewAny(size, val), 'label');
+const _arrayNewTable = (size = 0, val = NaN) => _arrayMarkKind(_arrayNewAny(size, val), 'table');
 const _arrayNewFloat = (size = 0, val = NaN) => _arrayNew(size, val);
 const _arrayNewInt = (size = 0, val = 0) => _arrayNew(size, val);
 const _arrayNewBool = (size = 0, val = false) => _arrayNew(size, val);
@@ -1755,7 +1794,12 @@ const _arrayRemove = (arr, i) => {
   const removed = arr.splice(idx, 1);
   return removed.length > 0 ? removed[0] : NaN;
 };
-const _arrayGet = (arr, i) => (Array.isArray(arr) ? arr[i] : NaN);
+const _arrayGet = (arr, i) => {
+  if (!Array.isArray(arr)) return NaN;
+  if (typeof arr.get === 'function') return arr.get(i);
+  const idx = Math.floor(Number(i));
+  return Number.isFinite(idx) ? arr[idx] : NaN;
+};
 const _arraySet = (arr, i, val) => {
   if (Array.isArray(arr)) arr[i] = val;
   return arr;
@@ -7989,4 +8033,4 @@ Object.defineProperty(exports, "transpileToPineJS", {
 	}
 });
 
-//# sourceMappingURL=src-CIGFkQmG.cjs.map
+//# sourceMappingURL=src-Co4iogSc.cjs.map

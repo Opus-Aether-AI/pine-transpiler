@@ -1,5 +1,5 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-const require_src = require("./src-CIGFkQmG.cjs");
+const require_src = require("./src-Co4iogSc.cjs");
 exports.COLOR_MAP = require_src.COLOR_MAP;
 exports.MATH_FUNCTION_MAPPINGS = require_src.MATH_FUNCTION_MAPPINGS;
 exports.MULTI_OUTPUT_MAPPINGS = require_src.MULTI_OUTPUT_MAPPINGS;
