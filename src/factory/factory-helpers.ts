@@ -29,14 +29,10 @@ export function mapPlotType(t: string): number {
       return 4;
     case 'stepline':
       return 0;
-    // PineJS plot styles are line-family numeric indices. Shape and
-    // char plots have their own metainfo top-level type ('shapes' /
-    // 'chars'), so the style.plottype here is largely cosmetic — but
-    // letting them fall through to 0 (line) would emit a structurally
-    // inconsistent metainfo (plot.type === 'shapes' AND
-    // styles[id].plottype === line). Use a dedicated marker so the
-    // chart host can ignore the style's plottype while still seeing
-    // the metainfo type as authoritative.
+    // Visual plots are emitted with string plottype markers in both
+    // metainfo.plots[] and defaults.styles[] (see resolveVisualPlottype).
+    // Keep numeric fallback here for older call sites that still expect
+    // a number.
     case 'shape':
       return 6;
     case 'char':
@@ -62,11 +58,12 @@ export function buildDefaultStyles(
   return plots.reduce(
     (acc, p) => {
       const styleLocation = resolveStyleLocation(p);
+      const visualPlottype = resolveVisualPlottype(p);
       acc[p.id] = {
         linestyle: 0,
         visible: true,
         linewidth: p.linewidth,
-        plottype: mapPlotType(p.type),
+        plottype: visualPlottype ?? mapPlotType(p.type),
         color: p.color,
         transparency: 0,
         trackPrice: p.type === 'hline',
@@ -144,6 +141,36 @@ function resolveStyleLocation(
   return 'AboveBar';
 }
 
+function resolveVisualPlottype(plot: ParsedPlot): string | undefined {
+  if (plot.type === 'char') {
+    // TradingView renderers expect a visual plottype marker for chars.
+    // Use a directional default that matches location semantics.
+    if (plot.location === 'belowbar' || plot.location === 'bottom') {
+      return 'shape_label_up';
+    }
+    return 'shape_label_down';
+  }
+  if (plot.type !== 'shape') return undefined;
+  switch (plot.shape) {
+    case 'triangleup':
+      return 'shape_triangle_up';
+    case 'triangledown':
+      return 'shape_triangle_down';
+    case 'cross':
+      return 'shape_cross';
+    case 'diamond':
+      return 'shape_diamond';
+    case 'square':
+      return 'shape_square';
+    case 'flag':
+      return 'shape_flag';
+    case 'label':
+      return 'shape_label_up';
+    default:
+      return 'shape_circle';
+  }
+}
+
 /**
  * Build the plots metadata array.
  *
@@ -180,11 +207,16 @@ function plotTypeToMetainfoType(
 export function buildPlotsMetadata(plots: ParsedPlot[]): Array<{
   id: string;
   type: 'line' | 'histogram' | 'shapes' | 'chars' | 'bg_colorer';
+  plottype?: string;
 }> {
-  return plots.map((p) => ({
-    id: p.id,
-    type: plotTypeToMetainfoType(p.type),
-  }));
+  return plots.map((p) => {
+    const visualPlottype = resolveVisualPlottype(p);
+    return {
+      id: p.id,
+      type: plotTypeToMetainfoType(p.type),
+      ...(visualPlottype ? { plottype: visualPlottype } : {}),
+    };
+  });
 }
 
 /**

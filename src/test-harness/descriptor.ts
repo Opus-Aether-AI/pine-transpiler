@@ -75,10 +75,19 @@ export function validateDescriptorContract(
       plotStyleAlignmentErrors.push(
         `metainfo.styles is missing key for plot id "${plotId}"`,
       );
-    } else if (hasLocationForVisual(plot) && style.location === undefined) {
-      plotStyleAlignmentErrors.push(
-        `metainfo.styles["${plotId}"] is missing required location for ${plot.type} plot`,
-      );
+    } else if (hasLocationForVisual(plot)) {
+      const visualPlotType = (plot as unknown as Record<string, unknown>)
+        .plottype;
+      if (visualPlotType === undefined || visualPlotType === null) {
+        plotStyleAlignmentErrors.push(
+          `metainfo.plots entry "${plotId}" is missing required plottype for ${plot.type} plot`,
+        );
+      }
+      if (style.location === undefined) {
+        plotStyleAlignmentErrors.push(
+          `metainfo.styles["${plotId}"] is missing required location for ${plot.type} plot`,
+        );
+      }
     }
 
     const defaultStyle = (defaultStyles as Record<string, unknown>)[plotId] as

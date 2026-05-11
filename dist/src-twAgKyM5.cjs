@@ -30,11 +30,12 @@ function mapPlotType(t) {
 function buildDefaultStyles(plots) {
 	return plots.reduce((acc, p) => {
 		const styleLocation = resolveStyleLocation(p);
+		const visualPlottype = resolveVisualPlottype(p);
 		acc[p.id] = {
 			linestyle: 0,
 			visible: true,
 			linewidth: p.linewidth,
-			plottype: mapPlotType(p.type),
+			plottype: visualPlottype ?? mapPlotType(p.type),
 			color: p.color,
 			transparency: 0,
 			trackPrice: p.type === "hline",
@@ -82,6 +83,23 @@ function resolveStyleLocation(plot) {
 	if (loc === "absolute") return "Absolute";
 	return "AboveBar";
 }
+function resolveVisualPlottype(plot) {
+	if (plot.type === "char") {
+		if (plot.location === "belowbar" || plot.location === "bottom") return "shape_label_up";
+		return "shape_label_down";
+	}
+	if (plot.type !== "shape") return void 0;
+	switch (plot.shape) {
+		case "triangleup": return "shape_triangle_up";
+		case "triangledown": return "shape_triangle_down";
+		case "cross": return "shape_cross";
+		case "diamond": return "shape_diamond";
+		case "square": return "shape_square";
+		case "flag": return "shape_flag";
+		case "label": return "shape_label_up";
+		default: return "shape_circle";
+	}
+}
 /**
 * Build the plots metadata array.
 *
@@ -105,10 +123,14 @@ function plotTypeToMetainfoType(type) {
 	}
 }
 function buildPlotsMetadata(plots) {
-	return plots.map((p) => ({
-		id: p.id,
-		type: plotTypeToMetainfoType(p.type)
-	}));
+	return plots.map((p) => {
+		const visualPlottype = resolveVisualPlottype(p);
+		return {
+			id: p.id,
+			type: plotTypeToMetainfoType(p.type),
+			...visualPlottype ? { plottype: visualPlottype } : {}
+		};
+	});
 }
 /**
 * Build the inputs metadata array.
@@ -3326,7 +3348,6 @@ function createVisualStdProxy(std, pushEvent, barIndex, options = {}) {
 		const value = Reflect.get(target, prop, receiver);
 		if (typeof prop !== "string") return value;
 		if (!VISUAL_STD_CALLS.has(prop)) return value;
-		if (typeof value !== "function") return value;
 		return (...args) => {
 			pushEvent({
 				call: `Std.${prop}`,
@@ -3338,7 +3359,7 @@ function createVisualStdProxy(std, pushEvent, barIndex, options = {}) {
 				else if (prop === "plotshape" || prop === "plotchar") options.pushPlotValue(coerceShapePlotNumber(args[0]));
 				else if (prop === "hline") options.pushPlotValue(NaN);
 			}
-			return value.apply(target, args);
+			if (typeof value === "function") return value.apply(target, args);
 		};
 	} });
 }
@@ -7923,4 +7944,4 @@ Object.defineProperty(exports, "transpileToPineJS", {
 	}
 });
 
-//# sourceMappingURL=src-jR1q1TGY.cjs.map
+//# sourceMappingURL=src-twAgKyM5.cjs.map

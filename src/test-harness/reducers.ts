@@ -30,6 +30,25 @@ function resolveLocationValue(style: StyleRecord | undefined): unknown {
   return location;
 }
 
+function resolveVisualPlotTypeValue(plot: StudyPlotInfo): unknown {
+  const visualType = (plot as unknown as Record<string, unknown>).plottype;
+  if (visualType === undefined || visualType === null) {
+    // Mirrors reducer/runtime signatures where enum lookup receives
+    // `undefined` and immediately throws with this exact message.
+    throw new Error('Value is undefined');
+  }
+  if (
+    typeof visualType === 'object' &&
+    visualType !== null &&
+    'value' in (visualType as Record<string, unknown>)
+  ) {
+    const candidate = (visualType as { value?: unknown }).value;
+    if (typeof candidate === 'function') return candidate();
+    return candidate;
+  }
+  return visualType;
+}
+
 /**
  * TradingView-shaped autoscale reducer fragment.
  *
@@ -45,6 +64,7 @@ export function applyPlotToPrecalculatedAutoscaleInfo(
 ): void {
   if (plot.type === 'chars' || plot.type === 'shapes') {
     // Side-effect is contract validation; value unused by the harness.
+    resolveVisualPlotTypeValue(plot);
     resolveLocationValue(style);
   }
   const n = Number(point);
@@ -61,6 +81,7 @@ export function dependsOnSeriesData(
   style: StyleRecord | undefined,
 ): boolean {
   if (plot.type === 'chars' || plot.type === 'shapes') {
+    resolveVisualPlotTypeValue(plot);
     resolveLocationValue(style);
   }
   return plot.type !== 'hline';

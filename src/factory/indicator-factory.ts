@@ -419,7 +419,6 @@ function createVisualStdProxy(
       const value = Reflect.get(target, prop, receiver);
       if (typeof prop !== 'string') return value;
       if (!VISUAL_STD_CALLS.has(prop)) return value;
-      if (typeof value !== 'function') return value;
       return (...args: unknown[]) => {
         pushEvent({
           call: `Std.${prop}`,
@@ -435,7 +434,18 @@ function createVisualStdProxy(
             options.pushPlotValue(Number.NaN);
           }
         }
-        return (value as (...inner: unknown[]) => unknown).apply(target, args);
+        // Some chart-host runtimes omit visual helpers from `Std`
+        // (e.g. `Std.plotchar`), even though transpiled code can emit
+        // them via utility mappings. Treat missing host methods as
+        // no-op visual calls rather than throwing TypeError so the
+        // indicator keeps running and returns dense plot arrays.
+        if (typeof value === 'function') {
+          return (value as (...inner: unknown[]) => unknown).apply(
+            target,
+            args,
+          );
+        }
+        return undefined;
       };
     },
   });

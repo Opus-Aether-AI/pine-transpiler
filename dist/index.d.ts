@@ -39,6 +39,8 @@ declare interface StudyPlotInfo {
      *  plotshape / plotchar / bgcolor calls; the rest are AST-side names
      *  used by the metadata visitor. */
     type: 'line' | 'histogram' | 'circles' | 'column' | 'area' | 'stepline' | 'cross' | 'shape' | 'shapes' | 'chars' | 'hline' | 'bg_colorer';
+    /** Visual renderer style marker (required by chart runtime for shapes/chars). */
+    plottype?: number | string;
     /** Optional price for hline */
     price?: number;
 }

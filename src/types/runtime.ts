@@ -414,6 +414,9 @@ export interface StudyPlotInfo {
     | 'hline'
     | 'bg_colorer';
 
+  /** Visual renderer style marker (required by chart runtime for shapes/chars). */
+  plottype?: number | string;
+
   /** Optional price for hline */
   price?: number;
 }
@@ -431,8 +434,8 @@ export interface PlotStyle {
   /** Line width in pixels */
   linewidth: number;
 
-  /** Plot type: 0=line, 1=histogram, etc. */
-  plottype: number;
+  /** Plot type: 0=line, 1=histogram, or visual shape marker string. */
+  plottype: number | string;
 
   /** Whether to track price on the right scale */
   trackPrice?: boolean;
