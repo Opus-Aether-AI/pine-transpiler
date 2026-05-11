@@ -89,11 +89,14 @@ Scope:
 - expand visual event model coverage for drawing/table lifecycles
 - normalize style semantics (`color`, `transp`, `linewidth`, `offset`, display flags)
 - add additional visual goldens for drawing-heavy ICT/community scripts
+- emit Pine drawing intent in TV-renderable form where the API allows it (`bg_colorer` plot derived from `box.new` patterns)
+- stabilize the per-bar visual-event payload so a host renderer can correlate `<ns>.new` / `<ns>.set_*` / `<ns>.delete` across bars
 
 Exit criteria:
 
 - no visual regressions on existing visual snapshots
-- expanded visual suite passes at agreed threshold
+- visual parity harness passes on the expanded baseline
+- chart-safety gate validates metainfo schema and handle lifecycle (see Phase 14.3)
 
 Progress (2026-05-11, tranche 1):
 
@@ -105,6 +108,57 @@ Progress (2026-05-11, tranche 1):
   - `42-visual-table-scanner.pine`
   - `ict-killzones.pine`
 - visual parity harness remains green on expanded baseline (`8/8`)
+
+Progress (2026-05-12, tranche 2):
+
+- safe drawing-handle returned by `.get(N)` on an empty kind-tagged
+  array (`8f7204f`) — empty `array<box>` access on the first session
+  bar no longer crashes the runtime
+- persistent drawing namespaces across `main()` calls (`c61ce22`) —
+  `var array<box>` handles pushed on bar N are the same handles
+  receiving `set_right(time)` on bar N+1
+- auto `bg_colorer` plot synthesized from `box.new(..., bgcolor=...)`
+  patterns (`c61ce22`) — session-highlighting Pine scripts render
+  killzone backgrounds without host support
+- `pineHandleId` stamped on every drawing-related `__visualEvents`
+  entry (`8aac469`) — host renderers can dedupe shape lifecycle by
+  stable id
+- `plotchar(text = identifier)` resolves through tracked string-literal
+  var definitions (`8aac469`) — day/session labels render as text
+  instead of a generic `•`
+
+### Phase 14.3: Host Rendering Contract
+
+Goal: codify the runtime visual-event payload as a stable contract so
+host renderers (the webapp `VisualEventsRenderer`, future external
+consumers) can depend on its shape without coupling to internal
+transpiler state.
+
+Scope:
+
+- `HOST_RENDERING_CONTRACT.md` at repo root — single source of truth
+  for `__visualEvents` shape, `pineHandleId` invariants, namespace
+  coverage, and breaking-change policy
+- `__visualEventsVersion` constant on the per-bar return value, so
+  consumers can detect non-additive changes
+- `tests/contract/visual-events-shape.test.ts` — locks event field
+  presence, types, and `<ns>.new` → `<ns>.set_*` → `<ns>.delete`
+  lifecycle continuity on the full fixture corpus
+- extend `scripts/corpus/chart-safety.ts` with two gates:
+  - **metainfo schema** — `bg_colorer` plots reference an existing
+    palette; every plot has matching `styles` and `defaults.styles`;
+    `chars` plots have non-empty `style.char`; `shapes` have
+    `style.plottype`
+  - **handle lifecycle** — no `set_*` / `delete` against an unseen
+    `pineHandleId`; no mutations after delete
+
+Exit criteria:
+
+- contract test passes on full corpus
+- chart-safety report adds `Metainfo schema failures: 0` and
+  `Handle lifecycle failures: 0` rows
+- `HOST_RENDERING_CONTRACT.md` is referenced from `LIMITATIONS.md` as
+  the authoritative renderer-side reference
 
 ### Phase 15: `request.security` MTF Parity Expansion
 
@@ -121,19 +175,39 @@ Exit criteria:
 - expanded `request.security` regression suite passes
 - MTF fixtures show stable pass rates with documented tolerances
 
-### Phase 16: Builtin/Data-Structure Coverage Expansion
+### Phase 16: Builtin/Data-Structure + Semantic Correctness Expansion
 
-Goal: reduce unsupported surface area blocking real-world scripts.
+Goal: reduce unsupported surface area blocking real-world scripts and
+close remaining Pine semantic gaps that affect output correctness, not
+just compilability.
 
 Scope:
 
 - extend `matrix.*` coverage beyond current subset
 - close remaining gaps in drawing/table method families
-- close high-impact builtin gaps surfaced by top-200 and community fixtures
+- close high-impact builtin gaps surfaced by top-200 and community
+  fixtures
+- **Pine `var` inside function bodies** — generator currently emits JS
+  `var`, which re-initializes on every call instead of persisting
+  across calls. Affects accumulators and running-state patterns inside
+  user-defined functions (e.g. `newTop`/`newBottom` style assignments
+  in ICT-shaped scripts). Implement persistent storage keyed by
+  call-site so each function body's `var` survives across invocations.
+- **Named-args → canonical positional reorder** for `box.new` /
+  `line.new` / `label.new` / `table.new`. Today the generator emits
+  args in source order, and the runtime stub guesses which slot is
+  `bgcolor` / `border_color` by scanning for color-shaped strings. Move
+  to a deterministic reorder at the generator level so the stub takes
+  positional args at their canonical Pine indices.
 
 Exit criteria:
 
-- unimplemented-call count remains 0 on existing corpus and trends down on expanded fixtures
+- unimplemented-call count remains 0 on existing corpus and trends
+  down on expanded fixtures
+- regression coverage demonstrates `var`-in-function persistence
+  parity against a reference script
+- `box.new` / `line.new` / `label.new` runtime no longer relies on
+  color-shape heuristics to identify args
 
 ### Phase 17: Differential Parity Harness vs Pine Reference
 
@@ -152,17 +226,32 @@ Exit criteria:
 
 ### Phase 18: Production Hardening + Release Contract
 
-Goal: keep parity stable under real integration load.
+Goal: keep parity stable under real integration load and validate the
+end-to-end host-render path, not just transpiler outputs.
 
 Scope:
 
 - long-history/multi-indicator performance hardening
 - explicit support contract (what is guaranteed, what is partial)
 - CI policy to block merges on budget regressions
+- **Playwright smoke harness** — boot the TV charting library in a
+  headless browser, load each fixture's transpiled indicator through
+  the host `VisualEventsRenderer` flow, assert
+  `createShape` / `createMultipointShape` call counts and types match
+  expectations. First layer of verification that catches Pine → TV
+  coordinate / arg-mapping bugs the unit suite cannot.
+- **Alerts decision** — `alert()` and `alertcondition()` are runtime
+  no-ops today. Either: ship event routing through
+  `__visualEvents`-style metadata so the host can wire them to its
+  notification surface, OR formalize them as permanently no-op in
+  `LIMITATIONS.md` with the rationale.
 
 Exit criteria:
 
 - reproducible release process with enforced parity budgets
+- Playwright smoke covers the curated fixture lane and runs on PR + nightly
+- alert behavior is either implemented or formally documented as
+  unsupported, no longer a silent gap
 
 ## Phase Coverage Template
 
@@ -194,9 +283,15 @@ Use this for every phase report:
 ## Recommended Execution Order
 
 1. Phase 14.2 (visual semantics closure)
-2. Phase 15 (`request.security` MTF parity)
-3. Phase 16 (builtin/data-structure expansion)
-4. Phase 17 (differential parity harness)
-5. Phase 18 (production hardening)
+2. Phase 14.3 (host rendering contract)
+3. Phase 15 (`request.security` MTF parity)
+4. Phase 16 (builtin/data-structure expansion + var-in-function correctness)
+5. Phase 17 (differential parity harness)
+6. Phase 18 (production hardening + Playwright smoke + alerts decision)
 
-Reason: visual + MTF are the highest-impact behavior gaps for advanced indicators; differential checks then protect against silent parity drift while coverage expands.
+Reason: visual semantics + a stable host contract come first because
+they unblock the webapp renderer that turns the existing `__visualEvents`
+stream into real chart shapes. MTF and builtin gaps are the next
+highest-impact behavior closures. Differential checks protect against
+silent parity drift; Playwright smoke and alerts close the loop on
+end-to-end production behavior.

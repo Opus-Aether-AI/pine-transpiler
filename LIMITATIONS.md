@@ -52,21 +52,42 @@ Not yet supported:
 - external symbol data fetching
 - full Pine-equivalent barmerge behavior across all edge cases
 
-### Drawing APIs (runtime-compatible handles, no rendering)
+### Drawing APIs (runtime-compatible handles, partial direct rendering)
 
-Drawing namespaces are stateful and support common method subsets so scripts execute, but no visual rendering is produced by this package.
+Drawing namespaces are stateful, persist across bars (Pine `var` semantics), and support common method subsets so scripts execute. Direct visual rendering inside the transpiler is intentionally limited — TradingView CustomIndicator outputs (plots, palette-backed bg_colorers) cannot draw arbitrary shapes. Anything beyond bg_colorer goes through the host renderer (see [HOST_RENDERING_CONTRACT.md](HOST_RENDERING_CONTRACT.md)).
 
-Supported subsets:
+Direct rendering inside the transpiler:
 
-- `line`: `new`, `delete`, `set_x2`, `set_color`, `get_x2`, `get_y1`
-- `box`: `new`, `delete`, `set_left`, `set_right`, `set_extend`, `set_bgcolor`, `set_border_color`, `set_text_color`, `get_left`, `get_right`, `get_top`, `get_bottom`
-- `label`: `new`, `delete`, `set_text`, `set_tooltip`, `set_textcolor`, `set_xy`, `set_x`, `set_y`
+- **`box.new(..., bgcolor=...)`** — auto-emits a `bg_colorer` plot driven by an 8-slot palette. Session-highlighting scripts (ICT-style killzones, FX sessions) get colored backgrounds with no host work. Palette colors are a fixed rainbow set; slot assignment is first-seen at runtime.
+
+Tracked-but-not-rendered (host renderer must consume `__visualEvents`):
+
+- Box rectangles with borders / inline text
+- `line.new` (pivots, separators, opens)
+- `label.new` (text annotations)
+- `table.new` / `table.cell` (TV CustomIndicators have no native runtime table; renderer must use a DOM overlay)
+
+Supported method subsets:
+
+- `line`: `new`, `delete`, `set_x2`, `set_xy1`, `set_xy2`, `set_color`, `get_x2`, `get_y1`, `get_y2`
+- `box`: `new`, `delete`, `set_left`, `set_right`, `set_top`, `set_bottom`, `set_extend`, `set_bgcolor`, `set_border_color`, `set_border_width`, `set_text_color`, `get_left`, `get_right`, `get_top`, `get_bottom`
+- `label`: `new`, `delete`, `set_text`, `set_tooltip`, `set_textcolor`, `set_style`, `set_xy`, `set_x`, `set_y`, `get_text`, `get_y`
 - `table`: `new`, `cell`, `clear`, `merge_cells`
 
 ### Plot/Visual Functions
 
-- `plotshape`, `plotchar`, `plotarrow`, `bgcolor`, `fill`, `barcolor` are runtime-compatible and tracked in visual-event artifacts.
-- Rendering remains host responsibility (for example webapp/chart layer).
+- `plot`, `plotshape`, `plotchar`, `plotarrow`, `bgcolor`, `fill`, `barcolor`, `hline` are runtime-compatible.
+- `plot` / `plotshape` / `plotchar` / `plotarrow` / `hline` render directly through TradingView's CustomIndicator plot output.
+- `plotchar(text = identifier)` resolves through tracked string-literal var definitions and is promoted to the `char` glyph when `char` is empty.
+- `bgcolor`, `fill`, `barcolor` are tracked in visual-event artifacts; rendering of those that don't lower to a `bg_colorer` plot remains host responsibility.
+
+### Pine `var` inside function bodies
+
+A `var x = init` declaration inside a user-defined function body is supposed to initialize once and persist across subsequent calls. The generator currently emits a plain JS `var`, which reinitializes on every call. For most scripts this is harmless because the values are recomputed each bar anyway. Scripts that rely on accumulator-style `var` inside a method or function will see incorrect output. Tracked in Phase 16.
+
+### Alerts
+
+- `alert()` and `alertcondition()` are runtime no-ops. The transpiler swallows the call without errors or routing. If alerting is required, prefetch the alert condition values via plot outputs and let the host wire its own notification surface. Long-term resolution tracked in Phase 18.
 
 ### Session/Time Semantics
 

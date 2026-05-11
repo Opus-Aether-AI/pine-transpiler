@@ -3251,6 +3251,13 @@ function ensureArrayPrototypeCompat() {
 		return typeof v === "number" ? Math.sqrt(v) : NaN;
 	});
 }
+/**
+* Schema version for the per-bar `__visualEvents` payload. Stamped on
+* the array returned from `main()` so host renderers can detect
+* breaking changes. See HOST_RENDERING_CONTRACT.md for the
+* additive-vs-breaking policy.
+*/
+var VISUAL_EVENTS_VERSION = 1;
 function extractHandleId(value) {
 	if (typeof value !== "object" || value === null) return void 0;
 	const id = value.__id;
@@ -4342,6 +4349,12 @@ function buildIndicatorFactory(options) {
 							writable: false,
 							configurable: false
 						});
+						Object.defineProperty(normalizedPlotValues, "__visualEventsVersion", {
+							value: VISUAL_EVENTS_VERSION,
+							enumerable: false,
+							writable: false,
+							configurable: false
+						});
 						markProcessedBar();
 						return normalizedPlotValues;
 					} catch (e) {
@@ -4349,6 +4362,12 @@ function buildIndicatorFactory(options) {
 						const fallback = Array.from({ length: totalPlotCount }, () => NaN);
 						Object.defineProperty(fallback, "__visualEvents", {
 							value: _visualEvents,
+							enumerable: false,
+							writable: false,
+							configurable: false
+						});
+						Object.defineProperty(fallback, "__visualEventsVersion", {
+							value: VISUAL_EVENTS_VERSION,
 							enumerable: false,
 							writable: false,
 							configurable: false
@@ -8217,4 +8236,4 @@ Object.defineProperty(exports, "transpileToPineJS", {
 	}
 });
 
-//# sourceMappingURL=src-C14HYoXL.cjs.map
+//# sourceMappingURL=src-DcpGDtU-.cjs.map

@@ -167,6 +167,14 @@ interface VisualEvent {
   pineHandleId?: number;
 }
 
+/**
+ * Schema version for the per-bar `__visualEvents` payload. Stamped on
+ * the array returned from `main()` so host renderers can detect
+ * breaking changes. See HOST_RENDERING_CONTRACT.md for the
+ * additive-vs-breaking policy.
+ */
+const VISUAL_EVENTS_VERSION = 1;
+
 function extractHandleId(value: unknown): number | undefined {
   if (typeof value !== 'object' || value === null) return undefined;
   const id = (value as { __id?: unknown }).__id;
@@ -2107,6 +2115,16 @@ export function buildIndicatorFactory(
               writable: false,
               configurable: false,
             });
+            Object.defineProperty(
+              normalizedPlotValues,
+              '__visualEventsVersion',
+              {
+                value: VISUAL_EVENTS_VERSION,
+                enumerable: false,
+                writable: false,
+                configurable: false,
+              },
+            );
             markProcessedBar();
             return normalizedPlotValues;
           } catch (e) {
@@ -2135,6 +2153,12 @@ export function buildIndicatorFactory(
             );
             Object.defineProperty(fallback, '__visualEvents', {
               value: _visualEvents,
+              enumerable: false,
+              writable: false,
+              configurable: false,
+            });
+            Object.defineProperty(fallback, '__visualEventsVersion', {
+              value: VISUAL_EVENTS_VERSION,
               enumerable: false,
               writable: false,
               configurable: false,
