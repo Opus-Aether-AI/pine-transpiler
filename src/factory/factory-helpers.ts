@@ -59,15 +59,21 @@ export function buildDefaultStyles(
     (acc, p) => {
       const styleLocation = resolveStyleLocation(p);
       const visualPlottype = resolveVisualPlottype(p);
+      const charGlyph = resolveCharGlyph(p);
       acc[p.id] = {
         linestyle: 0,
         visible: true,
         linewidth: p.linewidth,
-        plottype: visualPlottype ?? mapPlotType(p.type),
+        ...(visualPlottype !== undefined
+          ? { plottype: visualPlottype }
+          : p.type === 'char'
+            ? {}
+            : { plottype: mapPlotType(p.type) }),
         color: p.color,
         transparency: 0,
         trackPrice: p.type === 'hline',
         ...(styleLocation ? { location: styleLocation } : {}),
+        ...(charGlyph ? { char: charGlyph } : {}),
       };
       return acc;
     },
@@ -142,14 +148,6 @@ function resolveStyleLocation(
 }
 
 function resolveVisualPlottype(plot: ParsedPlot): string | undefined {
-  if (plot.type === 'char') {
-    // TradingView renderers expect a visual plottype marker for chars.
-    // Use a directional default that matches location semantics.
-    if (plot.location === 'belowbar' || plot.location === 'bottom') {
-      return 'shape_label_up';
-    }
-    return 'shape_label_down';
-  }
   if (plot.type !== 'shape') return undefined;
   switch (plot.shape) {
     case 'triangleup':
@@ -169,6 +167,12 @@ function resolveVisualPlottype(plot: ParsedPlot): string | undefined {
     default:
       return 'shape_circle';
   }
+}
+
+function resolveCharGlyph(plot: ParsedPlot): string | undefined {
+  if (plot.type !== 'char') return undefined;
+  const glyph = String(plot.char ?? '').trim();
+  return glyph || '•';
 }
 
 /**
@@ -208,13 +212,19 @@ export function buildPlotsMetadata(plots: ParsedPlot[]): Array<{
   id: string;
   type: 'line' | 'histogram' | 'shapes' | 'chars' | 'bg_colorer';
   plottype?: string;
+  char?: string;
+  location?: 'AboveBar' | 'BelowBar' | 'Top' | 'Bottom' | 'Absolute';
 }> {
   return plots.map((p) => {
     const visualPlottype = resolveVisualPlottype(p);
+    const charGlyph = resolveCharGlyph(p);
+    const location = resolveStyleLocation(p);
     return {
       id: p.id,
       type: plotTypeToMetainfoType(p.type),
       ...(visualPlottype ? { plottype: visualPlottype } : {}),
+      ...(charGlyph ? { char: charGlyph } : {}),
+      ...(location ? { location } : {}),
     };
   });
 }

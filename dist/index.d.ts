@@ -41,6 +41,10 @@ declare interface StudyPlotInfo {
     type: 'line' | 'histogram' | 'circles' | 'column' | 'area' | 'stepline' | 'cross' | 'shape' | 'shapes' | 'chars' | 'hline' | 'bg_colorer';
     /** Visual renderer style marker (required by chart runtime for shapes/chars). */
     plottype?: number | string;
+    /** Chars-plot glyph marker (required for chars renderer contract). */
+    char?: string;
+    /** Optional visual location hint (AboveBar/BelowBar/etc.). */
+    location?: string;
     /** Optional price for hline */
     price?: number;
 }

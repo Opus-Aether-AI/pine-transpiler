@@ -76,12 +76,26 @@ export function validateDescriptorContract(
         `metainfo.styles is missing key for plot id "${plotId}"`,
       );
     } else if (hasLocationForVisual(plot)) {
-      const visualPlotType = (plot as unknown as Record<string, unknown>)
-        .plottype;
-      if (visualPlotType === undefined || visualPlotType === null) {
-        plotStyleAlignmentErrors.push(
-          `metainfo.plots entry "${plotId}" is missing required plottype for ${plot.type} plot`,
-        );
+      const rawPlot = plot as unknown as Record<string, unknown>;
+      if (plot.type === 'shapes') {
+        const visualPlotType = rawPlot.plottype;
+        if (visualPlotType === undefined || visualPlotType === null) {
+          plotStyleAlignmentErrors.push(
+            `metainfo.plots entry "${plotId}" is missing required plottype for ${plot.type} plot`,
+          );
+        }
+      }
+      if (plot.type === 'chars') {
+        const visualChar = rawPlot.char;
+        if (
+          visualChar === undefined ||
+          visualChar === null ||
+          String(visualChar).trim() === ''
+        ) {
+          plotStyleAlignmentErrors.push(
+            `metainfo.plots entry "${plotId}" is missing required char for ${plot.type} plot`,
+          );
+        }
       }
       if (style.location === undefined) {
         plotStyleAlignmentErrors.push(

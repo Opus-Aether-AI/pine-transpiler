@@ -128,6 +128,8 @@ export interface ParsedPlot {
     | 'bottom'
     | 'absolute'
     | undefined;
+  /** For plotchar - glyph rendered by chars plots */
+  char?: string | undefined;
   /** For bg_colorer - palette name */
   palette?: string | undefined;
 }

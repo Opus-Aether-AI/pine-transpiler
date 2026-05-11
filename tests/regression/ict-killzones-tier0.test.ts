@@ -108,7 +108,12 @@ describe('ICT Killzones Tier-0 corpus guard', () => {
       { location?: unknown }
     >;
     for (const plot of indicator.metainfo.plots ?? []) {
-      if (plot.type === 'chars' || plot.type === 'shapes') {
+      if (plot.type === 'chars') {
+        expect((plot as { char?: unknown }).char).toBeDefined();
+        expect(String((plot as { char?: unknown }).char ?? '').trim()).not.toBe('');
+        expect(styles[String(plot.id)]?.location).toBeDefined();
+      }
+      if (plot.type === 'shapes') {
         expect((plot as { plottype?: unknown }).plottype).toBeDefined();
         expect(styles[String(plot.id)]?.location).toBeDefined();
       }

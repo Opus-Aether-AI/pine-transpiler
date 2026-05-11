@@ -1,4 +1,4 @@
-import { i as transpileToPineJS } from "../src-C5qaEHFJ.js";
+import { i as transpileToPineJS } from "../src-Di3Cvglx.js";
 //#region src/test-harness/descriptor.ts
 function toMessage$1(error) {
 	if (error instanceof Error) return error.message;
@@ -43,8 +43,15 @@ function validateDescriptorContract(indicator) {
 		const style = styles[plotId];
 		if (!style) plotStyleAlignmentErrors.push(`metainfo.styles is missing key for plot id "${plotId}"`);
 		else if (hasLocationForVisual(plot)) {
-			const visualPlotType = plot.plottype;
-			if (visualPlotType === void 0 || visualPlotType === null) plotStyleAlignmentErrors.push(`metainfo.plots entry "${plotId}" is missing required plottype for ${plot.type} plot`);
+			const rawPlot = plot;
+			if (plot.type === "shapes") {
+				const visualPlotType = rawPlot.plottype;
+				if (visualPlotType === void 0 || visualPlotType === null) plotStyleAlignmentErrors.push(`metainfo.plots entry "${plotId}" is missing required plottype for ${plot.type} plot`);
+			}
+			if (plot.type === "chars") {
+				const visualChar = rawPlot.char;
+				if (visualChar === void 0 || visualChar === null || String(visualChar).trim() === "") plotStyleAlignmentErrors.push(`metainfo.plots entry "${plotId}" is missing required char for ${plot.type} plot`);
+			}
 			if (style.location === void 0) plotStyleAlignmentErrors.push(`metainfo.styles["${plotId}"] is missing required location for ${plot.type} plot`);
 		}
 		if (!defaultStyles[plotId]) defaultStyleAlignmentErrors.push(`metainfo.defaults.styles is missing key for plot id "${plotId}"`);
@@ -82,6 +89,11 @@ function resolveVisualPlotTypeValue(plot) {
 	}
 	return visualType;
 }
+function resolveVisualCharValue(plot) {
+	const visualChar = plot.char;
+	if (visualChar === void 0 || visualChar === null || String(visualChar).trim() === "") throw new Error("Value is undefined");
+	return visualChar;
+}
 /**
 * TradingView-shaped autoscale reducer fragment.
 *
@@ -90,8 +102,11 @@ function resolveVisualPlotTypeValue(plot) {
 * char/shape-style plots.
 */
 function applyPlotToPrecalculatedAutoscaleInfo(plot, style, point, autoscale) {
-	if (plot.type === "chars" || plot.type === "shapes") {
+	if (plot.type === "shapes") {
 		resolveVisualPlotTypeValue(plot);
+		resolveLocationValue(style);
+	} else if (plot.type === "chars") {
+		resolveVisualCharValue(plot);
 		resolveLocationValue(style);
 	}
 	const n = Number(point);
@@ -103,8 +118,11 @@ function applyPlotToPrecalculatedAutoscaleInfo(plot, style, point, autoscale) {
 * TradingView-shaped dependency reducer fragment used by view updates.
 */
 function dependsOnSeriesData(plot, style) {
-	if (plot.type === "chars" || plot.type === "shapes") {
+	if (plot.type === "shapes") {
 		resolveVisualPlotTypeValue(plot);
+		resolveLocationValue(style);
+	} else if (plot.type === "chars") {
+		resolveVisualCharValue(plot);
 		resolveLocationValue(style);
 	}
 	return plot.type !== "hline";

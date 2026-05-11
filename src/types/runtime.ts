@@ -417,6 +417,12 @@ export interface StudyPlotInfo {
   /** Visual renderer style marker (required by chart runtime for shapes/chars). */
   plottype?: number | string;
 
+  /** Chars-plot glyph marker (required for chars renderer contract). */
+  char?: string;
+
+  /** Optional visual location hint (AboveBar/BelowBar/etc.). */
+  location?: string;
+
   /** Optional price for hline */
   price?: number;
 }
@@ -435,7 +441,7 @@ export interface PlotStyle {
   linewidth: number;
 
   /** Plot type: 0=line, 1=histogram, or visual shape marker string. */
-  plottype: number | string;
+  plottype?: number | string;
 
   /** Whether to track price on the right scale */
   trackPrice?: boolean;
@@ -448,6 +454,9 @@ export interface PlotStyle {
 
   /** Char/shape plot vertical placement */
   location?: 'AboveBar' | 'BelowBar' | 'Top' | 'Bottom' | 'Absolute';
+
+  /** Optional glyph for chars plots */
+  char?: string;
 }
 
 /**

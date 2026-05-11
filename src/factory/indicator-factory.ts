@@ -2165,7 +2165,10 @@ export function generateStandaloneFactory(
       };
     } else if (plot.type === 'shape' || plot.type === 'char') {
       styleDefaults[plot.id] = {
-        plottype: plot.type === 'char' ? 'shape_label_up' : 'shape_circle',
+        ...(plot.type === 'shape' ? { plottype: 'shape_circle' } : {}),
+        ...(plot.type === 'char'
+          ? { char: String(plot.char ?? '').trim() || '•' }
+          : {}),
         location:
           plot.location === 'belowbar'
             ? 'BelowBar'

@@ -49,6 +49,18 @@ function resolveVisualPlotTypeValue(plot: StudyPlotInfo): unknown {
   return visualType;
 }
 
+function resolveVisualCharValue(plot: StudyPlotInfo): unknown {
+  const visualChar = (plot as unknown as Record<string, unknown>).char;
+  if (
+    visualChar === undefined ||
+    visualChar === null ||
+    String(visualChar).trim() === ''
+  ) {
+    throw new Error('Value is undefined');
+  }
+  return visualChar;
+}
+
 /**
  * TradingView-shaped autoscale reducer fragment.
  *
@@ -62,9 +74,12 @@ export function applyPlotToPrecalculatedAutoscaleInfo(
   point: unknown,
   autoscale: AutoscaleInfo,
 ): void {
-  if (plot.type === 'chars' || plot.type === 'shapes') {
+  if (plot.type === 'shapes') {
     // Side-effect is contract validation; value unused by the harness.
     resolveVisualPlotTypeValue(plot);
+    resolveLocationValue(style);
+  } else if (plot.type === 'chars') {
+    resolveVisualCharValue(plot);
     resolveLocationValue(style);
   }
   const n = Number(point);
@@ -80,8 +95,11 @@ export function dependsOnSeriesData(
   plot: StudyPlotInfo,
   style: StyleRecord | undefined,
 ): boolean {
-  if (plot.type === 'chars' || plot.type === 'shapes') {
+  if (plot.type === 'shapes') {
     resolveVisualPlotTypeValue(plot);
+    resolveLocationValue(style);
+  } else if (plot.type === 'chars') {
+    resolveVisualCharValue(plot);
     resolveLocationValue(style);
   }
   return plot.type !== 'hline';

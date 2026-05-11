@@ -31,15 +31,17 @@ function buildDefaultStyles(plots) {
 	return plots.reduce((acc, p) => {
 		const styleLocation = resolveStyleLocation(p);
 		const visualPlottype = resolveVisualPlottype(p);
+		const charGlyph = resolveCharGlyph(p);
 		acc[p.id] = {
 			linestyle: 0,
 			visible: true,
 			linewidth: p.linewidth,
-			plottype: visualPlottype ?? mapPlotType(p.type),
+			...visualPlottype !== void 0 ? { plottype: visualPlottype } : p.type === "char" ? {} : { plottype: mapPlotType(p.type) },
 			color: p.color,
 			transparency: 0,
 			trackPrice: p.type === "hline",
-			...styleLocation ? { location: styleLocation } : {}
+			...styleLocation ? { location: styleLocation } : {},
+			...charGlyph ? { char: charGlyph } : {}
 		};
 		return acc;
 	}, {});
@@ -84,10 +86,6 @@ function resolveStyleLocation(plot) {
 	return "AboveBar";
 }
 function resolveVisualPlottype(plot) {
-	if (plot.type === "char") {
-		if (plot.location === "belowbar" || plot.location === "bottom") return "shape_label_up";
-		return "shape_label_down";
-	}
 	if (plot.type !== "shape") return void 0;
 	switch (plot.shape) {
 		case "triangleup": return "shape_triangle_up";
@@ -99,6 +97,10 @@ function resolveVisualPlottype(plot) {
 		case "label": return "shape_label_up";
 		default: return "shape_circle";
 	}
+}
+function resolveCharGlyph(plot) {
+	if (plot.type !== "char") return void 0;
+	return String(plot.char ?? "").trim() || "•";
 }
 /**
 * Build the plots metadata array.
@@ -125,10 +127,14 @@ function plotTypeToMetainfoType(type) {
 function buildPlotsMetadata(plots) {
 	return plots.map((p) => {
 		const visualPlottype = resolveVisualPlottype(p);
+		const charGlyph = resolveCharGlyph(p);
+		const location = resolveStyleLocation(p);
 		return {
 			id: p.id,
 			type: plotTypeToMetainfoType(p.type),
-			...visualPlottype ? { plottype: visualPlottype } : {}
+			...visualPlottype ? { plottype: visualPlottype } : {},
+			...charGlyph ? { char: charGlyph } : {},
+			...location ? { location } : {}
 		};
 	});
 }
@@ -4255,7 +4261,8 @@ function generateStandaloneFactory(options) {
 		color: plot.color || "#2962FF"
 	};
 	else if (plot.type === "shape" || plot.type === "char") styleDefaults[plot.id] = {
-		plottype: plot.type === "char" ? "shape_label_up" : "shape_circle",
+		...plot.type === "shape" ? { plottype: "shape_circle" } : {},
+		...plot.type === "char" ? { char: String(plot.char ?? "").trim() || "•" } : {},
 		location: plot.location === "belowbar" ? "BelowBar" : plot.location === "top" ? "Top" : plot.location === "bottom" ? "Bottom" : plot.location === "absolute" ? "Absolute" : "AboveBar",
 		color: plot.color || "#2962FF",
 		size: "small"
@@ -5342,6 +5349,33 @@ var PlotExtractor = class {
 			default: return "";
 		}
 	}
+	extractLocation(expr) {
+		if (!expr || expr.type !== "MemberExpression") return void 0;
+		if (expr.object.type !== "Identifier") return void 0;
+		if (expr.object.name !== "location") return void 0;
+		if (expr.property.type !== "Identifier") return void 0;
+		const loc = expr.property.name.toLowerCase();
+		if (loc === "abovebar") return "abovebar";
+		if (loc === "belowbar") return "belowbar";
+		if (loc === "top") return "top";
+		if (loc === "bottom") return "bottom";
+		if (loc === "absolute") return "absolute";
+	}
+	extractShape(expr) {
+		if (!expr || expr.type !== "MemberExpression") return void 0;
+		if (expr.object.type !== "Identifier") return void 0;
+		if (expr.object.name !== "shape") return void 0;
+		if (expr.property.type !== "Identifier") return void 0;
+		const style = expr.property.name.toLowerCase();
+		if (style === "circle") return "circle";
+		if (style === "cross" || style === "xcross") return "cross";
+		if (style === "diamond") return "diamond";
+		if (style === "square") return "square";
+		if (style === "triangleup") return "triangleup";
+		if (style === "triangledown") return "triangledown";
+		if (style === "flag") return "flag";
+		if (style === "labelup" || style === "labeldown") return "label";
+	}
 	/**
 	* Extract a plot() call
 	*/
@@ -5382,16 +5416,19 @@ var PlotExtractor = class {
 		const valueArg = getArg(args, 0, "series");
 		const valueExpr = valueArg ? this.exprToString(valueArg) : "";
 		const title = getStringValue(getArg(args, 1, "title")) || `Shape ${++this.plotCount}`;
+		const shape = this.extractShape(getArg(args, 2, "style")) ?? "circle";
+		const location = this.extractLocation(getArg(args, 3, "location")) ?? "abovebar";
+		const color = this.extractColor(getArg(args, 4, "color") ?? args[0]);
 		return {
 			id: `plot_${this.plotCount - 1}`,
 			title,
 			varName: `plot_${this.plotCount - 1}`,
 			type: "shape",
-			color: "#000000",
+			color,
 			linewidth: 1,
 			valueExpr,
-			shape: "circle",
-			location: "abovebar"
+			shape,
+			location
 		};
 	}
 	/**
@@ -5399,14 +5436,22 @@ var PlotExtractor = class {
 	*/
 	extractPlotChar(expr) {
 		const args = expr.arguments;
+		const valueArg = getArg(args, 0, "series");
+		const valueExpr = valueArg ? this.exprToString(valueArg) : "";
 		const title = getStringValue(getArg(args, 1, "title")) || `Char ${++this.plotCount}`;
+		const charValue = getStringValue(getArg(args, 2, "char")) || "•";
+		const location = this.extractLocation(getArg(args, 3, "location")) ?? "abovebar";
+		const color = this.extractColor(getArg(args, 4, "color") ?? args[0]);
 		return {
 			id: `plot_${this.plotCount - 1}`,
 			title,
 			varName: `plot_${this.plotCount - 1}`,
 			type: "char",
-			color: "#000000",
-			linewidth: 1
+			color,
+			linewidth: 1,
+			valueExpr,
+			char: charValue,
+			location
 		};
 	}
 	/**
@@ -7843,4 +7888,4 @@ function executePineJS(code, indicatorId, indicatorName) {
 //#endregion
 export { MATH_FUNCTION_MAPPINGS as _, Parser as a, ASTGenerator as c, PRICE_SOURCES as d, getAllPineFunctionNames as f, TA_FUNCTION_MAPPINGS as g, MULTI_OUTPUT_MAPPINGS as h, transpileToPineJS as i, generateStandaloneFactory as l, TIME_FUNCTION_MAPPINGS as m, executePineJS as n, Lexer as o, getMappingStats as p, transpile as r, MetadataVisitor as s, canTranspilePineScript as t, COLOR_MAP as u };
 
-//# sourceMappingURL=src-C5qaEHFJ.js.map
+//# sourceMappingURL=src-Di3Cvglx.js.map

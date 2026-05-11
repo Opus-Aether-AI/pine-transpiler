@@ -52,6 +52,41 @@ export class PlotExtractor {
     }
   }
 
+  private extractLocation(
+    expr: Expression | null,
+  ): ParsedPlot['location'] | undefined {
+    if (!expr || expr.type !== 'MemberExpression') return undefined;
+    if (expr.object.type !== 'Identifier') return undefined;
+    if (expr.object.name !== 'location') return undefined;
+    if (expr.property.type !== 'Identifier') return undefined;
+    const loc = expr.property.name.toLowerCase();
+    if (loc === 'abovebar') return 'abovebar';
+    if (loc === 'belowbar') return 'belowbar';
+    if (loc === 'top') return 'top';
+    if (loc === 'bottom') return 'bottom';
+    if (loc === 'absolute') return 'absolute';
+    return undefined;
+  }
+
+  private extractShape(
+    expr: Expression | null,
+  ): ParsedPlot['shape'] | undefined {
+    if (!expr || expr.type !== 'MemberExpression') return undefined;
+    if (expr.object.type !== 'Identifier') return undefined;
+    if (expr.object.name !== 'shape') return undefined;
+    if (expr.property.type !== 'Identifier') return undefined;
+    const style = expr.property.name.toLowerCase();
+    if (style === 'circle') return 'circle';
+    if (style === 'cross' || style === 'xcross') return 'cross';
+    if (style === 'diamond') return 'diamond';
+    if (style === 'square') return 'square';
+    if (style === 'triangleup') return 'triangleup';
+    if (style === 'triangledown') return 'triangledown';
+    if (style === 'flag') return 'flag';
+    if (style === 'labelup' || style === 'labeldown') return 'label';
+    return undefined;
+  }
+
   /**
    * Extract a plot() call
    */
@@ -109,17 +144,21 @@ export class PlotExtractor {
 
     const title =
       getStringValue(getArg(args, 1, 'title')) || `Shape ${++this.plotCount}`;
+    const shape = this.extractShape(getArg(args, 2, 'style')) ?? 'circle';
+    const location =
+      this.extractLocation(getArg(args, 3, 'location')) ?? 'abovebar';
+    const color = this.extractColor(getArg(args, 4, 'color') ?? args[0]);
 
     return {
       id: `plot_${this.plotCount - 1}`,
       title,
       varName: `plot_${this.plotCount - 1}`,
       type: 'shape',
-      color: '#000000',
+      color,
       linewidth: 1,
       valueExpr,
-      shape: 'circle',
-      location: 'abovebar',
+      shape,
+      location,
     };
   }
 
@@ -128,8 +167,14 @@ export class PlotExtractor {
    */
   public extractPlotChar(expr: CallExpression): ParsedPlot {
     const args = expr.arguments;
+    const valueArg = getArg(args, 0, 'series');
+    const valueExpr = valueArg ? this.exprToString(valueArg) : '';
     const title =
       getStringValue(getArg(args, 1, 'title')) || `Char ${++this.plotCount}`;
+    const charValue = getStringValue(getArg(args, 2, 'char')) || '•';
+    const location =
+      this.extractLocation(getArg(args, 3, 'location')) ?? 'abovebar';
+    const color = this.extractColor(getArg(args, 4, 'color') ?? args[0]);
 
     return {
       id: `plot_${this.plotCount - 1}`,
@@ -140,8 +185,11 @@ export class PlotExtractor {
       // plotshape — both rendered as 'shapes' in metainfo, and the
       // 'chars' branch of the union was unreachable.
       type: 'char',
-      color: '#000000',
+      color,
       linewidth: 1,
+      valueExpr,
+      char: charValue,
+      location,
     };
   }
 
