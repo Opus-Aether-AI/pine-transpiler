@@ -1,0 +1,28 @@
+{
+  "plotCount": 7,
+  "plotIds": [
+    "plot_0",
+    "plot_1",
+    "plot_2",
+    "plot_3",
+    "plot_4",
+    "plot_5",
+    "plot_6"
+  ],
+  "warnings": [
+    "partial:box.new",
+    "partial:label.new",
+    "partial:line.new",
+    "partial:plotchar",
+    "partial:table.cell",
+    "partial:table.new",
+    "unsupported:alert"
+  ],
+  "lowerings": [
+    "array_helpers",
+    "method_binding",
+    "state_var",
+    "std_plotchar",
+    "visual_handles"
+  ]
+}

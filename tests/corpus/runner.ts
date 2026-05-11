@@ -118,10 +118,19 @@ function runOneBar(
       };
     }
 
-    // Successful run: concat both channels. mock has the actual plot
-    // values; factory has any hline NaNs.
+    // Successful run: prefer the factory's returned series when
+    // present. The factory now normalizes output to declared plot
+    // length and records Std.plot* calls directly into that returned
+    // array; blindly concatenating mock Std captures would double-count
+    // slots for plot/plotchar-heavy scripts.
+    //
+    // Keep the legacy fallback for older outputs that still returned
+    // an empty array while the mock captured Std.plot* values.
     const factoryPlots = Array.isArray(result) ? (result as number[]) : [];
-    const plotOutput = [...runtime.currentBarPlots, ...factoryPlots];
+    const plotOutput =
+      factoryPlots.length > 0
+        ? factoryPlots
+        : [...runtime.currentBarPlots, ...factoryPlots];
     return { plotOutput, error: null };
   } catch (error) {
     return { plotOutput: [], error };

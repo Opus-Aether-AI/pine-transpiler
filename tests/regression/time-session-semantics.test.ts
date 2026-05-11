@@ -51,7 +51,9 @@ function runOneBar(source: string, overrides: RuntimeOverrides = {}): number[] {
   runtime.resetCurrentBarPlots();
   const returned = instance.main(runtime.context, () => 14);
   const factoryPlots = Array.isArray(returned) ? returned : [];
-  return [...runtime.currentBarPlots, ...factoryPlots];
+  return factoryPlots.length > 0
+    ? factoryPlots
+    : [...runtime.currentBarPlots, ...factoryPlots];
 }
 
 describe('time/session semantics', () => {

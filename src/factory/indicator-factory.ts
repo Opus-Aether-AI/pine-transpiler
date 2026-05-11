@@ -166,10 +166,45 @@ const VISUAL_STD_CALLS = new Set([
   'barcolor',
 ]);
 
+interface VisualStdProxyOptions {
+  pushPlotValue?: (value: number) => void;
+}
+
+function coercePlotNumber(value: unknown): number {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : Number.NaN;
+  }
+  if (typeof value === 'boolean') {
+    return value ? 1 : 0;
+  }
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'value' in (value as Record<string, unknown>)
+  ) {
+    return coercePlotNumber((value as { value?: unknown }).value);
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : Number.NaN;
+  }
+  return Number.NaN;
+}
+
+function coerceShapePlotNumber(value: unknown): number {
+  if (typeof value === 'boolean') {
+    return value ? 1 : Number.NaN;
+  }
+  const n = coercePlotNumber(value);
+  if (!Number.isFinite(n)) return Number.NaN;
+  return n === 0 ? Number.NaN : n;
+}
+
 function createVisualStdProxy(
   std: Record<string, unknown>,
   pushEvent: (event: VisualEvent) => void,
   barIndex: number,
+  options: VisualStdProxyOptions = {},
 ): Record<string, unknown> {
   return new Proxy(std, {
     get(target, prop, receiver) {
@@ -183,6 +218,15 @@ function createVisualStdProxy(
           args,
           barIndex,
         });
+        if (options.pushPlotValue) {
+          if (prop === 'plot' || prop === 'plotarrow') {
+            options.pushPlotValue(coercePlotNumber(args[0]));
+          } else if (prop === 'plotshape' || prop === 'plotchar') {
+            options.pushPlotValue(coerceShapePlotNumber(args[0]));
+          } else if (prop === 'hline') {
+            options.pushPlotValue(Number.NaN);
+          }
+        }
         return (value as (...inner: unknown[]) => unknown).apply(target, args);
       };
     },
@@ -730,6 +774,11 @@ export function buildIndicatorFactory(
               Std as Record<string, unknown>,
               pushVisualEvent,
               resolvedBarIndex,
+              {
+                pushPlotValue: (value) => {
+                  _plotValues.push(value);
+                },
+              },
             ) as StdLibraryInternal;
             const parseTimeframeToMs = (raw: unknown): number | null => {
               const tf = String(raw ?? '').trim();
@@ -1494,13 +1543,17 @@ export function buildIndicatorFactory(
                 sources.ohlc4,
               );
 
-              Object.defineProperty(_plotValues, '__visualEvents', {
+              const normalizedPlotValues = Array.from(
+                { length: plots.length },
+                (_unused, i) => coercePlotNumber(_plotValues[i]),
+              );
+              Object.defineProperty(normalizedPlotValues, '__visualEvents', {
                 value: _visualEvents,
                 enumerable: false,
                 writable: false,
                 configurable: false,
               });
-              return _plotValues;
+              return normalizedPlotValues;
             } catch (e) {
               // Suppress the per-bar console.error when the error is
               // just the compile error being rethrown — the
