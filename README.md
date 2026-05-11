@@ -29,6 +29,7 @@ This tool allows you to run Pine Script indicators directly within the Charting 
 -   **Zero Dependencies**: The core transpiler logic is dependency-free and runs in any JavaScript environment.
 -   **TypeScript First**: Full TypeScript support with strict mode enabled and comprehensive type definitions.
 -   **Corpus Governance Tooling**: Lane/authenticity-aware corpus reports (`bun run corpus`) and CI gate budgets (`bun run corpus:gate`) to keep parity stable as fixture count grows.
+-   **Chart Host Safety Gate**: TradingView-like runtime contract checks (`bun run chart:safety`) to catch construct/plot/visual payload regressions before webapp integration.
 
 ## Installation
 
@@ -362,6 +363,7 @@ Coverage is enforced through multiple layers:
 - strict numeric checks: `bun run corpus:strict`
 - curated + community indicator matrices: `bun run corpus:matrix`, `bun run corpus:tv100`, `bun run corpus:tv200`
 - corpus quality/stability budgets: `bun run corpus:gate`
+- chart-host safety contracts: `bun run chart:safety`
 
 ## Future Parity Roadmap
 
@@ -419,6 +421,9 @@ bun run corpus:tv200
 # Stability gate (lane/authenticity budgets for CI)
 bun run corpus:gate
 
+# Chart-host safety gate (constructor/plot/visual runtime contracts)
+bun run chart:safety
+
 # Visual parity baseline (5 fixtures, snapshot-based)
 bun run corpus:visual
 
@@ -439,6 +444,7 @@ Governance artifacts:
 - `bun run corpus` prints pass rate by source, lane, authenticity, category, and top feature coverage.
 - `bun run corpus:tv100` / `bun run corpus:tv200` generate matrix artifacts for popular/community suites.
 - `bun run corpus:gate` enforces stability budgets in CI (overall pass, parse-clean, unimplemented std calls, per-lane pass, per-authenticity pass).
+- `bun run chart:safety` enforces TradingView-like host contracts (`new constructor()`, per-bar plot shape, visual-event payload integrity) and writes failure artifacts to `.tmp/chart-safety/`.
 
 Reference docs:
 

@@ -27,7 +27,10 @@ function executeOneBar(source: string): MainOutput {
 
   const runtime = createMockRuntime({ barCount: 5 });
   const indicator = transpiled.indicatorFactory!(runtime.pineJs);
-  const constructed = indicator.constructor();
+  const ctor = indicator.constructor as new () => {
+    main: (ctx: unknown, cb: (index: number) => number) => MainOutput;
+  };
+  const constructed = new ctor();
 
   runtime.resetVarPointer();
   runtime.resetCurrentBarPlots();
@@ -111,7 +114,10 @@ plot(close)
 
     const runtime = createMockRuntime({ barCount: 5 });
     const indicator = transpiled.indicatorFactory!(runtime.pineJs);
-    const constructed = indicator.constructor();
+    const ctor = indicator.constructor as new () => {
+      main: (ctx: unknown, cb: (index: number) => number) => MainOutput;
+    };
+    const constructed = new ctor();
 
     runtime.resetVarPointer();
     runtime.resetCurrentBarPlots();

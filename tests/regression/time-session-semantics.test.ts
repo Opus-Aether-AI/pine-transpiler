@@ -45,7 +45,10 @@ function runOneBar(source: string, overrides: RuntimeOverrides = {}): number[] {
   }
 
   const indicator = result.indicatorFactory(runtime.pineJs);
-  const instance = indicator.constructor();
+  const ctor = indicator.constructor as new () => {
+    main: (ctx: unknown, cb: (index: number) => number) => unknown;
+  };
+  const instance = new ctor();
 
   runtime.resetVarPointer();
   runtime.resetCurrentBarPlots();

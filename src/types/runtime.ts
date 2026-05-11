@@ -529,6 +529,18 @@ export interface IndicatorConstructor {
 }
 
 /**
+ * Indicator instance factory attached to `CustomIndicator.constructor`.
+ *
+ * TradingView instantiates this with `new indicator.constructor()`. Our
+ * internal tooling may still call it as a plain function, so keep both call
+ * signatures legal.
+ */
+export interface IndicatorConstructorFactory {
+  (): IndicatorConstructor;
+  new (): IndicatorConstructor;
+}
+
+/**
  * Custom Indicator - Complete indicator definition
  * This is what transpileToPineJS() generates
  */
@@ -540,7 +552,7 @@ export interface CustomIndicator {
   metainfo: StudyMetaInfo;
 
   /** Factory function that creates the indicator instance */
-  constructor: () => IndicatorConstructor;
+  constructor: IndicatorConstructorFactory;
 }
 
 // ============================================================================

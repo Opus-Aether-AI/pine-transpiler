@@ -24,6 +24,12 @@ execution behavior closer to TradingView for real-world indicators.
   metadata: source, lane, authenticity, category, and inferred feature tags.
 - **Corpus stability gate** (`bun run corpus:gate`) with configurable
   per-lane and per-authenticity budgets for CI.
+- **Chart safety gate** (`bun run chart:safety`) that enforces
+  TradingView-like host contracts across fixtures:
+  constructability via `new indicator.constructor()`, per-bar plot output
+  shape guarantees (declared length, no `undefined`, numeric slots), and
+  visual event payload integrity checks with failure artifacts in
+  `.tmp/chart-safety/`.
 - **Matrix API support (`matrix.*`)** via new mappings/helpers:
   `matrix.new`, `rows`, `columns`, `get`, `set`, `add_row`, `remove_row`.
 - **Persistent state helpers** for Pine semantics:
@@ -51,6 +57,9 @@ execution behavior closer to TradingView for real-world indicators.
 - **Visual parity artifact/report schema expanded** with aggregated visual
   style semantics and additional lifecycle call counters for
   line/box/label/table method families.
+- **Runtime/diagnostic harnesses aligned to host semantics**:
+  strict-audit, visual-artifact, debug-fixture, and regression helpers now
+  instantiate indicator constructors with `new` to mirror chart behavior.
 - **Corpus report output expanded** with lane/authenticity/category pass
   rates and top feature coverage sections.
 - **Named-argument emit behavior** now passes value-only arguments in runtime
@@ -83,7 +92,8 @@ execution behavior closer to TradingView for real-world indicators.
 
 ### Quality / CI
 - CI quality checks now include `bun run corpus:strict`,
-  `bun run corpus:matrix`, and `bun run corpus:gate`.
+  `bun run corpus:matrix`, `bun run corpus:gate`, and
+  `bun run chart:safety`.
 - Current verified parity baseline in this change set:
   - corpus full pass: **237/237**
   - parse-clean: **237/237**

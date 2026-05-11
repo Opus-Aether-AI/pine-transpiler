@@ -34,6 +34,7 @@ import {
 } from '../runtime';
 import { STD_PLUS_LIBRARY } from '../stdlib';
 import type {
+  IndicatorConstructorFactory,
   IndicatorFactory,
   ParsedBgcolor,
   ParsedInput,
@@ -782,6 +783,7 @@ export function buildIndicatorFactory(
         styles: buildStylesMetadata(plots),
         inputs: buildInputsMetadata(inputs),
       },
+      // biome-ignore lint/complexity/useArrowFunction: must stay constructable for `new indicator.constructor()`.
       constructor: function () {
         // Track the previous bar's open time so barstate.isnew can flip
         // when a new bar arrives. Lives on the per-instance closure so
@@ -1804,7 +1806,7 @@ export function buildIndicatorFactory(
             }
           },
         };
-      },
+      } as IndicatorConstructorFactory,
     };
   };
 

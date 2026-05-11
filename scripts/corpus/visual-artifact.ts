@@ -313,7 +313,10 @@ export function buildVisualArtifact(fixture: string): VisualArtifact {
     const mockRuntime = createMockRuntime({ barCount: 1 });
     const indicator = tr.indicatorFactory(mockRuntime.pineJs);
     metainfoSummary = normalizeMetainfo(indicator.metainfo);
-    const constructed = indicator.constructor();
+    const ctor = indicator.constructor as new () => {
+      main: (ctx: unknown, cb: (index: number) => number) => unknown;
+    };
+    const constructed = new ctor();
     mockRuntime.resetVarPointer();
     mockRuntime.resetCurrentBarPlots();
     const output = constructed.main(mockRuntime.context, () => 14) as

@@ -45,10 +45,10 @@ console.log(
   JSON.stringify((indicator.metainfo as { plots?: unknown[] }).plots, null, 2),
 );
 
-const ctor = indicator.constructor as () => {
+const ctor = indicator.constructor as new () => {
   main: (c: unknown, i: unknown) => unknown;
 };
-const constructed = ctor();
+const constructed = new ctor();
 const main = constructed.main as (
   ctx: unknown,
   cb: (i: number) => number,

@@ -54,3 +54,9 @@ jobs:
 
       - name: Run Indicator Matrix
         run: bun run corpus:matrix
+
+      - name: Run Corpus Gate
+        run: bun run corpus:gate
+
+      - name: Run Chart Safety Gate
+        run: bun run chart:safety

@@ -17,7 +17,10 @@ function buildInstance(source: string, barCount = 5): {
 
   const runtime = createMockRuntime({ barCount });
   const indicator = result.indicatorFactory(runtime.pineJs);
-  const instance = indicator.constructor();
+  const ctor = indicator.constructor as new () => {
+    main: (ctx: unknown, cb: (index: number) => number) => unknown;
+  };
+  const instance = new ctor();
   return {
     runtime,
     main: instance.main as (

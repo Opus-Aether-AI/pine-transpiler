@@ -10,7 +10,10 @@ function runOneBar(source: string): number[] {
 
   const runtime = createMockRuntime({ barCount: 5 });
   const indicator = result.indicatorFactory(runtime.pineJs);
-  const instance = indicator.constructor();
+  const ctor = indicator.constructor as new () => {
+    main: (ctx: unknown, cb: (index: number) => number) => unknown;
+  };
+  const instance = new ctor();
 
   runtime.resetVarPointer();
   runtime.resetCurrentBarPlots();
@@ -48,7 +51,10 @@ function runBars(source: string, bars = 6): number[][] {
 
   const runtime = createMockRuntime({ barCount: bars });
   const indicator = result.indicatorFactory(runtime.pineJs);
-  const instance = indicator.constructor();
+  const ctor = indicator.constructor as new () => {
+    main: (ctx: unknown, cb: (index: number) => number) => unknown;
+  };
+  const instance = new ctor();
   const out: number[][] = [];
 
   for (let i = 0; i < bars; i++) {

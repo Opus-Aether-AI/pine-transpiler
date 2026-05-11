@@ -11,6 +11,7 @@ export type {
   // Core runtime types
   CustomIndicator,
   IndicatorConstructor,
+  IndicatorConstructorFactory,
   IndicatorFactory,
   InputCallback,
   PineJSRuntime,

@@ -46,9 +46,10 @@ function runIndicator(
 
   let constructed: { main: (ctx: unknown, cb: (index: number) => number) => unknown };
   try {
-    constructed = (indicator.constructor as () => {
+    const ctor = indicator.constructor as new () => {
       main: (ctx: unknown, cb: (index: number) => number) => unknown;
-    })();
+    };
+    constructed = new ctor();
   } catch (e) {
     return { lastPlotOutput: [], error: String(e) };
   }
