@@ -47,9 +47,11 @@ type FailureStage =
   | 'transpile'
   | 'instantiate'
   | 'construct'
+  | 'metainfo-schema'
   | 'run-bars'
   | 'plot-contract'
-  | 'visual-contract';
+  | 'visual-contract'
+  | 'handle-lifecycle';
 
 interface VisualStylePayload {
   colors: unknown;
@@ -63,7 +65,21 @@ interface VisualEventPayload {
   call: unknown;
   args: unknown;
   barIndex: unknown;
+  pineHandleId?: unknown;
   style?: unknown;
+}
+
+interface MetainfoPlotLike {
+  id?: unknown;
+  type?: unknown;
+  palette?: unknown;
+  plottype?: unknown;
+  char?: unknown;
+}
+
+interface HandleLifecycleState {
+  created: Set<string>;
+  deleted: Set<string>;
 }
 
 interface FixtureFailure {

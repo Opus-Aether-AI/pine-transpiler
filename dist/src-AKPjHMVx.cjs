@@ -4382,11 +4382,9 @@ function buildIndicatorFactory(options) {
 						return fallback;
 					}
 				};
-				if (new.target) {
-					this.main = main;
-					return;
-				}
-				return { main };
+				const descriptor = { main };
+				if (this) Object.assign(this, descriptor);
+				return descriptor;
 			}
 		};
 	};
@@ -8236,4 +8234,4 @@ Object.defineProperty(exports, "transpileToPineJS", {
 	}
 });
 
-//# sourceMappingURL=src-DcpGDtU-.cjs.map
+//# sourceMappingURL=src-AKPjHMVx.cjs.map

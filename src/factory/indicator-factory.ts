@@ -2178,12 +2178,30 @@ export function buildIndicatorFactory(
           }
         };
 
-        if (new.target) {
-          this.main = main;
-          return;
-        }
-
-        return { main };
+        // Dual-mode constructor: callable as `new Ctor()` (TradingView's
+        // CustomIndicator framework) AND as `Ctor.call(target)` /
+        // `Ctor()` (test harnesses, downstream wrappers that hook
+        // `main` to intercept per-bar output).
+        //
+        // The earlier shape — `if (new.target) { this.main = main;
+        // return; } return { main };` — silently dropped `main` when
+        // a wrapper called `originalCtor.call(self)`: that path has
+        // `new.target === undefined` so the descriptor branch fired,
+        // but `.call()` discards return values, so `self.main` was
+        // never assigned. Result: the next bar called `undefined`.
+        //
+        // Mutate `this` AND return the descriptor so all three call
+        // forms land `main` somewhere the caller can read it:
+        //   • `new Ctor()` — JS replaces the new instance with the
+        //     returned object; consumer reads `.main` from it
+        //   • `Ctor.call(target)` — `Object.assign` writes `main` to
+        //     target; return value is discarded harmlessly
+        //   • `Ctor()` — strict-mode `this` is undefined; the guard
+        //     skips Object.assign; caller reads `main` off the
+        //     returned descriptor
+        const descriptor = { main };
+        if (this) Object.assign(this, descriptor);
+        return descriptor;
       } as IndicatorConstructorFactory,
     };
   };

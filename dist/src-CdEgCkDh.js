@@ -4382,11 +4382,9 @@ function buildIndicatorFactory(options) {
 						return fallback;
 					}
 				};
-				if (new.target) {
-					this.main = main;
-					return;
-				}
-				return { main };
+				const descriptor = { main };
+				if (this) Object.assign(this, descriptor);
+				return descriptor;
 			}
 		};
 	};
@@ -8135,4 +8133,4 @@ function executePineJS(code, indicatorId, indicatorName) {
 //#endregion
 export { MATH_FUNCTION_MAPPINGS as _, Parser as a, ASTGenerator as c, PRICE_SOURCES as d, getAllPineFunctionNames as f, TA_FUNCTION_MAPPINGS as g, MULTI_OUTPUT_MAPPINGS as h, transpileToPineJS as i, generateStandaloneFactory as l, TIME_FUNCTION_MAPPINGS as m, executePineJS as n, Lexer as o, getMappingStats as p, transpile as r, MetadataVisitor as s, canTranspilePineScript as t, COLOR_MAP as u };
 
-//# sourceMappingURL=src-CfxVXD-6.js.map
+//# sourceMappingURL=src-CdEgCkDh.js.map
