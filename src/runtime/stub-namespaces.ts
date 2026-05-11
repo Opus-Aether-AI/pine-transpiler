@@ -306,9 +306,33 @@ function makeLineNamespace(): LineStub {
   return withConstantFallback(line, 'line') as LineStub;
 }
 
+function isColorLike(v: unknown): boolean {
+  if (typeof v !== 'string' || v.length === 0) return false;
+  if (v === 'NaN' || v === 'na') return false;
+  return v.startsWith('#') || v.startsWith('rgb') || v.startsWith('hsl');
+}
+
+function pickBgcolorFromArgs(args: unknown[]): unknown {
+  // Pine `box.new(...)` is typically invoked with named args
+  // (xloc=, border_color=, bgcolor=, text=, text_color=). The transpiler
+  // emits these positionally in source order, so the canonical
+  // border_color/bgcolor slots are not at fixed indices. Scan args[4..]
+  // for color-like strings; prefer the SECOND match (bgcolor commonly
+  // follows border_color in user code), else the first match, else
+  // args[5] verbatim.
+  const colors: unknown[] = [];
+  for (let i = 4; i < args.length; i++) {
+    if (isColorLike(args[i])) colors.push(args[i]);
+  }
+  if (colors.length >= 2) return colors[1];
+  if (colors.length === 1) return colors[0];
+  return args[5];
+}
+
 function makeBoxNamespace(): BoxStub {
   let nextId = 1;
   const boxStore = new Map<number, DrawingHandle>();
+  let currentBarTime = Number.NaN;
 
   const deleteBox = (boxObj: unknown) => {
     const h = resolveHandle(boxObj, boxStore);
@@ -446,7 +470,7 @@ function makeBoxNamespace(): BoxStub {
         right: toNumber(args[2]),
         bottom: toNumber(args[3]),
         border_color: args[4],
-        bgcolor: args[5],
+        bgcolor: pickBgcolorFromArgs(args),
         border_width: toInteger(args[6], 1),
       };
       attachBoxMethods(h);
@@ -467,6 +491,26 @@ function makeBoxNamespace(): BoxStub {
     get_right: getRight,
     get_top: getTop,
     get_bottom: getBottom,
+    // Introspection used by the factory to drive an auto-generated
+    // bg_colorer plot. Not part of Pine's public box API; consumers
+    // outside the factory should ignore these.
+    __setBarTime: (t: unknown) => {
+      const n = Number(t);
+      if (Number.isFinite(n)) currentBarTime = n;
+    },
+    __getActiveBgcolor: (): unknown => {
+      if (!Number.isFinite(currentBarTime)) return null;
+      let active: DrawingHandle | null = null;
+      for (const h of boxStore.values()) {
+        if (typeof h.right === 'number' && h.right === currentBarTime) {
+          active = h;
+        }
+      }
+      if (!active) return null;
+      if (isColorLike(active.bgcolor)) return active.bgcolor;
+      if (isColorLike(active.border_color)) return active.border_color;
+      return null;
+    },
   };
 
   return withConstantFallback(box, 'box') as BoxStub;

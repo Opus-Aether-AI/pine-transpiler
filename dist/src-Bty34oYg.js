@@ -2725,9 +2725,22 @@ function makeLineNamespace() {
 		style_dotted: "line.style_dotted"
 	}, "line");
 }
+function isColorLike(v) {
+	if (typeof v !== "string" || v.length === 0) return false;
+	if (v === "NaN" || v === "na") return false;
+	return v.startsWith("#") || v.startsWith("rgb") || v.startsWith("hsl");
+}
+function pickBgcolorFromArgs(args) {
+	const colors = [];
+	for (let i = 4; i < args.length; i++) if (isColorLike(args[i])) colors.push(args[i]);
+	if (colors.length >= 2) return colors[1];
+	if (colors.length === 1) return colors[0];
+	return args[5];
+}
 function makeBoxNamespace() {
 	let nextId = 1;
 	const boxStore = /* @__PURE__ */ new Map();
+	let currentBarTime = NaN;
 	const deleteBox = (boxObj) => {
 		const h = resolveHandle(boxObj, boxStore);
 		if (!h) return;
@@ -2821,7 +2834,7 @@ function makeBoxNamespace() {
 				right: toNumber(args[2]),
 				bottom: toNumber(args[3]),
 				border_color: args[4],
-				bgcolor: args[5],
+				bgcolor: pickBgcolorFromArgs(args),
 				border_width: toInteger(args[6], 1)
 			};
 			attachBoxMethods(h);
@@ -2841,7 +2854,20 @@ function makeBoxNamespace() {
 		get_left: getLeft,
 		get_right: getRight,
 		get_top: getTop,
-		get_bottom: getBottom
+		get_bottom: getBottom,
+		__setBarTime: (t) => {
+			const n = Number(t);
+			if (Number.isFinite(n)) currentBarTime = n;
+		},
+		__getActiveBgcolor: () => {
+			if (!Number.isFinite(currentBarTime)) return null;
+			let active = null;
+			for (const h of boxStore.values()) if (typeof h.right === "number" && h.right === currentBarTime) active = h;
+			if (!active) return null;
+			if (isColorLike(active.bgcolor)) return active.bgcolor;
+			if (isColorLike(active.border_color)) return active.border_color;
+			return null;
+		}
 	}, "box");
 }
 function makeLabelNamespace() {
@@ -3558,9 +3584,100 @@ function generatePreamble(usedSources, historicalAccess, mainBody = "") {
 function buildIndicatorFactory(options) {
 	const { indicatorId, indicatorName, name, shortName, overlay, plots, inputs, usedSources, historicalAccess, mainBody } = options;
 	const body = generatePreamble(usedSources, historicalAccess, mainBody) + mainBody;
+	const hasAutoBgColorer = body.includes("box.new(");
+	const AUTO_BG_PLOT_ID = "__auto_bg__";
+	const AUTO_BG_PALETTE_ID = "__auto_bg_palette__";
+	const AUTO_BG_PALETTE_COLORS = {
+		0: { name: "None" },
+		1: { name: "Session 1" },
+		2: { name: "Session 2" },
+		3: { name: "Session 3" },
+		4: { name: "Session 4" },
+		5: { name: "Session 5" },
+		6: { name: "Session 6" },
+		7: { name: "Session 7" }
+	};
+	const AUTO_BG_PALETTE_DEFAULTS = {
+		0: {
+			color: "rgba(0, 0, 0, 0)",
+			width: 1,
+			style: 0
+		},
+		1: {
+			color: "rgba(33, 150, 243, 0.18)",
+			width: 1,
+			style: 0
+		},
+		2: {
+			color: "rgba(244, 67, 54, 0.18)",
+			width: 1,
+			style: 0
+		},
+		3: {
+			color: "rgba(76, 175, 80, 0.18)",
+			width: 1,
+			style: 0
+		},
+		4: {
+			color: "rgba(255, 235, 59, 0.18)",
+			width: 1,
+			style: 0
+		},
+		5: {
+			color: "rgba(156, 39, 176, 0.18)",
+			width: 1,
+			style: 0
+		},
+		6: {
+			color: "rgba(255, 152, 0, 0.18)",
+			width: 1,
+			style: 0
+		},
+		7: {
+			color: "rgba(0, 188, 212, 0.18)",
+			width: 1,
+			style: 0
+		}
+	};
+	const AUTO_BG_VAL_TO_INDEX = {
+		0: 0,
+		1: 1,
+		2: 2,
+		3: 3,
+		4: 4,
+		5: 5,
+		6: 6,
+		7: 7
+	};
+	const totalPlotCount = plots.length + (hasAutoBgColorer ? 1 : 0);
 	const indicatorFactory = (PineJS) => {
 		const Std = PineJS.Std;
 		const safeId = sanitizeIndicatorId(indicatorId);
+		const colorToSlot = /* @__PURE__ */ new Map();
+		const resolveBgSlot = (color) => {
+			if (typeof color !== "string" || !color) return 0;
+			const cached = colorToSlot.get(color);
+			if (cached !== void 0) return cached;
+			const slot = colorToSlot.size % 7 + 1;
+			colorToSlot.set(color, slot);
+			return slot;
+		};
+		const basePlots = buildPlotsMetadata(plots);
+		const baseStyles = buildStylesMetadata(plots);
+		const baseDefaultStyles = buildDefaultStyles(plots);
+		const augmentedPlots = hasAutoBgColorer ? [...basePlots, {
+			id: AUTO_BG_PLOT_ID,
+			type: "bg_colorer",
+			palette: AUTO_BG_PALETTE_ID
+		}] : basePlots;
+		const augmentedStyles = hasAutoBgColorer ? {
+			...baseStyles,
+			[AUTO_BG_PLOT_ID]: { title: "Session Background" }
+		} : baseStyles;
+		const augmentedDefaultStyles = hasAutoBgColorer ? {
+			...baseDefaultStyles,
+			[AUTO_BG_PLOT_ID]: { transparency: 70 }
+		} : baseDefaultStyles;
 		return {
 			name: `User_${safeId}`,
 			metainfo: {
@@ -3570,12 +3687,17 @@ function buildIndicatorFactory(options) {
 				is_price_study: overlay,
 				isCustomIndicator: true,
 				format: { type: "inherit" },
-				plots: buildPlotsMetadata(plots),
+				plots: augmentedPlots,
+				...hasAutoBgColorer ? { palettes: { [AUTO_BG_PALETTE_ID]: {
+					colors: AUTO_BG_PALETTE_COLORS,
+					valToIndex: AUTO_BG_VAL_TO_INDEX
+				} } } : {},
 				defaults: {
-					styles: buildDefaultStyles(plots),
-					inputs: buildDefaultInputs(inputs)
+					styles: augmentedDefaultStyles,
+					inputs: buildDefaultInputs(inputs),
+					...hasAutoBgColorer ? { palettes: { [AUTO_BG_PALETTE_ID]: { colors: AUTO_BG_PALETTE_DEFAULTS } } } : {}
 				},
-				styles: buildStylesMetadata(plots),
+				styles: augmentedStyles,
 				inputs: buildInputsMetadata(inputs)
 			},
 			constructor: function() {
@@ -3600,6 +3722,7 @@ function buildIndicatorFactory(options) {
 						throw compileErr;
 					};
 				}
+				const stubsRaw = createStubNamespaces();
 				const main = (context, inputCallback) => {
 					const _plotValues = [];
 					const _visualEvents = [];
@@ -3611,11 +3734,14 @@ function buildIndicatorFactory(options) {
 					const math = createMathMock();
 					const timeframe = createTimeframeMock(stdLib, ctx);
 					const syminfo = createSyminfoMock(ctx);
-					const stubsRaw = createStubNamespaces();
 					const sources = createPriceSources(stdLib, ctx);
 					const stdTime = stdLib.time;
 					const rawBarTime = typeof stdTime === "function" ? Number(stdTime(ctx)) : -1;
 					const currentBarTime = Number.isFinite(rawBarTime) ? rawBarTime : -1;
+					if (hasAutoBgColorer) {
+						const setBarTime = stubsRaw.box.__setBarTime;
+						if (typeof setBarTime === "function") setBarTime(currentBarTime);
+					}
 					const observedBarIndex = readNumberField(ctx, "barIndex");
 					const resolvedBarIndex = typeof observedBarIndex === "number" ? observedBarIndex : _fallbackBarIndex + 1;
 					_fallbackBarIndex = resolvedBarIndex;
@@ -4192,7 +4318,15 @@ function buildIndicatorFactory(options) {
 					};
 					try {
 						compiledScript(stdWithCompatTime, context, input, plot, indicator, study, strategy, color, ta, math, timeframe, plotshape, plotchar, plotarrow, hline, bgcolor, fill, barcolor, stubs.box, stubs.line, stubs.label, stubs.table, stubs.str, syminfo, barstate, shape, location, size, alertcondition, alert, request, session, array, time, time_close, time_tradingday, bar_index, hour, minute, second, year, month, dayofmonth, dayofweek, timestamp, chart, format, string, xloc, yloc, extend, position, order, text, display, ticker, barmerge, sources.close, sources.open, sources.high, sources.low, sources.volume, sources.hl2, sources.hlc3, sources.ohlc4);
-						const normalizedPlotValues = Array.from({ length: plots.length }, (_unused, i) => coercePlotNumber(_plotValues[i]));
+						let autoBgSlot = 0;
+						if (hasAutoBgColorer) {
+							const getActive = stubsRaw.box.__getActiveBgcolor;
+							if (typeof getActive === "function") autoBgSlot = resolveBgSlot(getActive());
+						}
+						const normalizedPlotValues = Array.from({ length: totalPlotCount }, (_unused, i) => {
+							if (hasAutoBgColorer && i === plots.length) return autoBgSlot;
+							return coercePlotNumber(_plotValues[i]);
+						});
 						Object.defineProperty(normalizedPlotValues, "__visualEvents", {
 							value: _visualEvents,
 							enumerable: false,
@@ -4203,7 +4337,7 @@ function buildIndicatorFactory(options) {
 						return normalizedPlotValues;
 					} catch (e) {
 						if (!(typeof e === "object" && e !== null && e.__compileError === true)) console.error("Script execution error", e);
-						const fallback = plots.map((_p) => NaN);
+						const fallback = Array.from({ length: totalPlotCount }, () => NaN);
 						Object.defineProperty(fallback, "__visualEvents", {
 							value: _visualEvents,
 							enumerable: false,
@@ -7932,4 +8066,4 @@ function executePineJS(code, indicatorId, indicatorName) {
 //#endregion
 export { MATH_FUNCTION_MAPPINGS as _, Parser as a, ASTGenerator as c, PRICE_SOURCES as d, getAllPineFunctionNames as f, TA_FUNCTION_MAPPINGS as g, MULTI_OUTPUT_MAPPINGS as h, transpileToPineJS as i, generateStandaloneFactory as l, TIME_FUNCTION_MAPPINGS as m, executePineJS as n, Lexer as o, getMappingStats as p, transpile as r, MetadataVisitor as s, canTranspilePineScript as t, COLOR_MAP as u };
 
-//# sourceMappingURL=src-kcXpgVEA.js.map
+//# sourceMappingURL=src-Bty34oYg.js.map

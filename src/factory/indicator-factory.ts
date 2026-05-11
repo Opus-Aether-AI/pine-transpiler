@@ -773,9 +773,84 @@ export function buildIndicatorFactory(
   const preamble = generatePreamble(usedSources, historicalAccess, mainBody);
   const body = preamble + mainBody;
 
+  // Pine `box.new(..., bgcolor = ...)` has no direct equivalent in TV
+  // Custom Indicators (no per-bar runtime drawing API), but session-
+  // highlighting boxes can be expressed as a `bg_colorer` plot driven
+  // by an 8-slot palette. We detect the box.new usage statically and
+  // route runtime bgcolor observations into a palette slot per bar.
+  const hasAutoBgColorer = body.includes('box.new(');
+  const AUTO_BG_PLOT_ID = '__auto_bg__';
+  const AUTO_BG_PALETTE_ID = '__auto_bg_palette__';
+  const AUTO_BG_PALETTE_COLORS: Record<number, { name: string }> = {
+    0: { name: 'None' },
+    1: { name: 'Session 1' },
+    2: { name: 'Session 2' },
+    3: { name: 'Session 3' },
+    4: { name: 'Session 4' },
+    5: { name: 'Session 5' },
+    6: { name: 'Session 6' },
+    7: { name: 'Session 7' },
+  };
+  const AUTO_BG_PALETTE_DEFAULTS: Record<
+    number,
+    { color: string; width: number; style: number }
+  > = {
+    0: { color: 'rgba(0, 0, 0, 0)', width: 1, style: 0 },
+    1: { color: 'rgba(33, 150, 243, 0.18)', width: 1, style: 0 },
+    2: { color: 'rgba(244, 67, 54, 0.18)', width: 1, style: 0 },
+    3: { color: 'rgba(76, 175, 80, 0.18)', width: 1, style: 0 },
+    4: { color: 'rgba(255, 235, 59, 0.18)', width: 1, style: 0 },
+    5: { color: 'rgba(156, 39, 176, 0.18)', width: 1, style: 0 },
+    6: { color: 'rgba(255, 152, 0, 0.18)', width: 1, style: 0 },
+    7: { color: 'rgba(0, 188, 212, 0.18)', width: 1, style: 0 },
+  };
+  const AUTO_BG_VAL_TO_INDEX: Record<number, number> = {
+    0: 0,
+    1: 1,
+    2: 2,
+    3: 3,
+    4: 4,
+    5: 5,
+    6: 6,
+    7: 7,
+  };
+  const totalPlotCount = plots.length + (hasAutoBgColorer ? 1 : 0);
+
   const indicatorFactory: IndicatorFactory = (PineJS) => {
     const Std = PineJS.Std;
     const safeId = sanitizeIndicatorId(indicatorId);
+
+    // Closure-level color → palette-slot mapping. First seen wins.
+    // Persists across bars for the lifetime of one indicator instance.
+    const colorToSlot = new Map<string, number>();
+    const resolveBgSlot = (color: unknown): number => {
+      if (typeof color !== 'string' || !color) return 0;
+      const cached = colorToSlot.get(color);
+      if (cached !== undefined) return cached;
+      const slot = (colorToSlot.size % 7) + 1;
+      colorToSlot.set(color, slot);
+      return slot;
+    };
+
+    const basePlots = buildPlotsMetadata(plots);
+    const baseStyles = buildStylesMetadata(plots);
+    const baseDefaultStyles = buildDefaultStyles(plots);
+    const augmentedPlots = hasAutoBgColorer
+      ? [
+          ...basePlots,
+          {
+            id: AUTO_BG_PLOT_ID,
+            type: 'bg_colorer' as const,
+            palette: AUTO_BG_PALETTE_ID,
+          },
+        ]
+      : basePlots;
+    const augmentedStyles = hasAutoBgColorer
+      ? { ...baseStyles, [AUTO_BG_PLOT_ID]: { title: 'Session Background' } }
+      : baseStyles;
+    const augmentedDefaultStyles = hasAutoBgColorer
+      ? { ...baseDefaultStyles, [AUTO_BG_PLOT_ID]: { transparency: 70 } }
+      : baseDefaultStyles;
 
     return {
       name: `User_${safeId}`,
@@ -786,12 +861,29 @@ export function buildIndicatorFactory(
         is_price_study: overlay,
         isCustomIndicator: true,
         format: { type: 'inherit' },
-        plots: buildPlotsMetadata(plots),
+        plots: augmentedPlots,
+        ...(hasAutoBgColorer
+          ? {
+              palettes: {
+                [AUTO_BG_PALETTE_ID]: {
+                  colors: AUTO_BG_PALETTE_COLORS,
+                  valToIndex: AUTO_BG_VAL_TO_INDEX,
+                },
+              },
+            }
+          : {}),
         defaults: {
-          styles: buildDefaultStyles(plots),
+          styles: augmentedDefaultStyles,
           inputs: buildDefaultInputs(inputs),
+          ...(hasAutoBgColorer
+            ? {
+                palettes: {
+                  [AUTO_BG_PALETTE_ID]: { colors: AUTO_BG_PALETTE_DEFAULTS },
+                },
+              }
+            : {}),
         },
-        styles: buildStylesMetadata(plots),
+        styles: augmentedStyles,
         inputs: buildInputsMetadata(inputs),
       },
       constructor: function (this: IndicatorConstructor) {
@@ -915,6 +1007,14 @@ export function buildIndicatorFactory(
           };
         }
 
+        // Drawing namespaces (box, line, label, table) are persistent
+        // in Pine semantics — a `var` handle pushed into an array on
+        // bar N is the same handle that gets `set_right(time)` on bar
+        // N+1. Create them ONCE at indicator init so each handle's
+        // method bindings (and the per-namespace state used by the
+        // auto bg_colorer) survive across `main()` calls.
+        const stubsRaw = createStubNamespaces();
+
         const main: IndicatorConstructor['main'] = (context, inputCallback) => {
           // Create runtime mocks using factory functions
           const _plotValues: number[] = [];
@@ -934,7 +1034,6 @@ export function buildIndicatorFactory(
           const math = createMathMock();
           const timeframe = createTimeframeMock(stdLib, ctx);
           const syminfo = createSyminfoMock(ctx);
-          const stubsRaw = createStubNamespaces();
           const sources = createPriceSources(stdLib, ctx);
 
           // Real-ish barstate: read the current bar's time from the
@@ -949,6 +1048,15 @@ export function buildIndicatorFactory(
               ? Number((stdTime as (c: RuntimeContextInternal) => unknown)(ctx))
               : -1;
           const currentBarTime = Number.isFinite(rawBarTime) ? rawBarTime : -1;
+          // Tell the box stub which bar it's on so `__getActiveBgcolor`
+          // can identify boxes being extended to the current bar.
+          if (hasAutoBgColorer) {
+            const boxNs = stubsRaw.box as Record<string, unknown>;
+            const setBarTime = boxNs.__setBarTime;
+            if (typeof setBarTime === 'function') {
+              (setBarTime as (t: unknown) => void)(currentBarTime);
+            }
+          }
           const observedBarIndex = readNumberField(ctx, 'barIndex');
           const resolvedBarIndex =
             typeof observedBarIndex === 'number'
@@ -1949,9 +2057,25 @@ export function buildIndicatorFactory(
               sources.ohlc4,
             );
 
+            // Auto bg_colorer: after the body runs, ask the box stub
+            // which box is being extended to the current bar; resolve
+            // its bgcolor to a palette slot. NaN → slot 0 (transparent).
+            let autoBgSlot = 0;
+            if (hasAutoBgColorer) {
+              const boxNs = stubsRaw.box as Record<string, unknown>;
+              const getActive = boxNs.__getActiveBgcolor;
+              if (typeof getActive === 'function') {
+                const activeColor = (getActive as () => unknown)();
+                autoBgSlot = resolveBgSlot(activeColor);
+              }
+            }
+
             const normalizedPlotValues = Array.from(
-              { length: plots.length },
-              (_unused, i) => coercePlotNumber(_plotValues[i]),
+              { length: totalPlotCount },
+              (_unused, i) => {
+                if (hasAutoBgColorer && i === plots.length) return autoBgSlot;
+                return coercePlotNumber(_plotValues[i]);
+              },
             );
             Object.defineProperty(normalizedPlotValues, '__visualEvents', {
               value: _visualEvents,
@@ -1981,7 +2105,10 @@ export function buildIndicatorFactory(
             // bar (which can happen with hline-only scripts) and
             // surface the underlying error instead of silently
             // marking the bar as a pass.
-            const fallback = plots.map((_p) => NaN);
+            const fallback: number[] = Array.from(
+              { length: totalPlotCount },
+              () => NaN,
+            );
             Object.defineProperty(fallback, '__visualEvents', {
               value: _visualEvents,
               enumerable: false,

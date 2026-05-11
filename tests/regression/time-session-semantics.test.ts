@@ -227,7 +227,10 @@ plot(k.b.size())
       time: Date.UTC(2024, 0, 1, 9, 30, 0),
       barIndexStart: 10_000,
     });
-    expect(plots.length).toBe(1);
+    // Scripts that use `box.new(` get an auto-generated bg_colorer plot
+    // appended (used to render Pine drawing-API boxes as TV background
+    // color palette slots). The explicit `plot(k.b.size())` is index 0.
+    expect(plots.length).toBeGreaterThanOrEqual(1);
     expect(plots[0]).toBe(1);
   });
 

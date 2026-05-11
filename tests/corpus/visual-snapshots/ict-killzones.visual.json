@@ -6,8 +6,8 @@
   "runtime": {
     "barsCompleted": 200,
     "barsErrored": 0,
-    "declaredPlotCount": 7,
-    "actualPlotCount": 7,
+    "declaredPlotCount": 8,
+    "actualPlotCount": 8,
     "visualEventCount": 26,
     "visualCalls": [
       {
@@ -41,8 +41,13 @@
     "unimplementedStdCalls": []
   },
   "metainfo": {
-    "plotCount": 7,
+    "plotCount": 8,
     "plots": [
+      {
+        "id": "__auto_bg__",
+        "type": "bg_colorer",
+        "price": null
+      },
       {
         "id": "plot_0",
         "type": "chars",
@@ -728,6 +733,7 @@
       }
     ],
     "styleKeys": [
+      "__auto_bg__",
       "plot_0",
       "plot_1",
       "plot_2",
@@ -737,6 +743,11 @@
       "plot_6"
     ],
     "styles": [
+      {
+        "id": "__auto_bg__",
+        "title": "Session Background",
+        "histogramBase": null
+      },
       {
         "id": "plot_0",
         "title": "Char 1",
@@ -775,71 +786,81 @@
     ],
     "defaultStyles": [
       {
+        "id": "__auto_bg__",
+        "plottype": null,
+        "linewidth": null,
+        "linestyle": null,
+        "color": null,
+        "transparency": 70,
+        "visible": null,
+        "trackPrice": null
+      },
+      {
         "id": "plot_0",
-        "plottype": 7,
+        "plottype": null,
         "linewidth": 1,
         "linestyle": 0,
-        "color": "#000000",
+        "color": "#2962FF",
         "transparency": 0,
         "visible": true,
         "trackPrice": false
       },
       {
         "id": "plot_1",
-        "plottype": 7,
+        "plottype": null,
         "linewidth": 1,
         "linestyle": 0,
-        "color": "#000000",
+        "color": "#2962FF",
         "transparency": 0,
         "visible": true,
         "trackPrice": false
       },
       {
         "id": "plot_2",
-        "plottype": 7,
+        "plottype": null,
         "linewidth": 1,
         "linestyle": 0,
-        "color": "#000000",
+        "color": "#2962FF",
         "transparency": 0,
         "visible": true,
         "trackPrice": false
       },
       {
         "id": "plot_3",
-        "plottype": 7,
+        "plottype": null,
         "linewidth": 1,
         "linestyle": 0,
-        "color": "#000000",
+        "color": "#2962FF",
         "transparency": 0,
         "visible": true,
         "trackPrice": false
       },
       {
         "id": "plot_4",
-        "plottype": 7,
+        "plottype": null,
         "linewidth": 1,
         "linestyle": 0,
-        "color": "#000000",
+        "color": "#2962FF",
         "transparency": 0,
         "visible": true,
         "trackPrice": false
       },
       {
         "id": "plot_5",
-        "plottype": 7,
+        "plottype": null,
         "linewidth": 1,
         "linestyle": 0,
-        "color": "#000000",
+        "color": "#2962FF",
         "transparency": 0,
         "visible": true,
         "trackPrice": false
       },
       {
         "id": "plot_6",
-        "plottype": 7,
+        "plottype": null,
         "linewidth": 1,
         "linestyle": 0,
-        "color": "#000000",
+        "color": "#2962FF",
         "transparency": 0,
         "visible": true,
         "trackPrice": false

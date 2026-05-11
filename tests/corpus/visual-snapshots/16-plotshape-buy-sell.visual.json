@@ -63,20 +63,20 @@
     "defaultStyles": [
       {
         "id": "plot_0",
-        "plottype": 6,
+        "plottype": null,
         "linewidth": 1,
         "linestyle": 0,
-        "color": "#000000",
+        "color": "#4CAF50",
         "transparency": 0,
         "visible": true,
         "trackPrice": false
       },
       {
         "id": "plot_1",
-        "plottype": 6,
+        "plottype": null,
         "linewidth": 1,
         "linestyle": 0,
-        "color": "#000000",
+        "color": "#FF5252",
         "transparency": 0,
         "visible": true,
         "trackPrice": false

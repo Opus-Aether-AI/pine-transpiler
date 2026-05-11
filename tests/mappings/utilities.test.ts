@@ -434,7 +434,10 @@ describe('Utility Mappings', () => {
     it('should transpile array.new_line and array.from helpers', () => {
       const code = 'arr = array.new_line(0)\nrow = array.from("A", "B")';
       const js = transpile(code);
-      expect(js).toContain('_arrayNewAny');
+      // array.new_line now lowers to the kind-tagged `_arrayNewLine`
+      // helper (added in 8f7204f) so empty-drawing-array `.get(i)`
+      // returns a no-op handle instead of crashing.
+      expect(js).toContain('_arrayNewLine');
       expect(js).toContain('_arrayFrom');
     });
 

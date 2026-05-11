@@ -23,6 +23,31 @@ const _arraySafeSize = (size) => {
   if (!Number.isFinite(n) || n <= 0) return 0;
   return Math.min(100000, Math.floor(n));
 };
+const _arrayMissingDrawingHandle = new Proxy({}, {
+  get: (_target, prop) => {
+    if (prop === Symbol.toPrimitive) return () => NaN;
+    if (prop === 'valueOf') return () => NaN;
+    if (prop === 'toString') return () => 'na';
+    if (typeof prop === 'string' && prop.startsWith('get_')) {
+      return () => NaN;
+    }
+    // set_* / delete / unknown handle members become no-ops.
+    return () => undefined;
+  },
+});
+const _arrayDrawingKinds = new Set(['line', 'box', 'label', 'table']);
+const _arrayMarkKind = (arr, kind) => {
+  if (!Array.isArray(arr)) return arr;
+  if (typeof kind === 'string' && kind) {
+    Object.defineProperty(arr, '__pineKind', {
+      value: kind,
+      enumerable: false,
+      configurable: true,
+      writable: true,
+    });
+  }
+  return arr;
+};
 const _arrayEnsurePineMethods = (arr) => {
   if (!Array.isArray(arr)) return arr;
   if (typeof arr.size !== 'function') {
@@ -33,7 +58,17 @@ const _arrayEnsurePineMethods = (arr) => {
   }
   if (typeof arr.get !== 'function') {
     Object.defineProperty(arr, 'get', {
-      value: function(i) { return this[i]; },
+      value: function(i) {
+        const idx = Math.floor(Number(i));
+        if (Number.isFinite(idx) && idx >= 0 && idx < this.length) {
+          return this[idx];
+        }
+        const kind = this.__pineKind;
+        if (typeof kind === 'string' && _arrayDrawingKinds.has(kind)) {
+          return _arrayMissingDrawingHandle;
+        }
+        return NaN;
+      },
       enumerable: false,
     });
   }
@@ -82,6 +117,10 @@ const _arrayAsArray = (arr) => Array.isArray(arr) ? arr : [];
 const _arrayNumeric = (arr) => _arrayAsArray(arr).filter((v) => typeof v === 'number' && Number.isFinite(v));
 const _arrayNew = (size = 0, val = NaN) => _arrayEnsurePineMethods(Array(_arraySafeSize(size)).fill(val));
 const _arrayNewAny = (size = 0, val = NaN) => _arrayNew(size, val);
+const _arrayNewLine = (size = 0, val = NaN) => _arrayMarkKind(_arrayNewAny(size, val), 'line');
+const _arrayNewBox = (size = 0, val = NaN) => _arrayMarkKind(_arrayNewAny(size, val), 'box');
+const _arrayNewLabel = (size = 0, val = NaN) => _arrayMarkKind(_arrayNewAny(size, val), 'label');
+const _arrayNewTable = (size = 0, val = NaN) => _arrayMarkKind(_arrayNewAny(size, val), 'table');
 const _arrayNewFloat = (size = 0, val = NaN) => _arrayNew(size, val);
 const _arrayNewInt = (size = 0, val = 0) => _arrayNew(size, val);
 const _arrayNewBool = (size = 0, val = false) => _arrayNew(size, val);
@@ -104,7 +143,12 @@ const _arrayRemove = (arr, i) => {
   const removed = arr.splice(idx, 1);
   return removed.length > 0 ? removed[0] : NaN;
 };
-const _arrayGet = (arr, i) => (Array.isArray(arr) ? arr[i] : NaN);
+const _arrayGet = (arr, i) => {
+  if (!Array.isArray(arr)) return NaN;
+  if (typeof arr.get === 'function') return arr.get(i);
+  const idx = Math.floor(Number(i));
+  return Number.isFinite(idx) ? arr[idx] : NaN;
+};
 const _arraySet = (arr, i, val) => {
   if (Array.isArray(arr)) arr[i] = val;
   return arr;
@@ -536,28 +580,28 @@ if (typeof lines_helper === 'function') {
 function initLines() {
   var res = _arrayNew();
   if (use_h1) {
-    res.push(lines_helper.new(hz.new(_arrayNewAny(), _arrayNewAny(), _arrayNewBool()), h1, h1_text, h1_color));
+    res.push(lines_helper.new(hz.new(_arrayNewLine(), _arrayNewLabel(), _arrayNewBool()), h1, h1_text, h1_color));
   }
   if (use_h2) {
-    res.push(lines_helper.new(hz.new(_arrayNewAny(), _arrayNewAny(), _arrayNewBool()), h2, h2_text, h2_color));
+    res.push(lines_helper.new(hz.new(_arrayNewLine(), _arrayNewLabel(), _arrayNewBool()), h2, h2_text, h2_color));
   }
   if (use_h3) {
-    res.push(lines_helper.new(hz.new(_arrayNewAny(), _arrayNewAny(), _arrayNewBool()), h3, h3_text, h3_color));
+    res.push(lines_helper.new(hz.new(_arrayNewLine(), _arrayNewLabel(), _arrayNewBool()), h3, h3_text, h3_color));
   }
   if (use_h4) {
-    res.push(lines_helper.new(hz.new(_arrayNewAny(), _arrayNewAny(), _arrayNewBool()), h4, h4_text, h4_color));
+    res.push(lines_helper.new(hz.new(_arrayNewLine(), _arrayNewLabel(), _arrayNewBool()), h4, h4_text, h4_color));
   }
   if (use_h5) {
-    res.push(lines_helper.new(hz.new(_arrayNewAny(), _arrayNewAny(), _arrayNewBool()), h5, h5_text, h5_color));
+    res.push(lines_helper.new(hz.new(_arrayNewLine(), _arrayNewLabel(), _arrayNewBool()), h5, h5_text, h5_color));
   }
   if (use_h6) {
-    res.push(lines_helper.new(hz.new(_arrayNewAny(), _arrayNewAny(), _arrayNewBool()), h6, h6_text, h6_color));
+    res.push(lines_helper.new(hz.new(_arrayNewLine(), _arrayNewLabel(), _arrayNewBool()), h6, h6_text, h6_color));
   }
   if (use_h7) {
-    res.push(lines_helper.new(hz.new(_arrayNewAny(), _arrayNewAny(), _arrayNewBool()), h7, h7_text, h7_color));
+    res.push(lines_helper.new(hz.new(_arrayNewLine(), _arrayNewLabel(), _arrayNewBool()), h7, h7_text, h7_color));
   }
   if (use_h8) {
-    res.push(lines_helper.new(hz.new(_arrayNewAny(), _arrayNewAny(), _arrayNewBool()), h8, h8_text, h8_color));
+    res.push(lines_helper.new(hz.new(_arrayNewLine(), _arrayNewLabel(), _arrayNewBool()), h8, h8_text, h8_color));
   }
   return res;
 }
@@ -584,26 +628,26 @@ if (typeof kz_helper === 'function') {
 function initKZ() {
   var res = _arrayNew();
   if (use_asia) {
-    res.push(kz_helper.new(kz.new(as_txt, _arrayNewAny(), _arrayNewAny(), _arrayNewAny(), _arrayNewAny(), _arrayNewAny(), _arrayNewAny(), _arrayNewBool(), _arrayNewBool(), _arrayNewBool(), _arrayNewFloat()), asia, as_color, as_txt, ash_str, asl_str));
+    res.push(kz_helper.new(kz.new(as_txt, _arrayNewBox(), _arrayNewLine(), _arrayNewLine(), _arrayNewLine(), _arrayNewLabel(), _arrayNewLabel(), _arrayNewBool(), _arrayNewBool(), _arrayNewBool(), _arrayNewFloat()), asia, as_color, as_txt, ash_str, asl_str));
   }
   if (use_london) {
-    res.push(kz_helper.new(kz.new(lo_txt, _arrayNewAny(), _arrayNewAny(), _arrayNewAny(), _arrayNewAny(), _arrayNewAny(), _arrayNewAny(), _arrayNewBool(), _arrayNewBool(), _arrayNewBool(), _arrayNewFloat()), london, lo_color, lo_txt, loh_str, lol_str));
+    res.push(kz_helper.new(kz.new(lo_txt, _arrayNewBox(), _arrayNewLine(), _arrayNewLine(), _arrayNewLine(), _arrayNewLabel(), _arrayNewLabel(), _arrayNewBool(), _arrayNewBool(), _arrayNewBool(), _arrayNewFloat()), london, lo_color, lo_txt, loh_str, lol_str));
   }
   if (use_nyam) {
-    res.push(kz_helper.new(kz.new(na_txt, _arrayNewAny(), _arrayNewAny(), _arrayNewAny(), _arrayNewAny(), _arrayNewAny(), _arrayNewAny(), _arrayNewBool(), _arrayNewBool(), _arrayNewBool(), _arrayNewFloat()), nyam, na_color, na_txt, nah_str, nal_str));
+    res.push(kz_helper.new(kz.new(na_txt, _arrayNewBox(), _arrayNewLine(), _arrayNewLine(), _arrayNewLine(), _arrayNewLabel(), _arrayNewLabel(), _arrayNewBool(), _arrayNewBool(), _arrayNewBool(), _arrayNewFloat()), nyam, na_color, na_txt, nah_str, nal_str));
   }
   if (use_nylu) {
-    res.push(kz_helper.new(kz.new(nl_txt, _arrayNewAny(), _arrayNewAny(), _arrayNewAny(), _arrayNewAny(), _arrayNewAny(), _arrayNewAny(), _arrayNewBool(), _arrayNewBool(), _arrayNewBool(), _arrayNewFloat()), nylu, nl_color, nl_txt, nlh_str, nll_str));
+    res.push(kz_helper.new(kz.new(nl_txt, _arrayNewBox(), _arrayNewLine(), _arrayNewLine(), _arrayNewLine(), _arrayNewLabel(), _arrayNewLabel(), _arrayNewBool(), _arrayNewBool(), _arrayNewBool(), _arrayNewFloat()), nylu, nl_color, nl_txt, nlh_str, nll_str));
   }
   if (use_nypm) {
-    res.push(kz_helper.new(kz.new(np_txt, _arrayNewAny(), _arrayNewAny(), _arrayNewAny(), _arrayNewAny(), _arrayNewAny(), _arrayNewAny(), _arrayNewBool(), _arrayNewBool(), _arrayNewBool(), _arrayNewFloat()), nypm, np_color, np_txt, nph_str, npl_str));
+    res.push(kz_helper.new(kz.new(np_txt, _arrayNewBox(), _arrayNewLine(), _arrayNewLine(), _arrayNewLine(), _arrayNewLabel(), _arrayNewLabel(), _arrayNewBool(), _arrayNewBool(), _arrayNewBool(), _arrayNewFloat()), nypm, np_color, np_txt, nph_str, npl_str));
   }
   return res;
 }
 var _kz = _pineVar("_kz", () => (initKZ()));
-var d_hl = _pineVar("d_hl", () => (dwm_hl.new(_arrayNewAny(), _arrayNewAny(), _arrayNewAny(), _arrayNewAny())));
-var w_hl = _pineVar("w_hl", () => (dwm_hl.new(_arrayNewAny(), _arrayNewAny(), _arrayNewAny(), _arrayNewAny())));
-var m_hl = _pineVar("m_hl", () => (dwm_hl.new(_arrayNewAny(), _arrayNewAny(), _arrayNewAny(), _arrayNewAny())));
+var d_hl = _pineVar("d_hl", () => (dwm_hl.new(_arrayNewLine(), _arrayNewLine(), _arrayNewLabel(), _arrayNewLabel())));
+var w_hl = _pineVar("w_hl", () => (dwm_hl.new(_arrayNewLine(), _arrayNewLine(), _arrayNewLabel(), _arrayNewLabel())));
+var m_hl = _pineVar("m_hl", () => (dwm_hl.new(_arrayNewLine(), _arrayNewLine(), _arrayNewLabel(), _arrayNewLabel())));
 var d_info = _pineVar("d_info", () => (dwm_info.new("D")));
 var w_info = _pineVar("w_info", () => (dwm_info.new("W")));
 var m_info = _pineVar("m_info", () => (dwm_info.new("M")));
@@ -627,29 +671,29 @@ if (typeof ts_helper === 'function') {
 function initTS() {
   var res = _arrayNew();
   if (use_v1) {
-    res.push(ts_helper.new(v1, _arrayNewAny(), v1_color));
+    res.push(ts_helper.new(v1, _arrayNewLine(), v1_color));
   }
   if (use_v2) {
-    res.push(ts_helper.new(v2, _arrayNewAny(), v2_color));
+    res.push(ts_helper.new(v2, _arrayNewLine(), v2_color));
   }
   if (use_v3) {
-    res.push(ts_helper.new(v3, _arrayNewAny(), v3_color));
+    res.push(ts_helper.new(v3, _arrayNewLine(), v3_color));
   }
   if (use_v4) {
-    res.push(ts_helper.new(v4, _arrayNewAny(), v4_color));
+    res.push(ts_helper.new(v4, _arrayNewLine(), v4_color));
   }
   return res;
 }
 var ts_data = _pineVar("ts_data", () => (initTS()));
-var d_sep_line = _pineVar("d_sep_line", () => (_arrayNewAny()));
-var w_sep_line = _pineVar("w_sep_line", () => (_arrayNewAny()));
-var m_sep_line = _pineVar("m_sep_line", () => (_arrayNewAny()));
-var d_line = _pineVar("d_line", () => (_arrayNewAny()));
-var w_line = _pineVar("w_line", () => (_arrayNewAny()));
-var m_line = _pineVar("m_line", () => (_arrayNewAny()));
-var d_label = _pineVar("d_label", () => (_arrayNewAny()));
-var w_label = _pineVar("w_label", () => (_arrayNewAny()));
-var m_label = _pineVar("m_label", () => (_arrayNewAny()));
+var d_sep_line = _pineVar("d_sep_line", () => (_arrayNewLine()));
+var w_sep_line = _pineVar("w_sep_line", () => (_arrayNewLine()));
+var m_sep_line = _pineVar("m_sep_line", () => (_arrayNewLine()));
+var d_line = _pineVar("d_line", () => (_arrayNewLine()));
+var w_line = _pineVar("w_line", () => (_arrayNewLine()));
+var m_line = _pineVar("m_line", () => (_arrayNewLine()));
+var d_label = _pineVar("d_label", () => (_arrayNewLabel()));
+var w_label = _pineVar("w_label", () => (_arrayNewLabel()));
+var m_label = _pineVar("m_label", () => (_arrayNewLabel()));
 var transparent = _pineVar("transparent", () => ("#ffffff00"));
 var ext_current = _pineVar("ext_current", () => ((ext_which === "Most Recent")));
 var ext_past = _pineVar("ext_past", () => ((ext_pivots === "Past Mitigation")));
