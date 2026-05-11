@@ -101,8 +101,38 @@ export function createInputMock(
 ): InputFunction {
   let _inputIndex = 0;
 
-  const baseInput = (_defval: InputValue, _title?: string) =>
-    inputCallback(_inputIndex++);
+  const coerceInputValue = (
+    defval: InputValue,
+    raw: InputValue,
+  ): InputValue => {
+    // Respect declared input type. Corpus/default callbacks often emit
+    // numeric placeholders for every index; without coercion this leaks
+    // numbers into string/session/timeframe inputs and distorts runtime
+    // semantics (e.g. session/timezone evaluation).
+    if (typeof defval === 'string') {
+      return typeof raw === 'string' ? raw : defval;
+    }
+    if (typeof defval === 'boolean') {
+      if (typeof raw === 'boolean') return raw;
+      if (typeof raw === 'number') return raw !== 0;
+      if (typeof raw === 'string') {
+        const s = raw.trim().toLowerCase();
+        if (s === 'true') return true;
+        if (s === 'false') return false;
+      }
+      return defval;
+    }
+    // Numeric default (int/float/time/price-style inputs).
+    if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+    if (typeof raw === 'string') {
+      const parsed = Number(raw);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return defval;
+  };
+
+  const baseInput = (defval: InputValue, _title?: string) =>
+    coerceInputValue(defval, inputCallback(_inputIndex++));
 
   const input = baseInput as InputFunction;
 

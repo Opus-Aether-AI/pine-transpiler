@@ -8,68 +8,8 @@
     "barsErrored": 0,
     "declaredPlotCount": 7,
     "actualPlotCount": 7,
-    "visualEventCount": 206,
+    "visualEventCount": 26,
     "visualCalls": [
-      {
-        "call": "box.get_bottom",
-        "count": 5
-      },
-      {
-        "call": "box.get_top",
-        "count": 5
-      },
-      {
-        "call": "box.new",
-        "count": 5
-      },
-      {
-        "call": "box.set_bottom",
-        "count": 5
-      },
-      {
-        "call": "box.set_right",
-        "count": 5
-      },
-      {
-        "call": "box.set_top",
-        "count": 5
-      },
-      {
-        "call": "label.get_y",
-        "count": 10
-      },
-      {
-        "call": "label.new",
-        "count": 18
-      },
-      {
-        "call": "label.set_x",
-        "count": 20
-      },
-      {
-        "call": "line.get_y1",
-        "count": 20
-      },
-      {
-        "call": "line.get_y2",
-        "count": 20
-      },
-      {
-        "call": "line.new",
-        "count": 27
-      },
-      {
-        "call": "line.set_x2",
-        "count": 25
-      },
-      {
-        "call": "line.set_xy1",
-        "count": 5
-      },
-      {
-        "call": "line.set_xy2",
-        "count": 5
-      },
       {
         "call": "Std.plotchar",
         "count": 7
@@ -85,12 +25,15 @@
     ],
     "visualStyleSemantics": {
       "colors": [
-        "#ffffff00"
+        "#000000",
+        "#089981",
+        "#2962FF",
+        "#9C27B0",
+        "#FF5252",
+        "#FFEB3B"
       ],
       "transpValues": [],
-      "linewidthValues": [
-        14
-      ],
+      "linewidthValues": [],
       "offsetValues": [],
       "displayFlags": []
     },

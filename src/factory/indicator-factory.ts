@@ -792,6 +792,11 @@ export function buildIndicatorFactory(
         let _previousBarTime = -1;
         // Fallback cursor when runtime context does not expose barIndex.
         let _fallbackBarIndex = -1;
+        // Track how many *distinct* bars this indicator instance has
+        // processed so `time(..., bars_back=N)` can gate history access
+        // by local execution history rather than absolute chart index.
+        let _processedBars = 0;
+        let _processedBarKey: string | null = null;
         // Persistent per-call-site state for request.security() MTF
         // aggregation. Lives for the lifetime of one indicator instance.
         const _requestSecurityState = new Map<
@@ -948,6 +953,19 @@ export function buildIndicatorFactory(
             const resolvedTotalBars =
               readNumberField(ctx.symbol, 'bars') ??
               readNumberField(ctx, 'totalBars');
+            const currentBarKey = Number.isFinite(currentBarTime)
+              ? `t:${currentBarTime}`
+              : `i:${resolvedBarIndex}`;
+            const sameProcessedBar = _processedBarKey === currentBarKey;
+            const priorProcessedBars = sameProcessedBar
+              ? Math.max(0, _processedBars - 1)
+              : _processedBars;
+            const markProcessedBar = () => {
+              if (_processedBarKey !== currentBarKey) {
+                _processedBarKey = currentBarKey;
+                _processedBars += 1;
+              }
+            };
             const pushVisualEvent = (event: VisualEvent) => {
               _visualEvents.push({
                 ...event,
@@ -1050,14 +1068,26 @@ export function buildIndicatorFactory(
             const readClockAt = (
               timestamp: number,
               timezone: unknown,
-            ): { hour: number; minute: number; dayOfWeek: number } => {
+            ): {
+              year: number;
+              month: number;
+              dayOfMonth: number;
+              hour: number;
+              minute: number;
+              second: number;
+              dayOfWeek: number;
+            } => {
               if (typeof timezone === 'string' && timezone.trim()) {
                 const offset = parseOffsetMinutes(timezone);
                 if (offset !== null) {
                   const shifted = new Date(timestamp + offset * 60_000);
                   return {
+                    year: shifted.getUTCFullYear(),
+                    month: shifted.getUTCMonth() + 1,
+                    dayOfMonth: shifted.getUTCDate(),
                     hour: shifted.getUTCHours(),
                     minute: shifted.getUTCMinutes(),
+                    second: shifted.getUTCSeconds(),
                     dayOfWeek: shifted.getUTCDay() + 1,
                   };
                 }
@@ -1065,25 +1095,53 @@ export function buildIndicatorFactory(
                   const parts = new Intl.DateTimeFormat('en-US', {
                     timeZone: timezone,
                     hour12: false,
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
                     hour: '2-digit',
                     minute: '2-digit',
+                    second: '2-digit',
                     weekday: 'short',
                   }).formatToParts(new Date(timestamp));
+                  const year = Number(
+                    parts.find((p) => p.type === 'year')?.value ?? Number.NaN,
+                  );
+                  const month = Number(
+                    parts.find((p) => p.type === 'month')?.value ?? Number.NaN,
+                  );
+                  const dayOfMonth = Number(
+                    parts.find((p) => p.type === 'day')?.value ?? Number.NaN,
+                  );
                   const hour = Number(
                     parts.find((p) => p.type === 'hour')?.value ?? Number.NaN,
                   );
                   const minute = Number(
                     parts.find((p) => p.type === 'minute')?.value ?? Number.NaN,
                   );
+                  const second = Number(
+                    parts.find((p) => p.type === 'second')?.value ?? Number.NaN,
+                  );
                   const dayOfWeek = weekdayToPine(
                     parts.find((p) => p.type === 'weekday')?.value ?? '',
                   );
                   if (
+                    Number.isFinite(year) &&
+                    Number.isFinite(month) &&
+                    Number.isFinite(dayOfMonth) &&
                     Number.isFinite(hour) &&
                     Number.isFinite(minute) &&
+                    Number.isFinite(second) &&
                     dayOfWeek !== null
                   ) {
-                    return { hour, minute, dayOfWeek };
+                    return {
+                      year,
+                      month,
+                      dayOfMonth,
+                      hour,
+                      minute,
+                      second,
+                      dayOfWeek,
+                    };
                   }
                 } catch {
                   // Ignore invalid IANA names and fall back to UTC below.
@@ -1091,8 +1149,12 @@ export function buildIndicatorFactory(
               }
               const d = new Date(timestamp);
               return {
+                year: d.getUTCFullYear(),
+                month: d.getUTCMonth() + 1,
+                dayOfMonth: d.getUTCDate(),
                 hour: d.getUTCHours(),
                 minute: d.getUTCMinutes(),
+                second: d.getUTCSeconds(),
                 dayOfWeek: d.getUTCDay() + 1,
               };
             };
@@ -1143,7 +1205,7 @@ export function buildIndicatorFactory(
                 Number.isFinite(barsBackValue) && barsBackValue > 0
                   ? Math.trunc(barsBackValue)
                   : 0;
-              if (barsBack > resolvedBarIndex) return Number.NaN;
+              if (barsBack > priorProcessedBars) return Number.NaN;
               if (!Number.isFinite(currentBarTime)) return Number.NaN;
               if (barsBack === 0) return currentBarTime;
               const timeframeMs =
@@ -1156,8 +1218,21 @@ export function buildIndicatorFactory(
             const compatTime = (...args: unknown[]): number => {
               const timeframeArg = args[0];
               const sessionArg = args[1];
-              const timezoneArg = args[2];
-              const barsBackArg = args[3];
+              let timezoneArg = args[2];
+              let barsBackArg = args[3];
+              // Pine allows omitting timezone while still passing
+              // bars_back: `time(tf, session, bars_back = 1)`. In that
+              // form transpiled positional args can arrive as
+              // `time(tf, session, 1)`, so treat numeric arg#3 as
+              // bars_back when arg#4 is absent.
+              if (
+                barsBackArg === undefined &&
+                typeof timezoneArg === 'number' &&
+                Number.isFinite(timezoneArg)
+              ) {
+                barsBackArg = timezoneArg;
+                timezoneArg = undefined;
+              }
               const timestamp = resolveBarsBackTime(timeframeArg, barsBackArg);
               if (!Number.isFinite(timestamp)) return Number.NaN;
               const sessionStr =
@@ -1167,11 +1242,131 @@ export function buildIndicatorFactory(
                 ? timestamp
                 : Number.NaN;
             };
+            const isContextLike = (
+              value: unknown,
+            ): value is RuntimeContextInternal =>
+              typeof value === 'object' &&
+              value !== null &&
+              'new_var' in (value as Record<string, unknown>);
+            const toFiniteTimestamp = (value: unknown): number | null => {
+              if (typeof value === 'number') {
+                return Number.isFinite(value) ? value : null;
+              }
+              if (typeof value === 'string') {
+                const parsed = Number(value);
+                return Number.isFinite(parsed) ? parsed : null;
+              }
+              if (
+                typeof value === 'object' &&
+                value !== null &&
+                'value' in (value as Record<string, unknown>)
+              ) {
+                return toFiniteTimestamp((value as { value?: unknown }).value);
+              }
+              return null;
+            };
+            const readClockFromArgs = (
+              timestampArg: unknown,
+              timezoneArg: unknown,
+            ) => {
+              const timestamp =
+                toFiniteTimestamp(timestampArg) ??
+                (Number.isFinite(currentBarTime) ? currentBarTime : 0);
+              return readClockAt(timestamp, timezoneArg);
+            };
+            const callHostStdDatePart = (
+              prop: string,
+              args: unknown[],
+            ): number | null => {
+              const hostValue = (stdWithVisual as Record<string, unknown>)[
+                prop
+              ];
+              if (typeof hostValue !== 'function') return null;
+              try {
+                const raw = (hostValue as (...inner: unknown[]) => unknown)(
+                  ...args,
+                );
+                const n = Number(raw);
+                return Number.isFinite(n) ? n : null;
+              } catch {
+                return null;
+              }
+            };
+            const compatDayOfWeek = (...args: unknown[]): number => {
+              const first = args[0];
+              if (isContextLike(first)) {
+                const host = callHostStdDatePart('dayofweek', args);
+                if (host !== null) return host;
+                return readClockFromArgs(currentBarTime, args[1]).dayOfWeek;
+              }
+              return readClockFromArgs(first, args[1]).dayOfWeek;
+            };
+            const compatHour = (...args: unknown[]): number => {
+              const first = args[0];
+              if (isContextLike(first)) {
+                const host = callHostStdDatePart('hour', args);
+                if (host !== null) return host;
+                return readClockFromArgs(currentBarTime, args[1]).hour;
+              }
+              return readClockFromArgs(first, args[1]).hour;
+            };
+            const compatMinute = (...args: unknown[]): number => {
+              const first = args[0];
+              if (isContextLike(first)) {
+                const host = callHostStdDatePart('minute', args);
+                if (host !== null) return host;
+                return readClockFromArgs(currentBarTime, args[1]).minute;
+              }
+              return readClockFromArgs(first, args[1]).minute;
+            };
+            const compatSecond = (...args: unknown[]): number => {
+              const first = args[0];
+              if (isContextLike(first)) {
+                const host = callHostStdDatePart('second', args);
+                if (host !== null) return host;
+                return readClockFromArgs(currentBarTime, args[1]).second;
+              }
+              return readClockFromArgs(first, args[1]).second;
+            };
+            const compatYear = (...args: unknown[]): number => {
+              const first = args[0];
+              if (isContextLike(first)) {
+                const host = callHostStdDatePart('year', args);
+                if (host !== null) return host;
+                return readClockFromArgs(currentBarTime, args[1]).year;
+              }
+              return readClockFromArgs(first, args[1]).year;
+            };
+            const compatMonth = (...args: unknown[]): number => {
+              const first = args[0];
+              if (isContextLike(first)) {
+                const host = callHostStdDatePart('month', args);
+                if (host !== null) return host;
+                return readClockFromArgs(currentBarTime, args[1]).month;
+              }
+              return readClockFromArgs(first, args[1]).month;
+            };
+            const compatDayOfMonth = (...args: unknown[]): number => {
+              const first = args[0];
+              if (isContextLike(first)) {
+                const host = callHostStdDatePart('dayofmonth', args);
+                if (host !== null) return host;
+                return readClockFromArgs(currentBarTime, args[1]).dayOfMonth;
+              }
+              return readClockFromArgs(first, args[1]).dayOfMonth;
+            };
             const stdWithCompatTime = new Proxy(
               stdWithVisual as Record<string, unknown>,
               {
                 get(target, prop, receiver) {
                   if (prop === 'time') return compatTime;
+                  if (prop === 'dayofweek') return compatDayOfWeek;
+                  if (prop === 'hour') return compatHour;
+                  if (prop === 'minute') return compatMinute;
+                  if (prop === 'second') return compatSecond;
+                  if (prop === 'year') return compatYear;
+                  if (prop === 'month') return compatMonth;
+                  if (prop === 'dayofmonth') return compatDayOfMonth;
                   return Reflect.get(target, prop, receiver);
                 },
               },
@@ -1764,6 +1959,7 @@ export function buildIndicatorFactory(
                 writable: false,
                 configurable: false,
               });
+              markProcessedBar();
               return normalizedPlotValues;
             } catch (e) {
               // Suppress the per-bar console.error when the error is
@@ -1802,6 +1998,7 @@ export function buildIndicatorFactory(
                 writable: false,
                 configurable: false,
               });
+              markProcessedBar();
               return fallback;
             }
           },

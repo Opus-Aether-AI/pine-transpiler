@@ -88,7 +88,10 @@ describe('ICT Killzones Tier-0 corpus guard', () => {
     const loweringSummary = collectLowerings(transpiledBody);
     expect(loweringSummary).toEqual(expected.lowerings);
 
-    const runtime = createMockRuntime({ barCount: 500 });
+    // Emulate chart hosts where the first processed bar has a high
+    // absolute index (not 0). This guards against bars_back/session
+    // logic accidentally keying off absolute bar_index.
+    const runtime = createMockRuntime({ barCount: 500, barIndexStart: 10_000 });
     const tvLikeStd = new Proxy(runtime.pineJs.Std as Record<string, unknown>, {
       get(target, prop, receiver) {
         const value = Reflect.get(target, prop, receiver);

@@ -725,12 +725,21 @@ function buildStd(
 
 export interface CreateMockRuntimeOptions {
   barCount?: number;
+  /**
+   * Initial bar index exposed on context. Useful to emulate chart hosts
+   * that evaluate a study on a loaded history window where the first
+   * processed bar has a large absolute index.
+   */
+  barIndexStart?: number;
 }
 
 export function createMockRuntime(
   options: CreateMockRuntimeOptions = {},
 ): MockRuntime {
   const barCount = options.barCount ?? 200;
+  const barIndexStart = Number.isFinite(options.barIndexStart)
+    ? Math.trunc(options.barIndexStart as number)
+    : 0;
   const bars = generateSyntheticBars(barCount);
   const pointer: BarPointer = { current: 0 };
   const report: MockRuntimeReport = {
@@ -744,6 +753,7 @@ export function createMockRuntime(
   const context = new MockContext();
   context.symbol.bars = barCount;
   context.totalBars = barCount;
+  context.barIndex = barIndexStart;
   const currentBarPlots: number[] = [];
   const std = buildStd(bars, pointer, report, currentBarPlots);
 
@@ -752,7 +762,7 @@ export function createMockRuntime(
     context,
     advanceBar: () => {
       pointer.current++;
-      context.barIndex = pointer.current;
+      context.barIndex = barIndexStart + pointer.current;
     },
     totalBars: barCount,
     resetVarPointer: () => context.resetVarPointer(),

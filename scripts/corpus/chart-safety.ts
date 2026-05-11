@@ -219,6 +219,7 @@ function validateVisualStyle(
 function validateVisualEvents(
   fixture: string,
   barIndex: number,
+  expectedVisualBarIndex: number,
   eventsRaw: unknown,
 ): string | null {
   if (eventsRaw === undefined) return null;
@@ -246,8 +247,8 @@ function validateVisualEvents(
     ) {
       return `${fixture}: bar ${barIndex} visual event ${i} has invalid barIndex`;
     }
-    if (event.barIndex !== barIndex) {
-      return `${fixture}: bar ${barIndex} visual event ${i} barIndex mismatch (${event.barIndex})`;
+    if (event.barIndex !== expectedVisualBarIndex) {
+      return `${fixture}: bar ${barIndex} visual event ${i} barIndex mismatch (${event.barIndex}, expected ${expectedVisualBarIndex})`;
     }
 
     const styleError = validateVisualStyle(event.style, fixture, barIndex, i);
@@ -279,6 +280,7 @@ function runFixtureSafety(
   fx: DiscoveredFixture,
   source: string,
   barCount: number,
+  barIndexStart: number,
 ): FixtureOutcome {
   const id = fixtureId(fx);
   let declaredPlotCount = 0;
@@ -305,7 +307,7 @@ function runFixtureSafety(
     };
   }
 
-  const runtime = createMockRuntime({ barCount });
+  const runtime = createMockRuntime({ barCount, barIndexStart });
 
   let indicator: CustomIndicator;
   try {
@@ -509,7 +511,13 @@ function runFixtureSafety(
       }
     }
 
-    const visualError = validateVisualEvents(id, barIndex, result.__visualEvents);
+    const expectedVisualBarIndex = barIndexStart + barIndex;
+    const visualError = validateVisualEvents(
+      id,
+      barIndex,
+      expectedVisualBarIndex,
+      result.__visualEvents,
+    );
     if (visualError) {
       return {
         fixture: id,
@@ -581,6 +589,7 @@ function printSummary(
   failures: FixtureFailure[],
   mode: 'all' | 'canary' | 'single',
   barCount: number,
+  barIndexStart: number,
 ): void {
   const total = outcomes.length;
   const pass = outcomes.filter((o) => o.pass).length;
@@ -597,6 +606,7 @@ function printSummary(
   console.log(`Mode: ${mode}`);
   console.log(`Fixtures checked: ${total}`);
   console.log(`Bars per fixture: ${barCount}`);
+  console.log(`Bar index start: ${barIndexStart}`);
   console.log(`Pass: ${pass}/${total} (${passPct.toFixed(2)}%)`);
   console.log(`Constructor contract failures: ${constructorFailures}`);
   console.log(`Plot contract failures: ${plotFailures}`);
@@ -623,6 +633,9 @@ function printSummary(
 
 function main(): number {
   const barCount = Math.max(1, Math.trunc(numEnv('CHART_SAFETY_BAR_COUNT', DEFAULT_BAR_COUNT)));
+  const barIndexStart = Math.trunc(
+    numEnv('CHART_SAFETY_BAR_INDEX_START', 10_000),
+  );
   const minPassPct = numEnv('CHART_SAFETY_MIN_PASS_PCT', 100);
   const { mode, singleId } = parseMode(process.argv.slice(2));
 
@@ -650,7 +663,7 @@ function main(): number {
 
   for (const fx of fixtures) {
     const source = readFileSync(fx.path, 'utf8');
-    const outcome = runFixtureSafety(fx, source, barCount);
+    const outcome = runFixtureSafety(fx, source, barCount, barIndexStart);
     outcomes.push(outcome);
 
     if (!outcome.pass && outcome.failure) {
@@ -665,7 +678,7 @@ function main(): number {
     }
   }
 
-  printSummary(outcomes, failures, mode, barCount);
+  printSummary(outcomes, failures, mode, barCount, barIndexStart);
 
   const pass = outcomes.filter((o) => o.pass).length;
   const passPct = (pass / outcomes.length) * 100;

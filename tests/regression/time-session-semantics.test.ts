@@ -7,6 +7,7 @@ interface RuntimeOverrides {
   minute?: number;
   dayOfWeek?: number;
   time?: number;
+  barIndexStart?: number;
   symbolRegular?: string;
   symbolPremarket?: string;
   symbolPostmarket?: string;
@@ -18,7 +19,10 @@ function runOneBar(source: string, overrides: RuntimeOverrides = {}): number[] {
     throw new Error(result.error ?? 'transpile failed');
   }
 
-  const runtime = createMockRuntime({ barCount: 1 });
+  const runtime = createMockRuntime({
+    barCount: 1,
+    barIndexStart: overrides.barIndexStart,
+  });
   const std = runtime.pineJs.Std as Record<string, unknown>;
   if (typeof overrides.time === 'number') {
     std.time = () => overrides.time as number;
@@ -200,6 +204,95 @@ plot(na(time("", "0930-1000:1234567", "GMT+0")) ? 0 : 1)
 
     expect(inSession[0]).toBe(1);
     expect(outSession[0]).toBe(0);
+  });
+
+  it('treats bars_back history as unavailable on first processed bar even with high absolute bar_index', () => {
+    const source = `//@version=6
+indicator("bars-back-first-processed", overlay=true)
+sess = input.session("0000-2359")
+type K
+    array<box> b
+var K k = K.new(array.new_box())
+in_s = not na(time("", sess))
+in_prev = not na(time("", sess, bars_back = 1))
+if in_s and not in_prev
+    k.b.unshift(box.new(time, high, time, low))
+if in_s
+    bx = k.b.get(0)
+    bx.set_right(time)
+plot(k.b.size())
+`;
+
+    const plots = runOneBar(source, {
+      time: Date.UTC(2024, 0, 1, 9, 30, 0),
+      barIndexStart: 10_000,
+    });
+    expect(plots.length).toBe(1);
+    expect(plots[0]).toBe(1);
+  });
+
+  it('handles dayofweek(timestamp, timezone) without requiring host Std dayofweek context signature', () => {
+    const source = `//@version=6
+indicator("dow-timestamp-timezone")
+ts = time
+d = dayofweek(ts, "America/New_York")
+plot(d)
+`;
+
+    const result = transpileToPineJS(
+      source,
+      'dow_timestamp_timezone_regression',
+      'DowTZ',
+    );
+    if (!result.success || !result.indicatorFactory) {
+      throw new Error(result.error ?? 'transpile failed');
+    }
+
+    const runtime = createMockRuntime({ barCount: 1 });
+    const strictStd = new Proxy(runtime.pineJs.Std as Record<string, unknown>, {
+      get(target, prop, receiver) {
+        const value = Reflect.get(target, prop, receiver);
+        if (prop !== 'dayofweek' || typeof value !== 'function') {
+          return value;
+        }
+        return (...args: unknown[]) => {
+          const ctxArg = args[0];
+          if (
+            typeof ctxArg !== 'object' ||
+            ctxArg === null ||
+            !('new_var' in (ctxArg as Record<string, unknown>))
+          ) {
+            throw new TypeError('context-first dayofweek required');
+          }
+          return (value as (...inner: unknown[]) => unknown)(...args);
+        };
+      },
+    });
+
+    const indicator = result.indicatorFactory({ Std: strictStd } as never);
+    const ctor = indicator.constructor as new () => {
+      main: (ctx: unknown, cb: (index: number) => number) => unknown;
+    };
+    const instance = new ctor();
+
+    runtime.resetVarPointer();
+    runtime.resetCurrentBarPlots();
+    const returned = instance.main(runtime.context, () => 14) as
+      | (unknown[] & { __caughtError?: unknown })
+      | unknown;
+    const caughtError = (
+      returned as { __caughtError?: unknown } | null | undefined
+    )?.__caughtError;
+    if (caughtError !== undefined && caughtError !== null) {
+      throw caughtError instanceof Error
+        ? caughtError
+        : new Error(String(caughtError));
+    }
+    if (!Array.isArray(returned)) {
+      throw new Error('expected array output');
+    }
+    expect(returned.length).toBe(1);
+    expect(Number.isFinite(returned[0] as number)).toBe(true);
   });
 
   it('does not throw when using `session.ismarket` directly in expressions', () => {
