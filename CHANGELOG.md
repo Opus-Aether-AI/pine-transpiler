@@ -33,6 +33,12 @@ execution behavior closer to TradingView for real-world indicators.
   `time_tradingday`, and `timestamp`.
 - **New regression suites** for request-security behavior, state semantics,
   time/session semantics, and drawing-handle method compatibility.
+- **Visual style semantics in runtime event stream**: `__visualEvents`
+  entries now carry normalized `style` metadata (`colors`, `transp`,
+  `linewidth`, `offset`, `display`) for visual parity diagnostics.
+- **Expanded visual baseline fixtures** for phase-14.2 coverage:
+  `41-visual-drawing-lifecycle.pine`,
+  `42-visual-table-scanner.pine`, and `ict-killzones.pine`.
 
 ### Changed
 - **`request.security` moved from unsupported to partial support**:
@@ -42,6 +48,9 @@ execution behavior closer to TradingView for real-world indicators.
 - **Drawing/table namespaces upgraded** from warning stubs to stateful
   runtime-compatible handle objects (`line.*`, `box.*`, `label.*`, `table.*`)
   with mutator/getter behavior (still no visual rendering).
+- **Visual parity artifact/report schema expanded** with aggregated visual
+  style semantics and additional lifecycle call counters for
+  line/box/label/table method families.
 - **Corpus report output expanded** with lane/authenticity/category pass
   rates and top feature coverage sections.
 - **Named-argument emit behavior** now passes value-only arguments in runtime
@@ -69,17 +78,20 @@ execution behavior closer to TradingView for real-world indicators.
   - dynamic `hline(...)` values are preserved in metadata extraction
 - **Historical helper safety net**: missing `_getHistorical_*` references now
   receive generated NaN fallbacks to avoid runtime crashes on edge scripts.
+- **`box.set_border_width` runtime compatibility** added to box stubs so
+  drawing-heavy scripts no longer throw when mutating border width.
 
 ### Quality / CI
 - CI quality checks now include `bun run corpus:strict`,
   `bun run corpus:matrix`, and `bun run corpus:gate`.
 - Current verified parity baseline in this change set:
-  - corpus full pass: **234/234**
-  - parse-clean: **234/234**
+  - corpus full pass: **237/237**
+  - parse-clean: **237/237**
   - indicator matrix: **67/67**
   - TradingView top-100: **100/100**
   - TradingView top-200: **200/200**
   - strict numeric parity: **11/11**
+  - visual parity baseline: **8/8**
   - gate status: **PASS**
 
 ## [0.2.0] - 2026-04-25

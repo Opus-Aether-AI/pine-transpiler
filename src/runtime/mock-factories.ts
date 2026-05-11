@@ -138,7 +138,7 @@ export function createInputMock(
 // ============================================================================
 
 export interface PlotFunction {
-  (series: number, title?: string, color?: string): void;
+  (series: unknown, title?: string, color?: string): void;
   style_line: number;
   style_histogram: number;
   style_circles: number;
@@ -152,8 +152,29 @@ export interface PlotFunction {
  * Create the plot function mock for runtime
  */
 export function createPlotMock(plotValues: number[]): PlotFunction {
-  const basePlot = (series: number, _title?: string, _color?: string) => {
-    plotValues.push(series);
+  const coercePlotValue = (value: unknown): number => {
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : Number.NaN;
+    }
+    if (typeof value === 'boolean') {
+      return value ? 1 : 0;
+    }
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      'value' in (value as Record<string, unknown>)
+    ) {
+      return coercePlotValue((value as { value?: unknown }).value);
+    }
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : Number.NaN;
+    }
+    return Number.NaN;
+  };
+
+  const basePlot = (series: unknown, _title?: string, _color?: string) => {
+    plotValues.push(coercePlotValue(series));
   };
 
   const plot = basePlot as PlotFunction;

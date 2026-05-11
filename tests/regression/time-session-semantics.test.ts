@@ -49,11 +49,29 @@ function runOneBar(source: string, overrides: RuntimeOverrides = {}): number[] {
 
   runtime.resetVarPointer();
   runtime.resetCurrentBarPlots();
-  const returned = instance.main(runtime.context, () => 14);
+  const returned = instance.main(runtime.context, () => 14) as
+    | (unknown[] & { __caughtError?: unknown })
+    | unknown;
+  const caughtError = (returned as { __caughtError?: unknown } | null | undefined)
+    ?.__caughtError;
+  if (caughtError !== undefined && caughtError !== null) {
+    throw caughtError instanceof Error ? caughtError : new Error(String(caughtError));
+  }
+  if (returned !== undefined && !Array.isArray(returned)) {
+    throw new Error(
+      `main() returned non-array: ${typeof returned === 'object' ? 'object' : typeof returned}`,
+    );
+  }
   const factoryPlots = Array.isArray(returned) ? returned : [];
-  return factoryPlots.length > 0
-    ? factoryPlots
-    : [...runtime.currentBarPlots, ...factoryPlots];
+  const output =
+    factoryPlots.length > 0
+      ? factoryPlots
+      : [...runtime.currentBarPlots, ...factoryPlots];
+  const undefinedSlot = output.findIndex((v) => typeof v === 'undefined');
+  if (undefinedSlot >= 0) {
+    throw new Error(`undefined plot slot at index ${undefinedSlot}`);
+  }
+  return output;
 }
 
 describe('time/session semantics', () => {

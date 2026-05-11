@@ -2407,8 +2407,18 @@ function createInputMock(inputCallback, Std, context) {
 * Create the plot function mock for runtime
 */
 function createPlotMock(plotValues) {
+	const coercePlotValue = (value) => {
+		if (typeof value === "number") return Number.isFinite(value) ? value : NaN;
+		if (typeof value === "boolean") return value ? 1 : 0;
+		if (typeof value === "object" && value !== null && "value" in value) return coercePlotValue(value.value);
+		if (typeof value === "string") {
+			const parsed = Number(value);
+			return Number.isFinite(parsed) ? parsed : NaN;
+		}
+		return NaN;
+	};
 	const basePlot = (series, _title, _color) => {
-		plotValues.push(series);
+		plotValues.push(coercePlotValue(series));
 	};
 	const plot = basePlot;
 	plot.style_line = 0;
@@ -2654,6 +2664,11 @@ function makeBoxNamespace() {
 		if (!h) return;
 		h.border_color = color;
 	};
+	const setBorderWidth = (boxObj, width) => {
+		const h = resolveHandle(boxObj, boxStore);
+		if (!h) return;
+		h.border_width = toInteger(width, 1);
+	};
 	const setTextColor = (boxObj, color) => {
 		const h = resolveHandle(boxObj, boxStore);
 		if (!h) return;
@@ -2684,6 +2699,7 @@ function makeBoxNamespace() {
 		if (typeof h.set_extend !== "function") h.set_extend = (extend) => setExtend(h, extend);
 		if (typeof h.set_bgcolor !== "function") h.set_bgcolor = (color) => setBgcolor(h, color);
 		if (typeof h.set_border_color !== "function") h.set_border_color = (color) => setBorderColor(h, color);
+		if (typeof h.set_border_width !== "function") h.set_border_width = (width) => setBorderWidth(h, width);
 		if (typeof h.set_text_color !== "function") h.set_text_color = (color) => setTextColor(h, color);
 		if (typeof h.get_top !== "function") h.get_top = () => getTop(h);
 		if (typeof h.get_bottom !== "function") h.get_bottom = () => getBottom(h);
@@ -2700,7 +2716,8 @@ function makeBoxNamespace() {
 				right: toNumber(args[2]),
 				bottom: toNumber(args[3]),
 				border_color: args[4],
-				bgcolor: args[5]
+				bgcolor: args[5],
+				border_width: toInteger(args[6], 1)
 			};
 			attachBoxMethods(h);
 			boxStore.set(h.__id, h);
@@ -2714,6 +2731,7 @@ function makeBoxNamespace() {
 		set_extend: setExtend,
 		set_bgcolor: setBgcolor,
 		set_border_color: setBorderColor,
+		set_border_width: setBorderWidth,
 		set_text_color: setTextColor,
 		get_left: getLeft,
 		get_right: getRight,
@@ -3112,7 +3130,165 @@ var VISUAL_STD_CALLS = new Set([
 	"fill",
 	"barcolor"
 ]);
-function createVisualStdProxy(std, pushEvent, barIndex) {
+function coercePlotNumber(value) {
+	if (typeof value === "number") return Number.isFinite(value) ? value : NaN;
+	if (typeof value === "boolean") return value ? 1 : 0;
+	if (typeof value === "object" && value !== null && "value" in value) return coercePlotNumber(value.value);
+	if (typeof value === "string") {
+		const parsed = Number(value);
+		return Number.isFinite(parsed) ? parsed : NaN;
+	}
+	return NaN;
+}
+function coerceShapePlotNumber(value) {
+	if (typeof value === "boolean") return value ? 1 : NaN;
+	const n = coercePlotNumber(value);
+	if (!Number.isFinite(n)) return NaN;
+	return n === 0 ? NaN : n;
+}
+function unwrapVisualValue(value) {
+	if (typeof value === "object" && value !== null && "value" in value) return unwrapVisualValue(value.value);
+	return value;
+}
+function readVisualNumber(value) {
+	const raw = unwrapVisualValue(value);
+	if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
+	if (typeof raw === "string") {
+		const parsed = Number(raw);
+		return Number.isFinite(parsed) ? parsed : null;
+	}
+	return null;
+}
+function readVisualDisplay(value) {
+	const raw = unwrapVisualValue(value);
+	if (typeof raw === "string") {
+		const trimmed = raw.trim();
+		return trimmed ? trimmed : null;
+	}
+	if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
+	return null;
+}
+function readVisualColor(value) {
+	const raw = unwrapVisualValue(value);
+	if (typeof raw !== "string") return null;
+	const token = raw.trim();
+	if (!token) return null;
+	if (/^#[0-9a-fA-F]{3,8}$/.test(token)) return token;
+	if (/^(?:rgb|hsl)a?\(/i.test(token)) return token.replace(/\s+/g, " ");
+	if (/^color\./.test(token)) return token;
+	return null;
+}
+function readTranspFromColor(color) {
+	if (!color) return null;
+	const rgba = color.match(/^rgba\(([^)]+)\)$/i);
+	if (!rgba) return null;
+	const parts = rgba[1].split(",").map((p) => p.trim()).filter((p) => p.length > 0);
+	if (parts.length < 4) return null;
+	const alpha = Number(parts[3]);
+	if (!Number.isFinite(alpha)) return null;
+	return Math.round((1 - Math.min(1, Math.max(0, alpha))) * 100);
+}
+function normalizeVisualStyle(call, args) {
+	const colors = [];
+	for (const arg of args) {
+		const c = readVisualColor(arg);
+		if (c) colors.push(c);
+	}
+	const colorAt = (index) => {
+		const c = readVisualColor(args[index]);
+		if (c) colors.push(c);
+	};
+	const numberAt = (index) => readVisualNumber(args[index]);
+	const displayAt = (index) => readVisualDisplay(args[index]);
+	let transp = null;
+	let linewidth = null;
+	let offset = null;
+	let display = null;
+	const normalizedCall = call.startsWith("Std.") ? call.slice(4) : call;
+	switch (normalizedCall) {
+		case "plot":
+			colorAt(2);
+			linewidth = numberAt(3);
+			transp = numberAt(4) ?? numberAt(6);
+			offset = numberAt(5) ?? numberAt(7);
+			display = displayAt(6) ?? displayAt(9) ?? displayAt(8);
+			break;
+		case "plotshape":
+			colorAt(4);
+			transp = numberAt(6) ?? numberAt(7);
+			offset = numberAt(7) ?? numberAt(8);
+			display = displayAt(8) ?? displayAt(11) ?? displayAt(10) ?? displayAt(9);
+			break;
+		case "plotchar":
+			colorAt(4);
+			transp = numberAt(5) ?? numberAt(6);
+			offset = numberAt(6) ?? numberAt(7);
+			display = displayAt(7) ?? displayAt(10) ?? displayAt(9) ?? displayAt(8);
+			break;
+		case "plotarrow":
+			colorAt(1);
+			transp = numberAt(3);
+			offset = numberAt(4);
+			display = displayAt(7) ?? displayAt(6);
+			break;
+		case "hline":
+			colorAt(2);
+			linewidth = numberAt(4);
+			display = displayAt(6) ?? displayAt(5);
+			break;
+		case "bgcolor":
+			colorAt(0);
+			transp = numberAt(1);
+			display = displayAt(2) ?? displayAt(4) ?? displayAt(3);
+			break;
+		case "fill":
+			colorAt(2);
+			transp = numberAt(3);
+			display = displayAt(6) ?? displayAt(5);
+			break;
+		case "barcolor":
+			colorAt(0);
+			transp = numberAt(1);
+			display = displayAt(2) ?? displayAt(4) ?? displayAt(3);
+			break;
+		default:
+			if (normalizedCall.endsWith(".set_width") || normalizedCall.endsWith(".set_border_width")) linewidth = numberAt(1);
+			if (normalizedCall.endsWith(".set_color") || normalizedCall.endsWith(".set_textcolor") || normalizedCall.endsWith(".set_bgcolor") || normalizedCall.endsWith(".set_border_color")) colorAt(1);
+			if (normalizedCall === "line.new") {
+				colorAt(6);
+				linewidth = numberAt(8);
+			} else if (normalizedCall === "box.new") {
+				colorAt(4);
+				colorAt(9);
+				linewidth = numberAt(5);
+			} else if (normalizedCall === "label.new") {
+				colorAt(5);
+				colorAt(7);
+			} else if (normalizedCall === "table.cell") {
+				colorAt(4);
+				colorAt(5);
+				colorAt(7);
+			}
+			break;
+	}
+	const normalizedColors = [...new Set(colors)].sort((a, b) => a.localeCompare(b));
+	if (transp === null) for (const color of normalizedColors) {
+		const derived = readTranspFromColor(color);
+		if (derived !== null) {
+			transp = derived;
+			break;
+		}
+	}
+	if (normalizedColors.length === 0 && transp === null && linewidth === null && offset === null && display === null) return null;
+	return {
+		colors: normalizedColors,
+		transp,
+		linewidth,
+		offset,
+		display
+	};
+}
+function createVisualStdProxy(std, pushEvent, barIndex, options = {}) {
 	return new Proxy(std, { get(target, prop, receiver) {
 		const value = Reflect.get(target, prop, receiver);
 		if (typeof prop !== "string") return value;
@@ -3124,6 +3300,11 @@ function createVisualStdProxy(std, pushEvent, barIndex) {
 				args,
 				barIndex
 			});
+			if (options.pushPlotValue) {
+				if (prop === "plot" || prop === "plotarrow") options.pushPlotValue(coercePlotNumber(args[0]));
+				else if (prop === "plotshape" || prop === "plotchar") options.pushPlotValue(coerceShapePlotNumber(args[0]));
+				else if (prop === "hline") options.pushPlotValue(NaN);
+			}
 			return value.apply(target, args);
 		};
 	} });
@@ -3334,7 +3515,10 @@ function buildIndicatorFactory(options) {
 					_fallbackBarIndex = resolvedBarIndex;
 					const resolvedTotalBars = readNumberField(ctx.symbol, "bars") ?? readNumberField(ctx, "totalBars");
 					const pushVisualEvent = (event) => {
-						_visualEvents.push(event);
+						_visualEvents.push({
+							...event,
+							style: normalizeVisualStyle(event.call, event.args)
+						});
 					};
 					const stubs = {
 						...stubsRaw,
@@ -3343,7 +3527,9 @@ function buildIndicatorFactory(options) {
 						label: createVisualNamespaceProxy("label", stubsRaw.label, pushVisualEvent, resolvedBarIndex),
 						table: createVisualNamespaceProxy("table", stubsRaw.table, pushVisualEvent, resolvedBarIndex)
 					};
-					const stdWithVisual = createVisualStdProxy(Std, pushVisualEvent, resolvedBarIndex);
+					const stdWithVisual = createVisualStdProxy(Std, pushVisualEvent, resolvedBarIndex, { pushPlotValue: (value) => {
+						_plotValues.push(value);
+					} });
 					const parseTimeframeToMs = (raw) => {
 						const tf = String(raw ?? "").trim();
 						if (!tf) return null;
@@ -3487,7 +3673,7 @@ function buildIndicatorFactory(options) {
 					strategy.initial_capital = 1e5;
 					strategy.position_size = 0;
 					const plotshape = (...args) => {
-						_visualEvents.push({
+						pushVisualEvent({
 							call: "plotshape",
 							args,
 							barIndex: resolvedBarIndex
@@ -3495,7 +3681,7 @@ function buildIndicatorFactory(options) {
 						_plotValues.push(NaN);
 					};
 					const plotchar = (...args) => {
-						_visualEvents.push({
+						pushVisualEvent({
 							call: "plotchar",
 							args,
 							barIndex: resolvedBarIndex
@@ -3503,7 +3689,7 @@ function buildIndicatorFactory(options) {
 						_plotValues.push(NaN);
 					};
 					const plotarrow = (...args) => {
-						_visualEvents.push({
+						pushVisualEvent({
 							call: "plotarrow",
 							args,
 							barIndex: resolvedBarIndex
@@ -3511,7 +3697,7 @@ function buildIndicatorFactory(options) {
 						_plotValues.push(NaN);
 					};
 					const hline = (...args) => {
-						_visualEvents.push({
+						pushVisualEvent({
 							call: "hline",
 							args,
 							barIndex: resolvedBarIndex
@@ -3519,21 +3705,21 @@ function buildIndicatorFactory(options) {
 						_plotValues.push(NaN);
 					};
 					const bgcolor = (...args) => {
-						_visualEvents.push({
+						pushVisualEvent({
 							call: "bgcolor",
 							args,
 							barIndex: resolvedBarIndex
 						});
 					};
 					const fill = (...args) => {
-						_visualEvents.push({
+						pushVisualEvent({
 							call: "fill",
 							args,
 							barIndex: resolvedBarIndex
 						});
 					};
 					const barcolor = (...args) => {
-						_visualEvents.push({
+						pushVisualEvent({
 							call: "barcolor",
 							args,
 							barIndex: resolvedBarIndex
@@ -3774,13 +3960,14 @@ function buildIndicatorFactory(options) {
 					};
 					try {
 						compiledScript(stdWithCompatTime, context, input, plot, indicator, study, strategy, color, ta, math, timeframe, plotshape, plotchar, plotarrow, hline, bgcolor, fill, barcolor, stubs.box, stubs.line, stubs.label, stubs.table, stubs.str, syminfo, barstate, shape, location, size, alertcondition, alert, request, session, array, time, time_close, time_tradingday, bar_index, hour, minute, second, year, month, dayofmonth, dayofweek, timestamp, chart, format, string, xloc, yloc, extend, position, order, text, display, ticker, barmerge, sources.close, sources.open, sources.high, sources.low, sources.volume, sources.hl2, sources.hlc3, sources.ohlc4);
-						Object.defineProperty(_plotValues, "__visualEvents", {
+						const normalizedPlotValues = Array.from({ length: plots.length }, (_unused, i) => coercePlotNumber(_plotValues[i]));
+						Object.defineProperty(normalizedPlotValues, "__visualEvents", {
 							value: _visualEvents,
 							enumerable: false,
 							writable: false,
 							configurable: false
 						});
-						return _plotValues;
+						return normalizedPlotValues;
 					} catch (e) {
 						if (!(typeof e === "object" && e !== null && e.__compileError === true)) console.error("Script execution error", e);
 						const fallback = plots.map((_p) => NaN);
@@ -4075,6 +4262,19 @@ function generateNativeMainBody(inputs, plots, bgcolors, sessionVariables, deriv
 		lines.push("");
 		lines.push("        return [colorIndex];");
 	} else if (hasPlots) {
+		lines.push("        const _coercePlotValue = (v) => {");
+		lines.push("          if (typeof v === \"number\") return Number.isFinite(v) ? v : NaN;");
+		lines.push("          if (typeof v === \"boolean\") return v ? 1 : 0;");
+		lines.push("          if (v && typeof v === \"object\" && Object.prototype.hasOwnProperty.call(v, \"value\")) {");
+		lines.push("            return _coercePlotValue(v.value);");
+		lines.push("          }");
+		lines.push("          if (typeof v === \"string\") {");
+		lines.push("            const n = Number(v);");
+		lines.push("            return Number.isFinite(n) ? n : NaN;");
+		lines.push("          }");
+		lines.push("          return NaN;");
+		lines.push("        };");
+		lines.push("");
 		lines.push("        // Return plot values");
 		const plotReturns = [];
 		for (const plot of plots) if (plot.valueExpr) {
@@ -4088,8 +4288,8 @@ function generateNativeMainBody(inputs, plots, bgcolors, sessionVariables, deriv
 				if (args.includes("context")) return match;
 				return `Std.${fn}(${args}, context)`;
 			});
-			plotReturns.push(expr);
-		} else plotReturns.push("NaN");
+			plotReturns.push(`_coercePlotValue(${expr})`);
+		} else plotReturns.push("_coercePlotValue(NaN)");
 		lines.push(`        return [${plotReturns.join(", ")}];`);
 	} else lines.push("        return [];");
 	return lines.join("\n");
@@ -7551,4 +7751,4 @@ Object.defineProperty(exports, "transpileToPineJS", {
 	}
 });
 
-//# sourceMappingURL=src-DrA3zE4x.cjs.map
+//# sourceMappingURL=src-tf-UfVhO.cjs.map

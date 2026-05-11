@@ -13,6 +13,9 @@ export const VISUAL_BASELINE_FIXTURES = [
   '18-bgcolor-zones.pine',
   '19-fill-bands.pine',
   '20-hline-multi.pine',
+  '41-visual-drawing-lifecycle.pine',
+  '42-visual-table-scanner.pine',
+  'ict-killzones.pine',
 ] as const;
 
 type VisualCallName =
@@ -25,9 +28,25 @@ type VisualCallName =
   | 'Std.fill'
   | 'Std.barcolor'
   | 'line.new'
+  | 'line.set_x2'
+  | 'line.set_xy1'
+  | 'line.set_xy2'
+  | 'line.set_color'
+  | 'line.delete'
   | 'label.new'
+  | 'label.set_text'
+  | 'label.set_textcolor'
+  | 'label.set_style'
+  | 'label.delete'
   | 'box.new'
-  | 'table.new';
+  | 'box.set_bgcolor'
+  | 'box.set_border_color'
+  | 'box.set_border_width'
+  | 'box.delete'
+  | 'table.new'
+  | 'table.cell'
+  | 'table.merge_cells'
+  | 'table.clear';
 
 const VISUAL_CALL_PATTERNS: Record<VisualCallName, RegExp> = {
   'Std.plot': /\bStd\.plot\(/g,
@@ -39,9 +58,25 @@ const VISUAL_CALL_PATTERNS: Record<VisualCallName, RegExp> = {
   'Std.fill': /\bStd\.fill\(/g,
   'Std.barcolor': /\bStd\.barcolor\(/g,
   'line.new': /\bline\.new\(/g,
+  'line.set_x2': /\bline\.set_x2\(/g,
+  'line.set_xy1': /\bline\.set_xy1\(/g,
+  'line.set_xy2': /\bline\.set_xy2\(/g,
+  'line.set_color': /\bline\.set_color\(/g,
+  'line.delete': /\bline\.delete\(/g,
   'label.new': /\blabel\.new\(/g,
+  'label.set_text': /\blabel\.set_text\(/g,
+  'label.set_textcolor': /\blabel\.set_textcolor\(/g,
+  'label.set_style': /\blabel\.set_style\(/g,
+  'label.delete': /\blabel\.delete\(/g,
   'box.new': /\bbox\.new\(/g,
+  'box.set_bgcolor': /\bbox\.set_bgcolor\(/g,
+  'box.set_border_color': /\bbox\.set_border_color\(/g,
+  'box.set_border_width': /\bbox\.set_border_width\(/g,
+  'box.delete': /\bbox\.delete\(/g,
   'table.new': /\btable\.new\(/g,
+  'table.cell': /\btable\.cell\(/g,
+  'table.merge_cells': /\btable\.merge_cells\(/g,
+  'table.clear': /\btable\.clear\(/g,
 };
 
 export interface VisualArtifact {
@@ -56,6 +91,13 @@ export interface VisualArtifact {
     actualPlotCount: number;
     visualEventCount: number;
     visualCalls: Array<{ call: string; count: number }>;
+    visualStyleSemantics: {
+      colors: string[];
+      transpValues: number[];
+      linewidthValues: number[];
+      offsetValues: number[];
+      displayFlags: string[];
+    };
     topRuntimeErrors: Array<{ message: string; count: number }>;
     unimplementedStdCalls: string[];
   };
@@ -88,6 +130,13 @@ interface RuntimeVisualEvent {
   call: string;
   args: unknown[];
   barIndex: number;
+  style?: {
+    colors: string[];
+    transp: number | null;
+    linewidth: number | null;
+    offset: number | null;
+    display: string | number | null;
+  } | null;
 }
 
 function countRegexMatches(text: string, pattern: RegExp): number {
@@ -119,6 +168,61 @@ function summarizeVisualEvents(
     .sort((a, b) =>
       a.call === b.call ? a.count - b.count : a.call.localeCompare(b.call),
     );
+}
+
+function sortUniqueNumbers(values: number[]): number[] {
+  return [...new Set(values.filter((v) => Number.isFinite(v)))].sort(
+    (a, b) => a - b,
+  );
+}
+
+function summarizeVisualStyleSemantics(events: RuntimeVisualEvent[]): {
+  colors: string[];
+  transpValues: number[];
+  linewidthValues: number[];
+  offsetValues: number[];
+  displayFlags: string[];
+} {
+  const colors = new Set<string>();
+  const transpValues: number[] = [];
+  const linewidthValues: number[] = [];
+  const offsetValues: number[] = [];
+  const displayFlags = new Set<string>();
+
+  for (const event of events) {
+    const style = event.style;
+    if (!style) continue;
+
+    for (const color of style.colors ?? []) {
+      if (typeof color === 'string' && color.trim()) {
+        colors.add(color.trim());
+      }
+    }
+
+    if (typeof style.transp === 'number' && Number.isFinite(style.transp)) {
+      transpValues.push(style.transp);
+    }
+    if (
+      typeof style.linewidth === 'number' &&
+      Number.isFinite(style.linewidth)
+    ) {
+      linewidthValues.push(style.linewidth);
+    }
+    if (typeof style.offset === 'number' && Number.isFinite(style.offset)) {
+      offsetValues.push(style.offset);
+    }
+    if (style.display !== null && style.display !== undefined) {
+      displayFlags.add(String(style.display));
+    }
+  }
+
+  return {
+    colors: [...colors].sort((a, b) => a.localeCompare(b)),
+    transpValues: sortUniqueNumbers(transpValues),
+    linewidthValues: sortUniqueNumbers(linewidthValues),
+    offsetValues: sortUniqueNumbers(offsetValues),
+    displayFlags: [...displayFlags].sort((a, b) => a.localeCompare(b)),
+  };
 }
 
 function toStableDefval(value: unknown): string | number | boolean | null {
@@ -232,6 +336,7 @@ export function buildVisualArtifact(fixture: string): VisualArtifact {
       actualPlotCount: run.actualPlotCount,
       visualEventCount: runtimeVisualEvents.length,
       visualCalls: summarizeVisualEvents(runtimeVisualEvents),
+      visualStyleSemantics: summarizeVisualStyleSemantics(runtimeVisualEvents),
       topRuntimeErrors: run.runtimeErrors.slice(0, 5),
       unimplementedStdCalls: [...run.unimplementedStdCalls],
     },

@@ -131,6 +131,13 @@ function runOneBar(
       factoryPlots.length > 0
         ? factoryPlots
         : [...runtime.currentBarPlots, ...factoryPlots];
+    const undefinedSlot = plotOutput.findIndex((v) => typeof v === 'undefined');
+    if (undefinedSlot >= 0) {
+      return {
+        plotOutput: [],
+        error: new Error(`undefined plot slot at index ${undefinedSlot}`),
+      };
+    }
     return { plotOutput, error: null };
   } catch (error) {
     return { plotOutput: [], error };

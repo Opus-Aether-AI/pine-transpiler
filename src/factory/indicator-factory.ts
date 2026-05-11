@@ -153,6 +153,15 @@ interface VisualEvent {
   call: string;
   args: unknown[];
   barIndex: number;
+  style?: VisualStyleSemantics | null;
+}
+
+interface VisualStyleSemantics {
+  colors: string[];
+  transp: number | null;
+  linewidth: number | null;
+  offset: number | null;
+  display: string | number | null;
 }
 
 const VISUAL_STD_CALLS = new Set([
@@ -198,6 +207,203 @@ function coerceShapePlotNumber(value: unknown): number {
   const n = coercePlotNumber(value);
   if (!Number.isFinite(n)) return Number.NaN;
   return n === 0 ? Number.NaN : n;
+}
+
+function unwrapVisualValue(value: unknown): unknown {
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'value' in (value as Record<string, unknown>)
+  ) {
+    return unwrapVisualValue((value as { value?: unknown }).value);
+  }
+  return value;
+}
+
+function readVisualNumber(value: unknown): number | null {
+  const raw = unwrapVisualValue(value);
+  if (typeof raw === 'number') {
+    return Number.isFinite(raw) ? raw : null;
+  }
+  if (typeof raw === 'string') {
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function readVisualDisplay(value: unknown): string | number | null {
+  const raw = unwrapVisualValue(value);
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    return trimmed ? trimmed : null;
+  }
+  if (typeof raw === 'number') {
+    return Number.isFinite(raw) ? raw : null;
+  }
+  return null;
+}
+
+function readVisualColor(value: unknown): string | null {
+  const raw = unwrapVisualValue(value);
+  if (typeof raw !== 'string') return null;
+  const token = raw.trim();
+  if (!token) return null;
+  if (/^#[0-9a-fA-F]{3,8}$/.test(token)) return token;
+  if (/^(?:rgb|hsl)a?\(/i.test(token)) return token.replace(/\s+/g, ' ');
+  if (/^color\./.test(token)) return token;
+  return null;
+}
+
+function readTranspFromColor(color: string | null): number | null {
+  if (!color) return null;
+  const rgba = color.match(/^rgba\(([^)]+)\)$/i);
+  if (!rgba) return null;
+  const parts = rgba[1]
+    .split(',')
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+  if (parts.length < 4) return null;
+  const alpha = Number(parts[3]);
+  if (!Number.isFinite(alpha)) return null;
+  const clamped = Math.min(1, Math.max(0, alpha));
+  return Math.round((1 - clamped) * 100);
+}
+
+function normalizeVisualStyle(
+  call: string,
+  args: unknown[],
+): VisualStyleSemantics | null {
+  const colors: string[] = [];
+  for (const arg of args) {
+    const c = readVisualColor(arg);
+    if (c) colors.push(c);
+  }
+
+  const colorAt = (index: number) => {
+    const c = readVisualColor(args[index]);
+    if (c) colors.push(c);
+  };
+  const numberAt = (index: number) => readVisualNumber(args[index]);
+  const displayAt = (index: number) => readVisualDisplay(args[index]);
+
+  let transp: number | null = null;
+  let linewidth: number | null = null;
+  let offset: number | null = null;
+  let display: string | number | null = null;
+
+  const normalizedCall = call.startsWith('Std.') ? call.slice(4) : call;
+
+  switch (normalizedCall) {
+    case 'plot':
+      colorAt(2);
+      linewidth = numberAt(3);
+      transp = numberAt(4) ?? numberAt(6);
+      offset = numberAt(5) ?? numberAt(7);
+      display = displayAt(6) ?? displayAt(9) ?? displayAt(8);
+      break;
+    case 'plotshape':
+      colorAt(4);
+      transp = numberAt(6) ?? numberAt(7);
+      offset = numberAt(7) ?? numberAt(8);
+      display = displayAt(8) ?? displayAt(11) ?? displayAt(10) ?? displayAt(9);
+      break;
+    case 'plotchar':
+      colorAt(4);
+      transp = numberAt(5) ?? numberAt(6);
+      offset = numberAt(6) ?? numberAt(7);
+      display = displayAt(7) ?? displayAt(10) ?? displayAt(9) ?? displayAt(8);
+      break;
+    case 'plotarrow':
+      colorAt(1);
+      transp = numberAt(3);
+      offset = numberAt(4);
+      display = displayAt(7) ?? displayAt(6);
+      break;
+    case 'hline':
+      colorAt(2);
+      linewidth = numberAt(4);
+      display = displayAt(6) ?? displayAt(5);
+      break;
+    case 'bgcolor':
+      colorAt(0);
+      transp = numberAt(1);
+      display = displayAt(2) ?? displayAt(4) ?? displayAt(3);
+      break;
+    case 'fill':
+      colorAt(2);
+      transp = numberAt(3);
+      display = displayAt(6) ?? displayAt(5);
+      break;
+    case 'barcolor':
+      colorAt(0);
+      transp = numberAt(1);
+      display = displayAt(2) ?? displayAt(4) ?? displayAt(3);
+      break;
+    default:
+      if (
+        normalizedCall.endsWith('.set_width') ||
+        normalizedCall.endsWith('.set_border_width')
+      ) {
+        linewidth = numberAt(1);
+      }
+      if (
+        normalizedCall.endsWith('.set_color') ||
+        normalizedCall.endsWith('.set_textcolor') ||
+        normalizedCall.endsWith('.set_bgcolor') ||
+        normalizedCall.endsWith('.set_border_color')
+      ) {
+        colorAt(1);
+      }
+      if (normalizedCall === 'line.new') {
+        colorAt(6);
+        linewidth = numberAt(8);
+      } else if (normalizedCall === 'box.new') {
+        colorAt(4);
+        colorAt(9);
+        linewidth = numberAt(5);
+      } else if (normalizedCall === 'label.new') {
+        colorAt(5);
+        colorAt(7);
+      } else if (normalizedCall === 'table.cell') {
+        colorAt(4);
+        colorAt(5);
+        colorAt(7);
+      }
+      break;
+  }
+
+  const normalizedColors = [...new Set(colors)].sort((a, b) =>
+    a.localeCompare(b),
+  );
+
+  if (transp === null) {
+    for (const color of normalizedColors) {
+      const derived = readTranspFromColor(color);
+      if (derived !== null) {
+        transp = derived;
+        break;
+      }
+    }
+  }
+
+  if (
+    normalizedColors.length === 0 &&
+    transp === null &&
+    linewidth === null &&
+    offset === null &&
+    display === null
+  ) {
+    return null;
+  }
+
+  return {
+    colors: normalizedColors,
+    transp,
+    linewidth,
+    offset,
+    display,
+  };
 }
 
 function createVisualStdProxy(
@@ -741,7 +947,10 @@ export function buildIndicatorFactory(
               readNumberField(ctx.symbol, 'bars') ??
               readNumberField(ctx, 'totalBars');
             const pushVisualEvent = (event: VisualEvent) => {
-              _visualEvents.push(event);
+              _visualEvents.push({
+                ...event,
+                style: normalizeVisualStyle(event.call, event.args),
+              });
             };
             const stubs = {
               ...stubsRaw,
@@ -1002,7 +1211,7 @@ export function buildIndicatorFactory(
 
             // Plotting stubs that push NaN for unsupported plot types
             const plotshape = (...args: unknown[]) => {
-              _visualEvents.push({
+              pushVisualEvent({
                 call: 'plotshape',
                 args,
                 barIndex: resolvedBarIndex,
@@ -1010,7 +1219,7 @@ export function buildIndicatorFactory(
               _plotValues.push(NaN);
             };
             const plotchar = (...args: unknown[]) => {
-              _visualEvents.push({
+              pushVisualEvent({
                 call: 'plotchar',
                 args,
                 barIndex: resolvedBarIndex,
@@ -1018,7 +1227,7 @@ export function buildIndicatorFactory(
               _plotValues.push(NaN);
             };
             const plotarrow = (...args: unknown[]) => {
-              _visualEvents.push({
+              pushVisualEvent({
                 call: 'plotarrow',
                 args,
                 barIndex: resolvedBarIndex,
@@ -1026,7 +1235,7 @@ export function buildIndicatorFactory(
               _plotValues.push(NaN);
             };
             const hline = (...args: unknown[]) => {
-              _visualEvents.push({
+              pushVisualEvent({
                 call: 'hline',
                 args,
                 barIndex: resolvedBarIndex,
@@ -1034,14 +1243,14 @@ export function buildIndicatorFactory(
               _plotValues.push(NaN);
             };
             const bgcolor = (...args: unknown[]) => {
-              _visualEvents.push({
+              pushVisualEvent({
                 call: 'bgcolor',
                 args,
                 barIndex: resolvedBarIndex,
               });
             };
             const fill = (...args: unknown[]) => {
-              _visualEvents.push({
+              pushVisualEvent({
                 call: 'fill',
                 args,
                 barIndex: resolvedBarIndex,
@@ -1050,7 +1259,7 @@ export function buildIndicatorFactory(
             // barcolor is a metainfo concern (per-bar color) — runtime
             // no-op like bgcolor.
             const barcolor = (...args: unknown[]) => {
-              _visualEvents.push({
+              pushVisualEvent({
                 call: 'barcolor',
                 args,
                 barIndex: resolvedBarIndex,
@@ -2104,6 +2313,23 @@ function generateNativeMainBody(
     lines.push('        return [colorIndex];');
   } else if (hasPlots) {
     // General indicator with plots - return plot values
+    lines.push('        const _coercePlotValue = (v) => {');
+    lines.push(
+      '          if (typeof v === "number") return Number.isFinite(v) ? v : NaN;',
+    );
+    lines.push('          if (typeof v === "boolean") return v ? 1 : 0;');
+    lines.push(
+      '          if (v && typeof v === "object" && Object.prototype.hasOwnProperty.call(v, "value")) {',
+    );
+    lines.push('            return _coercePlotValue(v.value);');
+    lines.push('          }');
+    lines.push('          if (typeof v === "string") {');
+    lines.push('            const n = Number(v);');
+    lines.push('            return Number.isFinite(n) ? n : NaN;');
+    lines.push('          }');
+    lines.push('          return NaN;');
+    lines.push('        };');
+    lines.push('');
     lines.push('        // Return plot values');
     const plotReturns: string[] = [];
 
@@ -2127,9 +2353,9 @@ function generateNativeMainBody(
           return `Std.${fn}(${args}, context)`;
         });
 
-        plotReturns.push(expr);
+        plotReturns.push(`_coercePlotValue(${expr})`);
       } else {
-        plotReturns.push('NaN');
+        plotReturns.push('_coercePlotValue(NaN)');
       }
     }
 

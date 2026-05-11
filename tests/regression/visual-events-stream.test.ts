@@ -6,6 +6,13 @@ interface VisualEvent {
   call: string;
   args: unknown[];
   barIndex: number;
+  style?: {
+    colors: string[];
+    transp: number | null;
+    linewidth: number | null;
+    offset: number | null;
+    display: string | number | null;
+  } | null;
 }
 
 type MainOutput = number[] & {
@@ -60,6 +67,37 @@ bgcolor(close > open ? color.green : na)
 
     expect(events.some((e) => e.call === 'Std.fill')).toBe(true);
     expect(events.some((e) => e.call === 'Std.bgcolor')).toBe(true);
+  });
+
+  it('normalizes visual style semantics (color/transp/linewidth/offset/display)', () => {
+    const output = executeOneBar(`
+indicator("Visual Style Semantics")
+plot(close, "P", color=color.red, linewidth=2, transp=70, offset=3, display=display.none)
+hline(50, "Mid", color=color.blue, linestyle=hline.style_dashed, linewidth=4)
+bgcolor(color.green, transp=80, display=display.none)
+`);
+
+    expect(output.__caughtError).toBeUndefined();
+    const events = output.__visualEvents ?? [];
+
+    const plotEvent = events.find((e) => e.call === 'Std.plot');
+    expect(plotEvent).toBeDefined();
+    expect(plotEvent?.style?.colors).toContain('#FF5252');
+    expect(plotEvent?.style?.linewidth).toBe(2);
+    expect(plotEvent?.style?.transp).toBe(70);
+    expect(plotEvent?.style?.offset).toBe(3);
+    expect(String(plotEvent?.style?.display)).toBe('display.none');
+
+    const hlineEvent = events.find((e) => e.call === 'hline');
+    expect(hlineEvent).toBeDefined();
+    expect(hlineEvent?.style?.colors).toContain('#2962FF');
+    expect(hlineEvent?.style?.linewidth).toBe(4);
+
+    const bgcolorEvent = events.find((e) => e.call === 'Std.bgcolor');
+    expect(bgcolorEvent).toBeDefined();
+    expect(bgcolorEvent?.style?.colors).toContain('#4CAF50');
+    expect(bgcolorEvent?.style?.transp).toBe(80);
+    expect(String(bgcolorEvent?.style?.display)).toBe('display.none');
   });
 
   it('tags events with current bar index', () => {

@@ -1,82 +1,83 @@
 {
-  "fixture": "16-plotshape-buy-sell.pine",
+  "fixture": "42-visual-table-scanner.pine",
   "stageReached": "complete",
   "pass": true,
   "error": null,
   "runtime": {
     "barsCompleted": 200,
     "barsErrored": 0,
-    "declaredPlotCount": 2,
-    "actualPlotCount": 2,
-    "visualEventCount": 2,
+    "declaredPlotCount": 1,
+    "actualPlotCount": 1,
+    "visualEventCount": 7,
     "visualCalls": [
       {
-        "call": "Std.plotshape",
-        "count": 2
+        "call": "Std.bgcolor",
+        "count": 1
+      },
+      {
+        "call": "Std.plot",
+        "count": 1
+      },
+      {
+        "call": "table.cell",
+        "count": 4
+      },
+      {
+        "call": "table.new",
+        "count": 1
       }
     ],
     "visualStyleSemantics": {
       "colors": [
-        "#4CAF50",
-        "#FF5252"
+        "#000000",
+        "#2962FF",
+        "#9E9E9E",
+        "#FF5252",
+        "#FFEB3B",
+        "#FFFFFF"
       ],
-      "transpValues": [],
-      "linewidthValues": [],
+      "transpValues": [
+        10
+      ],
+      "linewidthValues": [
+        1
+      ],
       "offsetValues": [],
-      "displayFlags": []
+      "displayFlags": [
+        "0"
+      ]
     },
     "topRuntimeErrors": [],
     "unimplementedStdCalls": []
   },
   "metainfo": {
-    "plotCount": 2,
+    "plotCount": 1,
     "plots": [
       {
         "id": "plot_0",
-        "type": "shapes",
-        "price": null
-      },
-      {
-        "id": "plot_1",
-        "type": "shapes",
+        "type": "line",
         "price": null
       }
     ],
     "inputCount": 0,
     "inputs": [],
     "styleKeys": [
-      "plot_0",
-      "plot_1"
+      "plot_0"
     ],
     "styles": [
       {
         "id": "plot_0",
-        "title": "Buy",
-        "histogramBase": 0
-      },
-      {
-        "id": "plot_1",
-        "title": "Sell",
+        "title": "Score",
         "histogramBase": 0
       }
     ],
     "defaultStyles": [
       {
         "id": "plot_0",
-        "plottype": 6,
+        "plottype": 0,
         "linewidth": 1,
         "linestyle": 0,
-        "color": "#000000",
-        "transparency": 0,
-        "visible": true,
-        "trackPrice": false
-      },
-      {
-        "id": "plot_1",
-        "plottype": 6,
-        "linewidth": 1,
-        "linestyle": 0,
-        "color": "#000000",
+        "color": "#2962FF",
         "transparency": 0,
         "visible": true,
         "trackPrice": false
@@ -84,12 +85,12 @@
     ]
   },
   "visualCallCounts": {
-    "Std.plot": 0,
-    "Std.plotshape": 2,
+    "Std.plot": 1,
+    "Std.plotshape": 0,
     "Std.plotchar": 0,
     "Std.plotarrow": 0,
     "hline": 0,
-    "Std.bgcolor": 0,
+    "Std.bgcolor": 1,
     "Std.fill": 0,
     "Std.barcolor": 0,
     "line.new": 0,
@@ -108,8 +109,8 @@
     "box.set_border_color": 0,
     "box.set_border_width": 0,
     "box.delete": 0,
-    "table.new": 0,
-    "table.cell": 0,
+    "table.new": 1,
+    "table.cell": 4,
     "table.merge_cells": 0,
     "table.clear": 0
   }

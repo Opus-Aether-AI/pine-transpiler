@@ -48,6 +48,7 @@ export interface BoxStub {
   set_extend: (boxObj: unknown, extend: unknown) => void;
   set_bgcolor: (boxObj: unknown, color: unknown) => void;
   set_border_color: (boxObj: unknown, color: unknown) => void;
+  set_border_width: (boxObj: unknown, width: unknown) => void;
   set_text_color: (boxObj: unknown, color: unknown) => void;
   get_left: (boxObj: unknown) => number;
   get_right: (boxObj: unknown) => number;
@@ -358,6 +359,12 @@ function makeBoxNamespace(): BoxStub {
     h.border_color = color;
   };
 
+  const setBorderWidth = (boxObj: unknown, width: unknown) => {
+    const h = resolveHandle(boxObj, boxStore);
+    if (!h) return;
+    h.border_width = toInteger(width, 1);
+  };
+
   const setTextColor = (boxObj: unknown, color: unknown) => {
     const h = resolveHandle(boxObj, boxStore);
     if (!h) return;
@@ -409,6 +416,9 @@ function makeBoxNamespace(): BoxStub {
     if (typeof h.set_border_color !== 'function') {
       h.set_border_color = (color: unknown) => setBorderColor(h, color);
     }
+    if (typeof h.set_border_width !== 'function') {
+      h.set_border_width = (width: unknown) => setBorderWidth(h, width);
+    }
     if (typeof h.set_text_color !== 'function') {
       h.set_text_color = (color: unknown) => setTextColor(h, color);
     }
@@ -437,6 +447,7 @@ function makeBoxNamespace(): BoxStub {
         bottom: toNumber(args[3]),
         border_color: args[4],
         bgcolor: args[5],
+        border_width: toInteger(args[6], 1),
       };
       attachBoxMethods(h);
       boxStore.set(h.__id, h);
@@ -450,6 +461,7 @@ function makeBoxNamespace(): BoxStub {
     set_extend: setExtend,
     set_bgcolor: setBgcolor,
     set_border_color: setBorderColor,
+    set_border_width: setBorderWidth,
     set_text_color: setTextColor,
     get_left: getLeft,
     get_right: getRight,

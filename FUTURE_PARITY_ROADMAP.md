@@ -95,6 +95,17 @@ Exit criteria:
 - no visual regressions on existing visual snapshots
 - expanded visual suite passes at agreed threshold
 
+Progress (2026-05-11, tranche 1):
+
+- runtime visual events now include normalized style semantics
+  (`colors`, `transp`, `linewidth`, `offset`, `display`)
+- visual baseline expanded from 5 to 8 fixtures with drawing/table-heavy
+  coverage:
+  - `41-visual-drawing-lifecycle.pine`
+  - `42-visual-table-scanner.pine`
+  - `ict-killzones.pine`
+- visual parity harness remains green on expanded baseline (`8/8`)
+
 ### Phase 15: `request.security` MTF Parity Expansion
 
 Goal: move beyond subset support to broader practical MTF correctness.

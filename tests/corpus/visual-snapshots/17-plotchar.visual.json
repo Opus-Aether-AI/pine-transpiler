@@ -15,6 +15,15 @@
         "count": 1
       }
     ],
+    "visualStyleSemantics": {
+      "colors": [
+        "#4CAF50"
+      ],
+      "transpValues": [],
+      "linewidthValues": [],
+      "offsetValues": [],
+      "displayFlags": []
+    },
     "topRuntimeErrors": [],
     "unimplementedStdCalls": []
   },
@@ -62,8 +71,24 @@
     "Std.fill": 0,
     "Std.barcolor": 0,
     "line.new": 0,
+    "line.set_x2": 0,
+    "line.set_xy1": 0,
+    "line.set_xy2": 0,
+    "line.set_color": 0,
+    "line.delete": 0,
     "label.new": 0,
+    "label.set_text": 0,
+    "label.set_textcolor": 0,
+    "label.set_style": 0,
+    "label.delete": 0,
     "box.new": 0,
-    "table.new": 0
+    "box.set_bgcolor": 0,
+    "box.set_border_color": 0,
+    "box.set_border_width": 0,
+    "box.delete": 0,
+    "table.new": 0,
+    "table.cell": 0,
+    "table.merge_cells": 0,
+    "table.clear": 0
   }
 }
