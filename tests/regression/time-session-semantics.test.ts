@@ -14,7 +14,11 @@ interface RuntimeOverrides {
 }
 
 function runOneBar(source: string, overrides: RuntimeOverrides = {}): number[] {
-  const result = transpileToPineJS(source, 'time_session_regression', 'TimeSession');
+  const result = transpileToPineJS(
+    source,
+    'time_session_regression',
+    'TimeSession',
+  );
   if (!result.success || !result.indicatorFactory) {
     throw new Error(result.error ?? 'transpile failed');
   }
@@ -59,10 +63,13 @@ function runOneBar(source: string, overrides: RuntimeOverrides = {}): number[] {
   const returned = instance.main(runtime.context, () => 14) as
     | (unknown[] & { __caughtError?: unknown })
     | unknown;
-  const caughtError = (returned as { __caughtError?: unknown } | null | undefined)
-    ?.__caughtError;
+  const caughtError = (
+    returned as { __caughtError?: unknown } | null | undefined
+  )?.__caughtError;
   if (caughtError !== undefined && caughtError !== null) {
-    throw caughtError instanceof Error ? caughtError : new Error(String(caughtError));
+    throw caughtError instanceof Error
+      ? caughtError
+      : new Error(String(caughtError));
   }
   if (returned !== undefined && !Array.isArray(returned)) {
     throw new Error(

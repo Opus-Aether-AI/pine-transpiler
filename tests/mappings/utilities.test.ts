@@ -175,7 +175,9 @@ describe('Utility Mappings', () => {
     });
 
     it('should have barstate.islastconfirmedhistory mapping', () => {
-      expect(BARSTATE_MAPPINGS['barstate.islastconfirmedhistory']).toBeDefined();
+      expect(
+        BARSTATE_MAPPINGS['barstate.islastconfirmedhistory'],
+      ).toBeDefined();
     });
   });
 

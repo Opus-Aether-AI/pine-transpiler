@@ -125,6 +125,12 @@ export class MetadataVisitor {
   private colorVariables: Map<string, { color: string; transparency: number }> =
     new Map();
 
+  // Track string-literal var definitions so plotchar `text =`/`char =`
+  // identifier references resolve to their declared value. Limited to
+  // direct `var x = "literal"` assignments; computed strings stay
+  // unresolved (caller falls back to the bullet glyph).
+  private stringVariables: Map<string, string> = new Map();
+
   // Track session membership variables: varName -> SessionVariable info
   public sessionVariables: Map<string, SessionVariable> = new Map();
 
@@ -148,6 +154,13 @@ export class MetadataVisitor {
   private warnedFunctions: Set<string> = new Set();
 
   public visit(node: Program): void {
+    // Make string-literal var definitions resolvable from inside the
+    // plot extractor before walking the AST. The plot extractor holds
+    // only a callback, so subsequent `trackStringVariable` updates are
+    // visible without re-wiring.
+    this.plotExtractor.setStringResolver((name) =>
+      this.stringVariables.get(name),
+    );
     this.visitStatements(node.body);
   }
 
@@ -168,6 +181,7 @@ export class MetadataVisitor {
         // Track color variable definitions
         if (stmt.init) {
           this.trackColorVariable(stmt.id, stmt.init);
+          this.trackStringVariable(stmt.id, stmt.init);
           this.trackSessionVariable(stmt.id, stmt.init);
           this.trackDerivedSessionVariable(stmt.id, stmt.init);
           this.trackInputVariable(stmt.id, stmt.init);
@@ -360,6 +374,21 @@ export class MetadataVisitor {
     if (colorInfo) {
       this.colorVariables.set(varName, colorInfo);
     }
+  }
+
+  /**
+   * Track direct string-literal var assignments, e.g.
+   * `var sunday = "SUNDAY"`. Computed/concatenated string expressions
+   * are intentionally not tracked — keeping resolution narrow avoids
+   * surprising fallout in unrelated scripts.
+   */
+  private trackStringVariable(
+    id: Expression | Expression[],
+    init: Expression,
+  ): void {
+    if (Array.isArray(id) || id.type !== 'Identifier') return;
+    if (init.type !== 'Literal' || typeof init.value !== 'string') return;
+    this.stringVariables.set(id.name, init.value);
   }
 
   /**

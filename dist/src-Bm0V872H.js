@@ -3251,6 +3251,11 @@ function ensureArrayPrototypeCompat() {
 		return typeof v === "number" ? Math.sqrt(v) : NaN;
 	});
 }
+function extractHandleId(value) {
+	if (typeof value !== "object" || value === null) return void 0;
+	const id = value.__id;
+	return typeof id === "number" ? id : void 0;
+}
 var VISUAL_STD_CALLS = new Set([
 	"plot",
 	"plotshape",
@@ -3441,6 +3446,7 @@ function createVisualStdProxy(std, pushEvent, barIndex, options = {}) {
 }
 function wrapVisualHandle(namespace, handle, pushEvent, barIndex) {
 	if (typeof handle !== "object" || handle === null) return handle;
+	const handleId = extractHandleId(handle);
 	return new Proxy(handle, { get(target, prop, receiver) {
 		const value = Reflect.get(target, prop, receiver);
 		if (typeof prop !== "string") return value;
@@ -3449,7 +3455,8 @@ function wrapVisualHandle(namespace, handle, pushEvent, barIndex) {
 			pushEvent({
 				call: `${namespace}.${prop}`,
 				args,
-				barIndex
+				barIndex,
+				...handleId !== void 0 ? { pineHandleId: handleId } : {}
 			});
 			return value.apply(target, args);
 		};
@@ -3461,12 +3468,14 @@ function createVisualNamespaceProxy(namespace, ns, pushEvent, barIndex) {
 		if (typeof prop !== "string") return value;
 		if (typeof value !== "function") return value;
 		return (...args) => {
+			const result = value.apply(target, args);
+			const handleId = prop === "new" ? extractHandleId(result) : extractHandleId(args[0]);
 			pushEvent({
 				call: `${namespace}.${prop}`,
 				args,
-				barIndex
+				barIndex,
+				...handleId !== void 0 ? { pineHandleId: handleId } : {}
 			});
-			const result = value.apply(target, args);
 			if (prop === "new") return wrapVisualHandle(namespace, result, pushEvent, barIndex);
 			return result;
 		};
@@ -5508,6 +5517,23 @@ var InputExtractor = class {
 var PlotExtractor = class {
 	constructor() {
 		this.plotCount = 0;
+		this.stringResolver = () => void 0;
+	}
+	setStringResolver(fn) {
+		this.stringResolver = fn;
+	}
+	/**
+	* Read a string-typed arg, resolving identifier references through
+	* the injected resolver. Returns null when the arg is missing OR not
+	* resolvable; empty-string literals pass through as `''` so callers
+	* can distinguish "Pine explicitly set this empty" from "absent".
+	*/
+	resolveStringArg(expr) {
+		if (!expr) return null;
+		const literal = getStringValue(expr);
+		if (typeof literal === "string") return literal;
+		if (expr.type === "Identifier") return this.stringResolver(expr.name) ?? null;
+		return null;
 	}
 	/**
 	* Convert an expression to a string representation for code generation
@@ -5610,14 +5636,24 @@ var PlotExtractor = class {
 		};
 	}
 	/**
-	* Extract a plotchar() call
+	* Extract a plotchar() call.
+	*
+	* Pine's plotchar signature: `plotchar(series, title, char, location,
+	* color, offset, text, textcolor, ...)`. Pine renders `char` at the
+	* price point and `text` as a label next to it. TV CustomIndicator
+	* `chars` plots only expose a single `char` style field, so when the
+	* Pine source leaves `char` empty but supplies `text` (a common
+	* pattern for day/session labels) we promote `text` into the char
+	* slot — better than rendering a generic `•`.
 	*/
 	extractPlotChar(expr) {
 		const args = expr.arguments;
 		const valueArg = getArg(args, 0, "series");
 		const valueExpr = valueArg ? this.exprToString(valueArg) : "";
 		const title = getStringValue(getArg(args, 1, "title")) || `Char ${++this.plotCount}`;
-		const charValue = getStringValue(getArg(args, 2, "char")) || "•";
+		const charArg = this.resolveStringArg(getArg(args, 2, "char"));
+		const textArg = this.resolveStringArg(getArg(args, 6, "text"));
+		const charValue = charArg || textArg || "•";
 		const location = this.extractLocation(getArg(args, 3, "location")) ?? "abovebar";
 		const color = this.extractColor(getArg(args, 4, "color") ?? args[0]);
 		return {
@@ -5757,6 +5793,7 @@ var MetadataVisitor = class {
 		this.usedSources = /* @__PURE__ */ new Set();
 		this.historicalAccess = /* @__PURE__ */ new Set();
 		this.colorVariables = /* @__PURE__ */ new Map();
+		this.stringVariables = /* @__PURE__ */ new Map();
 		this.sessionVariables = /* @__PURE__ */ new Map();
 		this.derivedSessionVariables = /* @__PURE__ */ new Map();
 		this.inputVariableMap = /* @__PURE__ */ new Map();
@@ -5767,6 +5804,7 @@ var MetadataVisitor = class {
 		this.warnedFunctions = /* @__PURE__ */ new Set();
 	}
 	visit(node) {
+		this.plotExtractor.setStringResolver((name) => this.stringVariables.get(name));
 		this.visitStatements(node.body);
 	}
 	visitStatements(stmts) {
@@ -5781,6 +5819,7 @@ var MetadataVisitor = class {
 			case "VariableDeclaration":
 				if (stmt.init) {
 					this.trackColorVariable(stmt.id, stmt.init);
+					this.trackStringVariable(stmt.id, stmt.init);
 					this.trackSessionVariable(stmt.id, stmt.init);
 					this.trackDerivedSessionVariable(stmt.id, stmt.init);
 					this.trackInputVariable(stmt.id, stmt.init);
@@ -5933,6 +5972,17 @@ var MetadataVisitor = class {
 		const varName = id.name;
 		const colorInfo = this.extractColorInfoFromInit(init);
 		if (colorInfo) this.colorVariables.set(varName, colorInfo);
+	}
+	/**
+	* Track direct string-literal var assignments, e.g.
+	* `var sunday = "SUNDAY"`. Computed/concatenated string expressions
+	* are intentionally not tracked — keeping resolution narrow avoids
+	* surprising fallout in unrelated scripts.
+	*/
+	trackStringVariable(id, init) {
+		if (Array.isArray(id) || id.type !== "Identifier") return;
+		if (init.type !== "Literal" || typeof init.value !== "string") return;
+		this.stringVariables.set(id.name, init.value);
 	}
 	/**
 	* Track input variable assignments (e.g., sSydney = input.session(...))
@@ -8064,107 +8114,6 @@ function executePineJS(code, indicatorId, indicatorName) {
 	}
 }
 //#endregion
-Object.defineProperty(exports, "ASTGenerator", {
-	enumerable: true,
-	get: function() {
-		return ASTGenerator;
-	}
-});
-Object.defineProperty(exports, "COLOR_MAP", {
-	enumerable: true,
-	get: function() {
-		return COLOR_MAP;
-	}
-});
-Object.defineProperty(exports, "Lexer", {
-	enumerable: true,
-	get: function() {
-		return Lexer;
-	}
-});
-Object.defineProperty(exports, "MATH_FUNCTION_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return MATH_FUNCTION_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "MULTI_OUTPUT_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return MULTI_OUTPUT_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "MetadataVisitor", {
-	enumerable: true,
-	get: function() {
-		return MetadataVisitor;
-	}
-});
-Object.defineProperty(exports, "PRICE_SOURCES", {
-	enumerable: true,
-	get: function() {
-		return PRICE_SOURCES;
-	}
-});
-Object.defineProperty(exports, "Parser", {
-	enumerable: true,
-	get: function() {
-		return Parser;
-	}
-});
-Object.defineProperty(exports, "TA_FUNCTION_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return TA_FUNCTION_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "TIME_FUNCTION_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return TIME_FUNCTION_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "canTranspilePineScript", {
-	enumerable: true,
-	get: function() {
-		return canTranspilePineScript;
-	}
-});
-Object.defineProperty(exports, "executePineJS", {
-	enumerable: true,
-	get: function() {
-		return executePineJS;
-	}
-});
-Object.defineProperty(exports, "generateStandaloneFactory", {
-	enumerable: true,
-	get: function() {
-		return generateStandaloneFactory;
-	}
-});
-Object.defineProperty(exports, "getAllPineFunctionNames", {
-	enumerable: true,
-	get: function() {
-		return getAllPineFunctionNames;
-	}
-});
-Object.defineProperty(exports, "getMappingStats", {
-	enumerable: true,
-	get: function() {
-		return getMappingStats;
-	}
-});
-Object.defineProperty(exports, "transpile", {
-	enumerable: true,
-	get: function() {
-		return transpile;
-	}
-});
-Object.defineProperty(exports, "transpileToPineJS", {
-	enumerable: true,
-	get: function() {
-		return transpileToPineJS;
-	}
-});
+export { MATH_FUNCTION_MAPPINGS as _, Parser as a, ASTGenerator as c, PRICE_SOURCES as d, getAllPineFunctionNames as f, TA_FUNCTION_MAPPINGS as g, MULTI_OUTPUT_MAPPINGS as h, transpileToPineJS as i, generateStandaloneFactory as l, TIME_FUNCTION_MAPPINGS as m, executePineJS as n, Lexer as o, getMappingStats as p, transpile as r, MetadataVisitor as s, canTranspilePineScript as t, COLOR_MAP as u };
 
-//# sourceMappingURL=src-CF_Y5oVC.cjs.map
+//# sourceMappingURL=src-Bm0V872H.js.map

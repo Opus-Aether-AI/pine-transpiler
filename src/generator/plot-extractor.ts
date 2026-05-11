@@ -19,6 +19,31 @@ import {
  */
 export class PlotExtractor {
   private plotCount = 0;
+  // String-literal var resolver, injected by the metadata visitor so
+  // plotchar's `text =` / `char =` named args can survive being passed
+  // an identifier (`text = sunday` where `var sunday = "SUNDAY"`).
+  private stringResolver: (name: string) => string | undefined = () =>
+    undefined;
+
+  public setStringResolver(fn: (name: string) => string | undefined): void {
+    this.stringResolver = fn;
+  }
+
+  /**
+   * Read a string-typed arg, resolving identifier references through
+   * the injected resolver. Returns null when the arg is missing OR not
+   * resolvable; empty-string literals pass through as `''` so callers
+   * can distinguish "Pine explicitly set this empty" from "absent".
+   */
+  private resolveStringArg(expr: Expression | null): string | null {
+    if (!expr) return null;
+    const literal = getStringValue(expr);
+    if (typeof literal === 'string') return literal;
+    if (expr.type === 'Identifier') {
+      return this.stringResolver(expr.name) ?? null;
+    }
+    return null;
+  }
 
   /**
    * Convert an expression to a string representation for code generation
@@ -163,7 +188,15 @@ export class PlotExtractor {
   }
 
   /**
-   * Extract a plotchar() call
+   * Extract a plotchar() call.
+   *
+   * Pine's plotchar signature: `plotchar(series, title, char, location,
+   * color, offset, text, textcolor, ...)`. Pine renders `char` at the
+   * price point and `text` as a label next to it. TV CustomIndicator
+   * `chars` plots only expose a single `char` style field, so when the
+   * Pine source leaves `char` empty but supplies `text` (a common
+   * pattern for day/session labels) we promote `text` into the char
+   * slot — better than rendering a generic `•`.
    */
   public extractPlotChar(expr: CallExpression): ParsedPlot {
     const args = expr.arguments;
@@ -171,7 +204,9 @@ export class PlotExtractor {
     const valueExpr = valueArg ? this.exprToString(valueArg) : '';
     const title =
       getStringValue(getArg(args, 1, 'title')) || `Char ${++this.plotCount}`;
-    const charValue = getStringValue(getArg(args, 2, 'char')) || '•';
+    const charArg = this.resolveStringArg(getArg(args, 2, 'char'));
+    const textArg = this.resolveStringArg(getArg(args, 6, 'text'));
+    const charValue = charArg || textArg || '•';
     const location =
       this.extractLocation(getArg(args, 3, 'location')) ?? 'abovebar';
     const color = this.extractColor(getArg(args, 4, 'color') ?? args[0]);

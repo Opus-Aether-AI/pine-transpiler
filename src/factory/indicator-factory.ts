@@ -156,6 +156,21 @@ interface VisualEvent {
   args: unknown[];
   barIndex: number;
   style?: VisualStyleSemantics | null;
+  /**
+   * Stable identifier of the underlying Pine drawing handle (box, line,
+   * label, table). Present on `<ns>.new` (taken from the created
+   * handle's `__id`) and on every subsequent method call against the
+   * same handle. Consumers downstream of `main()` (e.g. the webapp's
+   * shape renderer) key on this to dedupe `create` / `update` /
+   * `delete` operations across bars.
+   */
+  pineHandleId?: number;
+}
+
+function extractHandleId(value: unknown): number | undefined {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const id = (value as { __id?: unknown }).__id;
+  return typeof id === 'number' ? id : undefined;
 }
 
 interface VisualStyleSemantics {
@@ -458,6 +473,7 @@ function wrapVisualHandle(
   barIndex: number,
 ): unknown {
   if (typeof handle !== 'object' || handle === null) return handle;
+  const handleId = extractHandleId(handle);
   return new Proxy(handle as Record<string, unknown>, {
     get(target, prop, receiver) {
       const value = Reflect.get(target, prop, receiver);
@@ -468,6 +484,7 @@ function wrapVisualHandle(
           call: `${namespace}.${prop}`,
           args,
           barIndex,
+          ...(handleId !== undefined ? { pineHandleId: handleId } : {}),
         });
         return (value as (...inner: unknown[]) => unknown).apply(target, args);
       };
@@ -487,15 +504,22 @@ function createVisualNamespaceProxy(
       if (typeof prop !== 'string') return value;
       if (typeof value !== 'function') return value;
       return (...args: unknown[]) => {
-        pushEvent({
-          call: `${namespace}.${prop}`,
-          args,
-          barIndex,
-        });
+        // Invoke first so `<ns>.new` events can carry the freshly
+        // created handle's `__id`. For ops that take a handle as the
+        // first arg (e.g. `box.delete(handle)`), read `__id` from
+        // there. Methods that take no handle simply omit the field.
         const result = (value as (...inner: unknown[]) => unknown).apply(
           target,
           args,
         );
+        const handleId =
+          prop === 'new' ? extractHandleId(result) : extractHandleId(args[0]);
+        pushEvent({
+          call: `${namespace}.${prop}`,
+          args,
+          barIndex,
+          ...(handleId !== undefined ? { pineHandleId: handleId } : {}),
+        });
         if (prop === 'new') {
           return wrapVisualHandle(namespace, result, pushEvent, barIndex);
         }
