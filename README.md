@@ -10,6 +10,7 @@ This tool allows you to run Pine Script indicators directly within the Charting 
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [API Reference](#api-reference)
+- [TradingView Harness](#tradingview-harness)
 - [Transpiled Output Example](#transpiled-output-example)
 - [Supported Features](#supported-features)
 - [Architecture](#architecture)
@@ -30,6 +31,7 @@ This tool allows you to run Pine Script indicators directly within the Charting 
 -   **TypeScript First**: Full TypeScript support with strict mode enabled and comprehensive type definitions.
 -   **Corpus Governance Tooling**: Lane/authenticity-aware corpus reports (`bun run corpus`) and CI gate budgets (`bun run corpus:gate`) to keep parity stable as fixture count grows.
 -   **Chart Host Safety Gate**: TradingView-like runtime contract checks (`bun run chart:safety`) to catch construct/plot/visual payload regressions before webapp integration.
+-   **TradingView-Shaped Test Harness Export**: Reusable `./test-harness` sub-export that validates constructor contract, plot/style alignment, and reducer safety against transpiled output.
 
 ## Installation
 
@@ -150,6 +152,36 @@ import {
   COLOR_MAP,
   PRICE_SOURCES
 } from '@opusaether/pine-transpiler';
+```
+
+#### Harness Sub-export
+```typescript
+import {
+  runTradingViewHarness,
+  type TradingViewHarnessOptions,
+  type TradingViewHarnessReport,
+} from '@opusaether/pine-transpiler/test-harness';
+```
+
+## TradingView Harness
+
+Use this harness when you want to catch chart-host breakages before app
+integration (for example non-constructable constructors, missing
+`metainfo.styles[plot.id]`, undefined plot slots, or reducer crashes).
+
+```typescript
+import { runTradingViewHarness } from '@opusaether/pine-transpiler/test-harness';
+
+const report = runTradingViewHarness({
+  fixtureName: 'ict-killzones.pine',
+  source: pineSource,
+  bars: 300,
+  barIndexStart: 10_000,
+});
+
+if (!report.pass) {
+  console.error(report);
+}
 ```
 
 ## Transpiled Output Example
@@ -359,6 +391,7 @@ While the transpiler covers a significant portion of Pine Script, there are inhe
 Coverage is enforced through multiple layers:
 
 - unit/regression suites: `bun test tests/`
+- TradingView-shaped harness suites: `bun run test:harness`
 - corpus execution parity: `bun run corpus`
 - strict numeric checks: `bun run corpus:strict`
 - curated + community indicator matrices: `bun run corpus:matrix`, `bun run corpus:tv100`, `bun run corpus:tv200`
@@ -381,6 +414,9 @@ bun install
 
 # Run tests
 bun test tests/
+
+# Run TradingView-shaped harness integration tests
+bun run test:harness
 
 # Run tests in watch mode
 bun test --watch tests/
@@ -441,6 +477,7 @@ The corpus is now classified using `tests/corpus/manifest.ts`:
 
 Governance artifacts:
 
+- `bun run test:harness` runs fixture-level descriptor + reducer-survival checks in a TradingView-shaped runtime harness.
 - `bun run corpus` prints pass rate by source, lane, authenticity, category, and top feature coverage.
 - `bun run corpus:tv100` / `bun run corpus:tv200` generate matrix artifacts for popular/community suites.
 - `bun run corpus:gate` enforces stability budgets in CI (overall pass, parse-clean, unimplemented std calls, per-lane pass, per-authenticity pass).

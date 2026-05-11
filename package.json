@@ -23,10 +23,16 @@
     "./cli": {
       "types": "./dist/cli/index.d.ts",
       "import": "./dist/cli/index.js"
+    },
+    "./test-harness": {
+      "types": "./dist/test-harness/index.d.ts",
+      "import": "./dist/test-harness/index.js",
+      "require": "./dist/test-harness/index.cjs"
     }
   },
   "files": [
     "dist",
+    "fixtures",
     "README.md",
     "LICENSE"
   ],
@@ -39,6 +45,7 @@
     "lint:fix": "biome check --write src",
     "clean": "rm -rf dist",
     "test": "bun test tests/",
+    "test:harness": "bun test tests/integration/tradingview-descriptor-contract.test.ts tests/integration/tradingview-reducer-survival.test.ts",
     "test:coverage": "bun test --coverage tests/",
     "corpus": "bun scripts/corpus/report.ts",
     "corpus:strict": "bun scripts/corpus/strict-audit.ts",

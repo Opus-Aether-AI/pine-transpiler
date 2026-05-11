@@ -442,6 +442,9 @@ export interface PlotStyle {
 
   /** Transparency (0-100) */
   transparency?: number;
+
+  /** Char/shape plot vertical placement */
+  location?: 'AboveBar' | 'BelowBar' | 'Top' | 'Bottom' | 'Absolute';
 }
 
 /**
@@ -487,6 +490,7 @@ export interface StudyMetaInfo {
     {
       title: string;
       histogramBase?: number;
+      location?: 'AboveBar' | 'BelowBar' | 'Top' | 'Bottom' | 'Absolute';
     }
   >;
 

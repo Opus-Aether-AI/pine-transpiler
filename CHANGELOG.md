@@ -45,6 +45,12 @@ execution behavior closer to TradingView for real-world indicators.
 - **Expanded visual baseline fixtures** for phase-14.2 coverage:
   `41-visual-drawing-lifecycle.pine`,
   `42-visual-table-scanner.pine`, and `ict-killzones.pine`.
+- **TradingView-shaped harness package export** (`@opusaether/pine-transpiler/test-harness`)
+  with focused descriptor + reducer-survival runtime checks.
+- **Harness fixture lane** for startup/runtime regression guards:
+  `fixtures/trivial-sma.pine`, `fixtures/ict-killzones.pine`, plus
+  integration suites `tests/integration/tradingview-descriptor-contract.test.ts`
+  and `tests/integration/tradingview-reducer-survival.test.ts`.
 
 ### Changed
 - **`request.security` moved from unsupported to partial support**:
@@ -70,6 +76,8 @@ execution behavior closer to TradingView for real-world indicators.
 - **`ta.vwap` mapping switched to `StdPlus.vwap`** for scalar/tuple compatibility.
 - **`math.sum` helper renamed** from `_sum` to `_pineSum` to avoid
   user-symbol collisions.
+- **Build outputs now include `dist/test-harness/*`** and package sub-export
+  wiring for both ESM and CJS consumers.
 
 ### Fixed
 - **`var`/`varip` assignment correctness**: persistent declarations and later
@@ -89,11 +97,21 @@ execution behavior closer to TradingView for real-world indicators.
   receive generated NaN fallbacks to avoid runtime crashes on edge scripts.
 - **`box.set_border_width` runtime compatibility** added to box stubs so
   drawing-heavy scripts no longer throw when mutating border width.
+- **Indicator constructor contract parity**:
+  `buildIndicatorFactory` now emits a constructable function and binds
+  `this.main` under `new`, matching chart host expectations.
+- **`plotchar` / `plotshape` metainfo style alignment**:
+  emitted `metainfo.styles[plot.id]` and `metainfo.defaults.styles[plot.id]`
+  now include `location`, preventing reducer crashes on
+  `styles[plot.id].location.value()`.
+- **Timezone/dayofweek compatibility path** for scripts that call
+  `dayofweek(timestamp, timezone)` in host environments expecting
+  session context.
 
 ### Quality / CI
 - CI quality checks now include `bun run corpus:strict`,
-  `bun run corpus:matrix`, `bun run corpus:gate`, and
-  `bun run chart:safety`.
+  `bun run corpus:matrix`, `bun run corpus:gate`,
+  `bun run chart:safety`, and `bun run test:harness`.
 - Current verified parity baseline in this change set:
   - corpus full pass: **237/237**
   - parse-clean: **237/237**

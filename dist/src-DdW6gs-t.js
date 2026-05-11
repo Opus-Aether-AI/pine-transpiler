@@ -29,6 +29,7 @@ function mapPlotType(t) {
 */
 function buildDefaultStyles(plots) {
 	return plots.reduce((acc, p) => {
+		const styleLocation = resolveStyleLocation(p);
 		acc[p.id] = {
 			linestyle: 0,
 			visible: true,
@@ -36,7 +37,8 @@ function buildDefaultStyles(plots) {
 			plottype: mapPlotType(p.type),
 			color: p.color,
 			transparency: 0,
-			trackPrice: p.type === "hline"
+			trackPrice: p.type === "hline",
+			...styleLocation ? { location: styleLocation } : {}
 		};
 		return acc;
 	}, {});
@@ -61,12 +63,24 @@ function buildDefaultInputs(inputs) {
 */
 function buildStylesMetadata(plots) {
 	return plots.reduce((acc, p) => {
+		const styleLocation = resolveStyleLocation(p);
 		acc[p.id] = {
 			title: p.title,
-			histogramBase: 0
+			histogramBase: 0,
+			...styleLocation ? { location: styleLocation } : {}
 		};
 		return acc;
 	}, {});
+}
+function resolveStyleLocation(plot) {
+	if (plot.type !== "shape" && plot.type !== "char") return void 0;
+	const loc = plot.location;
+	if (loc === "abovebar") return "AboveBar";
+	if (loc === "belowbar") return "BelowBar";
+	if (loc === "top") return "Top";
+	if (loc === "bottom") return "Bottom";
+	if (loc === "absolute") return "Absolute";
+	return "AboveBar";
 }
 /**
 * Build the plots metadata array.
@@ -2376,7 +2390,26 @@ function getMappingStats() {
 */
 function createInputMock(inputCallback, Std, context) {
 	let _inputIndex = 0;
-	const baseInput = (_defval, _title) => inputCallback(_inputIndex++);
+	const coerceInputValue = (defval, raw) => {
+		if (typeof defval === "string") return typeof raw === "string" ? raw : defval;
+		if (typeof defval === "boolean") {
+			if (typeof raw === "boolean") return raw;
+			if (typeof raw === "number") return raw !== 0;
+			if (typeof raw === "string") {
+				const s = raw.trim().toLowerCase();
+				if (s === "true") return true;
+				if (s === "false") return false;
+			}
+			return defval;
+		}
+		if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+		if (typeof raw === "string") {
+			const parsed = Number(raw);
+			if (Number.isFinite(parsed)) return parsed;
+		}
+		return defval;
+	};
+	const baseInput = (defval, _title) => coerceInputValue(defval, inputCallback(_inputIndex++));
 	const input = baseInput;
 	input.int = baseInput;
 	input.float = baseInput;
@@ -3477,6 +3510,8 @@ function buildIndicatorFactory(options) {
 			constructor: function() {
 				let _previousBarTime = -1;
 				let _fallbackBarIndex = -1;
+				let _processedBars = 0;
+				let _processedBarKey = null;
 				const _requestSecurityState = /* @__PURE__ */ new Map();
 				let compiledScript;
 				try {
@@ -3494,7 +3529,7 @@ function buildIndicatorFactory(options) {
 						throw compileErr;
 					};
 				}
-				return { main: (context, inputCallback) => {
+				const main = (context, inputCallback) => {
 					const _plotValues = [];
 					const _visualEvents = [];
 					const stdLib = Std;
@@ -3514,6 +3549,14 @@ function buildIndicatorFactory(options) {
 					const resolvedBarIndex = typeof observedBarIndex === "number" ? observedBarIndex : _fallbackBarIndex + 1;
 					_fallbackBarIndex = resolvedBarIndex;
 					const resolvedTotalBars = readNumberField(ctx.symbol, "bars") ?? readNumberField(ctx, "totalBars");
+					const currentBarKey = Number.isFinite(currentBarTime) ? `t:${currentBarTime}` : `i:${resolvedBarIndex}`;
+					const priorProcessedBars = _processedBarKey === currentBarKey ? Math.max(0, _processedBars - 1) : _processedBars;
+					const markProcessedBar = () => {
+						if (_processedBarKey !== currentBarKey) {
+							_processedBarKey = currentBarKey;
+							_processedBars += 1;
+						}
+					};
 					const pushVisualEvent = (event) => {
 						_visualEvents.push({
 							...event,
@@ -3575,8 +3618,12 @@ function buildIndicatorFactory(options) {
 							if (offset !== null) {
 								const shifted = new Date(timestamp + offset * 6e4);
 								return {
+									year: shifted.getUTCFullYear(),
+									month: shifted.getUTCMonth() + 1,
+									dayOfMonth: shifted.getUTCDate(),
 									hour: shifted.getUTCHours(),
 									minute: shifted.getUTCMinutes(),
+									second: shifted.getUTCSeconds(),
 									dayOfWeek: shifted.getUTCDay() + 1
 								};
 							}
@@ -3584,24 +3631,40 @@ function buildIndicatorFactory(options) {
 								const parts = new Intl.DateTimeFormat("en-US", {
 									timeZone: timezone,
 									hour12: false,
+									year: "numeric",
+									month: "2-digit",
+									day: "2-digit",
 									hour: "2-digit",
 									minute: "2-digit",
+									second: "2-digit",
 									weekday: "short"
 								}).formatToParts(new Date(timestamp));
+								const year = Number(parts.find((p) => p.type === "year")?.value ?? NaN);
+								const month = Number(parts.find((p) => p.type === "month")?.value ?? NaN);
+								const dayOfMonth = Number(parts.find((p) => p.type === "day")?.value ?? NaN);
 								const hour = Number(parts.find((p) => p.type === "hour")?.value ?? NaN);
 								const minute = Number(parts.find((p) => p.type === "minute")?.value ?? NaN);
+								const second = Number(parts.find((p) => p.type === "second")?.value ?? NaN);
 								const dayOfWeek = weekdayToPine(parts.find((p) => p.type === "weekday")?.value ?? "");
-								if (Number.isFinite(hour) && Number.isFinite(minute) && dayOfWeek !== null) return {
+								if (Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(dayOfMonth) && Number.isFinite(hour) && Number.isFinite(minute) && Number.isFinite(second) && dayOfWeek !== null) return {
+									year,
+									month,
+									dayOfMonth,
 									hour,
 									minute,
+									second,
 									dayOfWeek
 								};
 							} catch {}
 						}
 						const d = new Date(timestamp);
 						return {
+							year: d.getUTCFullYear(),
+							month: d.getUTCMonth() + 1,
+							dayOfMonth: d.getUTCDate(),
 							hour: d.getUTCHours(),
 							minute: d.getUTCMinutes(),
+							second: d.getUTCSeconds(),
 							dayOfWeek: d.getUTCDay() + 1
 						};
 					};
@@ -3627,7 +3690,7 @@ function buildIndicatorFactory(options) {
 					const resolveBarsBackTime = (timeframeArg, barsBackArg) => {
 						const barsBackValue = Number(barsBackArg ?? 0);
 						const barsBack = Number.isFinite(barsBackValue) && barsBackValue > 0 ? Math.trunc(barsBackValue) : 0;
-						if (barsBack > resolvedBarIndex) return NaN;
+						if (barsBack > priorProcessedBars) return NaN;
 						if (!Number.isFinite(currentBarTime)) return NaN;
 						if (barsBack === 0) return currentBarTime;
 						const timeframeMs = parseTimeframeToMs(timeframeArg) ?? chartTimeframeMs;
@@ -3637,16 +3700,114 @@ function buildIndicatorFactory(options) {
 					const compatTime = (...args) => {
 						const timeframeArg = args[0];
 						const sessionArg = args[1];
-						const timezoneArg = args[2];
-						const barsBackArg = args[3];
+						let timezoneArg = args[2];
+						let barsBackArg = args[3];
+						if (barsBackArg === void 0 && typeof timezoneArg === "number" && Number.isFinite(timezoneArg)) {
+							barsBackArg = timezoneArg;
+							timezoneArg = void 0;
+						}
 						const timestamp = resolveBarsBackTime(timeframeArg, barsBackArg);
 						if (!Number.isFinite(timestamp)) return NaN;
 						const sessionStr = typeof sessionArg === "string" ? sessionArg.trim() : "";
 						if (!sessionStr) return timestamp;
 						return isInSessionAt(timestamp, sessionStr, timezoneArg) ? timestamp : NaN;
 					};
+					const isContextLike = (value) => typeof value === "object" && value !== null && "new_var" in value;
+					const toFiniteTimestamp = (value) => {
+						if (typeof value === "number") return Number.isFinite(value) ? value : null;
+						if (typeof value === "string") {
+							const parsed = Number(value);
+							return Number.isFinite(parsed) ? parsed : null;
+						}
+						if (typeof value === "object" && value !== null && "value" in value) return toFiniteTimestamp(value.value);
+						return null;
+					};
+					const readClockFromArgs = (timestampArg, timezoneArg) => {
+						return readClockAt(toFiniteTimestamp(timestampArg) ?? (Number.isFinite(currentBarTime) ? currentBarTime : 0), timezoneArg);
+					};
+					const callHostStdDatePart = (prop, args) => {
+						const hostValue = stdWithVisual[prop];
+						if (typeof hostValue !== "function") return null;
+						try {
+							const raw = hostValue(...args);
+							const n = Number(raw);
+							return Number.isFinite(n) ? n : null;
+						} catch {
+							return null;
+						}
+					};
+					const compatDayOfWeek = (...args) => {
+						const first = args[0];
+						if (isContextLike(first)) {
+							const host = callHostStdDatePart("dayofweek", args);
+							if (host !== null) return host;
+							return readClockFromArgs(currentBarTime, args[1]).dayOfWeek;
+						}
+						return readClockFromArgs(first, args[1]).dayOfWeek;
+					};
+					const compatHour = (...args) => {
+						const first = args[0];
+						if (isContextLike(first)) {
+							const host = callHostStdDatePart("hour", args);
+							if (host !== null) return host;
+							return readClockFromArgs(currentBarTime, args[1]).hour;
+						}
+						return readClockFromArgs(first, args[1]).hour;
+					};
+					const compatMinute = (...args) => {
+						const first = args[0];
+						if (isContextLike(first)) {
+							const host = callHostStdDatePart("minute", args);
+							if (host !== null) return host;
+							return readClockFromArgs(currentBarTime, args[1]).minute;
+						}
+						return readClockFromArgs(first, args[1]).minute;
+					};
+					const compatSecond = (...args) => {
+						const first = args[0];
+						if (isContextLike(first)) {
+							const host = callHostStdDatePart("second", args);
+							if (host !== null) return host;
+							return readClockFromArgs(currentBarTime, args[1]).second;
+						}
+						return readClockFromArgs(first, args[1]).second;
+					};
+					const compatYear = (...args) => {
+						const first = args[0];
+						if (isContextLike(first)) {
+							const host = callHostStdDatePart("year", args);
+							if (host !== null) return host;
+							return readClockFromArgs(currentBarTime, args[1]).year;
+						}
+						return readClockFromArgs(first, args[1]).year;
+					};
+					const compatMonth = (...args) => {
+						const first = args[0];
+						if (isContextLike(first)) {
+							const host = callHostStdDatePart("month", args);
+							if (host !== null) return host;
+							return readClockFromArgs(currentBarTime, args[1]).month;
+						}
+						return readClockFromArgs(first, args[1]).month;
+					};
+					const compatDayOfMonth = (...args) => {
+						const first = args[0];
+						if (isContextLike(first)) {
+							const host = callHostStdDatePart("dayofmonth", args);
+							if (host !== null) return host;
+							return readClockFromArgs(currentBarTime, args[1]).dayOfMonth;
+						}
+						return readClockFromArgs(first, args[1]).dayOfMonth;
+					};
 					const stdWithCompatTime = new Proxy(stdWithVisual, { get(target, prop, receiver) {
 						if (prop === "time") return compatTime;
+						if (prop === "dayofweek") return compatDayOfWeek;
+						if (prop === "hour") return compatHour;
+						if (prop === "minute") return compatMinute;
+						if (prop === "second") return compatSecond;
+						if (prop === "year") return compatYear;
+						if (prop === "month") return compatMonth;
+						if (prop === "dayofmonth") return compatDayOfMonth;
 						return Reflect.get(target, prop, receiver);
 					} });
 					const ta = stdWithCompatTime;
@@ -3967,6 +4128,7 @@ function buildIndicatorFactory(options) {
 							writable: false,
 							configurable: false
 						});
+						markProcessedBar();
 						return normalizedPlotValues;
 					} catch (e) {
 						if (!(typeof e === "object" && e !== null && e.__compileError === true)) console.error("Script execution error", e);
@@ -3983,9 +4145,15 @@ function buildIndicatorFactory(options) {
 							writable: false,
 							configurable: false
 						});
+						markProcessedBar();
 						return fallback;
 					}
-				} };
+				};
+				if (new.target) {
+					this.main = main;
+					return;
+				}
+				return { main };
 			}
 		};
 	};
@@ -4065,9 +4233,9 @@ function generateStandaloneFactory(options) {
 		transparency: 0,
 		color: plot.color || "#2962FF"
 	};
-	else if (plot.type === "shape") styleDefaults[plot.id] = {
-		plottype: "shape_circle",
-		location: "AboveBar",
+	else if (plot.type === "shape" || plot.type === "char") styleDefaults[plot.id] = {
+		plottype: plot.type === "char" ? "shape_label_up" : "shape_circle",
+		location: plot.location === "belowbar" ? "BelowBar" : plot.location === "top" ? "Top" : plot.location === "bottom" ? "Bottom" : plot.location === "absolute" ? "Absolute" : "AboveBar",
 		color: plot.color || "#2962FF",
 		size: "small"
 	};
@@ -4075,10 +4243,14 @@ function generateStandaloneFactory(options) {
 	for (const input of inputs) inputDefaults[input.id] = input.defval;
 	const stylesMetadata = {};
 	if (hasBgcolors) stylesMetadata.sessionBg = { title: "Session Background" };
-	for (const plot of plots) stylesMetadata[plot.id] = {
-		title: plot.title || plot.id,
-		...plot.type === "histogram" ? { histogramBase: 0 } : {}
-	};
+	for (const plot of plots) {
+		const location = plot.type === "shape" || plot.type === "char" ? plot.location === "belowbar" ? "BelowBar" : plot.location === "top" ? "Top" : plot.location === "bottom" ? "Bottom" : plot.location === "absolute" ? "Absolute" : "AboveBar" : void 0;
+		stylesMetadata[plot.id] = {
+			title: plot.title || plot.id,
+			...plot.type === "histogram" ? { histogramBase: 0 } : {},
+			...location ? { location } : {}
+		};
+	}
 	const inputsMetadata = inputs.map((input) => ({
 		id: input.id,
 		name: input.name,
@@ -7650,4 +7822,4 @@ function executePineJS(code, indicatorId, indicatorName) {
 //#endregion
 export { MATH_FUNCTION_MAPPINGS as _, Parser as a, ASTGenerator as c, PRICE_SOURCES as d, getAllPineFunctionNames as f, TA_FUNCTION_MAPPINGS as g, MULTI_OUTPUT_MAPPINGS as h, transpileToPineJS as i, generateStandaloneFactory as l, TIME_FUNCTION_MAPPINGS as m, executePineJS as n, Lexer as o, getMappingStats as p, transpile as r, MetadataVisitor as s, canTranspilePineScript as t, COLOR_MAP as u };
 
-//# sourceMappingURL=src-CA4jHZKZ.js.map
+//# sourceMappingURL=src-DdW6gs-t.js.map

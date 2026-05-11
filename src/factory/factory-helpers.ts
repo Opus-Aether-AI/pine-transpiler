@@ -61,6 +61,7 @@ export function buildDefaultStyles(
 ): Record<string, PlotStyle> {
   return plots.reduce(
     (acc, p) => {
+      const styleLocation = resolveStyleLocation(p);
       acc[p.id] = {
         linestyle: 0,
         visible: true,
@@ -69,6 +70,7 @@ export function buildDefaultStyles(
         color: p.color,
         transparency: 0,
         trackPrice: p.type === 'hline',
+        ...(styleLocation ? { location: styleLocation } : {}),
       };
       return acc;
     },
@@ -100,16 +102,46 @@ export function buildDefaultInputs(
  * @param plots - Array of parsed plot definitions
  * @returns Record mapping plot IDs to their title and histogram base
  */
-export function buildStylesMetadata(
-  plots: ParsedPlot[],
-): Record<string, { title: string; histogramBase?: number }> {
+export function buildStylesMetadata(plots: ParsedPlot[]): Record<
+  string,
+  {
+    title: string;
+    histogramBase?: number;
+    location?: 'AboveBar' | 'BelowBar' | 'Top' | 'Bottom' | 'Absolute';
+  }
+> {
   return plots.reduce(
     (acc, p) => {
-      acc[p.id] = { title: p.title, histogramBase: 0 };
+      const styleLocation = resolveStyleLocation(p);
+      acc[p.id] = {
+        title: p.title,
+        histogramBase: 0,
+        ...(styleLocation ? { location: styleLocation } : {}),
+      };
       return acc;
     },
-    {} as Record<string, { title: string; histogramBase?: number }>,
+    {} as Record<
+      string,
+      {
+        title: string;
+        histogramBase?: number;
+        location?: 'AboveBar' | 'BelowBar' | 'Top' | 'Bottom' | 'Absolute';
+      }
+    >,
   );
+}
+
+function resolveStyleLocation(
+  plot: ParsedPlot,
+): 'AboveBar' | 'BelowBar' | 'Top' | 'Bottom' | 'Absolute' | undefined {
+  if (plot.type !== 'shape' && plot.type !== 'char') return undefined;
+  const loc = plot.location;
+  if (loc === 'abovebar') return 'AboveBar';
+  if (loc === 'belowbar') return 'BelowBar';
+  if (loc === 'top') return 'Top';
+  if (loc === 'bottom') return 'Bottom';
+  if (loc === 'absolute') return 'Absolute';
+  return 'AboveBar';
 }
 
 /**

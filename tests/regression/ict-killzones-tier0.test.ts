@@ -13,11 +13,8 @@ interface FixtureExpectation {
   lowerings: string[];
 }
 
-const FIXTURE_PATH = join(import.meta.dir, '../corpus/fixtures/ict-killzones.pine');
-const EXPECTED_PATH = join(
-  import.meta.dir,
-  '../corpus/fixtures/ict-killzones.expected.json',
-);
+const FIXTURE_PATH = join(process.cwd(), 'fixtures/ict-killzones.pine');
+const EXPECTED_PATH = join(process.cwd(), 'fixtures/ict-killzones.expected.json');
 
 const VISUAL_STD_METHODS = new Set([
   'plot',
