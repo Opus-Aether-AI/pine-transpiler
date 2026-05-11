@@ -102,16 +102,39 @@ export function transpile(code: string): string {
 }
 
 /**
+ * Options accepted by {@link transpileToPineJS}.
+ */
+export interface TranspileOptions {
+  /**
+   * When true (default), Pine `box.new(..., bgcolor=...)` patterns
+   * auto-emit a `bg_colorer` plot so session-highlight scripts render
+   * something even without a host renderer.
+   *
+   * When false, the auto bg_colorer is suppressed entirely. Use this
+   * when a host renderer (e.g. the webapp `VisualEventsRenderer`)
+   * consumes `__visualEvents` and draws proper price-constrained
+   * rectangles via `widget.activeChart().createMultipointShape(...)`.
+   * The full-column bands the bg_colorer produces would otherwise
+   * visually conflict with the renderer's rectangles.
+   *
+   * See HOST_RENDERING_CONTRACT.md.
+   */
+  autoBgColorerForBoxes?: boolean;
+}
+
+/**
  * Transpile Pine Script v5/v6 code to a TradingView CustomIndicator
  *
  * @param code - Pine Script source code
  * @param indicatorId - Unique identifier
  * @param indicatorName - Display name
+ * @param options - Optional rendering / behavior flags. See {@link TranspileOptions}.
  */
 export function transpileToPineJS(
   code: string,
   indicatorId: string,
   indicatorName?: string,
+  options?: TranspileOptions,
 ): TranspileToPineJSResult {
   try {
     // 0. Validate input size
@@ -151,6 +174,7 @@ export function transpileToPineJS(
       usedSources: visitor.usedSources,
       historicalAccess: visitor.historicalAccess,
       mainBody,
+      autoBgColorerForBoxes: options?.autoBgColorerForBoxes ?? true,
     });
 
     return {

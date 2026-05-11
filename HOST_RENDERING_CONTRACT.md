@@ -219,6 +219,40 @@ property being mutated). The mapping from `set_*` method name to which
 Pine param it mutates follows Pine's documented API and isn't repeated
 here.
 
+## Opting out of the auto `bg_colorer` plot
+
+The transpiler emits a partial-rendering fallback for scripts that use
+`box.new(..., bgcolor=...)`: an auto `bg_colorer` plot that paints the
+session color as a full-column band. This is intended for consumers
+that don't have a host renderer yet — without it, the chart would
+show nothing for the box's color until the renderer ships.
+
+Once a host renderer is wired and consuming `__visualEvents`, the
+bg_colorer bands become noise:
+
+- They're full-column, not constrained to the box's `top` / `bottom`,
+  so they visually disagree with the renderer's rectangles.
+- They double-paint the same session info the renderer is already
+  drawing.
+
+Callers with a working renderer suppress this auto-emission by
+passing the option:
+
+```ts
+import { transpileToPineJS } from '@opusaether/pine-transpiler';
+
+const result = transpileToPineJS(source, id, name, {
+  autoBgColorerForBoxes: false,
+});
+```
+
+When `false`, no `__auto_bg__` plot is added to `metainfo.plots` and
+no `palettes` field is generated. The renderer is then the only thing
+drawing box-shaped output, and its rectangles render at their natural
+opacity bounded by Pine `top` / `bottom`.
+
+Locked by [tests/contract/auto-bg-colorer-opt-out.test.ts](tests/contract/auto-bg-colorer-opt-out.test.ts).
+
 ## Versioning
 
 `__visualEventsVersion` is an integer. Current value: **1**.

@@ -3599,9 +3599,9 @@ function generatePreamble(usedSources, historicalAccess, mainBody = "") {
 * Build an indicator factory from the given options
 */
 function buildIndicatorFactory(options) {
-	const { indicatorId, indicatorName, name, shortName, overlay, plots, inputs, usedSources, historicalAccess, mainBody } = options;
+	const { indicatorId, indicatorName, name, shortName, overlay, plots, inputs, usedSources, historicalAccess, mainBody, autoBgColorerForBoxes = true } = options;
 	const body = generatePreamble(usedSources, historicalAccess, mainBody) + mainBody;
-	const hasAutoBgColorer = body.includes("box.new(");
+	const hasAutoBgColorer = autoBgColorerForBoxes && body.includes("box.new(");
 	const AUTO_BG_PLOT_ID = "__auto_bg__";
 	const AUTO_BG_PALETTE_ID = "__auto_bg_palette__";
 	const AUTO_BG_PALETTE_COLORS = {
@@ -8194,8 +8194,9 @@ function transpile(code) {
 * @param code - Pine Script source code
 * @param indicatorId - Unique identifier
 * @param indicatorName - Display name
+* @param options - Optional rendering / behavior flags. See {@link TranspileOptions}.
 */
-function transpileToPineJS(code, indicatorId, indicatorName) {
+function transpileToPineJS(code, indicatorId, indicatorName, options) {
 	try {
 		if (code.length > MAX_INPUT_SIZE) return {
 			success: false,
@@ -8218,7 +8219,8 @@ function transpileToPineJS(code, indicatorId, indicatorName) {
 				bgcolors: visitor.bgcolors,
 				usedSources: visitor.usedSources,
 				historicalAccess: visitor.historicalAccess,
-				mainBody
+				mainBody,
+				autoBgColorerForBoxes: options?.autoBgColorerForBoxes ?? true
 			})
 		};
 	} catch (error) {
@@ -8292,4 +8294,4 @@ function executePineJS(code, indicatorId, indicatorName) {
 //#endregion
 export { MATH_FUNCTION_MAPPINGS as _, Parser as a, ASTGenerator as c, PRICE_SOURCES as d, getAllPineFunctionNames as f, TA_FUNCTION_MAPPINGS as g, MULTI_OUTPUT_MAPPINGS as h, transpileToPineJS as i, generateStandaloneFactory as l, TIME_FUNCTION_MAPPINGS as m, executePineJS as n, Lexer as o, getMappingStats as p, transpile as r, MetadataVisitor as s, canTranspilePineScript as t, COLOR_MAP as u };
 
-//# sourceMappingURL=src-BMfFBdlq.js.map
+//# sourceMappingURL=src-2HLl2TKK.js.map

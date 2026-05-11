@@ -67,6 +67,14 @@ export interface IndicatorFactoryOptions {
   usedSources: Set<string>;
   historicalAccess: Set<string>;
   mainBody: string;
+  /**
+   * When true (default), `box.new(..., bgcolor=...)` patterns in the
+   * body auto-emit a `bg_colorer` plot. When false, the auto plot is
+   * suppressed — appropriate when a host renderer consumes
+   * `__visualEvents` and draws price-constrained rectangles directly.
+   * Wired from {@link TranspileOptions.autoBgColorerForBoxes}.
+   */
+  autoBgColorerForBoxes?: boolean;
   // Session and input tracking for native factory generation
   sessionVariables?: Map<string, SessionVariable>;
   derivedSessionVariables?: Map<string, string>;
@@ -808,6 +816,7 @@ export function buildIndicatorFactory(
     usedSources,
     historicalAccess,
     mainBody,
+    autoBgColorerForBoxes = true,
   } = options;
 
   // Generate preamble and full body (conditionally includes helpers)
@@ -819,7 +828,13 @@ export function buildIndicatorFactory(
   // highlighting boxes can be expressed as a `bg_colorer` plot driven
   // by an 8-slot palette. We detect the box.new usage statically and
   // route runtime bgcolor observations into a palette slot per bar.
-  const hasAutoBgColorer = body.includes('box.new(');
+  //
+  // When a host renderer consumes `__visualEvents` and draws proper
+  // price-constrained rectangles via `createMultipointShape`, callers
+  // pass `autoBgColorerForBoxes: false` to suppress this auto-emission
+  // so the full-column bands don't visually conflict with the
+  // renderer's rectangles.
+  const hasAutoBgColorer = autoBgColorerForBoxes && body.includes('box.new(');
   const AUTO_BG_PLOT_ID = '__auto_bg__';
   const AUTO_BG_PALETTE_ID = '__auto_bg_palette__';
   const AUTO_BG_PALETTE_COLORS: Record<number, { name: string }> = {
