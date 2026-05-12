@@ -149,6 +149,152 @@ const DRAWING_CANONICAL_ARG_ORDER: Record<string, string[]> = {
   ],
 };
 
+/**
+ * Canonical positional order for typed input helpers.
+ *
+ * Pine allows named args (`input.int(title="Len", defval=14)`), but our
+ * runtime input mock only treats the first argument as the default value.
+ * If named args are emitted in source order, `title` can incorrectly land
+ * in slot 0 and coerce the runtime value to a string.
+ */
+const INPUT_CANONICAL_ARG_ORDER: Record<string, string[]> = {
+  input: [
+    'defval',
+    'title',
+    'tooltip',
+    'inline',
+    'group',
+    'display',
+    'confirm',
+    'options',
+    'minval',
+    'maxval',
+    'step',
+  ],
+  'input.int': [
+    'defval',
+    'title',
+    'minval',
+    'maxval',
+    'step',
+    'tooltip',
+    'inline',
+    'group',
+    'display',
+    'confirm',
+    'options',
+  ],
+  'input.float': [
+    'defval',
+    'title',
+    'minval',
+    'maxval',
+    'step',
+    'tooltip',
+    'inline',
+    'group',
+    'display',
+    'confirm',
+    'options',
+  ],
+  'input.bool': [
+    'defval',
+    'title',
+    'tooltip',
+    'inline',
+    'group',
+    'display',
+    'confirm',
+  ],
+  'input.string': [
+    'defval',
+    'title',
+    'options',
+    'tooltip',
+    'inline',
+    'group',
+    'display',
+    'confirm',
+  ],
+  'input.source': [
+    'defval',
+    'title',
+    'tooltip',
+    'inline',
+    'group',
+    'display',
+    'confirm',
+  ],
+  'input.color': [
+    'defval',
+    'title',
+    'tooltip',
+    'inline',
+    'group',
+    'display',
+    'confirm',
+  ],
+  'input.timeframe': [
+    'defval',
+    'title',
+    'options',
+    'tooltip',
+    'inline',
+    'group',
+    'display',
+    'confirm',
+  ],
+  'input.session': [
+    'defval',
+    'title',
+    'options',
+    'tooltip',
+    'inline',
+    'group',
+    'display',
+    'confirm',
+  ],
+  'input.time': [
+    'defval',
+    'title',
+    'tooltip',
+    'inline',
+    'group',
+    'display',
+    'confirm',
+  ],
+  'input.symbol': [
+    'defval',
+    'title',
+    'tooltip',
+    'inline',
+    'group',
+    'display',
+    'confirm',
+  ],
+  'input.text_area': [
+    'defval',
+    'title',
+    'tooltip',
+    'inline',
+    'group',
+    'display',
+    'confirm',
+  ],
+  'input.price': [
+    'defval',
+    'title',
+    'minval',
+    'maxval',
+    'step',
+    'tooltip',
+    'inline',
+    'group',
+    'display',
+    'confirm',
+  ],
+};
+
 const BUILTIN_SERIES_IDENTIFIERS = new Set([
   'open',
   'high',
@@ -385,6 +531,10 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
   ): Expression[] {
     if (pineCallee === 'request.security') {
       return this.normalizeRequestSecurityArgs(args);
+    }
+    const inputCanonicalOrder = INPUT_CANONICAL_ARG_ORDER[pineCallee];
+    if (inputCanonicalOrder) {
+      return this.normalizeByCanonicalOrder(args, inputCanonicalOrder);
     }
     const canonicalOrder = DRAWING_CANONICAL_ARG_ORDER[pineCallee];
     if (canonicalOrder) {

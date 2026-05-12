@@ -132,6 +132,7 @@ const CANARY_FIXTURE_IDS = [
   'top100/ict_killzones_sessions.pine',
   'top100/ict_bos_choch_screener.pine',
   'top100/ict_fvg_inversion_fvg.pine',
+  'top100/ict_breaker_blocks.pine',
   'top100/luxalgo_smart_money_concepts.pine',
   'top100/market_structure_liquidity_smart_alerts_algonit.pine',
   'arunkbhaskar/scanner_-_ict_fair_value_gap_fvg_scanner.pine',
@@ -143,6 +144,8 @@ const CANARY_FIXTURE_IDS = [
   'forex_xau/liquidity_sweep_lite.pine',
   'forex_xau/killzone_session_bias.pine',
   'forex_xau/vwap_reversion_xau.pine',
+  'forex_xau/xauusd_atr_regime_filter.pine',
+  'forex_xau/isv_200_pro_vol_depletion_logic.pine',
 ] as const;
 
 function fixtureId(fx: DiscoveredFixture): string {

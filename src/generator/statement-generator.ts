@@ -14,6 +14,7 @@ import type {
   IfStatement,
   ImportStatement,
   Statement,
+  SwitchExpression,
   SwitchStatement,
   TypeDefinition,
   VariableDeclaration,
@@ -509,11 +510,8 @@ export class StatementGenerator implements StatementGeneratorInterface {
   /**
    * Generate the body of a multi-line Pine function. Pine has implicit
    * return — the value of the last expression in the block is the
-   * function's return value. JS requires an explicit `return`, so the
-   * last ExpressionStatement is rewritten as a ReturnStatement during
-   * emission. Other tail-position constructs (e.g. an `if`) are left
-   * as-is for now; users wanting to return from those should use an
-   * explicit `=>`-form or assign to a result variable.
+   * function's return value. JS requires an explicit `return`, so tail
+   * expressions and switch-statements are rewritten into return forms.
    */
   private generateFunctionBody(
     block: BlockStatement,
@@ -534,6 +532,17 @@ export class StatementGenerator implements StatementGeneratorInterface {
       if (isLast && s.type === 'ExpressionStatement') {
         lines.push(
           `${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(s.expression)};`,
+        );
+      } else if (isLast && s.type === 'SwitchStatement') {
+        // Pine allows a tail-position `switch` in function bodies and
+        // implicitly returns the matched arm's value. Model it as a
+        // SwitchExpression and emit a JS return.
+        const switchExpr: SwitchExpression = {
+          ...s,
+          type: 'SwitchExpression',
+        };
+        lines.push(
+          `${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(switchExpr)};`,
         );
       } else {
         lines.push(this.generateStatement(s));

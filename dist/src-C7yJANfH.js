@@ -5032,6 +5032,151 @@ var DRAWING_CANONICAL_ARG_ORDER = {
 		"text_formatting"
 	]
 };
+/**
+* Canonical positional order for typed input helpers.
+*
+* Pine allows named args (`input.int(title="Len", defval=14)`), but our
+* runtime input mock only treats the first argument as the default value.
+* If named args are emitted in source order, `title` can incorrectly land
+* in slot 0 and coerce the runtime value to a string.
+*/
+var INPUT_CANONICAL_ARG_ORDER = {
+	input: [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm",
+		"options",
+		"minval",
+		"maxval",
+		"step"
+	],
+	"input.int": [
+		"defval",
+		"title",
+		"minval",
+		"maxval",
+		"step",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm",
+		"options"
+	],
+	"input.float": [
+		"defval",
+		"title",
+		"minval",
+		"maxval",
+		"step",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm",
+		"options"
+	],
+	"input.bool": [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	],
+	"input.string": [
+		"defval",
+		"title",
+		"options",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	],
+	"input.source": [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	],
+	"input.color": [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	],
+	"input.timeframe": [
+		"defval",
+		"title",
+		"options",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	],
+	"input.session": [
+		"defval",
+		"title",
+		"options",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	],
+	"input.time": [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	],
+	"input.symbol": [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	],
+	"input.text_area": [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	],
+	"input.price": [
+		"defval",
+		"title",
+		"minval",
+		"maxval",
+		"step",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	]
+};
 var BUILTIN_SERIES_IDENTIFIERS = new Set([
 	"open",
 	"high",
@@ -5171,6 +5316,8 @@ var ExpressionGenerator = class {
 	*/
 	normalizeCallArguments(pineCallee, args) {
 		if (pineCallee === "request.security") return this.normalizeRequestSecurityArgs(args);
+		const inputCanonicalOrder = INPUT_CANONICAL_ARG_ORDER[pineCallee];
+		if (inputCanonicalOrder) return this.normalizeByCanonicalOrder(args, inputCanonicalOrder);
 		const canonicalOrder = DRAWING_CANONICAL_ARG_ORDER[pineCallee];
 		if (canonicalOrder) return this.normalizeByCanonicalOrder(args, canonicalOrder);
 		return args;
@@ -5691,11 +5838,8 @@ var StatementGenerator = class {
 	/**
 	* Generate the body of a multi-line Pine function. Pine has implicit
 	* return — the value of the last expression in the block is the
-	* function's return value. JS requires an explicit `return`, so the
-	* last ExpressionStatement is rewritten as a ReturnStatement during
-	* emission. Other tail-position constructs (e.g. an `if`) are left
-	* as-is for now; users wanting to return from those should use an
-	* explicit `=>`-form or assign to a result variable.
+	* function's return value. JS requires an explicit `return`, so tail
+	* expressions and switch-statements are rewritten into return forms.
 	*/
 	generateFunctionBody(block, scopeId, scopeKeyVar) {
 		this.indentLevel++;
@@ -5704,8 +5848,15 @@ var StatementGenerator = class {
 		if (scopeId && scopeKeyVar) lines.push(`${indent(this.indentLevel)}const ${scopeKeyVar} = _pineScopeKey(${JSON.stringify(scopeId)});`);
 		for (let i = 0; i < statements.length; i++) {
 			const s = statements[i];
-			if (i === statements.length - 1 && s.type === "ExpressionStatement") lines.push(`${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(s.expression)};`);
-			else lines.push(this.generateStatement(s));
+			const isLast = i === statements.length - 1;
+			if (isLast && s.type === "ExpressionStatement") lines.push(`${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(s.expression)};`);
+			else if (isLast && s.type === "SwitchStatement") {
+				const switchExpr = {
+					...s,
+					type: "SwitchExpression"
+				};
+				lines.push(`${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(switchExpr)};`);
+			} else lines.push(this.generateStatement(s));
 		}
 		this.indentLevel--;
 		return `{\n${lines.join("\n")}\n${indent(this.indentLevel)}}`;
@@ -8479,4 +8630,4 @@ function executePineJS(code, indicatorId, indicatorName) {
 //#endregion
 export { MATH_FUNCTION_MAPPINGS as _, Parser as a, ASTGenerator as c, PRICE_SOURCES as d, getAllPineFunctionNames as f, TA_FUNCTION_MAPPINGS as g, MULTI_OUTPUT_MAPPINGS as h, transpileToPineJS as i, generateStandaloneFactory as l, TIME_FUNCTION_MAPPINGS as m, executePineJS as n, Lexer as o, getMappingStats as p, transpile as r, MetadataVisitor as s, canTranspilePineScript as t, COLOR_MAP as u };
 
-//# sourceMappingURL=src-Daag6MK8.js.map
+//# sourceMappingURL=src-C7yJANfH.js.map

@@ -50,6 +50,7 @@
     "corpus": "bun scripts/corpus/report.ts",
     "corpus:strict": "bun scripts/corpus/strict-audit.ts",
     "corpus:matrix": "bun scripts/corpus/indicator-matrix.ts",
+    "corpus:critical": "bun scripts/corpus/critical-matrix.ts",
     "corpus:tv100": "bun scripts/corpus/tradingview-top100-matrix.ts",
     "corpus:tv200": "bun scripts/corpus/tradingview-top200-matrix.ts",
     "corpus:forex-xau": "bun scripts/corpus/forex-xau-matrix.ts",

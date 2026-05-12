@@ -394,7 +394,7 @@ Coverage is enforced through multiple layers:
 - TradingView-shaped harness suites: `bun run test:harness`
 - corpus execution parity: `bun run corpus`
 - strict numeric checks: `bun run corpus:strict`
-- curated + community indicator matrices: `bun run corpus:matrix`, `bun run corpus:tv100`, `bun run corpus:tv200`, `bun run corpus:forex-xau`
+- curated + community indicator matrices: `bun run corpus:matrix`, `bun run corpus:critical`, `bun run corpus:tv100`, `bun run corpus:tv200`, `bun run corpus:forex-xau`
 - differential numeric parity report: `bun run corpus:differential`
 - corpus quality/stability budgets: `bun run corpus:gate`
 - chart-host safety contracts: `bun run chart:safety`
@@ -447,6 +447,10 @@ bun run corpus:strict
 # 67-indicator parity matrix (PASS/FAIL/NOT_FOUND)
 bun run corpus:matrix
 
+# Critical real-world market script matrix
+# (high-impact ICT/SMC/killzones/forex/XAU fixtures)
+bun run corpus:critical
+
 # TradingView top-100 community target matrix
 # (PASS/FAIL for imported fixtures, NOT_IN_CORPUS for missing imports)
 bun run corpus:tv100
@@ -480,6 +484,7 @@ Governance artifacts:
 
 - `bun run test:harness` runs fixture-level descriptor + reducer-survival checks in a TradingView-shaped runtime harness.
 - `bun run corpus` prints pass rate by source, lane, authenticity, category, and top feature coverage.
+- `bun run corpus:critical` tracks regression-critical real-world scripts (ICT/SMC/killzones/XAU) that must remain runtime-stable.
 - `bun run corpus:tv100` / `bun run corpus:tv200` generate matrix artifacts for popular/community suites.
 - `bun run corpus:gate` enforces stability budgets in CI (overall pass, parse-clean, unimplemented std calls, per-lane pass, per-authenticity pass).
 - `bun run chart:safety` enforces TradingView-like host contracts (`new constructor()`, per-bar plot shape, visual-event payload integrity) and writes failure artifacts to `.tmp/chart-safety/`.
@@ -489,6 +494,7 @@ Reference docs:
 - [CORPUS-BASELINE.md](./CORPUS-BASELINE.md)
 - [TRADINGVIEW_TOP100_MATRIX.md](./TRADINGVIEW_TOP100_MATRIX.md)
 - [TRADINGVIEW_TOP200_MATRIX.md](./TRADINGVIEW_TOP200_MATRIX.md)
+- [CRITICAL_INDICATOR_MATRIX.md](./CRITICAL_INDICATOR_MATRIX.md)
 
 ## Changelog
 

@@ -1,24 +1,25 @@
 # Forex / XAUUSD Indicator Matrix
 
-Generated: 2026-05-12T07:53:18.559Z
+Generated: 2026-05-12T18:28:44.554Z
 
-Summary: PASS 12 / FAIL 0 (Total 12)
+Summary: PASS 13 / FAIL 0 (Total 13)
 
 ## Coverage
 
-- Overall pass: **12/12 (100%)**
+- Overall pass: **13/13 (100%)**
 
 ## Feature Coverage
 
 | Feature | Pass | Total | Rate |
 |---|---:|---:|---:|
-| plotshape | 6 | 6 | 100% |
+| plotshape | 7 | 7 | 100% |
 | bgcolor | 4 | 4 | 100% |
 | smc_ict_terms | 4 | 4 | 100% |
 | time | 4 | 4 | 100% |
 | drawing.box | 2 | 2 | 100% |
+| drawing.line | 2 | 2 | 100% |
 | fill | 2 | 2 | 100% |
-| drawing.line | 1 | 1 | 100% |
+| barcolor | 1 | 1 | 100% |
 | hline | 1 | 1 | 100% |
 | plotchar | 1 | 1 | 100% |
 
@@ -28,6 +29,7 @@ Summary: PASS 12 / FAIL 0 (Total 12)
 | ATR Trailing Stop Lite | forex_xau/atr_trailing_stop_lite.pine | PASS | complete |  | synthetic_custom | synthetic |
 | EMA Ribbon Trend Strength | forex_xau/ema_ribbon_trend_strength.pine | PASS | complete |  | synthetic_custom | synthetic |
 | Forex BOS CHoCH Lite | forex_xau/forex_bos_choch_lite.pine | PASS | complete |  | synthetic_custom | synthetic |
+| ISV-200 - PRO (Vol-Depletion Logic) | forex_xau/isv_200_pro_vol_depletion_logic.pine | PASS | complete |  | synthetic_custom | synthetic |
 | Killzone Session Bias | forex_xau/killzone_session_bias.pine | PASS | complete |  | synthetic_custom | synthetic |
 | Liquidity Sweep Lite | forex_xau/liquidity_sweep_lite.pine | PASS | complete |  | synthetic_custom | synthetic |
 | Forex London Breakout Range | forex_xau/london_breakout_range.pine | PASS | complete |  | synthetic_custom | synthetic |
