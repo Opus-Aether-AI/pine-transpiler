@@ -219,6 +219,89 @@ property being mutated). The mapping from `set_*` method name to which
 Pine param it mutates follows Pine's documented API and isn't repeated
 here.
 
+## Pine constant values in event args
+
+Pine namespace constants (`line.style_*`, `label.style_*`, `size.*`,
+`extend.*`) land in event args as **bare suffix strings** — the
+`line.style_` / `label.style_` namespace prefix is stripped so host
+renderers can switch on a clean vocabulary.
+
+Equality with the namespace constant still works inside transpiled
+Pine bodies (`my_style == line.style_solid`) because both sides
+resolve through the same namespace lookup; both become the same
+suffix string.
+
+Locked by [tests/contract/style-constants.test.ts](tests/contract/style-constants.test.ts).
+
+### `line.style` (slot 7 on `line.new`)
+
+| Pine constant | Runtime value |
+|---|---|
+| `line.style_solid` | `'solid'` |
+| `line.style_dashed` | `'dashed'` |
+| `line.style_dotted` | `'dotted'` |
+| `line.style_arrow_left` | `'arrow_left'` |
+| `line.style_arrow_right` | `'arrow_right'` |
+| `line.style_arrow_both` | `'arrow_both'` |
+
+### `label.style` (slot 6 on `label.new`)
+
+Position-style values keep the `label_` prefix; glyph-style values do
+not. The two groups have different intended renderings (position
+styles point an arrow at the price; glyph styles draw a shape near
+it), so the prefix split is part of the contract.
+
+| Pine constant | Runtime value | Category |
+|---|---|---|
+| `label.style_none` | `'none'` | (no glyph; just text) |
+| `label.style_label_up` | `'label_up'` | position |
+| `label.style_label_down` | `'label_down'` | position |
+| `label.style_label_left` | `'label_left'` | position |
+| `label.style_label_right` | `'label_right'` | position |
+| `label.style_label_lower_left` | `'label_lower_left'` | position |
+| `label.style_label_lower_right` | `'label_lower_right'` | position |
+| `label.style_label_upper_left` | `'label_upper_left'` | position |
+| `label.style_label_upper_right` | `'label_upper_right'` | position |
+| `label.style_label_center` | `'label_center'` | position |
+| `label.style_arrowup` | `'arrowup'` | glyph |
+| `label.style_arrowdown` | `'arrowdown'` | glyph |
+| `label.style_flag` | `'flag'` | glyph |
+| `label.style_circle` | `'circle'` | glyph |
+| `label.style_triangleup` | `'triangleup'` | glyph |
+| `label.style_triangledown` | `'triangledown'` | glyph |
+| `label.style_square` | `'square'` | glyph |
+| `label.style_diamond` | `'diamond'` | glyph |
+| `label.style_cross` | `'cross'` | glyph |
+| `label.style_xcross` | `'xcross'` | glyph |
+
+### `size.*` (slot 8 on `label.new`, slot 11 on `box.new`, slot 9 on `table.cell`)
+
+| Pine constant | Runtime value |
+|---|---|
+| `size.auto` | `'auto'` |
+| `size.tiny` | `'tiny'` |
+| `size.small` | `'small'` |
+| `size.normal` | `'normal'` |
+| `size.large` | `'large'` |
+| `size.huge` | `'huge'` |
+
+### `extend.*` (slot 5 on `line.new`, slot 7 on `box.new`)
+
+| Pine constant | Runtime value |
+|---|---|
+| `extend.none` | `'none'` |
+| `extend.left` | `'left'` |
+| `extend.right` | `'right'` |
+| `extend.both` | `'both'` |
+
+Recommended renderer mappings (TV overrides):
+
+- `linestyle`: `'solid'` → 0, `'dotted'` → 1, `'dashed'` → 2
+- `fontsize`: `'tiny'` → 10, `'small'` → 12, `'normal'` → 14,
+  `'large'` → 18, `'huge'` → 24, `'auto'` → 14
+- Extend: `extendLeft = extend === 'left' || extend === 'both'`,
+  `extendRight = extend === 'right' || extend === 'both'`
+
 ## Opting out of the auto `bg_colorer` plot
 
 The transpiler emits a partial-rendering fallback for scripts that use

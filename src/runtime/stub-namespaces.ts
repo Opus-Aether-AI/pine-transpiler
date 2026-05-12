@@ -298,9 +298,17 @@ function makeLineNamespace(): LineStub {
     get_x2: getX2,
     get_y1: getY1,
     get_y2: getY2,
-    style_solid: 'line.style_solid',
-    style_dashed: 'line.style_dashed',
-    style_dotted: 'line.style_dotted',
+    // Pine v6 line style constants. Emitted as bare suffix strings
+    // (without the `line.style_` prefix) so host renderers can switch
+    // on them directly. Equality with `line.style_solid` etc. in the
+    // transpiled body still holds because both sides resolve through
+    // this same namespace.
+    style_solid: 'solid',
+    style_dashed: 'dashed',
+    style_dotted: 'dotted',
+    style_arrow_left: 'arrow_left',
+    style_arrow_right: 'arrow_right',
+    style_arrow_both: 'arrow_both',
   };
 
   return withConstantFallback(line, 'line') as LineStub;
@@ -639,16 +647,32 @@ function makeLabelNamespace(): LabelStub {
     set_x: setX,
     set_y: setY,
     get_y: getY,
-    style_none: 'label.style_none',
-    style_label_up: 'label.style_label_up',
-    style_label_down: 'label.style_label_down',
-    style_label_left: 'label.style_label_left',
-    style_label_right: 'label.style_label_right',
-    style_label_lower_left: 'label.style_label_lower_left',
-    style_label_lower_right: 'label.style_label_lower_right',
-    style_label_upper_left: 'label.style_label_upper_left',
-    style_label_upper_right: 'label.style_label_upper_right',
-    style_label_center: 'label.style_label_center',
+    // Pine v6 label style constants. Emitted as bare suffix strings
+    // (without the `label.style_` prefix) so host renderers can map
+    // them directly to shape/position overrides. Position-style values
+    // keep their `label_` prefix (`label_up`, `label_down`, etc.) to
+    // distinguish them from glyph-style values (`arrowup`, `flag`,
+    // etc.).
+    style_none: 'none',
+    style_xcross: 'xcross',
+    style_cross: 'cross',
+    style_triangleup: 'triangleup',
+    style_triangledown: 'triangledown',
+    style_flag: 'flag',
+    style_circle: 'circle',
+    style_arrowup: 'arrowup',
+    style_arrowdown: 'arrowdown',
+    style_square: 'square',
+    style_diamond: 'diamond',
+    style_label_up: 'label_up',
+    style_label_down: 'label_down',
+    style_label_left: 'label_left',
+    style_label_right: 'label_right',
+    style_label_lower_left: 'label_lower_left',
+    style_label_lower_right: 'label_lower_right',
+    style_label_upper_left: 'label_upper_left',
+    style_label_upper_right: 'label_upper_right',
+    style_label_center: 'label_center',
   };
 
   return withConstantFallback(label, 'label') as LabelStub;

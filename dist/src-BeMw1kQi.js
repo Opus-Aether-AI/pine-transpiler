@@ -2720,9 +2720,12 @@ function makeLineNamespace() {
 		get_x2: getX2,
 		get_y1: getY1,
 		get_y2: getY2,
-		style_solid: "line.style_solid",
-		style_dashed: "line.style_dashed",
-		style_dotted: "line.style_dotted"
+		style_solid: "solid",
+		style_dashed: "dashed",
+		style_dotted: "dotted",
+		style_arrow_left: "arrow_left",
+		style_arrow_right: "arrow_right",
+		style_arrow_both: "arrow_both"
 	}, "line");
 }
 function isColorLike(v) {
@@ -2968,16 +2971,26 @@ function makeLabelNamespace() {
 		set_x: setX,
 		set_y: setY,
 		get_y: getY,
-		style_none: "label.style_none",
-		style_label_up: "label.style_label_up",
-		style_label_down: "label.style_label_down",
-		style_label_left: "label.style_label_left",
-		style_label_right: "label.style_label_right",
-		style_label_lower_left: "label.style_label_lower_left",
-		style_label_lower_right: "label.style_label_lower_right",
-		style_label_upper_left: "label.style_label_upper_left",
-		style_label_upper_right: "label.style_label_upper_right",
-		style_label_center: "label.style_label_center"
+		style_none: "none",
+		style_xcross: "xcross",
+		style_cross: "cross",
+		style_triangleup: "triangleup",
+		style_triangledown: "triangledown",
+		style_flag: "flag",
+		style_circle: "circle",
+		style_arrowup: "arrowup",
+		style_arrowdown: "arrowdown",
+		style_square: "square",
+		style_diamond: "diamond",
+		style_label_up: "label_up",
+		style_label_down: "label_down",
+		style_label_left: "label_left",
+		style_label_right: "label_right",
+		style_label_lower_left: "label_lower_left",
+		style_label_lower_right: "label_lower_right",
+		style_label_upper_left: "label_upper_left",
+		style_label_upper_right: "label_upper_right",
+		style_label_center: "label_center"
 	}, "label");
 }
 function makeTableNamespace() {
@@ -8294,4 +8307,4 @@ function executePineJS(code, indicatorId, indicatorName) {
 //#endregion
 export { MATH_FUNCTION_MAPPINGS as _, Parser as a, ASTGenerator as c, PRICE_SOURCES as d, getAllPineFunctionNames as f, TA_FUNCTION_MAPPINGS as g, MULTI_OUTPUT_MAPPINGS as h, transpileToPineJS as i, generateStandaloneFactory as l, TIME_FUNCTION_MAPPINGS as m, executePineJS as n, Lexer as o, getMappingStats as p, transpile as r, MetadataVisitor as s, canTranspilePineScript as t, COLOR_MAP as u };
 
-//# sourceMappingURL=src-2HLl2TKK.js.map
+//# sourceMappingURL=src-BeMw1kQi.js.map
