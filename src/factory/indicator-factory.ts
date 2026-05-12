@@ -496,11 +496,30 @@ function createVisualStdProxy(
   });
 }
 
+/**
+ * Mutable per-bar emission context shared by all visual proxies. The
+ * proxies are created once at indicator-instance init; this context
+ * is the indirection that lets them route events to the CURRENT
+ * bar's `pushEvent` and `barIndex`.
+ *
+ * Why this matters: drawing handles wrapped via `wrapVisualHandle`
+ * persist across bars (Pine `var array<box>` semantics). On bar N+M
+ * the script may call `handle.set_right(time)` on a handle that was
+ * created on bar N. Without indirection, the wrapped handle's
+ * pushEvent would be N's closure — it'd push to N's already-returned
+ * `_visualEvents` array (a dead drop), and the host renderer would
+ * never see the update. Symptom: rectangles draw once and never
+ * extend right as the session continues.
+ */
+interface VisualEmissionContext {
+  pushEvent: (event: VisualEvent) => void;
+  barIndex: number;
+}
+
 function wrapVisualHandle(
   namespace: string,
   handle: unknown,
-  pushEvent: (event: VisualEvent) => void,
-  barIndex: number,
+  ctx: VisualEmissionContext,
 ): unknown {
   if (typeof handle !== 'object' || handle === null) return handle;
   const handleId = extractHandleId(handle);
@@ -511,10 +530,10 @@ function wrapVisualHandle(
       if (typeof value !== 'function') return value;
       return (...args: unknown[]) => {
         if (handleId !== undefined) {
-          pushEvent({
+          ctx.pushEvent({
             call: `${namespace}.${prop}`,
             args,
-            barIndex,
+            barIndex: ctx.barIndex,
             pineHandleId: handleId,
           });
         }
@@ -527,8 +546,7 @@ function wrapVisualHandle(
 function createVisualNamespaceProxy(
   namespace: string,
   ns: Record<string, unknown>,
-  pushEvent: (event: VisualEvent) => void,
-  barIndex: number,
+  ctx: VisualEmissionContext,
 ): Record<string, unknown> {
   return new Proxy(ns, {
     get(target, prop, receiver) {
@@ -551,15 +569,15 @@ function createVisualNamespaceProxy(
         // unknown handles; renderer-side consumers require stable
         // `pineHandleId` for every drawing mutation event.
         if (handleId !== undefined) {
-          pushEvent({
+          ctx.pushEvent({
             call: `${namespace}.${prop}`,
             args,
-            barIndex,
+            barIndex: ctx.barIndex,
             pineHandleId: handleId,
           });
         }
         if (prop === 'new') {
-          return wrapVisualHandle(namespace, result, pushEvent, barIndex);
+          return wrapVisualHandle(namespace, result, ctx);
         }
         return result;
       };
@@ -1115,6 +1133,48 @@ export function buildIndicatorFactory(
         // auto bg_colorer) survive across `main()` calls.
         const stubsRaw = createStubNamespaces();
 
+        // Shared emission context. The visual proxies and every
+        // wrapped handle they produce reference THIS object; per-bar
+        // `main()` calls update `pushEvent` and `barIndex` on it. This
+        // is what lets `handle.set_right(time)` on bar N+M push to bar
+        // N+M's events array even though the handle was wrapped on
+        // bar N. Without this indirection, the wrapped handle's
+        // pushEvent closure stays bound to bar N forever — symptom:
+        // box.new fires once, but the renderer never sees the
+        // per-bar `box.set_right` updates that extend the rectangle
+        // to the right edge of the session.
+        const visualCtx: VisualEmissionContext = {
+          pushEvent: () => undefined,
+          barIndex: -1,
+        };
+
+        // Visual proxies are also instance-persistent. They wrap
+        // `stubsRaw.*` namespaces ONCE and forever reference
+        // `visualCtx` indirectly for emission targeting.
+        const stubs = {
+          ...stubsRaw,
+          line: createVisualNamespaceProxy(
+            'line',
+            stubsRaw.line as Record<string, unknown>,
+            visualCtx,
+          ),
+          box: createVisualNamespaceProxy(
+            'box',
+            stubsRaw.box as Record<string, unknown>,
+            visualCtx,
+          ),
+          label: createVisualNamespaceProxy(
+            'label',
+            stubsRaw.label as Record<string, unknown>,
+            visualCtx,
+          ),
+          table: createVisualNamespaceProxy(
+            'table',
+            stubsRaw.table as Record<string, unknown>,
+            visualCtx,
+          ),
+        };
+
         const main: IndicatorConstructor['main'] = (context, inputCallback) => {
           // Create runtime mocks using factory functions
           const _plotValues: number[] = [];
@@ -1186,33 +1246,13 @@ export function buildIndicatorFactory(
               style: normalizeVisualStyle(event.call, event.args),
             });
           };
-          const stubs = {
-            ...stubsRaw,
-            line: createVisualNamespaceProxy(
-              'line',
-              stubsRaw.line as Record<string, unknown>,
-              pushVisualEvent,
-              resolvedBarIndex,
-            ),
-            box: createVisualNamespaceProxy(
-              'box',
-              stubsRaw.box as Record<string, unknown>,
-              pushVisualEvent,
-              resolvedBarIndex,
-            ),
-            label: createVisualNamespaceProxy(
-              'label',
-              stubsRaw.label as Record<string, unknown>,
-              pushVisualEvent,
-              resolvedBarIndex,
-            ),
-            table: createVisualNamespaceProxy(
-              'table',
-              stubsRaw.table as Record<string, unknown>,
-              pushVisualEvent,
-              resolvedBarIndex,
-            ),
-          };
+          // Point the persistent emission context at THIS bar's
+          // pushEvent / barIndex. All visual proxies and previously-
+          // wrapped handles read these indirectly, so a `set_right`
+          // on a bar-N handle called from bar N+M now correctly
+          // pushes to bar N+M's events array.
+          visualCtx.pushEvent = pushVisualEvent;
+          visualCtx.barIndex = resolvedBarIndex;
           const stdWithVisual = createVisualStdProxy(
             Std as Record<string, unknown>,
             pushVisualEvent,

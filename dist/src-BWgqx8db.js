@@ -3466,7 +3466,7 @@ function createVisualStdProxy(std, pushEvent, barIndex, options = {}) {
 		};
 	} });
 }
-function wrapVisualHandle(namespace, handle, pushEvent, barIndex) {
+function wrapVisualHandle(namespace, handle, ctx) {
 	if (typeof handle !== "object" || handle === null) return handle;
 	const handleId = extractHandleId(handle);
 	return new Proxy(handle, { get(target, prop, receiver) {
@@ -3474,17 +3474,17 @@ function wrapVisualHandle(namespace, handle, pushEvent, barIndex) {
 		if (typeof prop !== "string") return value;
 		if (typeof value !== "function") return value;
 		return (...args) => {
-			if (handleId !== void 0) pushEvent({
+			if (handleId !== void 0) ctx.pushEvent({
 				call: `${namespace}.${prop}`,
 				args,
-				barIndex,
+				barIndex: ctx.barIndex,
 				pineHandleId: handleId
 			});
 			return value.apply(target, args);
 		};
 	} });
 }
-function createVisualNamespaceProxy(namespace, ns, pushEvent, barIndex) {
+function createVisualNamespaceProxy(namespace, ns, ctx) {
 	return new Proxy(ns, { get(target, prop, receiver) {
 		const value = Reflect.get(target, prop, receiver);
 		if (typeof prop !== "string") return value;
@@ -3492,13 +3492,13 @@ function createVisualNamespaceProxy(namespace, ns, pushEvent, barIndex) {
 		return (...args) => {
 			const result = value.apply(target, args);
 			const handleId = prop === "new" ? extractHandleId(result) : extractHandleId(args[0]);
-			if (handleId !== void 0) pushEvent({
+			if (handleId !== void 0) ctx.pushEvent({
 				call: `${namespace}.${prop}`,
 				args,
-				barIndex,
+				barIndex: ctx.barIndex,
 				pineHandleId: handleId
 			});
-			if (prop === "new") return wrapVisualHandle(namespace, result, pushEvent, barIndex);
+			if (prop === "new") return wrapVisualHandle(namespace, result, ctx);
 			return result;
 		};
 	} });
@@ -3764,6 +3764,17 @@ function buildIndicatorFactory(options) {
 					};
 				}
 				const stubsRaw = createStubNamespaces();
+				const visualCtx = {
+					pushEvent: () => void 0,
+					barIndex: -1
+				};
+				const stubs = {
+					...stubsRaw,
+					line: createVisualNamespaceProxy("line", stubsRaw.line, visualCtx),
+					box: createVisualNamespaceProxy("box", stubsRaw.box, visualCtx),
+					label: createVisualNamespaceProxy("label", stubsRaw.label, visualCtx),
+					table: createVisualNamespaceProxy("table", stubsRaw.table, visualCtx)
+				};
 				const main = (context, inputCallback) => {
 					const _plotValues = [];
 					const _visualEvents = [];
@@ -3802,13 +3813,8 @@ function buildIndicatorFactory(options) {
 							style: normalizeVisualStyle(event.call, event.args)
 						});
 					};
-					const stubs = {
-						...stubsRaw,
-						line: createVisualNamespaceProxy("line", stubsRaw.line, pushVisualEvent, resolvedBarIndex),
-						box: createVisualNamespaceProxy("box", stubsRaw.box, pushVisualEvent, resolvedBarIndex),
-						label: createVisualNamespaceProxy("label", stubsRaw.label, pushVisualEvent, resolvedBarIndex),
-						table: createVisualNamespaceProxy("table", stubsRaw.table, pushVisualEvent, resolvedBarIndex)
-					};
+					visualCtx.pushEvent = pushVisualEvent;
+					visualCtx.barIndex = resolvedBarIndex;
 					const stdWithVisual = createVisualStdProxy(Std, pushVisualEvent, resolvedBarIndex, { pushPlotValue: (value) => {
 						_plotValues.push(value);
 					} });
@@ -8380,107 +8386,6 @@ function executePineJS(code, indicatorId, indicatorName) {
 	}
 }
 //#endregion
-Object.defineProperty(exports, "ASTGenerator", {
-	enumerable: true,
-	get: function() {
-		return ASTGenerator;
-	}
-});
-Object.defineProperty(exports, "COLOR_MAP", {
-	enumerable: true,
-	get: function() {
-		return COLOR_MAP;
-	}
-});
-Object.defineProperty(exports, "Lexer", {
-	enumerable: true,
-	get: function() {
-		return Lexer;
-	}
-});
-Object.defineProperty(exports, "MATH_FUNCTION_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return MATH_FUNCTION_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "MULTI_OUTPUT_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return MULTI_OUTPUT_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "MetadataVisitor", {
-	enumerable: true,
-	get: function() {
-		return MetadataVisitor;
-	}
-});
-Object.defineProperty(exports, "PRICE_SOURCES", {
-	enumerable: true,
-	get: function() {
-		return PRICE_SOURCES;
-	}
-});
-Object.defineProperty(exports, "Parser", {
-	enumerable: true,
-	get: function() {
-		return Parser;
-	}
-});
-Object.defineProperty(exports, "TA_FUNCTION_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return TA_FUNCTION_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "TIME_FUNCTION_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return TIME_FUNCTION_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "canTranspilePineScript", {
-	enumerable: true,
-	get: function() {
-		return canTranspilePineScript;
-	}
-});
-Object.defineProperty(exports, "executePineJS", {
-	enumerable: true,
-	get: function() {
-		return executePineJS;
-	}
-});
-Object.defineProperty(exports, "generateStandaloneFactory", {
-	enumerable: true,
-	get: function() {
-		return generateStandaloneFactory;
-	}
-});
-Object.defineProperty(exports, "getAllPineFunctionNames", {
-	enumerable: true,
-	get: function() {
-		return getAllPineFunctionNames;
-	}
-});
-Object.defineProperty(exports, "getMappingStats", {
-	enumerable: true,
-	get: function() {
-		return getMappingStats;
-	}
-});
-Object.defineProperty(exports, "transpile", {
-	enumerable: true,
-	get: function() {
-		return transpile;
-	}
-});
-Object.defineProperty(exports, "transpileToPineJS", {
-	enumerable: true,
-	get: function() {
-		return transpileToPineJS;
-	}
-});
+export { MATH_FUNCTION_MAPPINGS as _, Parser as a, ASTGenerator as c, PRICE_SOURCES as d, getAllPineFunctionNames as f, TA_FUNCTION_MAPPINGS as g, MULTI_OUTPUT_MAPPINGS as h, transpileToPineJS as i, generateStandaloneFactory as l, TIME_FUNCTION_MAPPINGS as m, executePineJS as n, Lexer as o, getMappingStats as p, transpile as r, MetadataVisitor as s, canTranspilePineScript as t, COLOR_MAP as u };
 
-//# sourceMappingURL=src-B41ItyPB.cjs.map
+//# sourceMappingURL=src-BWgqx8db.js.map
