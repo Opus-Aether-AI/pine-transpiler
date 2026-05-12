@@ -175,7 +175,13 @@ export interface ExpressionGeneratorInterface {
   generateExpression(expr: Expression): string;
   generateMemberExpression(expr: MemberExpression): string;
   generateAssignmentExpression(expr: AssignmentExpression): string;
-  markPersistentIdentifier(identifier: string, kind: 'var' | 'varip'): void;
+  markPersistentIdentifier(
+    identifier: string,
+    kind: 'var' | 'varip',
+    stateKeyExpr?: string,
+  ): void;
+  pushPersistentScope(): void;
+  popPersistentScope(): void;
 }
 
 /**
@@ -210,7 +216,9 @@ buildUnifiedFunctionMap();
 export class ExpressionGenerator implements ExpressionGeneratorInterface {
   private indentLevel = 0;
   private statementGen: StatementGeneratorLike | null = null;
-  private persistentIdentifiers = new Map<string, 'var' | 'varip'>();
+  private persistentScopes: Array<
+    Map<string, { kind: 'var' | 'varip'; keyExpr: string }>
+  > = [new Map()];
 
   public setIndentLevel(level: number): void {
     this.indentLevel = level;
@@ -231,8 +239,31 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
   public markPersistentIdentifier(
     identifier: string,
     kind: 'var' | 'varip',
+    stateKeyExpr = JSON.stringify(identifier),
   ): void {
-    this.persistentIdentifiers.set(identifier, kind);
+    const currentScope =
+      this.persistentScopes[this.persistentScopes.length - 1];
+    currentScope.set(identifier, { kind, keyExpr: stateKeyExpr });
+  }
+
+  public pushPersistentScope(): void {
+    this.persistentScopes.push(new Map());
+  }
+
+  public popPersistentScope(): void {
+    if (this.persistentScopes.length > 1) {
+      this.persistentScopes.pop();
+    }
+  }
+
+  private resolvePersistentIdentifier(
+    identifier: string,
+  ): { kind: 'var' | 'varip'; keyExpr: string } | null {
+    for (let i = this.persistentScopes.length - 1; i >= 0; i--) {
+      const hit = this.persistentScopes[i]?.get(identifier);
+      if (hit) return hit;
+    }
+    return null;
   }
 
   public generateExpression(expr: Expression): string {
@@ -569,13 +600,13 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
     if (op === ':=') op = '=';
 
     const right = this.generateExpression(expr.right);
-    const persistentKind = this.persistentIdentifiers.get(left);
-    if (isIdentifierLeft && persistentKind) {
+    const persistentBinding = this.resolvePersistentIdentifier(left);
+    if (isIdentifierLeft && persistentBinding) {
       const setter =
-        persistentKind === 'varip' ? '_pineSetVarip' : '_pineSetVar';
-      const key = JSON.stringify(left);
+        persistentBinding.kind === 'varip' ? '_pineSetVarip' : '_pineSetVar';
+      const keyExpr = persistentBinding.keyExpr;
       if (op === '=') {
-        return `(${left} = ${setter}(${key}, ${right}))`;
+        return `(${left} = ${setter}(${keyExpr}, ${right}))`;
       }
       const compoundToBinary: Record<string, string> = {
         '+=': '+',
@@ -586,7 +617,7 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
       };
       const binaryOp = compoundToBinary[op];
       if (binaryOp) {
-        return `(${left} = ${setter}(${key}, (${left} ${binaryOp} ${right})))`;
+        return `(${left} = ${setter}(${keyExpr}, (${left} ${binaryOp} ${right})))`;
       }
     }
 

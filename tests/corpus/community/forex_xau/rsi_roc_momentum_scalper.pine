@@ -1,0 +1,18 @@
+//@version=5
+indicator("RSI ROC Momentum Scalper", overlay=false)
+
+rsiLen = input.int(14, "RSI")
+rocLen = input.int(10, "ROC")
+
+rsiValue = ta.rsi(close, rsiLen)
+rocValue = ta.roc(close, rocLen)
+
+longSignal = rsiValue > 55 and rocValue > 0
+shortSignal = rsiValue < 45 and rocValue < 0
+
+plot(rsiValue, "RSI", color=color.aqua)
+plot(rocValue, "ROC", color=color.orange)
+hline(55, "Bull", color=color.lime)
+hline(45, "Bear", color=color.red)
+plotshape(longSignal, title="Long", style=shape.triangleup, location=location.bottom, color=color.lime)
+plotshape(shortSignal, title="Short", style=shape.triangledown, location=location.top, color=color.red)

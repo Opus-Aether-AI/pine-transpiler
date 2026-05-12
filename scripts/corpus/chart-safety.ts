@@ -138,6 +138,11 @@ const CANARY_FIXTURE_IDS = [
   'arunkbhaskar/scanner_-_ict_liquidity_sweep_pattern_scanner.pine',
   'arunkbhaskar/ict_market_structure_shift_mss.pine',
   'top200/popular_054_smc_bos_fvg_lite.pine',
+  'forex_xau/xauusd_fvg_lite.pine',
+  'forex_xau/forex_bos_choch_lite.pine',
+  'forex_xau/liquidity_sweep_lite.pine',
+  'forex_xau/killzone_session_bias.pine',
+  'forex_xau/vwap_reversion_xau.pine',
 ] as const;
 
 function fixtureId(fx: DiscoveredFixture): string {

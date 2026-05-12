@@ -43,8 +43,10 @@ export interface StatementGeneratorInterface {
 export class StatementGenerator implements StatementGeneratorInterface {
   private indentLevel = 0;
   private loopCounter = 0;
+  private functionScopeCounter = 0;
   private historicalVars: Set<string>;
   private expressionGen: ExpressionGeneratorInterface;
+  private functionScopeStack: Array<{ id: string; keyVar: string }> = [];
 
   constructor(
     historicalVars: Set<string>,
@@ -118,6 +120,60 @@ export class StatementGenerator implements StatementGeneratorInterface {
     }
     this.indentLevel--;
     return `{\n${s}\n${indent(this.indentLevel)}}`;
+  }
+
+  private currentPersistentKeyExpr(identifier: string): string {
+    const scope = this.functionScopeStack[this.functionScopeStack.length - 1];
+    if (!scope) return JSON.stringify(identifier);
+    return `${scope.keyVar} + ${JSON.stringify(`::${identifier}`)}`;
+  }
+
+  private statementContainsPersistentDecl(stmt: Statement): boolean {
+    if (stmt.type === 'VariableDeclaration') {
+      return stmt.kind === 'var' || stmt.kind === 'varip';
+    }
+    if (stmt.type === 'BlockStatement') {
+      return this.blockContainsPersistentDecl(stmt);
+    }
+    if (stmt.type === 'IfStatement') {
+      const consequent =
+        stmt.consequent.type === 'BlockStatement'
+          ? this.blockContainsPersistentDecl(stmt.consequent)
+          : this.statementContainsPersistentDecl(stmt.consequent);
+      if (consequent) return true;
+      if (!stmt.alternate) return false;
+      return stmt.alternate.type === 'BlockStatement'
+        ? this.blockContainsPersistentDecl(stmt.alternate)
+        : this.statementContainsPersistentDecl(stmt.alternate);
+    }
+    if (
+      stmt.type === 'ForStatement' ||
+      stmt.type === 'ForInStatement' ||
+      stmt.type === 'WhileStatement'
+    ) {
+      return stmt.body.type === 'BlockStatement'
+        ? this.blockContainsPersistentDecl(stmt.body)
+        : this.statementContainsPersistentDecl(stmt.body);
+    }
+    if (stmt.type === 'SwitchStatement') {
+      for (const c of stmt.cases) {
+        if (
+          c.consequent.type === 'BlockStatement'
+            ? this.blockContainsPersistentDecl(c.consequent)
+            : false
+        ) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  private blockContainsPersistentDecl(block: BlockStatement): boolean {
+    for (const stmt of block.body) {
+      if (this.statementContainsPersistentDecl(stmt)) return true;
+    }
+    return false;
   }
 
   private generateIfStatement(stmt: IfStatement): string {
@@ -363,10 +419,12 @@ export class StatementGenerator implements StatementGeneratorInterface {
       const safeName = sanitizeIdentifier(stmt.id.name);
       if (isPersistent) {
         const helper = isVarip ? '_pineVarip' : '_pineVar';
-        code = `${indent(this.indentLevel)}${prefix}${kind} ${safeName} = ${helper}(${JSON.stringify(safeName)}, () => (${initExpr}));`;
+        const stateKeyExpr = this.currentPersistentKeyExpr(safeName);
+        code = `${indent(this.indentLevel)}${prefix}${kind} ${safeName} = ${helper}(${stateKeyExpr}, () => (${initExpr}));`;
         this.expressionGen.markPersistentIdentifier(
           safeName,
           isVarip ? 'varip' : 'var',
+          stateKeyExpr,
         );
       } else {
         code = `${indent(this.indentLevel)}${prefix}${kind} ${safeName}${init};`;
@@ -390,13 +448,34 @@ export class StatementGenerator implements StatementGeneratorInterface {
       .map((p) => sanitizeIdentifier(p.name))
       .join(', ');
     const prefix = stmt.export ? 'export ' : '';
+    const scopeOrdinal = this.functionScopeCounter++;
+    const scopeId = `${name}#${scopeOrdinal}`;
+    const scopeKeyVar = `_pineFnScope_${scopeOrdinal}`;
+    const needsPersistentScope =
+      stmt.body.type === 'BlockStatement' &&
+      this.blockContainsPersistentDecl(stmt.body);
 
     let body = '';
-    if (stmt.body.type === 'BlockStatement') {
-      body = this.generateFunctionBody(stmt.body);
-    } else {
-      this.indentLevel++;
-      body = `{\n${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(stmt.body as Expression)};\n${indent(this.indentLevel, -1)}}`;
+    if (needsPersistentScope) {
+      this.functionScopeStack.push({ id: scopeId, keyVar: scopeKeyVar });
+      this.expressionGen.pushPersistentScope();
+    }
+    try {
+      if (stmt.body.type === 'BlockStatement') {
+        body = this.generateFunctionBody(
+          stmt.body,
+          needsPersistentScope ? scopeId : undefined,
+          needsPersistentScope ? scopeKeyVar : undefined,
+        );
+      } else {
+        this.indentLevel++;
+        body = `{\n${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(stmt.body as Expression)};\n${indent(this.indentLevel, -1)}}`;
+      }
+    } finally {
+      if (needsPersistentScope) {
+        this.expressionGen.popPersistentScope();
+        this.functionScopeStack.pop();
+      }
     }
 
     let out = `${indent(this.indentLevel)}${prefix}function ${name}(${paramNames}) ${body}`;
@@ -436,10 +515,19 @@ export class StatementGenerator implements StatementGeneratorInterface {
    * as-is for now; users wanting to return from those should use an
    * explicit `=>`-form or assign to a result variable.
    */
-  private generateFunctionBody(block: BlockStatement): string {
+  private generateFunctionBody(
+    block: BlockStatement,
+    scopeId?: string,
+    scopeKeyVar?: string,
+  ): string {
     this.indentLevel++;
     const statements = block.body;
     const lines: string[] = [];
+    if (scopeId && scopeKeyVar) {
+      lines.push(
+        `${indent(this.indentLevel)}const ${scopeKeyVar} = _pineScopeKey(${JSON.stringify(scopeId)});`,
+      );
+    }
     for (let i = 0; i < statements.length; i++) {
       const s = statements[i];
       const isLast = i === statements.length - 1;

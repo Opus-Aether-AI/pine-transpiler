@@ -79,6 +79,12 @@ const GROUP_DEFAULTS: Record<string, GroupDefaults> = {
     authenticity: 'synthetic',
     category: 'other',
   },
+  forex_xau: {
+    source: 'forex-xau-suite',
+    lane: 'synthetic_custom',
+    authenticity: 'synthetic',
+    category: 'smc_ict',
+  },
 };
 
 const DEFAULTS_FALLBACK: GroupDefaults = {

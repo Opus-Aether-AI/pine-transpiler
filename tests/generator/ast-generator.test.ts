@@ -316,6 +316,20 @@ export type MyType
       const js = generateCode(code);
       expect(js).toContain('export var x = _pineVar("x", () => (1));');
     });
+
+    it('should key function-local var state by function call site', () => {
+      const code = `
+counter() =>
+    var x = 0
+    x += 1
+    x
+plot(counter())
+`;
+      const js = generateCode(code);
+      expect(js).toContain('const _pineFnScope_0 = _pineScopeKey("counter#0");');
+      expect(js).toContain('var x = _pineVar(_pineFnScope_0 + "::x", () => (0));');
+      expect(js).toContain('x = _pineSetVar(_pineFnScope_0 + "::x", (x + 1))');
+    });
   });
 
   describe('Expression Generation', () => {

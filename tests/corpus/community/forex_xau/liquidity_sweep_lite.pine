@@ -1,0 +1,16 @@
+//@version=5
+indicator("Liquidity Sweep Lite", overlay=true)
+
+len = input.int(15, "Sweep Lookback", minval=2)
+threshold = input.float(0.0, "Extra Distance", step=0.1)
+
+prevHigh = ta.highest(high, len)[1]
+prevLow = ta.lowest(low, len)[1]
+
+sweepHigh = high > prevHigh + threshold and close < prevHigh
+sweepLow = low < prevLow - threshold and close > prevLow
+
+plot(prevHigh, "Liquidity High", color=color.new(color.orange, 65), style=plot.style_linebr)
+plot(prevLow, "Liquidity Low", color=color.new(color.orange, 65), style=plot.style_linebr)
+plotshape(sweepHigh, title="Sell Sweep", style=shape.labeldown, location=location.abovebar, color=color.red, text="SW")
+plotshape(sweepLow, title="Buy Sweep", style=shape.labelup, location=location.belowbar, color=color.lime, text="SW")

@@ -1,0 +1,24 @@
+//@version=5
+indicator("XAUUSD FVG Lite", overlay=true, max_boxes_count=200)
+
+gapColorBull = input.color(color.new(color.lime, 82), "Bull FVG")
+gapColorBear = input.color(color.new(color.red, 82), "Bear FVG")
+
+bullFvg = low > high[2]
+bearFvg = high < low[2]
+
+var box lastBull = na
+var box lastBear = na
+
+if bullFvg
+    if not na(lastBull)
+        box.delete(lastBull)
+    lastBull := box.new(bar_index - 2, high[2], bar_index, low, bgcolor=gapColorBull, border_color=color.new(color.lime, 20))
+
+if bearFvg
+    if not na(lastBear)
+        box.delete(lastBear)
+    lastBear := box.new(bar_index - 2, high, bar_index, low[2], bgcolor=gapColorBear, border_color=color.new(color.red, 20))
+
+plotshape(bullFvg, title="Bull FVG", style=shape.circle, location=location.belowbar, color=color.lime, size=size.tiny)
+plotshape(bearFvg, title="Bear FVG", style=shape.circle, location=location.abovebar, color=color.red, size=size.tiny)

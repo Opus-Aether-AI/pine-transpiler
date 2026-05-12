@@ -247,6 +247,17 @@ Exit criteria:
 - `box.new` / `line.new` / `label.new` runtime no longer relies on
   color-shape heuristics to identify args
 
+Current tranche status:
+
+- function-local `var` / `varip` persistence implemented with
+  call-site-scoped runtime keys
+- regression coverage added for:
+  - `var` inside function persistence across bars
+  - per-call-site isolation for repeated function invocations
+  - function-local `varip` new-bar reset behavior
+- canonical named-arg reorder for drawing/table constructors remains
+  enforced by contract tests
+
 ### Phase 17: Differential Parity Harness vs Pine Reference
 
 Goal: validate against Pine reference behavior, not only internal expectations.
@@ -261,6 +272,14 @@ Exit criteria:
 
 - differential checks integrated into CI/nightly flow
 - parity score published per release
+
+Current tranche status:
+
+- strict numeric differential harness now emits
+  `DIFFERENTIAL_PARITY_REPORT.md`
+- tolerance policies are explicit per indicator family
+  (`trend` / `momentum` / `volatility` / `bands` / `oscillator`)
+- CI entrypoint available via `bun run corpus:differential`
 
 ### Phase 18: Production Hardening + Release Contract
 
@@ -290,6 +309,15 @@ Exit criteria:
 - Playwright smoke covers the curated fixture lane and runs on PR + nightly
 - alert behavior is either implemented or formally documented as
   unsupported, no longer a silent gap
+
+Current tranche status:
+
+- chart safety canary lane expanded with Forex/XAU visual fixtures
+  (BOS/CHoCH, FVG, liquidity sweep, killzones, VWAP reversion)
+- input metadata hardening added (`metainfo.inputs[*].options` is now
+  normalized to an array) with contract regression coverage to prevent
+  settings-panel crashes
+- alerts decision remains formalized as no-op in `LIMITATIONS.md`
 
 ## Phase Coverage Template
 

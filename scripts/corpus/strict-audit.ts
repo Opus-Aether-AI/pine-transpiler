@@ -21,6 +21,18 @@ interface AuditCase {
   source: string;
   expected: (closes: number[]) => number[];
   tolerance: number;
+  family: 'trend' | 'momentum' | 'volatility' | 'bands' | 'oscillator';
+}
+
+interface AuditResultRow {
+  name: string;
+  family: AuditCase['family'];
+  tolerance: number;
+  status: 'PASS' | 'FAIL';
+  expected: number[];
+  actual: number[];
+  maxDiff: number;
+  error?: string;
 }
 
 function isFiniteNumber(v: unknown): v is number {
@@ -318,6 +330,7 @@ indicator("Strict SMA", overlay=true)
 plot(ta.sma(close, 20))`,
     expected: (closes) => [lastFinite(sma(closes, 20))],
     tolerance: 1e-9,
+    family: 'trend',
   },
   {
     name: 'EMA(20)',
@@ -326,6 +339,7 @@ indicator("Strict EMA", overlay=true)
 plot(ta.ema(close, 20))`,
     expected: (closes) => [lastFinite(ema(closes, 20))],
     tolerance: 1e-6,
+    family: 'trend',
   },
   {
     name: 'RSI(14)',
@@ -334,6 +348,7 @@ indicator("Strict RSI", overlay=false)
 plot(ta.rsi(close, 14))`,
     expected: (closes) => [lastFinite(rsi(closes, 14))],
     tolerance: 1e-4,
+    family: 'oscillator',
   },
   {
     name: 'MACD(12,26,9)',
@@ -348,6 +363,7 @@ plot(h)`,
       return [lastFinite(m), lastFinite(s), lastFinite(h)];
     },
     tolerance: 1e-4,
+    family: 'momentum',
   },
   {
     name: 'ATR(14)',
@@ -359,6 +375,7 @@ plot(ta.atr(14))`,
       return [lastFinite(atr(bars, 14))];
     },
     tolerance: 1e-9,
+    family: 'volatility',
   },
   {
     name: 'BB(20,2)',
@@ -378,6 +395,7 @@ plot(lower)`,
       ];
     },
     tolerance: 1e-9,
+    family: 'bands',
   },
   {
     name: 'KC(20,1.5)',
@@ -398,6 +416,7 @@ plot(lower)`,
       ];
     },
     tolerance: 1e-6,
+    family: 'bands',
   },
   {
     name: 'CCI(20)',
@@ -406,6 +425,7 @@ indicator("Strict CCI", overlay=false)
 plot(ta.cci(close, 20))`,
     expected: (closes) => [lastFinite(cci(closes, 20))],
     tolerance: 1e-6,
+    family: 'oscillator',
   },
   {
     name: 'MFI(14)',
@@ -417,6 +437,7 @@ plot(ta.mfi(hlc3, 14))`,
       return [lastFinite(mfi(bars, 14))];
     },
     tolerance: 1e-6,
+    family: 'oscillator',
   },
   {
     name: 'WPR(14)',
@@ -428,6 +449,7 @@ plot(ta.wpr(14))`,
       return [lastFinite(wpr(bars, 14))];
     },
     tolerance: 1e-6,
+    family: 'oscillator',
   },
   {
     name: 'ROC(10)',
@@ -436,13 +458,42 @@ indicator("Strict ROC", overlay=false)
 plot(ta.roc(close, 10))`,
     expected: (closes) => [lastFinite(roc(closes, 10))],
     tolerance: 1e-9,
+    family: 'momentum',
   },
 ];
+
+function renderDifferentialReport(
+  rows: AuditResultRow[],
+  barCount: number,
+): string {
+  const pass = rows.filter((r) => r.status === 'PASS').length;
+  const fail = rows.length - pass;
+  const lines: string[] = [];
+  lines.push('# Differential Parity Report');
+  lines.push('');
+  lines.push(`Generated: ${new Date().toISOString()}`);
+  lines.push('');
+  lines.push(`Bars: ${barCount}`);
+  lines.push(`Summary: PASS ${pass} / FAIL ${fail} (Total ${rows.length})`);
+  lines.push('');
+  lines.push('| Family | Case | Status | Tolerance | Max Diff | Notes |');
+  lines.push('|---|---|---|---:|---:|---|');
+  for (const row of rows) {
+    const note = row.error
+      ? row.error
+      : `expected=${JSON.stringify(row.expected)} actual=${JSON.stringify(row.actual)}`;
+    lines.push(
+      `| ${row.family} | ${row.name} | ${row.status} | ${row.tolerance} | ${row.maxDiff} | ${note.replaceAll('|', '\\|')} |`,
+    );
+  }
+  return `${lines.join('\n')}\n`;
+}
 
 function main(): number {
   const barCount = 300;
   const closes = generateSyntheticBars(barCount).map((b) => b.close);
   let failures = 0;
+  const rows: AuditResultRow[] = [];
 
   console.log('Strict numeric audit on deterministic synthetic bars');
   console.log(`Bars: ${barCount}`);
@@ -452,6 +503,16 @@ function main(): number {
     const run = runIndicator(tc.source, barCount);
     if (run.error) {
       failures++;
+      rows.push({
+        name: tc.name,
+        family: tc.family,
+        tolerance: tc.tolerance,
+        status: 'FAIL',
+        expected: [],
+        actual: [],
+        maxDiff: Number.POSITIVE_INFINITY,
+        error: run.error,
+      });
       console.log(`FAIL ${tc.name} — runtime error: ${run.error}`);
       continue;
     }
@@ -470,10 +531,24 @@ function main(): number {
     if (!pass) failures++;
 
     const status = pass ? 'PASS' : 'FAIL';
+    rows.push({
+      name: tc.name,
+      family: tc.family,
+      tolerance: tc.tolerance,
+      status,
+      expected,
+      actual,
+      maxDiff,
+    });
     console.log(
       `${status} ${tc.name} — expected=${JSON.stringify(expected)} actual=${JSON.stringify(actual)} maxDiff=${maxDiff}`,
     );
   }
+
+  Bun.write(
+    'DIFFERENTIAL_PARITY_REPORT.md',
+    renderDifferentialReport(rows, barCount),
+  );
 
   console.log('');
   if (failures === 0) {

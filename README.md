@@ -394,7 +394,8 @@ Coverage is enforced through multiple layers:
 - TradingView-shaped harness suites: `bun run test:harness`
 - corpus execution parity: `bun run corpus`
 - strict numeric checks: `bun run corpus:strict`
-- curated + community indicator matrices: `bun run corpus:matrix`, `bun run corpus:tv100`, `bun run corpus:tv200`
+- curated + community indicator matrices: `bun run corpus:matrix`, `bun run corpus:tv100`, `bun run corpus:tv200`, `bun run corpus:forex-xau`
+- differential numeric parity report: `bun run corpus:differential`
 - corpus quality/stability budgets: `bun run corpus:gate`
 - chart-host safety contracts: `bun run chart:safety`
 

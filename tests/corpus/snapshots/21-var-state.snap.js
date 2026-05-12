@@ -297,6 +297,7 @@ const _pineState = (() => {
       var: Object.create(null),
       varip: Object.create(null),
       varipBarKey: null,
+      scopeOrdinal: 0,
     };
   }
   const state = host.__pineState;
@@ -332,6 +333,35 @@ const _pineVarip = (key, init) => {
 const _pineSetVarip = (key, value) => {
   _pineState.varip[key] = value;
   return value;
+};
+const _pineInferScopeCallSite = (fallbackOrdinal) => {
+  try {
+    const stack = new Error().stack;
+    if (typeof stack !== 'string') return 'ord:' + String(fallbackOrdinal);
+    const lines = stack.split('\n');
+    let nonHelperFrames = 0;
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line || line.includes('_pineInferScopeCallSite') || line.includes('_pineScopeKey')) {
+        continue;
+      }
+      const m = line.match(/:(\d+):(\d+)\)?$/);
+      if (!m) continue;
+      nonHelperFrames += 1;
+      if (nonHelperFrames >= 2) {
+        return m[1] + ':' + m[2];
+      }
+    }
+  } catch {
+    // Fall through to ordinal fallback.
+  }
+  return 'scope';
+};
+const _pineScopeKey = (scopeId) => {
+  const ordinal = Number(_pineState.scopeOrdinal || 0);
+  _pineState.scopeOrdinal = ordinal + 1;
+  const callSite = _pineInferScopeCallSite(ordinal);
+  return String(scopeId) + '|' + callSite;
 };
 
 indicator("Var State", false);

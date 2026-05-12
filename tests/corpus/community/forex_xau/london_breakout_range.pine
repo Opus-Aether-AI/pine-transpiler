@@ -1,0 +1,26 @@
+//@version=5
+indicator("Forex London Breakout Range", overlay=true)
+
+london = input.session("0200-0500", "London Session")
+len = input.int(20, "Breakout Lookback", minval=2)
+
+inLondon = not na(time("", london))
+var float lHigh = na
+var float lLow = na
+
+if inLondon and not inLondon[1]
+    lHigh := high
+    lLow := low
+else if inLondon
+    lHigh := math.max(lHigh, high)
+    lLow := math.min(lLow, low)
+
+breakUp = not inLondon and close > nz(lHigh)
+breakDown = not inLondon and close < nz(lLow)
+
+trend = ta.ema(close, len)
+plot(trend, "EMA", color=color.orange)
+plot(lHigh, "London High", color=color.green, style=plot.style_linebr)
+plot(lLow, "London Low", color=color.red, style=plot.style_linebr)
+plotshape(breakUp, title="Break Up", style=shape.triangleup, location=location.belowbar, color=color.lime, text="BOS")
+plotshape(breakDown, title="Break Down", style=shape.triangledown, location=location.abovebar, color=color.red, text="CH")

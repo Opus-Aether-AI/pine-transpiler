@@ -136,6 +136,49 @@ plot(ticks)
     expect(outputs.map((row) => row[1])).toEqual([2, 2, 2, 2]);
   });
 
+  it('persists `var` declared inside function bodies across bars', () => {
+    const source = `//@version=5
+indicator("var-in-function")
+counterFn() =>
+    var int counter = 0
+    counter += 1
+    counter
+plot(counterFn())
+`;
+    const outputs = runBars(source, 4);
+    expect(outputs.map((row) => row[0])).toEqual([1, 2, 3, 4]);
+  });
+
+  it('uses per-call-site storage for function-local `var` declarations', () => {
+    const source = `//@version=5
+indicator("var-in-function-callsite")
+counterFn() =>
+    var int counter = 0
+    counter += 1
+    counter
+a = counterFn()
+b = counterFn()
+plot(a)
+plot(b)
+`;
+    const outputs = runBars(source, 3);
+    expect(outputs.map((row) => row[0])).toEqual([1, 2, 3]);
+    expect(outputs.map((row) => row[1])).toEqual([1, 2, 3]);
+  });
+
+  it('resets function-local `varip` values on new bars', () => {
+    const source = `//@version=5
+indicator("varip-in-function")
+tickFn() =>
+    varip int ticks = 0
+    ticks += 1
+    ticks
+plot(tickFn())
+`;
+    const outputs = runBars(source, 4);
+    expect(outputs.map((row) => row[0])).toEqual([1, 1, 1, 1]);
+  });
+
   it('exposes barstate flags with deterministic bar-index semantics', () => {
     const source = `//@version=5
 indicator("barstate-flags")

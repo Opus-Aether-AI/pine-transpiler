@@ -1,0 +1,20 @@
+//@version=5
+indicator("VWAP Reversion XAU", overlay=true)
+
+len = input.int(20, "Deviation Length", minval=2)
+mult = input.float(1.5, "Band Mult", step=0.1)
+
+vwapValue = ta.vwap(hlc3)
+spread = ta.stdev(close - vwapValue, len)
+upper = vwapValue + spread * mult
+lower = vwapValue - spread * mult
+
+longRevert = close < lower and close > open
+shortRevert = close > upper and close < open
+
+pv = plot(vwapValue, "VWAP", color=color.purple, linewidth=2)
+pu = plot(upper, "Upper", color=color.new(color.red, 35))
+pl = plot(lower, "Lower", color=color.new(color.green, 35))
+fill(pu, pl, color=color.new(color.blue, 92))
+plotshape(longRevert, title="Long Revert", style=shape.circle, location=location.belowbar, color=color.lime)
+plotshape(shortRevert, title="Short Revert", style=shape.circle, location=location.abovebar, color=color.red)

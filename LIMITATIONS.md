@@ -84,9 +84,13 @@ Supported method subsets:
 - `plotchar(text = identifier)` resolves through tracked string-literal var definitions and is promoted to the `char` glyph when `char` is empty.
 - `bgcolor`, `fill`, `barcolor` are tracked in visual-event artifacts; rendering of those that don't lower to a `bg_colorer` plot remains host responsibility.
 
-### Pine `var` inside function bodies
+### Pine `var` / `varip` inside function bodies
 
-A `var x = init` declaration inside a user-defined function body is supposed to initialize once and persist across subsequent calls. The generator currently emits a plain JS `var`, which reinitializes on every call. For most scripts this is harmless because the values are recomputed each bar anyway. Scripts that rely on accumulator-style `var` inside a method or function will see incorrect output. Tracked in Phase 16.
+Function-local persistent state is now runtime-backed and call-site scoped:
+
+- `var` inside functions persists across bars and calls.
+- `varip` inside functions resets on new bars, while persisting intrabar.
+- state keys are isolated per function call-site to match Pine behavior for multi-call scripts.
 
 ### Alerts
 

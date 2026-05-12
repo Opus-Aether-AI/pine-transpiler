@@ -152,7 +152,7 @@ function buildInputsMetadata(inputs) {
 		defval: i.defval,
 		min: i.min,
 		max: i.max,
-		options: i.options
+		options: Array.isArray(i.options) ? i.options : []
 	}));
 }
 /**
@@ -3520,6 +3520,7 @@ const _pineState = (() => {
       var: Object.create(null),
       varip: Object.create(null),
       varipBarKey: null,
+      scopeOrdinal: 0,
     };
   }
   const state = host.__pineState;
@@ -3556,6 +3557,35 @@ const _pineSetVarip = (key, value) => {
   _pineState.varip[key] = value;
   return value;
 };
+const _pineInferScopeCallSite = (fallbackOrdinal) => {
+  try {
+    const stack = new Error().stack;
+    if (typeof stack !== 'string') return 'ord:' + String(fallbackOrdinal);
+    const lines = stack.split('\\n');
+    let nonHelperFrames = 0;
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line || line.includes('_pineInferScopeCallSite') || line.includes('_pineScopeKey')) {
+        continue;
+      }
+      const m = line.match(/:(\\d+):(\\d+)\\)?$/);
+      if (!m) continue;
+      nonHelperFrames += 1;
+      if (nonHelperFrames >= 2) {
+        return m[1] + ':' + m[2];
+      }
+    }
+  } catch {
+    // Fall through to ordinal fallback.
+  }
+  return 'scope';
+};
+const _pineScopeKey = (scopeId) => {
+  const ordinal = Number(_pineState.scopeOrdinal || 0);
+  _pineState.scopeOrdinal = ordinal + 1;
+  const callSite = _pineInferScopeCallSite(ordinal);
+  return String(scopeId) + '|' + callSite;
+};
 `;
 /**
 * Analyze which helpers are needed based on the transpiled code
@@ -3571,7 +3601,7 @@ function analyzeRequiredHelpers(mainBody) {
 		needsColor: mainBody.includes("_colorNew("),
 		needsString: /\b_str[A-Z]/.test(mainBody),
 		needsUtility: mainBody.includes("_pineNa(") || mainBody.includes("_pineNz(") || mainBody.includes("_pineFixnan("),
-		needsState: mainBody.includes("_pineVar(") || mainBody.includes("_pineVarip(") || mainBody.includes("_pineSetVar(") || mainBody.includes("_pineSetVarip(")
+		needsState: mainBody.includes("_pineVar(") || mainBody.includes("_pineVarip(") || mainBody.includes("_pineSetVar(") || mainBody.includes("_pineSetVarip(") || mainBody.includes("_pineScopeKey(")
 	};
 }
 /**
@@ -5042,7 +5072,7 @@ var ExpressionGenerator = class {
 	constructor() {
 		this.indentLevel = 0;
 		this.statementGen = null;
-		this.persistentIdentifiers = /* @__PURE__ */ new Map();
+		this.persistentScopes = [/* @__PURE__ */ new Map()];
 	}
 	setIndentLevel(level) {
 		this.indentLevel = level;
@@ -5057,8 +5087,24 @@ var ExpressionGenerator = class {
 	setStatementGenerator(gen) {
 		this.statementGen = gen;
 	}
-	markPersistentIdentifier(identifier, kind) {
-		this.persistentIdentifiers.set(identifier, kind);
+	markPersistentIdentifier(identifier, kind, stateKeyExpr = JSON.stringify(identifier)) {
+		this.persistentScopes[this.persistentScopes.length - 1].set(identifier, {
+			kind,
+			keyExpr: stateKeyExpr
+		});
+	}
+	pushPersistentScope() {
+		this.persistentScopes.push(/* @__PURE__ */ new Map());
+	}
+	popPersistentScope() {
+		if (this.persistentScopes.length > 1) this.persistentScopes.pop();
+	}
+	resolvePersistentIdentifier(identifier) {
+		for (let i = this.persistentScopes.length - 1; i >= 0; i--) {
+			const hit = this.persistentScopes[i]?.get(identifier);
+			if (hit) return hit;
+		}
+		return null;
 	}
 	generateExpression(expr) {
 		switch (expr.type) {
@@ -5252,11 +5298,11 @@ var ExpressionGenerator = class {
 		let op = expr.operator;
 		if (op === ":=") op = "=";
 		const right = this.generateExpression(expr.right);
-		const persistentKind = this.persistentIdentifiers.get(left);
-		if (isIdentifierLeft && persistentKind) {
-			const setter = persistentKind === "varip" ? "_pineSetVarip" : "_pineSetVar";
-			const key = JSON.stringify(left);
-			if (op === "=") return `(${left} = ${setter}(${key}, ${right}))`;
+		const persistentBinding = this.resolvePersistentIdentifier(left);
+		if (isIdentifierLeft && persistentBinding) {
+			const setter = persistentBinding.kind === "varip" ? "_pineSetVarip" : "_pineSetVar";
+			const keyExpr = persistentBinding.keyExpr;
+			if (op === "=") return `(${left} = ${setter}(${keyExpr}, ${right}))`;
 			const binaryOp = {
 				"+=": "+",
 				"-=": "-",
@@ -5264,7 +5310,7 @@ var ExpressionGenerator = class {
 				"/=": "/",
 				"%=": "%"
 			}[op];
-			if (binaryOp) return `(${left} = ${setter}(${key}, (${left} ${binaryOp} ${right})))`;
+			if (binaryOp) return `(${left} = ${setter}(${keyExpr}, (${left} ${binaryOp} ${right})))`;
 		}
 		return `${left} ${op} ${right}`;
 	}
@@ -5373,6 +5419,8 @@ var StatementGenerator = class {
 	constructor(historicalVars, expressionGen) {
 		this.indentLevel = 0;
 		this.loopCounter = 0;
+		this.functionScopeCounter = 0;
+		this.functionScopeStack = [];
 		this.historicalVars = historicalVars;
 		this.expressionGen = expressionGen;
 	}
@@ -5415,6 +5463,29 @@ var StatementGenerator = class {
 		else s = `${indent(this.indentLevel)}${this.expressionGen.generateExpression(stmt)};`;
 		this.indentLevel--;
 		return `{\n${s}\n${indent(this.indentLevel)}}`;
+	}
+	currentPersistentKeyExpr(identifier) {
+		const scope = this.functionScopeStack[this.functionScopeStack.length - 1];
+		if (!scope) return JSON.stringify(identifier);
+		return `${scope.keyVar} + ${JSON.stringify(`::${identifier}`)}`;
+	}
+	statementContainsPersistentDecl(stmt) {
+		if (stmt.type === "VariableDeclaration") return stmt.kind === "var" || stmt.kind === "varip";
+		if (stmt.type === "BlockStatement") return this.blockContainsPersistentDecl(stmt);
+		if (stmt.type === "IfStatement") {
+			if (stmt.consequent.type === "BlockStatement" ? this.blockContainsPersistentDecl(stmt.consequent) : this.statementContainsPersistentDecl(stmt.consequent)) return true;
+			if (!stmt.alternate) return false;
+			return stmt.alternate.type === "BlockStatement" ? this.blockContainsPersistentDecl(stmt.alternate) : this.statementContainsPersistentDecl(stmt.alternate);
+		}
+		if (stmt.type === "ForStatement" || stmt.type === "ForInStatement" || stmt.type === "WhileStatement") return stmt.body.type === "BlockStatement" ? this.blockContainsPersistentDecl(stmt.body) : this.statementContainsPersistentDecl(stmt.body);
+		if (stmt.type === "SwitchStatement") {
+			for (const c of stmt.cases) if (c.consequent.type === "BlockStatement" ? this.blockContainsPersistentDecl(c.consequent) : false) return true;
+		}
+		return false;
+	}
+	blockContainsPersistentDecl(block) {
+		for (const stmt of block.body) if (this.statementContainsPersistentDecl(stmt)) return true;
+		return false;
 	}
 	generateIfStatement(stmt) {
 		const test = this.expressionGen.generateExpression(stmt.test);
@@ -5562,8 +5633,9 @@ var StatementGenerator = class {
 			const safeName = sanitizeIdentifier(stmt.id.name);
 			if (isPersistent) {
 				const helper = isVarip ? "_pineVarip" : "_pineVar";
-				code = `${indent(this.indentLevel)}${prefix}${kind} ${safeName} = ${helper}(${JSON.stringify(safeName)}, () => (${initExpr}));`;
-				this.expressionGen.markPersistentIdentifier(safeName, isVarip ? "varip" : "var");
+				const stateKeyExpr = this.currentPersistentKeyExpr(safeName);
+				code = `${indent(this.indentLevel)}${prefix}${kind} ${safeName} = ${helper}(${stateKeyExpr}, () => (${initExpr}));`;
+				this.expressionGen.markPersistentIdentifier(safeName, isVarip ? "varip" : "var", stateKeyExpr);
 			} else code = `${indent(this.indentLevel)}${prefix}${kind} ${safeName}${init};`;
 			if (this.historicalVars.has(stmt.id.name)) {
 				code += `\n${indent(this.indentLevel)}const _series_${safeName} = context.new_var(${safeName});`;
@@ -5578,11 +5650,29 @@ var StatementGenerator = class {
 		const name = sanitizeIdentifier(originalName);
 		const paramNames = stmt.params.map((p) => sanitizeIdentifier(p.name)).join(", ");
 		const prefix = stmt.export ? "export " : "";
+		const scopeOrdinal = this.functionScopeCounter++;
+		const scopeId = `${name}#${scopeOrdinal}`;
+		const scopeKeyVar = `_pineFnScope_${scopeOrdinal}`;
+		const needsPersistentScope = stmt.body.type === "BlockStatement" && this.blockContainsPersistentDecl(stmt.body);
 		let body = "";
-		if (stmt.body.type === "BlockStatement") body = this.generateFunctionBody(stmt.body);
-		else {
-			this.indentLevel++;
-			body = `{\n${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(stmt.body)};\n${indent(this.indentLevel, -1)}}`;
+		if (needsPersistentScope) {
+			this.functionScopeStack.push({
+				id: scopeId,
+				keyVar: scopeKeyVar
+			});
+			this.expressionGen.pushPersistentScope();
+		}
+		try {
+			if (stmt.body.type === "BlockStatement") body = this.generateFunctionBody(stmt.body, needsPersistentScope ? scopeId : void 0, needsPersistentScope ? scopeKeyVar : void 0);
+			else {
+				this.indentLevel++;
+				body = `{\n${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(stmt.body)};\n${indent(this.indentLevel, -1)}}`;
+			}
+		} finally {
+			if (needsPersistentScope) {
+				this.expressionGen.popPersistentScope();
+				this.functionScopeStack.pop();
+			}
 		}
 		let out = `${indent(this.indentLevel)}${prefix}function ${name}(${paramNames}) ${body}`;
 		if (stmt.isMethod && stmt.params.length > 0) {
@@ -5607,10 +5697,11 @@ var StatementGenerator = class {
 	* as-is for now; users wanting to return from those should use an
 	* explicit `=>`-form or assign to a result variable.
 	*/
-	generateFunctionBody(block) {
+	generateFunctionBody(block, scopeId, scopeKeyVar) {
 		this.indentLevel++;
 		const statements = block.body;
 		const lines = [];
+		if (scopeId && scopeKeyVar) lines.push(`${indent(this.indentLevel)}const ${scopeKeyVar} = _pineScopeKey(${JSON.stringify(scopeId)});`);
 		for (let i = 0; i < statements.length; i++) {
 			const s = statements[i];
 			if (i === statements.length - 1 && s.type === "ExpressionStatement") lines.push(`${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(s.expression)};`);
@@ -8386,6 +8477,107 @@ function executePineJS(code, indicatorId, indicatorName) {
 	}
 }
 //#endregion
-export { MATH_FUNCTION_MAPPINGS as _, Parser as a, ASTGenerator as c, PRICE_SOURCES as d, getAllPineFunctionNames as f, TA_FUNCTION_MAPPINGS as g, MULTI_OUTPUT_MAPPINGS as h, transpileToPineJS as i, generateStandaloneFactory as l, TIME_FUNCTION_MAPPINGS as m, executePineJS as n, Lexer as o, getMappingStats as p, transpile as r, MetadataVisitor as s, canTranspilePineScript as t, COLOR_MAP as u };
+Object.defineProperty(exports, "ASTGenerator", {
+	enumerable: true,
+	get: function() {
+		return ASTGenerator;
+	}
+});
+Object.defineProperty(exports, "COLOR_MAP", {
+	enumerable: true,
+	get: function() {
+		return COLOR_MAP;
+	}
+});
+Object.defineProperty(exports, "Lexer", {
+	enumerable: true,
+	get: function() {
+		return Lexer;
+	}
+});
+Object.defineProperty(exports, "MATH_FUNCTION_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return MATH_FUNCTION_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "MULTI_OUTPUT_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return MULTI_OUTPUT_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "MetadataVisitor", {
+	enumerable: true,
+	get: function() {
+		return MetadataVisitor;
+	}
+});
+Object.defineProperty(exports, "PRICE_SOURCES", {
+	enumerable: true,
+	get: function() {
+		return PRICE_SOURCES;
+	}
+});
+Object.defineProperty(exports, "Parser", {
+	enumerable: true,
+	get: function() {
+		return Parser;
+	}
+});
+Object.defineProperty(exports, "TA_FUNCTION_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return TA_FUNCTION_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "TIME_FUNCTION_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return TIME_FUNCTION_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "canTranspilePineScript", {
+	enumerable: true,
+	get: function() {
+		return canTranspilePineScript;
+	}
+});
+Object.defineProperty(exports, "executePineJS", {
+	enumerable: true,
+	get: function() {
+		return executePineJS;
+	}
+});
+Object.defineProperty(exports, "generateStandaloneFactory", {
+	enumerable: true,
+	get: function() {
+		return generateStandaloneFactory;
+	}
+});
+Object.defineProperty(exports, "getAllPineFunctionNames", {
+	enumerable: true,
+	get: function() {
+		return getAllPineFunctionNames;
+	}
+});
+Object.defineProperty(exports, "getMappingStats", {
+	enumerable: true,
+	get: function() {
+		return getMappingStats;
+	}
+});
+Object.defineProperty(exports, "transpile", {
+	enumerable: true,
+	get: function() {
+		return transpile;
+	}
+});
+Object.defineProperty(exports, "transpileToPineJS", {
+	enumerable: true,
+	get: function() {
+		return transpileToPineJS;
+	}
+});
 
-//# sourceMappingURL=src-BWgqx8db.js.map
+//# sourceMappingURL=src-BWs3Mp0p.cjs.map
