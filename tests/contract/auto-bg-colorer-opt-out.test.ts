@@ -1,18 +1,19 @@
 /**
- * Auto bg_colorer opt-out contract.
+ * Auto bg_colorer opt-in contract.
  *
- * `transpileToPineJS(..., { autoBgColorerForBoxes: false })` must
- * suppress the auto-generated `bg_colorer` plot that scripts using
- * `box.new(..., bgcolor=...)` would otherwise get for partial
- * session-highlight rendering.
+ * `transpileToPineJS(..., { autoBgColorerForBoxes: true })` opts in
+ * to the fallback `bg_colorer` plot that synthesizes a full-column
+ * session highlight from `box.new(..., bgcolor=...)` patterns.
  *
- * Callers that have a host `VisualEventsRenderer` wired set this so
- * the full-column bg_colorer bands don't visually overlap the
- * renderer's price-constrained rectangles.
+ * The default is `false` — host renderers (e.g. the webapp
+ * `VisualEventsRenderer`) draw proper price-constrained rectangles
+ * from `__visualEvents`, and the full-column bands would visually
+ * conflict with them. Renderer-less callers who want a partial
+ * session highlight directly from the transpiler pass `true`.
  *
- * Default (option absent or true): bg_colorer plot is emitted and the
- * indicator carries a `palettes` field. Suppressed: the plot is gone
- * and `palettes` is absent.
+ * Default (option absent or `false`): no `__auto_bg__` plot, no
+ * `palettes` field. Opted in (`true`): plot is emitted and the
+ * indicator carries a `palettes` field.
  */
 
 import { describe, expect, it } from 'bun:test';
@@ -50,28 +51,28 @@ function buildIndicator(options?: { autoBgColorerForBoxes?: boolean }): {
   return { plotIds, hasPalettes, plotCount: plots.length };
 }
 
-describe('autoBgColorerForBoxes opt-out', () => {
-  it('default (option omitted) emits the auto bg_colorer plot', () => {
+describe('autoBgColorerForBoxes opt-in', () => {
+  it('default (option omitted) suppresses the auto bg_colorer plot', () => {
     const result = buildIndicator();
-    expect(result.plotIds).toContain(AUTO_BG_PLOT_ID);
-    expect(result.hasPalettes).toBe(true);
+    expect(result.plotIds).not.toContain(AUTO_BG_PLOT_ID);
+    expect(result.hasPalettes).toBe(false);
   });
 
-  it('explicit `true` matches default behavior', () => {
-    const result = buildIndicator({ autoBgColorerForBoxes: true });
-    expect(result.plotIds).toContain(AUTO_BG_PLOT_ID);
-    expect(result.hasPalettes).toBe(true);
-  });
-
-  it('`false` suppresses the auto bg_colorer plot and palettes', () => {
+  it('explicit `false` matches default behavior', () => {
     const result = buildIndicator({ autoBgColorerForBoxes: false });
     expect(result.plotIds).not.toContain(AUTO_BG_PLOT_ID);
     expect(result.hasPalettes).toBe(false);
   });
 
-  it('suppression drops exactly one plot vs default', () => {
+  it('`true` opts in to the auto bg_colorer plot and palettes', () => {
+    const result = buildIndicator({ autoBgColorerForBoxes: true });
+    expect(result.plotIds).toContain(AUTO_BG_PLOT_ID);
+    expect(result.hasPalettes).toBe(true);
+  });
+
+  it('opt-in adds exactly one plot vs default', () => {
     const withDefault = buildIndicator();
-    const suppressed = buildIndicator({ autoBgColorerForBoxes: false });
-    expect(withDefault.plotCount - suppressed.plotCount).toBe(1);
+    const optedIn = buildIndicator({ autoBgColorerForBoxes: true });
+    expect(optedIn.plotCount - withDefault.plotCount).toBe(1);
   });
 });

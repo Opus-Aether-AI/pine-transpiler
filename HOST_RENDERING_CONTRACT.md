@@ -302,37 +302,36 @@ Recommended renderer mappings (TV overrides):
 - Extend: `extendLeft = extend === 'left' || extend === 'both'`,
   `extendRight = extend === 'right' || extend === 'both'`
 
-## Opting out of the auto `bg_colorer` plot
+## Opting in to the auto `bg_colorer` plot
 
-The transpiler emits a partial-rendering fallback for scripts that use
-`box.new(..., bgcolor=...)`: an auto `bg_colorer` plot that paints the
-session color as a full-column band. This is intended for consumers
-that don't have a host renderer yet — without it, the chart would
-show nothing for the box's color until the renderer ships.
+The transpiler can emit a partial-rendering fallback for scripts that
+use `box.new(..., bgcolor=...)`: an auto `bg_colorer` plot that paints
+the session color as a full-column band.
 
-Once a host renderer is wired and consuming `__visualEvents`, the
-bg_colorer bands become noise:
+**Default is OFF.** Host renderers consuming `__visualEvents` draw
+proper price-constrained rectangles directly; the full-column bands
+would visually conflict — they're not bounded by the box's `top` /
+`bottom`, and they double-paint the session info the renderer is
+already drawing.
 
-- They're full-column, not constrained to the box's `top` / `bottom`,
-  so they visually disagree with the renderer's rectangles.
-- They double-paint the same session info the renderer is already
-  drawing.
-
-Callers with a working renderer suppress this auto-emission by
-passing the option:
+Callers without a host renderer (or running in a context where the
+renderer hasn't been wired yet) can opt in to the fallback bands:
 
 ```ts
 import { transpileToPineJS } from '@opusaether/pine-transpiler';
 
 const result = transpileToPineJS(source, id, name, {
-  autoBgColorerForBoxes: false,
+  autoBgColorerForBoxes: true,
 });
 ```
 
-When `false`, no `__auto_bg__` plot is added to `metainfo.plots` and
-no `palettes` field is generated. The renderer is then the only thing
-drawing box-shaped output, and its rectangles render at their natural
-opacity bounded by Pine `top` / `bottom`.
+When `true`, a `__auto_bg__` plot is added to `metainfo.plots` with
+an 8-slot palette in `metainfo.palettes`. The plot emits a palette
+index per bar, slot 0 = transparent, slots 1-7 = killzone-themed
+colors assigned first-seen at runtime.
+
+When `false` (or omitted), no `__auto_bg__` plot is added and no
+`palettes` field is generated.
 
 Locked by [tests/contract/auto-bg-colorer-opt-out.test.ts](tests/contract/auto-bg-colorer-opt-out.test.ts).
 

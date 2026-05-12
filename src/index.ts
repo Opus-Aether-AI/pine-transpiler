@@ -106,18 +106,23 @@ export function transpile(code: string): string {
  */
 export interface TranspileOptions {
   /**
-   * When true (default), Pine `box.new(..., bgcolor=...)` patterns
-   * auto-emit a `bg_colorer` plot so session-highlight scripts render
-   * something even without a host renderer.
+   * Controls the fallback `bg_colorer` plot that synthesizes a
+   * full-column session highlight from `box.new(..., bgcolor=...)`
+   * patterns.
    *
-   * When false, the auto bg_colorer is suppressed entirely. Use this
-   * when a host renderer (e.g. the webapp `VisualEventsRenderer`)
-   * consumes `__visualEvents` and draws proper price-constrained
-   * rectangles via `widget.activeChart().createMultipointShape(...)`.
-   * The full-column bands the bg_colorer produces would otherwise
-   * visually conflict with the renderer's rectangles.
+   * **Default `false`** — host renderers (e.g. the webapp
+   * `VisualEventsRenderer`) draw proper price-constrained rectangles
+   * from `__visualEvents`; the full-column bg_colorer bands would
+   * visually conflict with them.
    *
-   * See HOST_RENDERING_CONTRACT.md.
+   * Set to `true` when there is no host renderer and you want the
+   * fallback session-highlight bands rendered directly by the
+   * transpiler (the TradingView CustomIndicator can't draw boxes
+   * natively otherwise). Bands are full-column by construction;
+   * `bg_colorer` has no price-range parameter.
+   *
+   * See HOST_RENDERING_CONTRACT.md § "Opting out of the auto
+   * bg_colorer plot".
    */
   autoBgColorerForBoxes?: boolean;
 }
@@ -174,7 +179,7 @@ export function transpileToPineJS(
       usedSources: visitor.usedSources,
       historicalAccess: visitor.historicalAccess,
       mainBody,
-      autoBgColorerForBoxes: options?.autoBgColorerForBoxes ?? true,
+      autoBgColorerForBoxes: options?.autoBgColorerForBoxes ?? false,
     });
 
     return {

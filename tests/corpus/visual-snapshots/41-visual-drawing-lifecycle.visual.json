@@ -6,8 +6,8 @@
   "runtime": {
     "barsCompleted": 200,
     "barsErrored": 0,
-    "declaredPlotCount": 6,
-    "actualPlotCount": 6,
+    "declaredPlotCount": 5,
+    "actualPlotCount": 5,
     "visualEventCount": 24,
     "visualCalls": [
       {
@@ -135,13 +135,8 @@
     "unimplementedStdCalls": []
   },
   "metainfo": {
-    "plotCount": 6,
+    "plotCount": 5,
     "plots": [
-      {
-        "id": "__auto_bg__",
-        "type": "bg_colorer",
-        "price": null
-      },
       {
         "id": "plot_0",
         "type": "line",
@@ -171,7 +166,6 @@
     "inputCount": 0,
     "inputs": [],
     "styleKeys": [
-      "__auto_bg__",
       "plot_0",
       "plot_1",
       "plot_2",
@@ -179,11 +173,6 @@
       "plot_4"
     ],
     "styles": [
-      {
-        "id": "__auto_bg__",
-        "title": "Session Background",
-        "histogramBase": null
-      },
       {
         "id": "plot_0",
         "title": "Base",
@@ -211,16 +200,6 @@
       }
     ],
     "defaultStyles": [
-      {
-        "id": "__auto_bg__",
-        "plottype": null,
-        "linewidth": 1,
-        "linestyle": 0,
-        "color": "rgba(0, 0, 0, 0)",
-        "transparency": 85,
-        "visible": true,
-        "trackPrice": false
-      },
       {
         "id": "plot_0",
         "plottype": 0,

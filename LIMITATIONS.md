@@ -46,6 +46,9 @@ Current behavior supports practical subset semantics:
 - higher-timeframe bucket merge in runtime
 - tuple expressions
 - `barmerge.gaps_*` and `barmerge.lookahead_*` subset handling
+- explicit runtime diagnostics on unsupported fallback modes
+  (`__runtimeDiagnostics` on the returned plot array), including
+  external symbol and lower-timeframe fallback
 
 Not yet supported:
 

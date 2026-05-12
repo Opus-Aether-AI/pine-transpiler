@@ -176,6 +176,18 @@ interface VisualEvent {
   pineHandleId?: number;
 }
 
+interface RuntimeDiagnostic {
+  feature: 'request.security';
+  code:
+    | 'request.security/arity'
+    | 'request.security/invalid-timeframe'
+    | 'request.security/lower-timeframe-fallback'
+    | 'request.security/missing-bar-time-fallback'
+    | 'request.security/external-symbol-fallback';
+  message: string;
+  barIndex: number;
+}
+
 /**
  * Schema version for the per-bar `__visualEvents` payload. Stamped on
  * the array returned from `main()` so host renderers can detect
@@ -183,6 +195,7 @@ interface VisualEvent {
  * additive-vs-breaking policy.
  */
 const VISUAL_EVENTS_VERSION = 1;
+const RUNTIME_DIAGNOSTICS_VERSION = 1;
 
 function extractHandleId(value: unknown): number | undefined {
   if (typeof value !== 'object' || value === null) return undefined;
@@ -816,7 +829,13 @@ export function buildIndicatorFactory(
     usedSources,
     historicalAccess,
     mainBody,
-    autoBgColorerForBoxes = true,
+    // Default `false`: host renderers consuming `__visualEvents` draw
+    // their own price-constrained rectangles from `box.new`. The
+    // full-column auto bg_colorer was originally a fallback for
+    // renderer-less consumers, but it visually conflicts with proper
+    // rectangles, so it's now opt-in. Callers without a renderer can
+    // re-enable via `transpileToPineJS(..., { autoBgColorerForBoxes: true })`.
+    autoBgColorerForBoxes = false,
   } = options;
 
   // Generate preamble and full body (conditionally includes helpers)
@@ -987,6 +1006,9 @@ export function buildIndicatorFactory(
             confirmedValue: unknown;
           }
         >();
+        // One-time diagnostics so unsupported request.security modes
+        // surface explicitly without log spam on every bar.
+        const _requestSecurityDiagnosticsSeen = new Set<string>();
 
         // Compile the script once during initialization
         // biome-ignore lint/complexity/noBannedTypes: Function constructor required
@@ -1097,6 +1119,7 @@ export function buildIndicatorFactory(
           // Create runtime mocks using factory functions
           const _plotValues: number[] = [];
           const _visualEvents: VisualEvent[] = [];
+          const _runtimeDiagnostics: RuntimeDiagnostic[] = [];
 
           // Cast to internal types for type safety
           const stdLib = Std as StdLibraryInternal;
@@ -1790,6 +1813,39 @@ export function buildIndicatorFactory(
           });
           const naFallback = () => makeNaIterable();
           let _requestSecurityCallIndex = 0;
+          const emitRequestSecurityDiagnostic = (
+            code: RuntimeDiagnostic['code'],
+            message: string,
+            dedupeKey?: string,
+          ) => {
+            const key = dedupeKey ?? `${code}|${message}`;
+            if (_requestSecurityDiagnosticsSeen.has(key)) return;
+            _requestSecurityDiagnosticsSeen.add(key);
+            _runtimeDiagnostics.push({
+              feature: 'request.security',
+              code,
+              message,
+              barIndex: resolvedBarIndex,
+            });
+          };
+          const inferRequestSecurityCallSite = (): string => {
+            const fallbackOrdinal = _requestSecurityCallIndex;
+            _requestSecurityCallIndex += 1;
+            try {
+              const stack = new Error().stack;
+              if (typeof stack !== 'string') return `ord:${fallbackOrdinal}`;
+              const lines = stack.split('\n');
+              for (const raw of lines) {
+                const line = raw.trim();
+                if (!line || line.includes('requestSecurity')) continue;
+                const m = line.match(/<anonymous>:(\d+):(\d+)/);
+                if (m) return `${m[1]}:${m[2]}`;
+              }
+            } catch {
+              // Fall through to ordinal-based key.
+            }
+            return `ord:${fallbackOrdinal}`;
+          };
           const cloneValue = (value: unknown): unknown => {
             if (Array.isArray(value)) {
               return value.map((v) => cloneValue(v));
@@ -1835,39 +1891,89 @@ export function buildIndicatorFactory(
           const requestSecurity = (...args: unknown[]): unknown => {
             // Pine signature: request.security(symbol, timeframe,
             // expression, ...)
-            if (args.length < 3) return naFallback();
+            if (args.length < 3) {
+              emitRequestSecurityDiagnostic(
+                'request.security/arity',
+                'request.security requires at least symbol, timeframe, and expression',
+              );
+              return naFallback();
+            }
             const symbolArg = args[0];
             const timeframeArg = args[1];
             const expressionArg = args[2];
             const merge = resolveMergeMode(args.slice(3));
-            const callSite = _requestSecurityCallIndex++;
 
             const currentTfRaw =
               typeof stdLib.period === 'function' ? stdLib.period(ctx) : null;
             const currentTfMins = parseTimeframeToMinutes(currentTfRaw);
             const targetTfMins = parseTimeframeToMinutes(timeframeArg);
-
-            // Subset support: only higher-timeframe merge. Same/lower
-            // timeframes keep passthrough behaviour.
+            const currentTicker = String(
+              readStringField(ctx.symbol, 'tickerid') ?? '',
+            );
+            const requestedTicker =
+              typeof symbolArg === 'string'
+                ? symbolArg
+                : String(symbolArg ?? '').trim();
             if (
-              currentTfMins === null ||
-              targetTfMins === null ||
-              targetTfMins <= currentTfMins
+              requestedTicker &&
+              currentTicker &&
+              requestedTicker !== currentTicker
             ) {
+              emitRequestSecurityDiagnostic(
+                'request.security/external-symbol-fallback',
+                `request.security("${requestedTicker}") uses fallback passthrough because external symbol data is unavailable`,
+                `ext-symbol|${requestedTicker}`,
+              );
+            }
+
+            if (currentTfMins === null || targetTfMins === null) {
+              emitRequestSecurityDiagnostic(
+                'request.security/invalid-timeframe',
+                `request.security fallback passthrough for timeframe="${String(timeframeArg)}" (chart="${String(currentTfRaw ?? '')}")`,
+                `invalid-timeframe|${String(currentTfRaw ?? '')}|${String(
+                  timeframeArg,
+                )}`,
+              );
+              return expressionArg;
+            }
+
+            // Same-timeframe requests remain passthrough.
+            if (targetTfMins === currentTfMins) {
+              return expressionArg;
+            }
+
+            // Lower-timeframe aggregation is intentionally out-of-scope
+            // for this runtime subset; keep explicit passthrough.
+            if (targetTfMins < currentTfMins) {
+              emitRequestSecurityDiagnostic(
+                'request.security/lower-timeframe-fallback',
+                `request.security("${String(timeframeArg)}") is lower than chart timeframe "${String(currentTfRaw)}"; using passthrough fallback`,
+                `lower-tf|${String(currentTfRaw)}|${String(timeframeArg)}`,
+              );
               return expressionArg;
             }
 
             // Current bar time is required for deterministic bucket
             // mapping. If unavailable, keep passthrough behavior.
             if (!Number.isFinite(currentBarTime) || currentBarTime < 0) {
+              emitRequestSecurityDiagnostic(
+                'request.security/missing-bar-time-fallback',
+                'request.security fallback passthrough because current bar time is unavailable',
+              );
               return expressionArg;
             }
 
             const bucketSizeMs = targetTfMins * 60_000;
             if (!Number.isFinite(bucketSizeMs) || bucketSizeMs <= 0) {
+              emitRequestSecurityDiagnostic(
+                'request.security/invalid-timeframe',
+                `request.security fallback passthrough for non-positive bucket size derived from timeframe="${String(timeframeArg)}"`,
+                `bucket-size|${String(timeframeArg)}`,
+              );
               return expressionArg;
             }
 
+            const callSite = inferRequestSecurityCallSite();
             const bucket = Math.floor(currentBarTime / bucketSizeMs);
             const key = `${callSite}|${String(symbolArg)}|${String(timeframeArg)}|${merge.gaps}|${merge.lookahead}`;
 
@@ -2171,6 +2277,26 @@ export function buildIndicatorFactory(
                 configurable: false,
               },
             );
+            Object.defineProperty(
+              normalizedPlotValues,
+              '__runtimeDiagnostics',
+              {
+                value: _runtimeDiagnostics,
+                enumerable: false,
+                writable: false,
+                configurable: false,
+              },
+            );
+            Object.defineProperty(
+              normalizedPlotValues,
+              '__runtimeDiagnosticsVersion',
+              {
+                value: RUNTIME_DIAGNOSTICS_VERSION,
+                enumerable: false,
+                writable: false,
+                configurable: false,
+              },
+            );
             markProcessedBar();
             return normalizedPlotValues;
           } catch (e) {
@@ -2205,6 +2331,18 @@ export function buildIndicatorFactory(
             });
             Object.defineProperty(fallback, '__visualEventsVersion', {
               value: VISUAL_EVENTS_VERSION,
+              enumerable: false,
+              writable: false,
+              configurable: false,
+            });
+            Object.defineProperty(fallback, '__runtimeDiagnostics', {
+              value: _runtimeDiagnostics,
+              enumerable: false,
+              writable: false,
+              configurable: false,
+            });
+            Object.defineProperty(fallback, '__runtimeDiagnosticsVersion', {
+              value: RUNTIME_DIAGNOSTICS_VERSION,
               enumerable: false,
               writable: false,
               configurable: false,

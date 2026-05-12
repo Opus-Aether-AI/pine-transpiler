@@ -193,6 +193,26 @@ Exit criteria:
 - expanded `request.security` regression suite passes
 - MTF fixtures show stable pass rates with documented tolerances
 
+Progress (2026-05-12, tranche 1):
+
+- `request.security` keying now uses inferred source call-site
+  coordinates (stack-derived) before fallback ordinal, reducing
+  branch/order drift for multi-call scripts
+- runtime now emits explicit unsupported-mode diagnostics (once per
+  mode/signature) via non-enumerable
+  `main()` return metadata:
+  - `__runtimeDiagnostics`
+  - `__runtimeDiagnosticsVersion`
+- diagnostics cover:
+  - lower-timeframe fallback
+  - invalid/unparseable timeframe fallback
+  - missing bar-time fallback
+  - external-symbol fallback (no external data layer)
+- regression suite expanded in
+  `tests/regression/request-security.test.ts` for:
+  - unsupported-mode diagnostics
+  - tuple lookahead-on finite behavior on first higher-timeframe bucket
+
 ### Phase 16: Builtin/Data-Structure + Semantic Correctness Expansion
 
 Goal: reduce unsupported surface area blocking real-world scripts and

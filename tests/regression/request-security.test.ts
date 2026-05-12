@@ -2,7 +2,29 @@ import { describe, expect, it } from 'bun:test';
 import { transpileToPineJS } from '../../src/index';
 import { createMockRuntime } from '../corpus/mock-runtime';
 
+interface RuntimeDiagnostic {
+  feature: 'request.security';
+  code: string;
+  message: string;
+  barIndex: number;
+}
+
+type MainOutput = unknown[] & {
+  __caughtError?: unknown;
+  __runtimeDiagnostics?: RuntimeDiagnostic[];
+  __runtimeDiagnosticsVersion?: number;
+};
+
 function runOneBar(source: string): number[] {
+  const output = runOneBarWithMeta(source);
+  return output.values;
+}
+
+function runOneBarWithMeta(source: string): {
+  values: number[];
+  diagnostics: RuntimeDiagnostic[];
+  diagnosticsVersion?: number;
+} {
   const result = transpileToPineJS(source, 'request_security_regression', 'Req');
   if (!result.success || !result.indicatorFactory) {
     throw new Error(result.error ?? 'transpile failed');
@@ -18,9 +40,7 @@ function runOneBar(source: string): number[] {
   runtime.resetVarPointer();
   runtime.resetCurrentBarPlots();
 
-  const returned = instance.main(runtime.context, () => 14) as
-    | (unknown[] & { __caughtError?: unknown })
-    | unknown;
+  const returned = instance.main(runtime.context, () => 14) as MainOutput | unknown;
   const caughtError = (returned as { __caughtError?: unknown } | null | undefined)
     ?.__caughtError;
   if (caughtError !== undefined && caughtError !== null) {
@@ -40,7 +60,19 @@ function runOneBar(source: string): number[] {
   if (undefinedSlot >= 0) {
     throw new Error(`undefined plot slot at index ${undefinedSlot}`);
   }
-  return output;
+  const diagnostics = Array.isArray(
+    (returned as MainOutput | null | undefined)?.__runtimeDiagnostics,
+  )
+    ? ([...(returned as MainOutput).__runtimeDiagnostics] as RuntimeDiagnostic[])
+    : [];
+  const diagnosticsVersion = (returned as MainOutput | null | undefined)
+    ?.__runtimeDiagnosticsVersion;
+  return {
+    values: output,
+    diagnostics,
+    diagnosticsVersion:
+      typeof diagnosticsVersion === 'number' ? diagnosticsVersion : undefined,
+  };
 }
 
 function runBars(source: string, bars = 6): number[][] {
@@ -60,9 +92,7 @@ function runBars(source: string, bars = 6): number[][] {
   for (let i = 0; i < bars; i++) {
     runtime.resetVarPointer();
     runtime.resetCurrentBarPlots();
-    const returned = instance.main(runtime.context, () => 14) as
-      | (unknown[] & { __caughtError?: unknown })
-      | unknown;
+    const returned = instance.main(runtime.context, () => 14) as MainOutput | unknown;
     const caughtError = (
       returned as { __caughtError?: unknown } | null | undefined
     )?.__caughtError;
@@ -175,5 +205,44 @@ plot(v)
     expect(Number.isFinite(series[0] as number)).toBe(true);
     expect(Number.isFinite(series[1] as number)).toBe(true);
     expect(Number.isFinite(series[2] as number)).toBe(true);
+  });
+
+  it('emits diagnostics for unsupported lower-timeframe fallback', () => {
+    const source = `//@version=5
+indicator("req diag lower tf")
+v = request.security(syminfo.tickerid, "30S", close, barmerge.gaps_off, barmerge.lookahead_off)
+plot(v)
+`;
+    const { values, diagnostics, diagnosticsVersion } = runOneBarWithMeta(source);
+    expect(values.length).toBe(1);
+    expect(Number.isFinite(values[0] as number)).toBe(true);
+    expect(diagnosticsVersion).toBe(1);
+    expect(
+      diagnostics.some((d) => d.code === 'request.security/lower-timeframe-fallback'),
+    ).toBe(true);
+  });
+
+  it('emits diagnostics for external-symbol fallback', () => {
+    const source = `//@version=5
+indicator("req diag ext symbol")
+v = request.security("BINANCE:BTCUSDT", "15", close, barmerge.gaps_off, barmerge.lookahead_off)
+plot(v)
+`;
+    const { diagnostics } = runOneBarWithMeta(source);
+    expect(
+      diagnostics.some((d) => d.code === 'request.security/external-symbol-fallback'),
+    ).toBe(true);
+  });
+
+  it('keeps tuple lookahead_on values finite on first higher-timeframe bucket', () => {
+    const source = `//@version=5
+indicator("req tuple lookahead on")
+[a, b] = request.security(syminfo.tickerid, "15", [open, close], barmerge.gaps_off, barmerge.lookahead_on)
+plot(a)
+plot(b)
+`;
+    const rows = runBars(source, 5);
+    expect(Number.isFinite(rows[0]?.[0] as number)).toBe(true);
+    expect(Number.isFinite(rows[0]?.[1] as number)).toBe(true);
   });
 });

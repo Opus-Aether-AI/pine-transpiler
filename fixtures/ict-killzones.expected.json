@@ -1,5 +1,5 @@
 {
-  "plotCount": 8,
+  "plotCount": 7,
   "plotIds": [
     "plot_0",
     "plot_1",
@@ -7,8 +7,7 @@
     "plot_3",
     "plot_4",
     "plot_5",
-    "plot_6",
-    "__auto_bg__"
+    "plot_6"
   ],
   "warnings": [
     "partial:box.new",

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { a as Parser, c as ASTGenerator, i as transpileToPineJS, l as generateStandaloneFactory, o as Lexer, p as getMappingStats, r as transpile, s as MetadataVisitor, t as canTranspilePineScript } from "../src-BeMw1kQi.js";
+import { a as Parser, c as ASTGenerator, i as transpileToPineJS, l as generateStandaloneFactory, o as Lexer, p as getMappingStats, r as transpile, s as MetadataVisitor, t as canTranspilePineScript } from "../src-Ba88Ls3i.js";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -169,7 +169,7 @@ Supported Features:
   • Arrays and tuples
 
 Limitations:
-  • Partial request.security() passthrough (no true MTF aggregation)
+  • request.security() subset MTF merge (with explicit fallback diagnostics)
   • Drawing/table are runtime-compatible no-op objects (no visual rendering)
   • Some advanced Pine Script v5 features
 

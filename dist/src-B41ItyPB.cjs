@@ -3272,6 +3272,7 @@ function ensureArrayPrototypeCompat() {
 * additive-vs-breaking policy.
 */
 var VISUAL_EVENTS_VERSION = 1;
+var RUNTIME_DIAGNOSTICS_VERSION = 1;
 function extractHandleId(value) {
 	if (typeof value !== "object" || value === null) return void 0;
 	const id = value.__id;
@@ -3612,7 +3613,7 @@ function generatePreamble(usedSources, historicalAccess, mainBody = "") {
 * Build an indicator factory from the given options
 */
 function buildIndicatorFactory(options) {
-	const { indicatorId, indicatorName, name, shortName, overlay, plots, inputs, usedSources, historicalAccess, mainBody, autoBgColorerForBoxes = true } = options;
+	const { indicatorId, indicatorName, name, shortName, overlay, plots, inputs, usedSources, historicalAccess, mainBody, autoBgColorerForBoxes = false } = options;
 	const body = generatePreamble(usedSources, historicalAccess, mainBody) + mainBody;
 	const hasAutoBgColorer = autoBgColorerForBoxes && body.includes("box.new(");
 	const AUTO_BG_PLOT_ID = "__auto_bg__";
@@ -3745,6 +3746,7 @@ function buildIndicatorFactory(options) {
 				let _processedBars = 0;
 				let _processedBarKey = null;
 				const _requestSecurityState = /* @__PURE__ */ new Map();
+				const _requestSecurityDiagnosticsSeen = /* @__PURE__ */ new Set();
 				let compiledScript;
 				try {
 					compiledScript = new Function("Std", "context", "input", "plot", "indicator", "study", "strategy", "color", "ta", "math", "timeframe", "plotshape", "plotchar", "plotarrow", "hline", "bgcolor", "fill", "barcolor", "box", "line", "label", "table", "str", "syminfo", "barstate", "shape", "location", "size", "alertcondition", "alert", "request", "session", "array", "time", "time_close", "time_tradingday", "bar_index", "hour", "minute", "second", "year", "month", "dayofmonth", "dayofweek", "timestamp", "chart", "format", "string", "xloc", "yloc", "extend", "position", "order", "text", "display", "ticker", "barmerge", "close", "open", "high", "low", "volume", "hl2", "hlc3", "ohlc4", body);
@@ -3765,6 +3767,7 @@ function buildIndicatorFactory(options) {
 				const main = (context, inputCallback) => {
 					const _plotValues = [];
 					const _visualEvents = [];
+					const _runtimeDiagnostics = [];
 					const stdLib = Std;
 					const ctx = context;
 					ensureArrayPrototypeCompat();
@@ -4204,6 +4207,33 @@ function buildIndicatorFactory(options) {
 					} });
 					const naFallback = () => makeNaIterable();
 					let _requestSecurityCallIndex = 0;
+					const emitRequestSecurityDiagnostic = (code, message, dedupeKey) => {
+						const key = dedupeKey ?? `${code}|${message}`;
+						if (_requestSecurityDiagnosticsSeen.has(key)) return;
+						_requestSecurityDiagnosticsSeen.add(key);
+						_runtimeDiagnostics.push({
+							feature: "request.security",
+							code,
+							message,
+							barIndex: resolvedBarIndex
+						});
+					};
+					const inferRequestSecurityCallSite = () => {
+						const fallbackOrdinal = _requestSecurityCallIndex;
+						_requestSecurityCallIndex += 1;
+						try {
+							const stack = (/* @__PURE__ */ new Error()).stack;
+							if (typeof stack !== "string") return `ord:${fallbackOrdinal}`;
+							const lines = stack.split("\n");
+							for (const raw of lines) {
+								const line = raw.trim();
+								if (!line || line.includes("requestSecurity")) continue;
+								const m = line.match(/<anonymous>:(\d+):(\d+)/);
+								if (m) return `${m[1]}:${m[2]}`;
+							}
+						} catch {}
+						return `ord:${fallbackOrdinal}`;
+					};
 					const cloneValue = (value) => {
 						if (Array.isArray(value)) return value.map((v) => cloneValue(v));
 						return value;
@@ -4245,18 +4275,39 @@ function buildIndicatorFactory(options) {
 						};
 					};
 					const requestSecurity = (...args) => {
-						if (args.length < 3) return naFallback();
+						if (args.length < 3) {
+							emitRequestSecurityDiagnostic("request.security/arity", "request.security requires at least symbol, timeframe, and expression");
+							return naFallback();
+						}
 						const symbolArg = args[0];
 						const timeframeArg = args[1];
 						const expressionArg = args[2];
 						const merge = resolveMergeMode(args.slice(3));
-						const callSite = _requestSecurityCallIndex++;
-						const currentTfMins = parseTimeframeToMinutes(typeof stdLib.period === "function" ? stdLib.period(ctx) : null);
+						const currentTfRaw = typeof stdLib.period === "function" ? stdLib.period(ctx) : null;
+						const currentTfMins = parseTimeframeToMinutes(currentTfRaw);
 						const targetTfMins = parseTimeframeToMinutes(timeframeArg);
-						if (currentTfMins === null || targetTfMins === null || targetTfMins <= currentTfMins) return expressionArg;
-						if (!Number.isFinite(currentBarTime) || currentBarTime < 0) return expressionArg;
+						const currentTicker = String(readStringField(ctx.symbol, "tickerid") ?? "");
+						const requestedTicker = typeof symbolArg === "string" ? symbolArg : String(symbolArg ?? "").trim();
+						if (requestedTicker && currentTicker && requestedTicker !== currentTicker) emitRequestSecurityDiagnostic("request.security/external-symbol-fallback", `request.security("${requestedTicker}") uses fallback passthrough because external symbol data is unavailable`, `ext-symbol|${requestedTicker}`);
+						if (currentTfMins === null || targetTfMins === null) {
+							emitRequestSecurityDiagnostic("request.security/invalid-timeframe", `request.security fallback passthrough for timeframe="${String(timeframeArg)}" (chart="${String(currentTfRaw ?? "")}")`, `invalid-timeframe|${String(currentTfRaw ?? "")}|${String(timeframeArg)}`);
+							return expressionArg;
+						}
+						if (targetTfMins === currentTfMins) return expressionArg;
+						if (targetTfMins < currentTfMins) {
+							emitRequestSecurityDiagnostic("request.security/lower-timeframe-fallback", `request.security("${String(timeframeArg)}") is lower than chart timeframe "${String(currentTfRaw)}"; using passthrough fallback`, `lower-tf|${String(currentTfRaw)}|${String(timeframeArg)}`);
+							return expressionArg;
+						}
+						if (!Number.isFinite(currentBarTime) || currentBarTime < 0) {
+							emitRequestSecurityDiagnostic("request.security/missing-bar-time-fallback", "request.security fallback passthrough because current bar time is unavailable");
+							return expressionArg;
+						}
 						const bucketSizeMs = targetTfMins * 6e4;
-						if (!Number.isFinite(bucketSizeMs) || bucketSizeMs <= 0) return expressionArg;
+						if (!Number.isFinite(bucketSizeMs) || bucketSizeMs <= 0) {
+							emitRequestSecurityDiagnostic("request.security/invalid-timeframe", `request.security fallback passthrough for non-positive bucket size derived from timeframe="${String(timeframeArg)}"`, `bucket-size|${String(timeframeArg)}`);
+							return expressionArg;
+						}
+						const callSite = inferRequestSecurityCallSite();
 						const bucket = Math.floor(currentBarTime / bucketSizeMs);
 						const key = `${callSite}|${String(symbolArg)}|${String(timeframeArg)}|${merge.gaps}|${merge.lookahead}`;
 						const existing = _requestSecurityState.get(key);
@@ -4378,6 +4429,18 @@ function buildIndicatorFactory(options) {
 							writable: false,
 							configurable: false
 						});
+						Object.defineProperty(normalizedPlotValues, "__runtimeDiagnostics", {
+							value: _runtimeDiagnostics,
+							enumerable: false,
+							writable: false,
+							configurable: false
+						});
+						Object.defineProperty(normalizedPlotValues, "__runtimeDiagnosticsVersion", {
+							value: RUNTIME_DIAGNOSTICS_VERSION,
+							enumerable: false,
+							writable: false,
+							configurable: false
+						});
 						markProcessedBar();
 						return normalizedPlotValues;
 					} catch (e) {
@@ -4391,6 +4454,18 @@ function buildIndicatorFactory(options) {
 						});
 						Object.defineProperty(fallback, "__visualEventsVersion", {
 							value: VISUAL_EVENTS_VERSION,
+							enumerable: false,
+							writable: false,
+							configurable: false
+						});
+						Object.defineProperty(fallback, "__runtimeDiagnostics", {
+							value: _runtimeDiagnostics,
+							enumerable: false,
+							writable: false,
+							configurable: false
+						});
+						Object.defineProperty(fallback, "__runtimeDiagnosticsVersion", {
+							value: RUNTIME_DIAGNOSTICS_VERSION,
 							enumerable: false,
 							writable: false,
 							configurable: false
@@ -8233,7 +8308,7 @@ function transpileToPineJS(code, indicatorId, indicatorName, options) {
 				usedSources: visitor.usedSources,
 				historicalAccess: visitor.historicalAccess,
 				mainBody,
-				autoBgColorerForBoxes: options?.autoBgColorerForBoxes ?? true
+				autoBgColorerForBoxes: options?.autoBgColorerForBoxes ?? false
 			})
 		};
 	} catch (error) {
@@ -8305,6 +8380,107 @@ function executePineJS(code, indicatorId, indicatorName) {
 	}
 }
 //#endregion
-export { MATH_FUNCTION_MAPPINGS as _, Parser as a, ASTGenerator as c, PRICE_SOURCES as d, getAllPineFunctionNames as f, TA_FUNCTION_MAPPINGS as g, MULTI_OUTPUT_MAPPINGS as h, transpileToPineJS as i, generateStandaloneFactory as l, TIME_FUNCTION_MAPPINGS as m, executePineJS as n, Lexer as o, getMappingStats as p, transpile as r, MetadataVisitor as s, canTranspilePineScript as t, COLOR_MAP as u };
+Object.defineProperty(exports, "ASTGenerator", {
+	enumerable: true,
+	get: function() {
+		return ASTGenerator;
+	}
+});
+Object.defineProperty(exports, "COLOR_MAP", {
+	enumerable: true,
+	get: function() {
+		return COLOR_MAP;
+	}
+});
+Object.defineProperty(exports, "Lexer", {
+	enumerable: true,
+	get: function() {
+		return Lexer;
+	}
+});
+Object.defineProperty(exports, "MATH_FUNCTION_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return MATH_FUNCTION_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "MULTI_OUTPUT_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return MULTI_OUTPUT_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "MetadataVisitor", {
+	enumerable: true,
+	get: function() {
+		return MetadataVisitor;
+	}
+});
+Object.defineProperty(exports, "PRICE_SOURCES", {
+	enumerable: true,
+	get: function() {
+		return PRICE_SOURCES;
+	}
+});
+Object.defineProperty(exports, "Parser", {
+	enumerable: true,
+	get: function() {
+		return Parser;
+	}
+});
+Object.defineProperty(exports, "TA_FUNCTION_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return TA_FUNCTION_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "TIME_FUNCTION_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return TIME_FUNCTION_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "canTranspilePineScript", {
+	enumerable: true,
+	get: function() {
+		return canTranspilePineScript;
+	}
+});
+Object.defineProperty(exports, "executePineJS", {
+	enumerable: true,
+	get: function() {
+		return executePineJS;
+	}
+});
+Object.defineProperty(exports, "generateStandaloneFactory", {
+	enumerable: true,
+	get: function() {
+		return generateStandaloneFactory;
+	}
+});
+Object.defineProperty(exports, "getAllPineFunctionNames", {
+	enumerable: true,
+	get: function() {
+		return getAllPineFunctionNames;
+	}
+});
+Object.defineProperty(exports, "getMappingStats", {
+	enumerable: true,
+	get: function() {
+		return getMappingStats;
+	}
+});
+Object.defineProperty(exports, "transpile", {
+	enumerable: true,
+	get: function() {
+		return transpile;
+	}
+});
+Object.defineProperty(exports, "transpileToPineJS", {
+	enumerable: true,
+	get: function() {
+		return transpileToPineJS;
+	}
+});
 
-//# sourceMappingURL=src-BeMw1kQi.js.map
+//# sourceMappingURL=src-B41ItyPB.cjs.map
