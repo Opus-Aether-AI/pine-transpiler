@@ -388,11 +388,15 @@ export class StatementGenerator implements StatementGeneratorInterface {
     // separate, deeper bug), which produces JS like:
     //   let yValue = a;
     //   let yValue = b;   ← SyntaxError on redeclaration
-    // Switching `let` → `var` makes redeclaration legal in JS when the
-    // parser flattens sibling scopes. Keep that for non-const paths.
-    // `var`/`varip` declarations are emitted via runtime-backed helper
+    // Switching declaration emit to `var` makes redeclaration legal in JS
+    // when the parser flattens sibling scopes. Keep this for *all* Pine
+    // declaration kinds, including `const`: Pine `const` is a source-level
+    // qualifier, but emitting JS `const` here can hard-fail compilation with
+    // `Identifier '<x>' has already been declared` on otherwise valid scripts.
+    //
+    // `var`/`varip` declarations are still emitted via runtime-backed helper
     // initializers so values persist across bars.
-    const kind = stmt.kind === 'const' ? 'const' : 'var';
+    const kind = 'var';
     const isPersistent = stmt.kind === 'var' || stmt.kind === 'varip';
     const isVarip = stmt.kind === 'varip';
     const initExpr = stmt.init

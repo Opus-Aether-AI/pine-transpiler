@@ -5769,7 +5769,7 @@ var StatementGenerator = class {
 		return `${indent(this.indentLevel)}for (const ${name} of ${right}) ${body}`;
 	}
 	generateVariableDeclaration(stmt) {
-		const kind = stmt.kind === "const" ? "const" : "var";
+		const kind = "var";
 		const isPersistent = stmt.kind === "var" || stmt.kind === "varip";
 		const isVarip = stmt.kind === "varip";
 		const initExpr = stmt.init ? this.expressionGen.generateExpression(stmt.init) : "NaN";
@@ -8693,6 +8693,89 @@ function executePineJS(code, indicatorId, indicatorName) {
 	}
 }
 //#endregion
-export { transpileToStandaloneFactory as a, PRICE_SOURCES as c, TIME_FUNCTION_MAPPINGS as d, MULTI_OUTPUT_MAPPINGS as f, transpileToPineJS as i, getAllPineFunctionNames as l, MATH_FUNCTION_MAPPINGS as m, executePineJS as n, generateStandaloneFactory as o, TA_FUNCTION_MAPPINGS as p, transpile as r, COLOR_MAP as s, canTranspilePineScript as t, getMappingStats as u };
+Object.defineProperty(exports, "COLOR_MAP", {
+	enumerable: true,
+	get: function() {
+		return COLOR_MAP;
+	}
+});
+Object.defineProperty(exports, "MATH_FUNCTION_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return MATH_FUNCTION_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "MULTI_OUTPUT_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return MULTI_OUTPUT_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "PRICE_SOURCES", {
+	enumerable: true,
+	get: function() {
+		return PRICE_SOURCES;
+	}
+});
+Object.defineProperty(exports, "TA_FUNCTION_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return TA_FUNCTION_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "TIME_FUNCTION_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return TIME_FUNCTION_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "canTranspilePineScript", {
+	enumerable: true,
+	get: function() {
+		return canTranspilePineScript;
+	}
+});
+Object.defineProperty(exports, "executePineJS", {
+	enumerable: true,
+	get: function() {
+		return executePineJS;
+	}
+});
+Object.defineProperty(exports, "generateStandaloneFactory", {
+	enumerable: true,
+	get: function() {
+		return generateStandaloneFactory;
+	}
+});
+Object.defineProperty(exports, "getAllPineFunctionNames", {
+	enumerable: true,
+	get: function() {
+		return getAllPineFunctionNames;
+	}
+});
+Object.defineProperty(exports, "getMappingStats", {
+	enumerable: true,
+	get: function() {
+		return getMappingStats;
+	}
+});
+Object.defineProperty(exports, "transpile", {
+	enumerable: true,
+	get: function() {
+		return transpile;
+	}
+});
+Object.defineProperty(exports, "transpileToPineJS", {
+	enumerable: true,
+	get: function() {
+		return transpileToPineJS;
+	}
+});
+Object.defineProperty(exports, "transpileToStandaloneFactory", {
+	enumerable: true,
+	get: function() {
+		return transpileToStandaloneFactory;
+	}
+});
 
-//# sourceMappingURL=src-3Oeobwhd.js.map
+//# sourceMappingURL=src-8FOZfy5r.cjs.map
