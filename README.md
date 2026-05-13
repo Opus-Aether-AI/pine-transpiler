@@ -83,7 +83,11 @@ if (result.success) {
 
 #### `transpileToPineJS(code, indicatorId, indicatorName?)`
 
-Transpile Pine Script to a TradingView CustomIndicator factory.
+Transpile Pine Script to a TradingView `CustomIndicator` factory.
+
+This path compiles indicator runtime with `new Function(...)` when the
+indicator is instantiated. Use it for local/dev or environments where
+`unsafe-eval` is allowed.
 
 ```typescript
 function transpileToPineJS(
@@ -97,6 +101,28 @@ interface TranspileToPineJSResult {
   success: boolean;
   indicatorFactory?: IndicatorFactory;  // When success=true
   error?: string;                       // When success=false
+}
+```
+
+#### `transpileToStandaloneFactory(code, indicatorId, indicatorName?)`
+
+Transpile Pine Script to a standalone ESM module string with
+`createIndicator(PineJS)` export.
+
+Use this for strict CSP production environments where `unsafe-eval`
+is blocked.
+
+```typescript
+function transpileToStandaloneFactory(
+  code: string,
+  indicatorId: string,
+  indicatorName?: string
+): TranspileToStandaloneFactoryResult;
+
+interface TranspileToStandaloneFactoryResult {
+  success: boolean;
+  factoryCode?: string;  // Standalone ESM source when success=true
+  error?: string;
 }
 ```
 
@@ -137,6 +163,7 @@ function executePineJS(
 ```typescript
 import { 
   transpileToPineJS,
+  transpileToStandaloneFactory,
   transpile,
   canTranspilePineScript,
   executePineJS,
@@ -161,6 +188,20 @@ import {
   type TradingViewHarnessOptions,
   type TradingViewHarnessReport,
 } from '@opusaether/pine-transpiler/test-harness';
+```
+
+#### Strict CSP Integration
+```typescript
+import { transpileToStandaloneFactory } from '@opusaether/pine-transpiler';
+
+const built = transpileToStandaloneFactory(pineSource, 'ict_killzones', 'ICT Killzones');
+if (!built.success) throw new Error(built.error);
+
+// Persist `built.factoryCode` as a module at build time (example file:
+// generated/ict-killzones.factory.js), then import it in the webapp:
+//
+// import { createIndicator } from './generated/ict-killzones.factory.js';
+// const indicator = createIndicator(PineJS);
 ```
 
 ## TradingView Harness

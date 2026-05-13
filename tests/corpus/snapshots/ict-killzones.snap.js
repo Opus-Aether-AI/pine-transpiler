@@ -309,208 +309,196 @@ const _pineScopeKey = (scopeId) => {
 
 indicator("ICT Killzones & Pivots [TFO]", "ICT Killzones & Pivots [TFO]", true, 500, 500, 500);
 function get_line_type(_style) {
+  return (() => {
   switch (_style) {
     case "Solid":
-      line.style_solid;
-      break;
+      return line.style_solid;
     case "Dotted":
-      line.style_dotted;
-      break;
+      return line.style_dotted;
     case "Dashed":
-      line.style_dashed;
-      break;
+      return line.style_dashed;
   }
+})();
 }
 function get_size(x) {
+  return (() => {
   switch (x) {
     case "Auto":
-      size.auto;
-      break;
+      return size.auto;
     case "Tiny":
-      size.tiny;
-      break;
+      return size.tiny;
     case "Small":
-      size.small;
-      break;
+      return size.small;
     case "Normal":
-      size.normal;
-      break;
+      return size.normal;
     case "Large":
-      size.large;
-      break;
+      return size.large;
     case "Huge":
-      size.huge;
-      break;
+      return size.huge;
   }
+})();
 }
 function get_table_pos(pos) {
+  return (() => {
   switch (pos) {
     case "Bottom Center":
-      position.bottom_center;
-      break;
+      return position.bottom_center;
     case "Bottom Left":
-      position.bottom_left;
-      break;
+      return position.bottom_left;
     case "Bottom Right":
-      position.bottom_right;
-      break;
+      return position.bottom_right;
     case "Middle Center":
-      position.middle_center;
-      break;
+      return position.middle_center;
     case "Middle Left":
-      position.middle_left;
-      break;
+      return position.middle_left;
     case "Middle Right":
-      position.middle_right;
-      break;
+      return position.middle_right;
     case "Top Center":
-      position.top_center;
-      break;
+      return position.top_center;
     case "Top Left":
-      position.top_left;
-      break;
+      return position.top_left;
     case "Top Right":
-      position.top_right;
-      break;
+      return position.top_right;
   }
+})();
 }
 var g_SETTINGS = _pineVar("g_SETTINGS", () => ("Settings"));
-var max_days = input.int(3, "Session Drawing Limit", 1, "Only this many drawings will be kept on the chart, for each selected drawing type (killzone boxes, pivot lines, open lines, etc.)", g_SETTINGS);
-var tf_limit = input.timeframe("30", "Timeframe Limit", "Drawings will not appear on timeframes greater than or equal to this", g_SETTINGS);
-var gmt_tz = input.string("America/New_York", "Timezone", ["America/New_York", "GMT-12", "GMT-11", "GMT-10", "GMT-9", "GMT-8", "GMT-7", "GMT-6", "GMT-5", "GMT-4", "GMT-3", "GMT-2", "GMT-1", "GMT+0", "GMT+1", "GMT+2", "GMT+3", "GMT+4", "GMT+5", "GMT+6", "GMT+7", "GMT+8", "GMT+9", "GMT+10", "GMT+11", "GMT+12", "GMT+13", "GMT+14"], "Note GMT is not adjusted to reflect Daylight Saving Time changes", g_SETTINGS);
-var lbl_size = get_size(input.string("Normal", "Label Size", ["Auto", "Tiny", "Small", "Normal", "Large", "Huge"], "The size of all labels", g_SETTINGS));
-var txt_color = input.color(color.black, "Text Color", "The color of all label and table text", g_SETTINGS);
-var use_cutoff = input.bool(false, "Drawing Cutoff Time", "CO", "When enabled, all pivots and open price lines will stop extending at this time", g_SETTINGS);
-var cutoff = input.session("1800-1801", "", "CO", g_SETTINGS);
+var max_days = input.int(3, "Session Drawing Limit", 1, NaN, NaN, "Only this many drawings will be kept on the chart, for each selected drawing type (killzone boxes, pivot lines, open lines, etc.)", NaN, g_SETTINGS);
+var tf_limit = input.timeframe("30", "Timeframe Limit", NaN, "Drawings will not appear on timeframes greater than or equal to this", NaN, g_SETTINGS);
+var gmt_tz = input.string("America/New_York", "Timezone", ["America/New_York", "GMT-12", "GMT-11", "GMT-10", "GMT-9", "GMT-8", "GMT-7", "GMT-6", "GMT-5", "GMT-4", "GMT-3", "GMT-2", "GMT-1", "GMT+0", "GMT+1", "GMT+2", "GMT+3", "GMT+4", "GMT+5", "GMT+6", "GMT+7", "GMT+8", "GMT+9", "GMT+10", "GMT+11", "GMT+12", "GMT+13", "GMT+14"], "Note GMT is not adjusted to reflect Daylight Saving Time changes", NaN, g_SETTINGS);
+var lbl_size = get_size(input.string("Normal", "Label Size", ["Auto", "Tiny", "Small", "Normal", "Large", "Huge"], "The size of all labels", NaN, g_SETTINGS));
+var txt_color = input.color(color.black, "Text Color", "The color of all label and table text", NaN, g_SETTINGS);
+var use_cutoff = input.bool(false, "Drawing Cutoff Time", "When enabled, all pivots and open price lines will stop extending at this time", "CO", g_SETTINGS);
+var cutoff = input.session("1800-1801", "", NaN, NaN, "CO", g_SETTINGS);
 var tf_limit_is_equal_or_more_chart_tf = _pineVar("tf_limit_is_equal_or_more_chart_tf", () => ((timeframe.in_seconds("") <= timeframe.in_seconds(tf_limit))));
 var g_KZ = _pineVar("g_KZ", () => ("Killzones"));
-var show_kz = input.bool(true, "Show Killzone Boxes", "KZ", g_KZ);
-var show_kz_text = input.bool(true, "Display Text", "KZ", g_KZ);
-var use_asia = input.bool(true, "", "ASIA", g_KZ);
-var as_txt = input.string("Asia", "", "ASIA", g_KZ);
-var asia = input.session("2000-0000", "", "ASIA", g_KZ);
-var as_color = input.color(color.blue, "", "ASIA", g_KZ);
-var use_london = input.bool(true, "", "LONDON", g_KZ);
-var lo_txt = input.string("London", "", "LONDON", g_KZ);
-var london = input.session("0200-0500", "", "LONDON", g_KZ);
-var lo_color = input.color(color.red, "", "LONDON", g_KZ);
-var use_nyam = input.bool(true, "", "NYAM", g_KZ);
-var na_txt = input.string("NY AM", "", "NYAM", g_KZ);
-var nyam = input.session("0930-1100", "", "NYAM", g_KZ);
-var na_color = input.color("#089981", "", "NYAM", g_KZ);
-var use_nylu = input.bool(true, "", "NYLU", g_KZ);
-var nl_txt = input.string("NY Lunch", "", "NYLU", g_KZ);
-var nylu = input.session("1200-1300", "", "NYLU", g_KZ);
-var nl_color = input.color(color.yellow, "", "NYLU", g_KZ);
-var use_nypm = input.bool(true, "", "NYPM", g_KZ);
-var np_txt = input.string("NY PM", "", "NYPM", g_KZ);
-var nypm = input.session("1330-1600", "", "NYPM", g_KZ);
-var np_color = input.color(color.purple, "", "NYPM", g_KZ);
-var box_transparency = input.int(70, "Box Transparency", 0, 100, g_KZ);
-var text_transparency = input.int(50, "Text Transparency", 0, 100, g_KZ);
+var show_kz = input.bool(true, "Show Killzone Boxes", NaN, "KZ", g_KZ);
+var show_kz_text = input.bool(true, "Display Text", NaN, "KZ", g_KZ);
+var use_asia = input.bool(true, "", NaN, "ASIA", g_KZ);
+var as_txt = input.string("Asia", "", NaN, NaN, "ASIA", g_KZ);
+var asia = input.session("2000-0000", "", NaN, NaN, "ASIA", g_KZ);
+var as_color = input.color(color.blue, "", NaN, "ASIA", g_KZ);
+var use_london = input.bool(true, "", NaN, "LONDON", g_KZ);
+var lo_txt = input.string("London", "", NaN, NaN, "LONDON", g_KZ);
+var london = input.session("0200-0500", "", NaN, NaN, "LONDON", g_KZ);
+var lo_color = input.color(color.red, "", NaN, "LONDON", g_KZ);
+var use_nyam = input.bool(true, "", NaN, "NYAM", g_KZ);
+var na_txt = input.string("NY AM", "", NaN, NaN, "NYAM", g_KZ);
+var nyam = input.session("0930-1100", "", NaN, NaN, "NYAM", g_KZ);
+var na_color = input.color("#089981", "", NaN, "NYAM", g_KZ);
+var use_nylu = input.bool(true, "", NaN, "NYLU", g_KZ);
+var nl_txt = input.string("NY Lunch", "", NaN, NaN, "NYLU", g_KZ);
+var nylu = input.session("1200-1300", "", NaN, NaN, "NYLU", g_KZ);
+var nl_color = input.color(color.yellow, "", NaN, "NYLU", g_KZ);
+var use_nypm = input.bool(true, "", NaN, "NYPM", g_KZ);
+var np_txt = input.string("NY PM", "", NaN, NaN, "NYPM", g_KZ);
+var nypm = input.session("1330-1600", "", NaN, NaN, "NYPM", g_KZ);
+var np_color = input.color(color.purple, "", NaN, "NYPM", g_KZ);
+var box_transparency = input.int(70, "Box Transparency", 0, 100, NaN, NaN, NaN, g_KZ);
+var text_transparency = input.int(50, "Text Transparency", 0, 100, NaN, NaN, NaN, g_KZ);
 var g_LABELS = _pineVar("g_LABELS", () => ("Killzone Pivots"));
-var show_pivots = input.bool(true, "Show Pivots", "PV", g_LABELS);
-var use_alerts = input.bool(true, "Alert Broken Pivots", "PV", "The desired killzones must be enabled at the time that an alert is created, along with the show pivots option, in order for alerts to work", g_LABELS);
-var show_midpoints = input.bool(false, "Show Pivot Midpoints", "mp", g_LABELS);
-var stop_midpoints = input.bool(true, "Stop Once Mitigated", "mp", g_LABELS);
-var show_labels = input.bool(true, "Show Pivot Labels", "LB", "Show labels denoting each killzone's high and low. Optionally choose to show the price of each level. Right side will show labels on the right-hand side of the chart until they are reached", g_LABELS);
-var label_price = input.bool(false, "Display Price", "LB", g_LABELS);
-var label_right = input.bool(false, "Right Side", "LB", g_LABELS);
-var ext_pivots = input.string("Until Mitigated", "Extend Pivots...", ["Until Mitigated", "Past Mitigation"], g_LABELS);
-var ext_which = input.string("Most Recent", "...From Which Sessions", ["Most Recent", "All"], g_LABELS);
-var ash_str = input.string("AS.H", "Killzone 1 Labels", "L_AS", g_LABELS);
-var asl_str = input.string("AS.L", "", "L_AS", g_LABELS);
-var loh_str = input.string("LO.H", "Killzone 2 Labels", "L_LO", g_LABELS);
-var lol_str = input.string("LO.L", "", "L_LO", g_LABELS);
-var nah_str = input.string("NYAM.H", "Killzone 3 Labels", "L_NA", g_LABELS);
-var nal_str = input.string("NYAM.L", "", "L_NA", g_LABELS);
-var nlh_str = input.string("NYL.H", "Killzone 4 Labels", "L_NL", g_LABELS);
-var nll_str = input.string("NYL.L", "", "L_NL", g_LABELS);
-var nph_str = input.string("NYPM.H", "Killzone 5 Labels", "L_NP", g_LABELS);
-var npl_str = input.string("NYPM.L", "", "L_NP", g_LABELS);
-var kzp_style = get_line_type(input.string("Solid", "Pivot Style", ["Solid", "Dotted", "Dashed"], "KZP", g_LABELS));
-var kzp_width = input.int(1, "", "KZP", g_LABELS);
-var kzm_style = get_line_type(input.string("Dotted", "Midpoint Style", ["Solid", "Dotted", "Dashed"], "KZM", g_LABELS));
-var kzm_width = input.int(1, "", "KZM", g_LABELS);
+var show_pivots = input.bool(true, "Show Pivots", NaN, "PV", g_LABELS);
+var use_alerts = input.bool(true, "Alert Broken Pivots", "The desired killzones must be enabled at the time that an alert is created, along with the show pivots option, in order for alerts to work", "PV", g_LABELS);
+var show_midpoints = input.bool(false, "Show Pivot Midpoints", NaN, "mp", g_LABELS);
+var stop_midpoints = input.bool(true, "Stop Once Mitigated", NaN, "mp", g_LABELS);
+var show_labels = input.bool(true, "Show Pivot Labels", "Show labels denoting each killzone's high and low. Optionally choose to show the price of each level. Right side will show labels on the right-hand side of the chart until they are reached", "LB", g_LABELS);
+var label_price = input.bool(false, "Display Price", NaN, "LB", g_LABELS);
+var label_right = input.bool(false, "Right Side", NaN, "LB", g_LABELS);
+var ext_pivots = input.string("Until Mitigated", "Extend Pivots...", ["Until Mitigated", "Past Mitigation"], NaN, NaN, g_LABELS);
+var ext_which = input.string("Most Recent", "...From Which Sessions", ["Most Recent", "All"], NaN, NaN, g_LABELS);
+var ash_str = input.string("AS.H", "Killzone 1 Labels", NaN, NaN, "L_AS", g_LABELS);
+var asl_str = input.string("AS.L", "", NaN, NaN, "L_AS", g_LABELS);
+var loh_str = input.string("LO.H", "Killzone 2 Labels", NaN, NaN, "L_LO", g_LABELS);
+var lol_str = input.string("LO.L", "", NaN, NaN, "L_LO", g_LABELS);
+var nah_str = input.string("NYAM.H", "Killzone 3 Labels", NaN, NaN, "L_NA", g_LABELS);
+var nal_str = input.string("NYAM.L", "", NaN, NaN, "L_NA", g_LABELS);
+var nlh_str = input.string("NYL.H", "Killzone 4 Labels", NaN, NaN, "L_NL", g_LABELS);
+var nll_str = input.string("NYL.L", "", NaN, NaN, "L_NL", g_LABELS);
+var nph_str = input.string("NYPM.H", "Killzone 5 Labels", NaN, NaN, "L_NP", g_LABELS);
+var npl_str = input.string("NYPM.L", "", NaN, NaN, "L_NP", g_LABELS);
+var kzp_style = get_line_type(input.string("Solid", "Pivot Style", ["Solid", "Dotted", "Dashed"], NaN, "KZP", g_LABELS));
+var kzp_width = input.int(1, "", NaN, NaN, NaN, NaN, "KZP", g_LABELS);
+var kzm_style = get_line_type(input.string("Dotted", "Midpoint Style", ["Solid", "Dotted", "Dashed"], NaN, "KZM", g_LABELS));
+var kzm_width = input.int(1, "", NaN, NaN, NaN, NaN, "KZM", g_LABELS);
 var g_RNG = _pineVar("g_RNG", () => ("Killzone Range"));
-var show_range = input.bool(false, "Show Killzone Range", "Show the most recent ranges of each selected killzone, from high to low", g_RNG);
-var show_range_avg = input.bool(true, "Show Average", "Show the average range of each selected killzone", g_RNG);
-var range_avg = input.int(5, "Average Length", 0, "This many previous sessions will be used to calculate the average. If there isn't enough data on the current chart, it will use as many sessions as possible", g_RNG);
-var range_pos = get_table_pos(input.string("Top Right", "Table Position", ["Bottom Center", "Bottom Left", "Bottom Right", "Middle Center", "Middle Left", "Middle Right", "Top Center", "Top Left", "Top Right"], g_RNG));
-var range_size = get_size(input.string("Normal", "Table Size", ["Auto", "Tiny", "Small", "Normal", "Large", "Huge"], g_RNG));
+var show_range = input.bool(false, "Show Killzone Range", "Show the most recent ranges of each selected killzone, from high to low", NaN, g_RNG);
+var show_range_avg = input.bool(true, "Show Average", "Show the average range of each selected killzone", NaN, g_RNG);
+var range_avg = input.int(5, "Average Length", 0, NaN, NaN, "This many previous sessions will be used to calculate the average. If there isn't enough data on the current chart, it will use as many sessions as possible", NaN, g_RNG);
+var range_pos = get_table_pos(input.string("Top Right", "Table Position", ["Bottom Center", "Bottom Left", "Bottom Right", "Middle Center", "Middle Left", "Middle Right", "Top Center", "Top Left", "Top Right"], NaN, NaN, g_RNG));
+var range_size = get_size(input.string("Normal", "Table Size", ["Auto", "Tiny", "Small", "Normal", "Large", "Huge"], NaN, NaN, g_RNG));
 var g_DWM = _pineVar("g_DWM", () => ("Day - Week - Month"));
-var sep_unlimited = input.bool(false, "Unlimited", "Unlimited will show as many of the selected lines as possible. Otherwise, the session drawing limit will be used", g_DWM);
-var alert_HL = input.bool(false, "Alert High/Low Break", "Alert when any selected highs and lows are traded through. The desired timeframe's high/low option must be enabled at the time that an alert is created", g_DWM);
-var show_d_open = input.bool(false, "D Open", "DO", g_DWM);
-var dhl = input.bool(false, "High/Low", "DO", "", g_DWM);
-var ds = input.bool(false, "Separators", "DO", "Mark where a new day begins", g_DWM);
-var d_color = input.color(color.blue, "", "DO", g_DWM);
-var show_w_open = input.bool(false, "W Open", "WO", g_DWM);
-var whl = input.bool(false, "High/Low", "WO", "", g_DWM);
-var ws = input.bool(false, "Separators", "WO", "Mark where a new week begins", g_DWM);
-var w_color = input.color("#089981", "", "WO", g_DWM);
-var show_m_open = input.bool(false, "M Open", "MO", g_DWM);
-var mhl = input.bool(false, "High/Low", "MO", "", g_DWM);
-var ms = input.bool(false, "Separators", "MO", "Mark where a new month begins", g_DWM);
-var m_color = input.color(color.red, "", "MO", g_DWM);
-var htf_style = get_line_type(input.string("Solid", "Style", ["Solid", "Dotted", "Dashed"], "D0", g_DWM));
-var htf_width = input.int(1, "", "D0", g_DWM);
-var dow_labels = input.bool(true, "Day of Week Labels", "DOW", g_DWM);
-var dow_yloc = input.string("Bottom", "", ["Top", "Bottom"], "DOW", g_DWM);
-var dow_xloc = input.string("Midnight", "", ["Midnight", "Midday"], "DOW", g_DWM);
-var dow_hide_wknd = input.bool(true, "Hide Weekend Labels", g_DWM);
+var sep_unlimited = input.bool(false, "Unlimited", "Unlimited will show as many of the selected lines as possible. Otherwise, the session drawing limit will be used", NaN, g_DWM);
+var alert_HL = input.bool(false, "Alert High/Low Break", "Alert when any selected highs and lows are traded through. The desired timeframe's high/low option must be enabled at the time that an alert is created", NaN, g_DWM);
+var show_d_open = input.bool(false, "D Open", NaN, "DO", g_DWM);
+var dhl = input.bool(false, "High/Low", "", "DO", g_DWM);
+var ds = input.bool(false, "Separators", "Mark where a new day begins", "DO", g_DWM);
+var d_color = input.color(color.blue, "", NaN, "DO", g_DWM);
+var show_w_open = input.bool(false, "W Open", NaN, "WO", g_DWM);
+var whl = input.bool(false, "High/Low", "", "WO", g_DWM);
+var ws = input.bool(false, "Separators", "Mark where a new week begins", "WO", g_DWM);
+var w_color = input.color("#089981", "", NaN, "WO", g_DWM);
+var show_m_open = input.bool(false, "M Open", NaN, "MO", g_DWM);
+var mhl = input.bool(false, "High/Low", "", "MO", g_DWM);
+var ms = input.bool(false, "Separators", "Mark where a new month begins", "MO", g_DWM);
+var m_color = input.color(color.red, "", NaN, "MO", g_DWM);
+var htf_style = get_line_type(input.string("Solid", "Style", ["Solid", "Dotted", "Dashed"], NaN, "D0", g_DWM));
+var htf_width = input.int(1, "", NaN, NaN, NaN, NaN, "D0", g_DWM);
+var dow_labels = input.bool(true, "Day of Week Labels", NaN, "DOW", g_DWM);
+var dow_yloc = input.string("Bottom", "", ["Top", "Bottom"], NaN, "DOW", g_DWM);
+var dow_xloc = input.string("Midnight", "", ["Midnight", "Midday"], NaN, "DOW", g_DWM);
+var dow_hide_wknd = input.bool(true, "Hide Weekend Labels", NaN, NaN, g_DWM);
 var g_OPEN = _pineVar("g_OPEN", () => ("Opening Prices"));
-var open_unlimited = input.bool(false, "Unlimited", "Unlimited will show as many of the selected lines as possible. Otherwise, the session drawing limit will be used", g_OPEN);
-var use_h1 = input.bool(false, "", "H1", g_OPEN);
-var h1_text = input.string("True Day Open", "", "H1", g_OPEN);
-var h1 = input.session("0000-0001", "", "H1", g_OPEN);
-var h1_color = input.color(color.black, "", "H1", g_OPEN);
-var use_h2 = input.bool(false, "", "H2", g_OPEN);
-var h2_text = input.string("06:00", "", "H2", g_OPEN);
-var h2 = input.session("0600-0601", "", "H2", g_OPEN);
-var h2_color = input.color(color.black, "", "H2", g_OPEN);
-var use_h3 = input.bool(false, "", "H3", g_OPEN);
-var h3_text = input.string("10:00", "", "H3", g_OPEN);
-var h3 = input.session("1000-1001", "", "H3", g_OPEN);
-var h3_color = input.color(color.black, "", "H3", g_OPEN);
-var use_h4 = input.bool(false, "", "H4", g_OPEN);
-var h4_text = input.string("14:00", "", "H4", g_OPEN);
-var h4 = input.session("1400-1401", "", "H4", g_OPEN);
-var h4_color = input.color(color.black, "", "H4", g_OPEN);
-var use_h5 = input.bool(false, "", "H5", g_OPEN);
-var h5_text = input.string("00:00", "", "H5", g_OPEN);
-var h5 = input.session("0000-0001", "", "H5", g_OPEN);
-var h5_color = input.color(color.black, "", "H5", g_OPEN);
-var use_h6 = input.bool(false, "", "H6", g_OPEN);
-var h6_text = input.string("00:00", "", "H6", g_OPEN);
-var h6 = input.session("0000-0001", "", "H6", g_OPEN);
-var h6_color = input.color(color.black, "", "H6", g_OPEN);
-var use_h7 = input.bool(false, "", "H7", g_OPEN);
-var h7_text = input.string("00:00", "", "H7", g_OPEN);
-var h7 = input.session("0000-0001", "", "H7", g_OPEN);
-var h7_color = input.color(color.black, "", "H7", g_OPEN);
-var use_h8 = input.bool(false, "", "H8", g_OPEN);
-var h8_text = input.string("00:00", "", "H8", g_OPEN);
-var h8 = input.session("0000-0001", "", "H8", g_OPEN);
-var h8_color = input.color(color.black, "", "H8", g_OPEN);
-var hz_style = get_line_type(input.string("Dotted", "Style", ["Solid", "Dotted", "Dashed"], "H0", g_OPEN));
-var hz_width = input.int(1, "", "H0", g_OPEN);
+var open_unlimited = input.bool(false, "Unlimited", "Unlimited will show as many of the selected lines as possible. Otherwise, the session drawing limit will be used", NaN, g_OPEN);
+var use_h1 = input.bool(false, "", NaN, "H1", g_OPEN);
+var h1_text = input.string("True Day Open", "", NaN, NaN, "H1", g_OPEN);
+var h1 = input.session("0000-0001", "", NaN, NaN, "H1", g_OPEN);
+var h1_color = input.color(color.black, "", NaN, "H1", g_OPEN);
+var use_h2 = input.bool(false, "", NaN, "H2", g_OPEN);
+var h2_text = input.string("06:00", "", NaN, NaN, "H2", g_OPEN);
+var h2 = input.session("0600-0601", "", NaN, NaN, "H2", g_OPEN);
+var h2_color = input.color(color.black, "", NaN, "H2", g_OPEN);
+var use_h3 = input.bool(false, "", NaN, "H3", g_OPEN);
+var h3_text = input.string("10:00", "", NaN, NaN, "H3", g_OPEN);
+var h3 = input.session("1000-1001", "", NaN, NaN, "H3", g_OPEN);
+var h3_color = input.color(color.black, "", NaN, "H3", g_OPEN);
+var use_h4 = input.bool(false, "", NaN, "H4", g_OPEN);
+var h4_text = input.string("14:00", "", NaN, NaN, "H4", g_OPEN);
+var h4 = input.session("1400-1401", "", NaN, NaN, "H4", g_OPEN);
+var h4_color = input.color(color.black, "", NaN, "H4", g_OPEN);
+var use_h5 = input.bool(false, "", NaN, "H5", g_OPEN);
+var h5_text = input.string("00:00", "", NaN, NaN, "H5", g_OPEN);
+var h5 = input.session("0000-0001", "", NaN, NaN, "H5", g_OPEN);
+var h5_color = input.color(color.black, "", NaN, "H5", g_OPEN);
+var use_h6 = input.bool(false, "", NaN, "H6", g_OPEN);
+var h6_text = input.string("00:00", "", NaN, NaN, "H6", g_OPEN);
+var h6 = input.session("0000-0001", "", NaN, NaN, "H6", g_OPEN);
+var h6_color = input.color(color.black, "", NaN, "H6", g_OPEN);
+var use_h7 = input.bool(false, "", NaN, "H7", g_OPEN);
+var h7_text = input.string("00:00", "", NaN, NaN, "H7", g_OPEN);
+var h7 = input.session("0000-0001", "", NaN, NaN, "H7", g_OPEN);
+var h7_color = input.color(color.black, "", NaN, "H7", g_OPEN);
+var use_h8 = input.bool(false, "", NaN, "H8", g_OPEN);
+var h8_text = input.string("00:00", "", NaN, NaN, "H8", g_OPEN);
+var h8 = input.session("0000-0001", "", NaN, NaN, "H8", g_OPEN);
+var h8_color = input.color(color.black, "", NaN, "H8", g_OPEN);
+var hz_style = get_line_type(input.string("Dotted", "Style", ["Solid", "Dotted", "Dashed"], NaN, "H0", g_OPEN));
+var hz_width = input.int(1, "", NaN, NaN, NaN, NaN, "H0", g_OPEN);
 var g_VERTICAL = _pineVar("g_VERTICAL", () => ("Timestamps"));
-var v_unlimited = input.bool(false, "Unlimited", "Unlimited will show as many of the selected lines as possible. Otherwise, the session drawing limit will be used", g_VERTICAL);
-var use_v1 = input.bool(false, "", "V1", g_VERTICAL);
-var v1 = input.session("0000-0001", "", "V1", g_VERTICAL);
-var v1_color = input.color(color.black, "", "V1", g_VERTICAL);
-var use_v2 = input.bool(false, "", "V2", g_VERTICAL);
-var v2 = input.session("0800-0801", "", "V2", g_VERTICAL);
-var v2_color = input.color(color.black, "", "V2", g_VERTICAL);
-var use_v3 = input.bool(false, "", "V3", g_VERTICAL);
-var v3 = input.session("1000-1001", "", "V3", g_VERTICAL);
-var v3_color = input.color(color.black, "", "V3", g_VERTICAL);
-var use_v4 = input.bool(false, "", "V4", g_VERTICAL);
-var v4 = input.session("1200-1201", "", "V4", g_VERTICAL);
-var v4_color = input.color(color.black, "", "V4", g_VERTICAL);
-var vl_style = get_line_type(input.string("Dotted", "Style", ["Solid", "Dotted", "Dashed"], "V0", g_VERTICAL));
-var vl_width = input.int(1, "", "V0", g_VERTICAL);
+var v_unlimited = input.bool(false, "Unlimited", "Unlimited will show as many of the selected lines as possible. Otherwise, the session drawing limit will be used", NaN, g_VERTICAL);
+var use_v1 = input.bool(false, "", NaN, "V1", g_VERTICAL);
+var v1 = input.session("0000-0001", "", NaN, NaN, "V1", g_VERTICAL);
+var v1_color = input.color(color.black, "", NaN, "V1", g_VERTICAL);
+var use_v2 = input.bool(false, "", NaN, "V2", g_VERTICAL);
+var v2 = input.session("0800-0801", "", NaN, NaN, "V2", g_VERTICAL);
+var v2_color = input.color(color.black, "", NaN, "V2", g_VERTICAL);
+var use_v3 = input.bool(false, "", NaN, "V3", g_VERTICAL);
+var v3 = input.session("1000-1001", "", NaN, NaN, "V3", g_VERTICAL);
+var v3_color = input.color(color.black, "", NaN, "V3", g_VERTICAL);
+var use_v4 = input.bool(false, "", NaN, "V4", g_VERTICAL);
+var v4 = input.session("1200-1201", "", NaN, NaN, "V4", g_VERTICAL);
+var v4_color = input.color(color.black, "", NaN, "V4", g_VERTICAL);
+var vl_style = get_line_type(input.string("Dotted", "Style", ["Solid", "Dotted", "Dashed"], NaN, "V0", g_VERTICAL));
+var vl_width = input.int(1, "", NaN, NaN, NaN, NaN, "V0", g_VERTICAL);
 var __type_kz = class kz {
   constructor(_title, _box, _hi_line, _md_line, _lo_line, _hi_label, _lo_label, _hi_valid, _md_valid, _lo_valid, _range_store, _range_current) {
     this._title = _title;

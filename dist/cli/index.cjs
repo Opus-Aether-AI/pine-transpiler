@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const require_src = require("../src-BV-gLQz3.cjs");
+const require_src = require("../src-CJe_EDkb.cjs");
 let node_fs = require("node:fs");
 let node_path = require("node:path");
 let node_url = require("node:url");
@@ -245,33 +245,12 @@ function commandTranspile(file, options) {
 	} else if (format === "factory") {
 		const indicatorId = options.id || deriveIndicatorId(file);
 		const indicatorName = options.name;
-		try {
-			const ast = new require_src.Parser(new require_src.Lexer(code).tokenize()).parse();
-			const visitor = new require_src.MetadataVisitor();
-			visitor.visit(ast);
-			const mainBody = new require_src.ASTGenerator(visitor.historicalAccess).generate(ast);
-			writeOutput(require_src.generateStandaloneFactory({
-				indicatorId,
-				indicatorName,
-				name: visitor.name,
-				shortName: visitor.shortName,
-				overlay: visitor.overlay,
-				plots: visitor.plots,
-				inputs: visitor.inputs,
-				bgcolors: visitor.bgcolors,
-				usedSources: visitor.usedSources,
-				historicalAccess: visitor.historicalAccess,
-				mainBody,
-				sessionVariables: visitor.sessionVariables,
-				derivedSessionVariables: visitor.derivedSessionVariables,
-				booleanInputMap: visitor.booleanInputMap,
-				computedVariables: visitor.computedVariables,
-				inputVariableMap: visitor.inputVariableMap
-			}), options.output);
-		} catch (error) {
-			console.error("Transpilation error:", error instanceof Error ? error.message : error);
+		const result = require_src.transpileToStandaloneFactory(code, indicatorId, indicatorName);
+		if (!result.success || !result.factoryCode) {
+			console.error("Transpilation error:", result.error ?? "Unknown error");
 			process.exit(1);
 		}
+		writeOutput(result.factoryCode, options.output);
 	} else {
 		console.error(`Error: Unknown format '${format}'. Use 'js', 'pinejs', or 'factory'.`);
 		process.exit(1);

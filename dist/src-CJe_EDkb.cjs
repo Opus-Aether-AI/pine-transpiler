@@ -3206,6 +3206,16 @@ var PRICE_SOURCES = [
 ];
 //#endregion
 //#region src/factory/indicator-factory.ts
+function isUnsafeEvalCspError$1(error) {
+	const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+	return message.includes("unsafe-eval") || message.includes("content security policy") || message.includes("violates the following content security policy directive") || message.includes("evaluating a string as javascript");
+}
+function appendCspHint(error) {
+	if (!isUnsafeEvalCspError$1(error)) return error;
+	const hint = "CSP blocked dynamic compilation (`new Function`). Use `transpileToStandaloneFactory(...)` (or CLI `pine-transpiler transpile --format factory`) and load the generated module at build-time.";
+	if (!error.message.includes(hint)) error.message = `${error.message}\n${hint}`;
+	return error;
+}
 /**
 * Safely read an optional field from an opaque object (typically the
 * runtime `context` or `context.symbol`). The PineJS runtime declares
@@ -3782,7 +3792,7 @@ function buildIndicatorFactory(options) {
 					compiledScript = new Function("Std", "context", "input", "plot", "indicator", "study", "strategy", "color", "ta", "math", "timeframe", "plotshape", "plotchar", "plotarrow", "hline", "bgcolor", "fill", "barcolor", "box", "line", "label", "table", "str", "syminfo", "barstate", "shape", "location", "size", "alertcondition", "alert", "request", "session", "array", "time", "time_close", "time_tradingday", "bar_index", "hour", "minute", "second", "year", "month", "dayofmonth", "dayofweek", "timestamp", "chart", "format", "string", "xloc", "yloc", "extend", "position", "order", "text", "display", "ticker", "barmerge", "close", "open", "high", "low", "volume", "hl2", "hlc3", "ohlc4", body);
 				} catch (e) {
 					console.error("Compilation error", e);
-					const compileErr = e instanceof Error ? e : new Error(String(e));
+					const compileErr = appendCspHint(e instanceof Error ? e : new Error(String(e)));
 					Object.defineProperty(compileErr, "__compileError", {
 						value: true,
 						enumerable: false,
@@ -8514,6 +8524,15 @@ var Parser = class extends ExpressionParser {
 */
 /** Maximum input size in characters to prevent DoS attacks */
 var MAX_INPUT_SIZE = 1e6;
+function isUnsafeEvalCspError(error) {
+	const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+	return message.includes("unsafe-eval") || message.includes("content security policy") || message.includes("violates the following content security policy directive") || message.includes("evaluating a string as javascript");
+}
+function withCspEvalHint(error) {
+	const base = error instanceof Error ? error.message : String(error);
+	if (!isUnsafeEvalCspError(error)) return base;
+	return `${base}\nCSP blocked dynamic evaluation. Use transpileToStandaloneFactory(...) and load the generated factory module instead of runtime eval/new Function.`;
+}
 /**
 * Transpile Pine Script to JavaScript string (internal helper)
 */
@@ -8557,6 +8576,52 @@ function transpileToPineJS(code, indicatorId, indicatorName, options) {
 				historicalAccess: visitor.historicalAccess,
 				mainBody,
 				autoBgColorerForBoxes: options?.autoBgColorerForBoxes ?? false
+			})
+		};
+	} catch (error) {
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : String(error)
+		};
+	}
+}
+/**
+* Transpile Pine Script v5/v6 code to standalone ESM factory code.
+*
+* Unlike {@link transpileToPineJS}, this returns source text that can be
+* built/served as a static module and does not depend on `new Function(...)`
+* at indicator runtime.
+*/
+function transpileToStandaloneFactory(code, indicatorId, indicatorName, options) {
+	try {
+		if (code.length > MAX_INPUT_SIZE) return {
+			success: false,
+			error: `Input too large: ${code.length} characters exceeds maximum of ${MAX_INPUT_SIZE}`
+		};
+		const ast = new Parser(new Lexer(code).tokenize()).parse();
+		const visitor = new MetadataVisitor();
+		visitor.visit(ast);
+		const mainBody = new ASTGenerator(visitor.historicalAccess).generate(ast);
+		return {
+			success: true,
+			factoryCode: generateStandaloneFactory({
+				indicatorId,
+				indicatorName,
+				name: visitor.name,
+				shortName: visitor.shortName,
+				overlay: visitor.overlay,
+				plots: visitor.plots,
+				inputs: visitor.inputs,
+				bgcolors: visitor.bgcolors,
+				usedSources: visitor.usedSources,
+				historicalAccess: visitor.historicalAccess,
+				mainBody,
+				autoBgColorerForBoxes: options?.autoBgColorerForBoxes ?? false,
+				sessionVariables: visitor.sessionVariables,
+				derivedSessionVariables: visitor.derivedSessionVariables,
+				booleanInputMap: visitor.booleanInputMap,
+				computedVariables: visitor.computedVariables,
+				inputVariableMap: visitor.inputVariableMap
 			})
 		};
 	} catch (error) {
@@ -8623,11 +8688,94 @@ function executePineJS(code, indicatorId, indicatorName) {
 	} catch (error) {
 		return {
 			success: false,
-			error: error instanceof Error ? error.message : "Unknown PineJS execution error"
+			error: withCspEvalHint(error)
 		};
 	}
 }
 //#endregion
-export { MATH_FUNCTION_MAPPINGS as _, Parser as a, ASTGenerator as c, PRICE_SOURCES as d, getAllPineFunctionNames as f, TA_FUNCTION_MAPPINGS as g, MULTI_OUTPUT_MAPPINGS as h, transpileToPineJS as i, generateStandaloneFactory as l, TIME_FUNCTION_MAPPINGS as m, executePineJS as n, Lexer as o, getMappingStats as p, transpile as r, MetadataVisitor as s, canTranspilePineScript as t, COLOR_MAP as u };
+Object.defineProperty(exports, "COLOR_MAP", {
+	enumerable: true,
+	get: function() {
+		return COLOR_MAP;
+	}
+});
+Object.defineProperty(exports, "MATH_FUNCTION_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return MATH_FUNCTION_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "MULTI_OUTPUT_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return MULTI_OUTPUT_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "PRICE_SOURCES", {
+	enumerable: true,
+	get: function() {
+		return PRICE_SOURCES;
+	}
+});
+Object.defineProperty(exports, "TA_FUNCTION_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return TA_FUNCTION_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "TIME_FUNCTION_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return TIME_FUNCTION_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "canTranspilePineScript", {
+	enumerable: true,
+	get: function() {
+		return canTranspilePineScript;
+	}
+});
+Object.defineProperty(exports, "executePineJS", {
+	enumerable: true,
+	get: function() {
+		return executePineJS;
+	}
+});
+Object.defineProperty(exports, "generateStandaloneFactory", {
+	enumerable: true,
+	get: function() {
+		return generateStandaloneFactory;
+	}
+});
+Object.defineProperty(exports, "getAllPineFunctionNames", {
+	enumerable: true,
+	get: function() {
+		return getAllPineFunctionNames;
+	}
+});
+Object.defineProperty(exports, "getMappingStats", {
+	enumerable: true,
+	get: function() {
+		return getMappingStats;
+	}
+});
+Object.defineProperty(exports, "transpile", {
+	enumerable: true,
+	get: function() {
+		return transpile;
+	}
+});
+Object.defineProperty(exports, "transpileToPineJS", {
+	enumerable: true,
+	get: function() {
+		return transpileToPineJS;
+	}
+});
+Object.defineProperty(exports, "transpileToStandaloneFactory", {
+	enumerable: true,
+	get: function() {
+		return transpileToStandaloneFactory;
+	}
+});
 
-//# sourceMappingURL=src-C7yJANfH.js.map
+//# sourceMappingURL=src-CJe_EDkb.cjs.map

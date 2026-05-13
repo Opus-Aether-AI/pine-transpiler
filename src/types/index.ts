@@ -23,6 +23,7 @@ export type {
   StudyMetaInfo,
   StudyPlotInfo,
   TranspileToPineJSResult,
+  TranspileToStandaloneFactoryResult,
 } from './runtime';
 
 // ============================================================================

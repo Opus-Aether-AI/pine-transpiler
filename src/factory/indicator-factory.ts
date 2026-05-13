@@ -85,6 +85,29 @@ export interface IndicatorFactoryOptions {
   inputVariableMap?: Map<string, number>;
 }
 
+function isUnsafeEvalCspError(error: unknown): boolean {
+  const raw = error instanceof Error ? error.message : String(error);
+  const message = raw.toLowerCase();
+  return (
+    message.includes('unsafe-eval') ||
+    message.includes('content security policy') ||
+    message.includes(
+      'violates the following content security policy directive',
+    ) ||
+    message.includes('evaluating a string as javascript')
+  );
+}
+
+function appendCspHint(error: Error): Error {
+  if (!isUnsafeEvalCspError(error)) return error;
+  const hint =
+    'CSP blocked dynamic compilation (`new Function`). Use `transpileToStandaloneFactory(...)` (or CLI `pine-transpiler transpile --format factory`) and load the generated module at build-time.';
+  if (!error.message.includes(hint)) {
+    error.message = `${error.message}\n${hint}`;
+  }
+  return error;
+}
+
 /**
  * Safely read an optional field from an opaque object (typically the
  * runtime `context` or `context.symbol`). The PineJS runtime declares
@@ -1144,7 +1167,9 @@ export function buildIndicatorFactory(
           // can suppress its per-bar `console.error` when the error is
           // just the compile error rethrown (otherwise a broken
           // indicator spams 200 redundant error lines per render).
-          const compileErr = e instanceof Error ? e : new Error(String(e));
+          const compileErr = appendCspHint(
+            e instanceof Error ? e : new Error(String(e)),
+          );
           Object.defineProperty(compileErr, '__compileError', {
             value: true,
             enumerable: false,

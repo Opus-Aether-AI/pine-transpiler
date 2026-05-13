@@ -623,3 +623,26 @@ export interface TranspileToPineJSResult {
   /** Column number where error occurred */
   errorColumn?: number | undefined;
 }
+
+/**
+ * Result of transpiling Pine Script to standalone factory module code.
+ *
+ * This path is CSP-safe for strict production environments because the
+ * generated module does not rely on `new Function(...)` at runtime.
+ */
+export interface TranspileToStandaloneFactoryResult {
+  /** Whether transpilation succeeded */
+  success: boolean;
+
+  /** Standalone ESM factory source code (if successful) */
+  factoryCode?: string | undefined;
+
+  /** Error message (if failed) */
+  error?: string | undefined;
+
+  /** Line number where error occurred */
+  errorLine?: number | undefined;
+
+  /** Column number where error occurred */
+  errorColumn?: number | undefined;
+}

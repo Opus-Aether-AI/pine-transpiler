@@ -32,6 +32,7 @@ import type {
   TimeFunctionMapping,
   TranspilerRuntimeError,
   TranspileToPineJSResult,
+  TranspileToStandaloneFactoryResult,
 } from './types';
 import { COLOR_MAP, PRICE_SOURCES } from './types';
 
@@ -52,6 +53,7 @@ export type {
   TimeFunctionMapping,
   TranspilerRuntimeError,
   TranspileToPineJSResult,
+  TranspileToStandaloneFactoryResult,
 };
 
 export {
@@ -72,6 +74,25 @@ export {
 
 /** Maximum input size in characters to prevent DoS attacks */
 const MAX_INPUT_SIZE = 1_000_000; // 1MB
+
+function isUnsafeEvalCspError(error: unknown): boolean {
+  const raw = error instanceof Error ? error.message : String(error);
+  const message = raw.toLowerCase();
+  return (
+    message.includes('unsafe-eval') ||
+    message.includes('content security policy') ||
+    message.includes(
+      'violates the following content security policy directive',
+    ) ||
+    message.includes('evaluating a string as javascript')
+  );
+}
+
+function withCspEvalHint(error: unknown): string {
+  const base = error instanceof Error ? error.message : String(error);
+  if (!isUnsafeEvalCspError(error)) return base;
+  return `${base}\nCSP blocked dynamic evaluation. Use transpileToStandaloneFactory(...) and load the generated factory module instead of runtime eval/new Function.`;
+}
 
 /**
  * Transpile Pine Script to JavaScript string (internal helper)
@@ -195,6 +216,77 @@ export function transpileToPineJS(
 }
 
 /**
+ * Transpile Pine Script v5/v6 code to standalone ESM factory code.
+ *
+ * Unlike {@link transpileToPineJS}, this returns source text that can be
+ * built/served as a static module and does not depend on `new Function(...)`
+ * at indicator runtime.
+ */
+export function transpileToStandaloneFactory(
+  code: string,
+  indicatorId: string,
+  indicatorName?: string,
+  options?: TranspileOptions,
+): TranspileToStandaloneFactoryResult {
+  try {
+    // 0. Validate input size
+    if (code.length > MAX_INPUT_SIZE) {
+      return {
+        success: false,
+        error: `Input too large: ${code.length} characters exceeds maximum of ${MAX_INPUT_SIZE}`,
+      };
+    }
+
+    // 1. Tokenize
+    const lexer = new Lexer(code);
+    const tokens = lexer.tokenize();
+
+    // 2. Parse
+    const parser = new Parser(tokens);
+    const ast = parser.parse();
+
+    // 3. Extract Metadata
+    const visitor = new MetadataVisitor();
+    visitor.visit(ast);
+
+    // 4. Generate transpiled body
+    const generator = new ASTGenerator(visitor.historicalAccess);
+    const mainBody = generator.generate(ast);
+
+    // 5. Emit standalone module factory code
+    const factoryCode = generateStandaloneFactory({
+      indicatorId,
+      indicatorName,
+      name: visitor.name,
+      shortName: visitor.shortName,
+      overlay: visitor.overlay,
+      plots: visitor.plots,
+      inputs: visitor.inputs,
+      bgcolors: visitor.bgcolors,
+      usedSources: visitor.usedSources,
+      historicalAccess: visitor.historicalAccess,
+      mainBody,
+      autoBgColorerForBoxes: options?.autoBgColorerForBoxes ?? false,
+      sessionVariables: visitor.sessionVariables,
+      derivedSessionVariables: visitor.derivedSessionVariables,
+      booleanInputMap: visitor.booleanInputMap,
+      computedVariables: visitor.computedVariables,
+      inputVariableMap: visitor.inputVariableMap,
+    });
+
+    return {
+      success: true,
+      factoryCode,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+/**
  * Check if Pine Script code can be transpiled
  */
 export function canTranspilePineScript(code: string): {
@@ -277,10 +369,7 @@ export function executePineJS(
   } catch (error) {
     return {
       success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Unknown PineJS execution error',
+      error: withCspEvalHint(error),
     };
   }
 }
