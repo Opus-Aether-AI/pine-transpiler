@@ -1,0 +1,12 @@
+//@version=5
+indicator("Custom 010 Liquidity Map with Drawings", overlay=true)
+
+buyLiq = ta.highest(high, 20)
+sellLiq = ta.lowest(low, 20)
+
+l1 = line.new(bar_index[1], buyLiq[1], bar_index, buyLiq, color=color.red)
+
+l2 = line.new(bar_index[1], sellLiq[1], bar_index, sellLiq, color=color.green)
+
+plot(buyLiq, "Buy", color=color.new(color.red, 100), display=display.none)
+plot(sellLiq, "Sell", color=color.new(color.green, 100), display=display.none)

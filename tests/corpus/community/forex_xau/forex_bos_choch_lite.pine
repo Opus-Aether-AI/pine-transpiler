@@ -1,0 +1,31 @@
+//@version=5
+indicator("Forex BOS CHoCH Lite", overlay=true, max_lines_count=200)
+
+len = input.int(10, "Swing Length", minval=2)
+showLines = input.bool(true, "Show Level Lines")
+
+swingHigh = ta.highest(high, len)
+swingLow = ta.lowest(low, len)
+prevHigh = swingHigh[1]
+prevLow = swingLow[1]
+
+bosUp = close > prevHigh
+bosDown = close < prevLow
+
+var line lastUp = na
+var line lastDown = na
+
+if showLines and bosUp
+    if not na(lastUp)
+        line.delete(lastUp)
+    lastUp := line.new(bar_index, prevHigh, bar_index + 5, prevHigh, color=color.lime, width=1)
+
+if showLines and bosDown
+    if not na(lastDown)
+        line.delete(lastDown)
+    lastDown := line.new(bar_index, prevLow, bar_index + 5, prevLow, color=color.red, width=1)
+
+plotshape(bosUp, title="BOS Up", style=shape.triangleup, location=location.belowbar, color=color.lime, text="BOS")
+plotshape(bosDown, title="CHoCH Down", style=shape.triangledown, location=location.abovebar, color=color.red, text="CH")
+plot(prevHigh, "Prev High", color=color.new(color.lime, 70), style=plot.style_linebr)
+plot(prevLow, "Prev Low", color=color.new(color.red, 70), style=plot.style_linebr)

@@ -23,10 +23,16 @@
     "./cli": {
       "types": "./dist/cli/index.d.ts",
       "import": "./dist/cli/index.js"
+    },
+    "./test-harness": {
+      "types": "./dist/test-harness/index.d.ts",
+      "import": "./dist/test-harness/index.js",
+      "require": "./dist/test-harness/index.cjs"
     }
   },
   "files": [
     "dist",
+    "fixtures",
     "README.md",
     "LICENSE"
   ],
@@ -39,9 +45,20 @@
     "lint:fix": "biome check --write src",
     "clean": "rm -rf dist",
     "test": "bun test tests/",
+    "test:harness": "bun test tests/integration/tradingview-descriptor-contract.test.ts tests/integration/tradingview-reducer-survival.test.ts",
     "test:coverage": "bun test --coverage tests/",
     "corpus": "bun scripts/corpus/report.ts",
-    "corpus:snap": "UPDATE_SNAPSHOTS=1 bun test tests/corpus/",
+    "corpus:strict": "bun scripts/corpus/strict-audit.ts",
+    "corpus:matrix": "bun scripts/corpus/indicator-matrix.ts",
+    "corpus:critical": "bun scripts/corpus/critical-matrix.ts",
+    "corpus:tv100": "bun scripts/corpus/tradingview-top100-matrix.ts",
+    "corpus:tv200": "bun scripts/corpus/tradingview-top200-matrix.ts",
+    "corpus:forex-xau": "bun scripts/corpus/forex-xau-matrix.ts",
+    "corpus:differential": "bun scripts/corpus/strict-audit.ts",
+    "corpus:gate": "bun scripts/corpus/gate.ts",
+    "chart:safety": "bun scripts/corpus/chart-safety.ts",
+    "corpus:visual": "bun scripts/corpus/visual-parity.ts",
+    "corpus:snap": "UPDATE_SNAPSHOTS=1 bun test tests/corpus/ && UPDATE_VISUAL_SNAPSHOTS=1 bun run corpus:visual",
     "prepare": "vite build"
   },
   "keywords": [

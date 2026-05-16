@@ -195,10 +195,10 @@ describe('Math Mappings', () => {
       expect(js).toContain('_avg');
     });
 
-    it('should transpile math.sum to _sum', () => {
+    it('should transpile math.sum to _pineSum', () => {
       const code = 'x = math.sum(1, 2, 3)';
       const js = transpile(code);
-      expect(js).toContain('_sum');
+      expect(js).toContain('_pineSum');
     });
 
     it('should transpile math.todegrees to _toDegrees', () => {

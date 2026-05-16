@@ -1,0 +1,9 @@
+//@version=5
+indicator("Custom 001 Adaptive Regime Filter", overlay=false)
+
+vol = ta.atr(14)
+trend = ta.ema(close, 34) - ta.ema(close, 55)
+regime = trend / math.max(vol, syminfo.mintick)
+
+plot(regime, "Regime", color=color.aqua)
+plot(0, "Zero", color=color.gray)

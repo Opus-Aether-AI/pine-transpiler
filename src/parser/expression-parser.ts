@@ -168,8 +168,7 @@ export abstract class ExpressionParser extends ParserBase {
       if (this.match(TokenType.LPAREN)) {
         expr = this.finishCall(expr);
       } else if (this.match(TokenType.DOT)) {
-        const name = this.consume(
-          TokenType.IDENTIFIER,
+        const name = this.consumeIdentifierLike(
           'Expected property name after .',
         );
         expr = {
@@ -187,39 +186,22 @@ export abstract class ExpressionParser extends ParserBase {
           property: index,
           computed: true,
         };
-      } else if (this.check(TokenType.OPERATOR) && this.peek().value === '<') {
+      } else if (this.isGenericCallStart()) {
         // Potential generic type arguments: f<int>() or obj.method<int>()
-        const next = this.peekNext();
-        const isGeneric =
-          next &&
-          (this.checkTypeAnnotationWithToken(next) ||
-            (next.type === TokenType.IDENTIFIER &&
-              this.tokens[this.current + 2]?.value === '>'));
+        this.advance(); // eat <
+        const typeArgs: TypeAnnotation[] = [];
+        do {
+          typeArgs.push(this.parseTypeAnnotation());
+        } while (this.match(TokenType.COMMA));
+        if (!this.matchOperator('>')) {
+          throw this.error(this.peek(), 'Expected > after generic arguments.');
+        }
 
-        if (isGeneric) {
-          this.advance(); // eat <
-          const typeArgs: TypeAnnotation[] = [];
-          do {
-            typeArgs.push(this.parseTypeAnnotation());
-          } while (this.match(TokenType.COMMA));
-          if (!this.matchOperator('>')) {
-            throw this.error(
-              this.peek(),
-              'Expected > after generic arguments.',
-            );
-          }
-
-          if (this.check(TokenType.LPAREN)) {
-            this.advance(); // eat (
-            expr = this.finishCall(expr, typeArgs);
-          } else {
-            throw this.error(
-              this.peek(),
-              'Expected ( after generic arguments.',
-            );
-          }
+        if (this.check(TokenType.LPAREN)) {
+          this.advance(); // eat (
+          expr = this.finishCall(expr, typeArgs);
         } else {
-          break;
+          throw this.error(this.peek(), 'Expected ( after generic arguments.');
         }
       } else {
         break;
@@ -239,11 +221,10 @@ export abstract class ExpressionParser extends ParserBase {
     if (!this.check(TokenType.RPAREN)) {
       do {
         if (
-          this.check(TokenType.IDENTIFIER) &&
+          (this.check(TokenType.IDENTIFIER) || this.check(TokenType.KEYWORD)) &&
           this.peekNext()?.value === '='
         ) {
-          const name = this.consume(
-            TokenType.IDENTIFIER,
+          const name = this.consumeIdentifierLike(
             'Expected argument name.',
           ).value;
           this.advance();
@@ -278,4 +259,61 @@ export abstract class ExpressionParser extends ParserBase {
    * Parse a type annotation (must be implemented by subclass)
    */
   protected abstract parseTypeAnnotation(): TypeAnnotation;
+
+  /**
+   * Pine member properties / named-arg labels can be keyword tokens in our
+   * stream (e.g. `syminfo.type`, `foo(type=...)`), so callers need a
+   * broader "identifier-like" consume helper.
+   */
+  protected consumeIdentifierLike(message: string): { value: string } {
+    if (this.check(TokenType.IDENTIFIER) || this.check(TokenType.KEYWORD)) {
+      return this.advance();
+    }
+    throw this.error(this.peek(), message);
+  }
+
+  /**
+   * Detect whether a `<...>` sequence after an identifier/member is truly
+   * generic-call syntax (`fn<T>(...)`) versus a plain comparison
+   * (`value < array.get(...)`).
+   */
+  private isGenericCallStart(): boolean {
+    if (!(this.check(TokenType.OPERATOR) && this.peek().value === '<')) {
+      return false;
+    }
+
+    let i = this.current;
+    let depth = 0;
+    while (i < this.tokens.length) {
+      const token = this.tokens[i];
+
+      if (token.type === TokenType.OPERATOR && token.value === '<') {
+        depth++;
+        i++;
+        continue;
+      }
+      if (token.type === TokenType.OPERATOR && token.value === '>') {
+        depth--;
+        if (depth === 0) {
+          return this.tokens[i + 1]?.type === TokenType.LPAREN;
+        }
+        if (depth < 0) return false;
+        i++;
+        continue;
+      }
+
+      if (depth > 0) {
+        const allowed =
+          token.type === TokenType.IDENTIFIER ||
+          token.type === TokenType.KEYWORD ||
+          token.type === TokenType.COMMA ||
+          token.type === TokenType.LBRACKET ||
+          token.type === TokenType.RBRACKET;
+        if (!allowed) return false;
+      }
+      i++;
+    }
+
+    return false;
+  }
 }

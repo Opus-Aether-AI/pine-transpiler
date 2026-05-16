@@ -1,0 +1,879 @@
+{
+  "fixture": "ict-killzones.pine",
+  "stageReached": "complete",
+  "pass": true,
+  "error": null,
+  "runtime": {
+    "barsCompleted": 200,
+    "barsErrored": 0,
+    "declaredPlotCount": 7,
+    "actualPlotCount": 7,
+    "visualEventCount": 26,
+    "visualCalls": [
+      {
+        "call": "Std.plotchar",
+        "count": 7
+      },
+      {
+        "call": "table.cell",
+        "count": 18
+      },
+      {
+        "call": "table.new",
+        "count": 1
+      }
+    ],
+    "visualStyleSemantics": {
+      "colors": [
+        "#000000",
+        "#089981",
+        "#2962FF",
+        "#9C27B0",
+        "#FF5252",
+        "#FFEB3B"
+      ],
+      "transpValues": [],
+      "linewidthValues": [],
+      "offsetValues": [],
+      "displayFlags": []
+    },
+    "topRuntimeErrors": [],
+    "unimplementedStdCalls": []
+  },
+  "metainfo": {
+    "plotCount": 7,
+    "plots": [
+      {
+        "id": "plot_0",
+        "type": "chars",
+        "price": null
+      },
+      {
+        "id": "plot_1",
+        "type": "chars",
+        "price": null
+      },
+      {
+        "id": "plot_2",
+        "type": "chars",
+        "price": null
+      },
+      {
+        "id": "plot_3",
+        "type": "chars",
+        "price": null
+      },
+      {
+        "id": "plot_4",
+        "type": "chars",
+        "price": null
+      },
+      {
+        "id": "plot_5",
+        "type": "chars",
+        "price": null
+      },
+      {
+        "id": "plot_6",
+        "type": "chars",
+        "price": null
+      }
+    ],
+    "inputCount": 129,
+    "inputs": [
+      {
+        "id": "in_0",
+        "type": "integer",
+        "defval": 3
+      },
+      {
+        "id": "in_1",
+        "type": "text",
+        "defval": "30"
+      },
+      {
+        "id": "in_10",
+        "type": "text",
+        "defval": "Asia"
+      },
+      {
+        "id": "in_100",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_101",
+        "type": "text",
+        "defval": "00:00"
+      },
+      {
+        "id": "in_102",
+        "type": "session",
+        "defval": "0000-0001"
+      },
+      {
+        "id": "in_103",
+        "type": "float",
+        "defval": 0
+      },
+      {
+        "id": "in_104",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_105",
+        "type": "text",
+        "defval": "00:00"
+      },
+      {
+        "id": "in_106",
+        "type": "session",
+        "defval": "0000-0001"
+      },
+      {
+        "id": "in_107",
+        "type": "float",
+        "defval": 0
+      },
+      {
+        "id": "in_108",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_109",
+        "type": "text",
+        "defval": "00:00"
+      },
+      {
+        "id": "in_11",
+        "type": "session",
+        "defval": "2000-0000"
+      },
+      {
+        "id": "in_110",
+        "type": "session",
+        "defval": "0000-0001"
+      },
+      {
+        "id": "in_111",
+        "type": "float",
+        "defval": 0
+      },
+      {
+        "id": "in_112",
+        "type": "text",
+        "defval": "Dotted"
+      },
+      {
+        "id": "in_113",
+        "type": "integer",
+        "defval": 1
+      },
+      {
+        "id": "in_114",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_115",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_116",
+        "type": "session",
+        "defval": "0000-0001"
+      },
+      {
+        "id": "in_117",
+        "type": "float",
+        "defval": 0
+      },
+      {
+        "id": "in_118",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_119",
+        "type": "session",
+        "defval": "0800-0801"
+      },
+      {
+        "id": "in_12",
+        "type": "float",
+        "defval": 0
+      },
+      {
+        "id": "in_120",
+        "type": "float",
+        "defval": 0
+      },
+      {
+        "id": "in_121",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_122",
+        "type": "session",
+        "defval": "1000-1001"
+      },
+      {
+        "id": "in_123",
+        "type": "float",
+        "defval": 0
+      },
+      {
+        "id": "in_124",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_125",
+        "type": "session",
+        "defval": "1200-1201"
+      },
+      {
+        "id": "in_126",
+        "type": "float",
+        "defval": 0
+      },
+      {
+        "id": "in_127",
+        "type": "text",
+        "defval": "Dotted"
+      },
+      {
+        "id": "in_128",
+        "type": "integer",
+        "defval": 1
+      },
+      {
+        "id": "in_13",
+        "type": "bool",
+        "defval": true
+      },
+      {
+        "id": "in_14",
+        "type": "text",
+        "defval": "London"
+      },
+      {
+        "id": "in_15",
+        "type": "session",
+        "defval": "0200-0500"
+      },
+      {
+        "id": "in_16",
+        "type": "float",
+        "defval": 0
+      },
+      {
+        "id": "in_17",
+        "type": "bool",
+        "defval": true
+      },
+      {
+        "id": "in_18",
+        "type": "text",
+        "defval": "NY AM"
+      },
+      {
+        "id": "in_19",
+        "type": "session",
+        "defval": "0930-1100"
+      },
+      {
+        "id": "in_2",
+        "type": "text",
+        "defval": "America/New_York"
+      },
+      {
+        "id": "in_20",
+        "type": "text",
+        "defval": "#089981"
+      },
+      {
+        "id": "in_21",
+        "type": "bool",
+        "defval": true
+      },
+      {
+        "id": "in_22",
+        "type": "text",
+        "defval": "NY Lunch"
+      },
+      {
+        "id": "in_23",
+        "type": "session",
+        "defval": "1200-1300"
+      },
+      {
+        "id": "in_24",
+        "type": "float",
+        "defval": 0
+      },
+      {
+        "id": "in_25",
+        "type": "bool",
+        "defval": true
+      },
+      {
+        "id": "in_26",
+        "type": "text",
+        "defval": "NY PM"
+      },
+      {
+        "id": "in_27",
+        "type": "session",
+        "defval": "1330-1600"
+      },
+      {
+        "id": "in_28",
+        "type": "float",
+        "defval": 0
+      },
+      {
+        "id": "in_29",
+        "type": "integer",
+        "defval": 70
+      },
+      {
+        "id": "in_3",
+        "type": "text",
+        "defval": "Normal"
+      },
+      {
+        "id": "in_30",
+        "type": "integer",
+        "defval": 50
+      },
+      {
+        "id": "in_31",
+        "type": "bool",
+        "defval": true
+      },
+      {
+        "id": "in_32",
+        "type": "bool",
+        "defval": true
+      },
+      {
+        "id": "in_33",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_34",
+        "type": "bool",
+        "defval": true
+      },
+      {
+        "id": "in_35",
+        "type": "bool",
+        "defval": true
+      },
+      {
+        "id": "in_36",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_37",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_38",
+        "type": "text",
+        "defval": "Until Mitigated"
+      },
+      {
+        "id": "in_39",
+        "type": "text",
+        "defval": "Most Recent"
+      },
+      {
+        "id": "in_4",
+        "type": "float",
+        "defval": 0
+      },
+      {
+        "id": "in_40",
+        "type": "text",
+        "defval": "AS.H"
+      },
+      {
+        "id": "in_41",
+        "type": "text",
+        "defval": "AS.L"
+      },
+      {
+        "id": "in_42",
+        "type": "text",
+        "defval": "LO.H"
+      },
+      {
+        "id": "in_43",
+        "type": "text",
+        "defval": "LO.L"
+      },
+      {
+        "id": "in_44",
+        "type": "text",
+        "defval": "NYAM.H"
+      },
+      {
+        "id": "in_45",
+        "type": "text",
+        "defval": "NYAM.L"
+      },
+      {
+        "id": "in_46",
+        "type": "text",
+        "defval": "NYL.H"
+      },
+      {
+        "id": "in_47",
+        "type": "text",
+        "defval": "NYL.L"
+      },
+      {
+        "id": "in_48",
+        "type": "text",
+        "defval": "NYPM.H"
+      },
+      {
+        "id": "in_49",
+        "type": "text",
+        "defval": "NYPM.L"
+      },
+      {
+        "id": "in_5",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_50",
+        "type": "text",
+        "defval": "Solid"
+      },
+      {
+        "id": "in_51",
+        "type": "integer",
+        "defval": 1
+      },
+      {
+        "id": "in_52",
+        "type": "text",
+        "defval": "Dotted"
+      },
+      {
+        "id": "in_53",
+        "type": "integer",
+        "defval": 1
+      },
+      {
+        "id": "in_54",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_55",
+        "type": "bool",
+        "defval": true
+      },
+      {
+        "id": "in_56",
+        "type": "integer",
+        "defval": 5
+      },
+      {
+        "id": "in_57",
+        "type": "text",
+        "defval": "Top Right"
+      },
+      {
+        "id": "in_58",
+        "type": "text",
+        "defval": "Normal"
+      },
+      {
+        "id": "in_59",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_6",
+        "type": "session",
+        "defval": "1800-1801"
+      },
+      {
+        "id": "in_60",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_61",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_62",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_63",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_64",
+        "type": "float",
+        "defval": 0
+      },
+      {
+        "id": "in_65",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_66",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_67",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_68",
+        "type": "text",
+        "defval": "#089981"
+      },
+      {
+        "id": "in_69",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_7",
+        "type": "bool",
+        "defval": true
+      },
+      {
+        "id": "in_70",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_71",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_72",
+        "type": "float",
+        "defval": 0
+      },
+      {
+        "id": "in_73",
+        "type": "text",
+        "defval": "Solid"
+      },
+      {
+        "id": "in_74",
+        "type": "integer",
+        "defval": 1
+      },
+      {
+        "id": "in_75",
+        "type": "bool",
+        "defval": true
+      },
+      {
+        "id": "in_76",
+        "type": "text",
+        "defval": "Bottom"
+      },
+      {
+        "id": "in_77",
+        "type": "text",
+        "defval": "Midnight"
+      },
+      {
+        "id": "in_78",
+        "type": "bool",
+        "defval": true
+      },
+      {
+        "id": "in_79",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_8",
+        "type": "bool",
+        "defval": true
+      },
+      {
+        "id": "in_80",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_81",
+        "type": "text",
+        "defval": "True Day Open"
+      },
+      {
+        "id": "in_82",
+        "type": "session",
+        "defval": "0000-0001"
+      },
+      {
+        "id": "in_83",
+        "type": "float",
+        "defval": 0
+      },
+      {
+        "id": "in_84",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_85",
+        "type": "text",
+        "defval": "06:00"
+      },
+      {
+        "id": "in_86",
+        "type": "session",
+        "defval": "0600-0601"
+      },
+      {
+        "id": "in_87",
+        "type": "float",
+        "defval": 0
+      },
+      {
+        "id": "in_88",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_89",
+        "type": "text",
+        "defval": "10:00"
+      },
+      {
+        "id": "in_9",
+        "type": "bool",
+        "defval": true
+      },
+      {
+        "id": "in_90",
+        "type": "session",
+        "defval": "1000-1001"
+      },
+      {
+        "id": "in_91",
+        "type": "float",
+        "defval": 0
+      },
+      {
+        "id": "in_92",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_93",
+        "type": "text",
+        "defval": "14:00"
+      },
+      {
+        "id": "in_94",
+        "type": "session",
+        "defval": "1400-1401"
+      },
+      {
+        "id": "in_95",
+        "type": "float",
+        "defval": 0
+      },
+      {
+        "id": "in_96",
+        "type": "bool",
+        "defval": false
+      },
+      {
+        "id": "in_97",
+        "type": "text",
+        "defval": "00:00"
+      },
+      {
+        "id": "in_98",
+        "type": "session",
+        "defval": "0000-0001"
+      },
+      {
+        "id": "in_99",
+        "type": "float",
+        "defval": 0
+      }
+    ],
+    "styleKeys": [
+      "plot_0",
+      "plot_1",
+      "plot_2",
+      "plot_3",
+      "plot_4",
+      "plot_5",
+      "plot_6"
+    ],
+    "styles": [
+      {
+        "id": "plot_0",
+        "title": "Char 1",
+        "histogramBase": 0
+      },
+      {
+        "id": "plot_1",
+        "title": "Char 2",
+        "histogramBase": 0
+      },
+      {
+        "id": "plot_2",
+        "title": "Char 3",
+        "histogramBase": 0
+      },
+      {
+        "id": "plot_3",
+        "title": "Char 4",
+        "histogramBase": 0
+      },
+      {
+        "id": "plot_4",
+        "title": "Char 5",
+        "histogramBase": 0
+      },
+      {
+        "id": "plot_5",
+        "title": "Char 6",
+        "histogramBase": 0
+      },
+      {
+        "id": "plot_6",
+        "title": "Char 7",
+        "histogramBase": 0
+      }
+    ],
+    "defaultStyles": [
+      {
+        "id": "plot_0",
+        "plottype": null,
+        "linewidth": 1,
+        "linestyle": 0,
+        "color": "#2962FF",
+        "transparency": 0,
+        "visible": true,
+        "trackPrice": false
+      },
+      {
+        "id": "plot_1",
+        "plottype": null,
+        "linewidth": 1,
+        "linestyle": 0,
+        "color": "#2962FF",
+        "transparency": 0,
+        "visible": true,
+        "trackPrice": false
+      },
+      {
+        "id": "plot_2",
+        "plottype": null,
+        "linewidth": 1,
+        "linestyle": 0,
+        "color": "#2962FF",
+        "transparency": 0,
+        "visible": true,
+        "trackPrice": false
+      },
+      {
+        "id": "plot_3",
+        "plottype": null,
+        "linewidth": 1,
+        "linestyle": 0,
+        "color": "#2962FF",
+        "transparency": 0,
+        "visible": true,
+        "trackPrice": false
+      },
+      {
+        "id": "plot_4",
+        "plottype": null,
+        "linewidth": 1,
+        "linestyle": 0,
+        "color": "#2962FF",
+        "transparency": 0,
+        "visible": true,
+        "trackPrice": false
+      },
+      {
+        "id": "plot_5",
+        "plottype": null,
+        "linewidth": 1,
+        "linestyle": 0,
+        "color": "#2962FF",
+        "transparency": 0,
+        "visible": true,
+        "trackPrice": false
+      },
+      {
+        "id": "plot_6",
+        "plottype": null,
+        "linewidth": 1,
+        "linestyle": 0,
+        "color": "#2962FF",
+        "transparency": 0,
+        "visible": true,
+        "trackPrice": false
+      }
+    ]
+  },
+  "visualCallCounts": {
+    "Std.plot": 0,
+    "Std.plotshape": 0,
+    "Std.plotchar": 7,
+    "Std.plotarrow": 0,
+    "hline": 0,
+    "Std.bgcolor": 0,
+    "Std.fill": 0,
+    "Std.barcolor": 0,
+    "line.new": 9,
+    "line.set_x2": 0,
+    "line.set_xy1": 0,
+    "line.set_xy2": 0,
+    "line.set_color": 0,
+    "line.delete": 0,
+    "label.new": 8,
+    "label.set_text": 0,
+    "label.set_textcolor": 0,
+    "label.set_style": 0,
+    "label.delete": 0,
+    "box.new": 1,
+    "box.set_bgcolor": 0,
+    "box.set_border_color": 0,
+    "box.set_border_width": 0,
+    "box.delete": 0,
+    "table.new": 1,
+    "table.cell": 6,
+    "table.merge_cells": 0,
+    "table.clear": 0
+  }
+}

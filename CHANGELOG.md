@@ -5,6 +5,123 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Major parity and runtime-compatibility upgrade focused on making PineScript
+execution behavior closer to TradingView for real-world indicators.
+
+### Added
+- **Strict numeric parity audit** (`bun run corpus:strict`) with deterministic
+  checks for SMA, EMA, RSI, MACD, ATR, BB, KC, CCI, MFI, WPR, and ROC.
+- **67-indicator parity matrix** (`bun run corpus:matrix`) with grouped
+  coverage output in `INDICATOR_TEST_MATRIX.md`.
+- **TradingView Top-100 matrix** (`bun run corpus:tv100`) with
+  lane/authenticity/source splits in `TRADINGVIEW_TOP100_MATRIX.md`.
+- **TradingView Top-200 matrix** (`bun run corpus:tv200`) covering
+  top-100 plus 100 additional popular/custom fixtures in
+  `TRADINGVIEW_TOP200_MATRIX.md`.
+- **Corpus manifest layer** (`tests/corpus/manifest.ts`) with per-fixture
+  metadata: source, lane, authenticity, category, and inferred feature tags.
+- **Corpus stability gate** (`bun run corpus:gate`) with configurable
+  per-lane and per-authenticity budgets for CI.
+- **Chart safety gate** (`bun run chart:safety`) that enforces
+  TradingView-like host contracts across fixtures:
+  constructability via `new indicator.constructor()`, per-bar plot output
+  shape guarantees (declared length, no `undefined`, numeric slots), and
+  visual event payload integrity checks with failure artifacts in
+  `.tmp/chart-safety/`.
+- **Matrix API support (`matrix.*`)** via new mappings/helpers:
+  `matrix.new`, `rows`, `columns`, `get`, `set`, `add_row`, `remove_row`.
+- **Persistent state helpers** for Pine semantics:
+  `_pineVar`, `_pineSetVar`, `_pineVarip`, `_pineSetVarip`.
+- **Runtime session/time bindings** for `session.ismarket`,
+  `session.ispremarket`, `session.ispostmarket`, `time_close`,
+  `time_tradingday`, and `timestamp`.
+- **New regression suites** for request-security behavior, state semantics,
+  time/session semantics, and drawing-handle method compatibility.
+- **Visual style semantics in runtime event stream**: `__visualEvents`
+  entries now carry normalized `style` metadata (`colors`, `transp`,
+  `linewidth`, `offset`, `display`) for visual parity diagnostics.
+- **Expanded visual baseline fixtures** for phase-14.2 coverage:
+  `41-visual-drawing-lifecycle.pine`,
+  `42-visual-table-scanner.pine`, and `ict-killzones.pine`.
+- **TradingView-shaped harness package export** (`@opusaether/pine-transpiler/test-harness`)
+  with focused descriptor + reducer-survival runtime checks.
+- **Harness fixture lane** for startup/runtime regression guards:
+  `fixtures/trivial-sma.pine`, `fixtures/ict-killzones.pine`, plus
+  integration suites `tests/integration/tradingview-descriptor-contract.test.ts`
+  and `tests/integration/tradingview-reducer-survival.test.ts`.
+
+### Changed
+- **`request.security` moved from unsupported to partial support**:
+  runtime now passes through the `expression` argument (including tuple
+  expressions), plus deterministic higher-timeframe bucket merge subset;
+  true full MTF parity remains out of scope.
+- **Drawing/table namespaces upgraded** from warning stubs to stateful
+  runtime-compatible handle objects (`line.*`, `box.*`, `label.*`, `table.*`)
+  with mutator/getter behavior (still no visual rendering).
+- **Visual parity artifact/report schema expanded** with aggregated visual
+  style semantics and additional lifecycle call counters for
+  line/box/label/table method families.
+- **Runtime/diagnostic harnesses aligned to host semantics**:
+  strict-audit, visual-artifact, debug-fixture, and regression helpers now
+  instantiate indicator constructors with `new` to mirror chart behavior.
+- **Corpus report output expanded** with lane/authenticity/category pass
+  rates and top feature coverage sections.
+- **Named-argument emit behavior** now passes value-only arguments in runtime
+  calls, preventing assignment-style side effects while preserving call values.
+- **TA series argument handling** now wraps series-aware inputs correctly
+  (`_series_<source>` or `context.new_var(...)`) for mappings that need series.
+- **`ta.cci` mapping corrected** to source+length, series-aware signature.
+- **`ta.vwap` mapping switched to `StdPlus.vwap`** for scalar/tuple compatibility.
+- **`math.sum` helper renamed** from `_sum` to `_pineSum` to avoid
+  user-symbol collisions.
+- **Build outputs now include `dist/test-harness/*`** and package sub-export
+  wiring for both ESM and CJS consumers.
+
+### Fixed
+- **`var`/`varip` assignment correctness**: persistent declarations and later
+  reassignments now update shared runtime state correctly across bars.
+- **Parser generic-call ambiguity**: `<...>` generic parsing no longer
+  misclassifies ordinary comparison expressions.
+- **Parser/lexer resilience on real scripts**:
+  - if-expression parsing improved
+  - keyword-like member properties (e.g. `syminfo.type`) supported
+  - comma-chained statement/declaration forms handled
+  - block parsing tolerant of leading blank/comment lines
+  - newline continuation improved for leading-operator and ternary-colon lines
+- **Plot metadata extraction parity**:
+  - `plotarrow` now extracted and counted as declared output
+  - dynamic `hline(...)` values are preserved in metadata extraction
+- **Historical helper safety net**: missing `_getHistorical_*` references now
+  receive generated NaN fallbacks to avoid runtime crashes on edge scripts.
+- **`box.set_border_width` runtime compatibility** added to box stubs so
+  drawing-heavy scripts no longer throw when mutating border width.
+- **Indicator constructor contract parity**:
+  `buildIndicatorFactory` now emits a constructable function and binds
+  `this.main` under `new`, matching chart host expectations.
+- **`plotchar` / `plotshape` metainfo style alignment**:
+  emitted `metainfo.styles[plot.id]` and `metainfo.defaults.styles[plot.id]`
+  now include `location`, preventing reducer crashes on
+  `styles[plot.id].location.value()`.
+- **Timezone/dayofweek compatibility path** for scripts that call
+  `dayofweek(timestamp, timezone)` in host environments expecting
+  session context.
+
+### Quality / CI
+- CI quality checks now include `bun run corpus:strict`,
+  `bun run corpus:matrix`, `bun run corpus:gate`,
+  `bun run chart:safety`, and `bun run test:harness`.
+- Current verified parity baseline in this change set:
+  - corpus full pass: **237/237**
+  - parse-clean: **237/237**
+  - indicator matrix: **67/67**
+  - TradingView top-100: **100/100**
+  - TradingView top-200: **200/200**
+  - strict numeric parity: **11/11**
+  - visual parity baseline: **8/8**
+  - gate status: **PASS**
+
 ## [0.2.0] - 2026-04-25
 
 Major correctness pass driven by a real-world Pine corpus (40 curated
@@ -214,4 +331,3 @@ are now bound:
 - TypeScript type definitions with strict mode
 - StdPlus polyfill library for missing PineJS.Std functions
 - Request/Response based architecture for easy integration
-

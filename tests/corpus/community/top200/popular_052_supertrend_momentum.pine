@@ -1,0 +1,9 @@
+//@version=5
+indicator("Popular 052 Supertrend Momentum", overlay=true)
+
+[st, dir] = ta.supertrend(2.3, 10)
+mom = ta.roc(close, 5)
+
+plot(st, "Supertrend", color=dir > 0 ? color.green : color.red)
+plotshape(dir > 0 and mom > 0, title="Bull", style=shape.triangleup, location=location.belowbar, color=color.lime, size=size.tiny)
+plotshape(dir < 0 and mom < 0, title="Bear", style=shape.triangledown, location=location.abovebar, color=color.red, size=size.tiny)

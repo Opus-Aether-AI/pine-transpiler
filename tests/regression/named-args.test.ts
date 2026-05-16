@@ -5,11 +5,12 @@
  * Pine source:    plot(close, color=color.purple)
  * Was emitting:   Std.plot(close, color = color.purple)
  *                                 ^^^^^^^ mutates the local color (COLOR_MAP)
- * Now emits:      Std.plot(close, color.purple)  // the value alone
+ * Now emits:      Std.plot(close, color.purple)  // value-only, no assignment
  *
  * The metadata visitor still picks up named args via getArg() for the
- * indicator's metainfo (titles, colors, styles), so dropping them from
- * the runtime call is non-destructive.
+ * indicator's metainfo (titles, colors, styles). Runtime calls receive
+ * value-only args, with request.security additionally normalizing the
+ * first three slots to symbol/timeframe/expression.
  */
 
 import { describe, expect, it } from 'bun:test';
@@ -27,21 +28,23 @@ function transpile(code: string): string {
 }
 
 describe('named arguments — no closure-shadowing assignment emit', () => {
-  it('drops `color=` from plot(value, color=color.x)', () => {
+  it('emits `color=` value without assignment in plot(value, color=color.x)', () => {
     const out = transpile('plot(close, color=color.blue)');
     expect(out).not.toContain('color = color.blue');
-    expect(out).toContain('Std.plot(close');
+    expect(out).toContain('Std.plot(close, color.blue)');
   });
 
-  it('drops multiple named args from a single call', () => {
+  it('emits multiple named-arg values without assignment syntax', () => {
     const out = transpile(
       'plot(close, "Title", color=color.red, linewidth=2, style=plot.style_columns)',
     );
-    // None of the named-arg names should appear as `name = value` in
-    // the runtime body — they're metadata-only.
+    // None of the named-arg names should appear as `name = value`.
     expect(out).not.toContain('color =');
     expect(out).not.toContain('linewidth =');
     expect(out).not.toContain('style =');
+    expect(out).toContain('color.red');
+    expect(out).toContain('2');
+    expect(out).toContain('plot.style_columns');
   });
 
   it('preserves positional arguments alongside named ones', () => {
@@ -70,5 +73,35 @@ describe('named arguments — no closure-shadowing assignment emit', () => {
     // No three sequential `color = ...` statements masquerading as args.
     const colorAssigns = out.match(/\bcolor\s*=\s*color\./g) ?? [];
     expect(colorAssigns.length).toBe(0);
+  });
+
+  it('emits named request.security arguments as runtime values', () => {
+    const out = transpile(
+      'x = request.security(symbol=syminfo.tickerid, timeframe="60", expression=close, lookahead=barmerge.lookahead_on)',
+    );
+    expect(out).not.toContain('symbol =');
+    expect(out).not.toContain('timeframe =');
+    expect(out).not.toContain('expression =');
+    expect(out).toContain(
+      'request.security(syminfo.tickerid, "60", close, barmerge.lookahead_on)',
+    );
+  });
+
+  it('normalizes out-of-order request.security named args', () => {
+    const out = transpile(
+      'x = request.security(expression=close, lookahead=barmerge.lookahead_on, timeframe="60", symbol=syminfo.tickerid)',
+    );
+    expect(out).toContain(
+      'request.security(syminfo.tickerid, "60", close, barmerge.lookahead_on)',
+    );
+  });
+
+  it('normalizes mixed positional + named request.security args', () => {
+    const out = transpile(
+      'x = request.security(syminfo.tickerid, expression=close, timeframe="60", gaps=barmerge.gaps_on)',
+    );
+    expect(out).toContain(
+      'request.security(syminfo.tickerid, "60", close, barmerge.gaps_on)',
+    );
   });
 });

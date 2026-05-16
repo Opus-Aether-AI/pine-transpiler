@@ -1,0 +1,15 @@
+//@version=5
+indicator("Market Structure Liquidity Smart Alerts [algonit]", overlay=true)
+
+bosUp = close > ta.highest(high[1], 20)
+bosDn = close < ta.lowest(low[1], 20)
+liqUp = high > ta.highest(high[1], 10) and close < open
+liqDn = low < ta.lowest(low[1], 10) and close > open
+
+alertcondition(bosUp, "BOS Up", "Bullish BOS")
+alertcondition(bosDn, "BOS Down", "Bearish BOS")
+alertcondition(liqUp or liqDn, "Liquidity Sweep", "Liquidity sweep detected")
+
+plotshape(bosUp, title="BOS Up", style=shape.triangleup, location=location.belowbar, color=color.lime, size=size.tiny)
+plotshape(bosDn, title="BOS Down", style=shape.triangledown, location=location.abovebar, color=color.red, size=size.tiny)
+plotshape(liqUp or liqDn, title="Liq", style=shape.diamond, location=location.abovebar, color=color.orange, size=size.tiny)

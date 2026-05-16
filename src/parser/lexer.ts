@@ -158,6 +158,13 @@ export class Lexer {
     if (this.tokens.length === 0) return false;
     const last = this.tokens[this.tokens.length - 1];
     if (last.type === TokenType.COMMA) return true;
+    // Lexer emits `:` as COLON punctuation (not OPERATOR). In Pine,
+    // ternaries commonly span lines:
+    //   cond ? a :
+    //     b
+    // Treat trailing `:` as a continuation cue so we don't emit a
+    // hard NEWLINE/INDENT boundary in the middle of the expression.
+    if (last.type === TokenType.COLON) return true;
     if (last.type !== TokenType.OPERATOR) return false;
     // `=>` deliberately ends a line — a multi-line arrow function body
     // starts on the indented next line. Treating `=>` as continuation
@@ -170,6 +177,44 @@ export class Lexer {
     return true;
   }
 
+  /**
+   * Some Pine scripts continue an expression by placing the operator at
+   * the start of the next line, e.g.:
+   *   x = "a"
+   *     + "b"
+   * Treat that newline as a soft continuation.
+   */
+  private nextLineStartsWithContinuationCue(): boolean {
+    let i = this.pos + 1; // char after '\n'
+    while (
+      i < this.code.length &&
+      (this.code[i] === ' ' || this.code[i] === '\t')
+    ) {
+      i++;
+    }
+    if (i >= this.code.length) return false;
+    if (this.code[i] === '\n') return false; // blank line
+    if (this.code[i] === '/' && this.code[i + 1] === '/') return false;
+
+    const ch = this.code[i];
+    // `-` is intentionally excluded: in indented blocks `-1` is a common
+    // standalone expression value (e.g. if-expression branches). Treating
+    // it as a continuation cue would incorrectly swallow block NEWLINE/INDENT.
+    if (ch === '+' || ch === '*' || ch === '/' || ch === '%') {
+      return true;
+    }
+    if (this.code.startsWith('and', i)) {
+      const end = this.code[i + 3] || '';
+      return !/[a-zA-Z0-9_]/.test(end);
+    }
+    if (this.code.startsWith('or', i)) {
+      const end = this.code[i + 2] || '';
+      return !/[a-zA-Z0-9_]/.test(end);
+    }
+
+    return false;
+  }
+
   private handleNewline(): void {
     // Inside a bracketed expression (`(...)`, `[...]`, `{...}`),
     // newlines are line continuations — Pine multi-line function calls
@@ -180,7 +225,11 @@ export class Lexer {
     // Same rule applies after a trailing binary operator / assignment /
     // separator: `tt = \n "abc" + \n "def"` is a single Pine expression.
     // The last emitted token tells us whether we're mid-expression.
-    if (this.bracketDepth > 0 || this.lastTokenIsContinuationCue()) {
+    if (
+      this.bracketDepth > 0 ||
+      this.lastTokenIsContinuationCue() ||
+      this.nextLineStartsWithContinuationCue()
+    ) {
       this.advance();
       while (
         this.pos < this.code.length &&

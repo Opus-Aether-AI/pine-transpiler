@@ -4,14 +4,11 @@
  * Handles the 'transpile' CLI command for converting Pine Script to JavaScript.
  */
 
-import { ASTGenerator } from '../../generator/ast-generator.js';
-import { MetadataVisitor } from '../../generator/metadata-visitor.js';
 import {
-  generateStandaloneFactory,
   transpile,
   transpileToPineJS,
+  transpileToStandaloneFactory,
 } from '../../index.js';
-import { Lexer, Parser } from '../../parser/index.js';
 import type { CLIOptions } from '../types';
 import { deriveIndicatorId, readInput, writeOutput } from '../utils';
 
@@ -98,53 +95,18 @@ export function commandTranspile(
     );
     writeOutput(factoryCode, options.output);
   } else if (format === 'factory') {
-    // Generate standalone factory code that can be directly pasted
     const indicatorId = options.id || deriveIndicatorId(file);
     const indicatorName = options.name;
-
-    try {
-      // Parse the Pine Script
-      const lexer = new Lexer(code);
-      const tokens = lexer.tokenize();
-      const parser = new Parser(tokens);
-      const ast = parser.parse();
-
-      // Extract metadata
-      const visitor = new MetadataVisitor();
-      visitor.visit(ast);
-
-      // Generate code
-      const generator = new ASTGenerator(visitor.historicalAccess);
-      const mainBody = generator.generate(ast);
-
-      // Generate standalone factory
-      const factoryCode = generateStandaloneFactory({
-        indicatorId,
-        indicatorName,
-        name: visitor.name,
-        shortName: visitor.shortName,
-        overlay: visitor.overlay,
-        plots: visitor.plots,
-        inputs: visitor.inputs,
-        bgcolors: visitor.bgcolors,
-        usedSources: visitor.usedSources,
-        historicalAccess: visitor.historicalAccess,
-        mainBody,
-        sessionVariables: visitor.sessionVariables,
-        derivedSessionVariables: visitor.derivedSessionVariables,
-        booleanInputMap: visitor.booleanInputMap,
-        computedVariables: visitor.computedVariables,
-        inputVariableMap: visitor.inputVariableMap,
-      });
-
-      writeOutput(factoryCode, options.output);
-    } catch (error) {
-      console.error(
-        'Transpilation error:',
-        error instanceof Error ? error.message : error,
-      );
+    const result = transpileToStandaloneFactory(
+      code,
+      indicatorId,
+      indicatorName,
+    );
+    if (!result.success || !result.factoryCode) {
+      console.error('Transpilation error:', result.error ?? 'Unknown error');
       process.exit(1);
     }
+    writeOutput(result.factoryCode, options.output);
   } else {
     console.error(
       `Error: Unknown format '${format}'. Use 'js', 'pinejs', or 'factory'.`,

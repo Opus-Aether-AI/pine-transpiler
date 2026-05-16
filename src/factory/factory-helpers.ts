@@ -29,14 +29,10 @@ export function mapPlotType(t: string): number {
       return 4;
     case 'stepline':
       return 0;
-    // PineJS plot styles are line-family numeric indices. Shape and
-    // char plots have their own metainfo top-level type ('shapes' /
-    // 'chars'), so the style.plottype here is largely cosmetic — but
-    // letting them fall through to 0 (line) would emit a structurally
-    // inconsistent metainfo (plot.type === 'shapes' AND
-    // styles[id].plottype === line). Use a dedicated marker so the
-    // chart host can ignore the style's plottype while still seeing
-    // the metainfo type as authoritative.
+    // Visual plots are emitted with string plottype markers in both
+    // metainfo.plots[] and defaults.styles[] (see resolveVisualPlottype).
+    // Keep numeric fallback here for older call sites that still expect
+    // a number.
     case 'shape':
       return 6;
     case 'char':
@@ -61,14 +57,23 @@ export function buildDefaultStyles(
 ): Record<string, PlotStyle> {
   return plots.reduce(
     (acc, p) => {
+      const styleLocation = resolveStyleLocation(p);
+      const visualPlottype = resolveVisualPlottype(p);
+      const charGlyph = resolveCharGlyph(p);
       acc[p.id] = {
         linestyle: 0,
         visible: true,
         linewidth: p.linewidth,
-        plottype: mapPlotType(p.type),
+        ...(visualPlottype !== undefined
+          ? { plottype: visualPlottype }
+          : p.type === 'char'
+            ? {}
+            : { plottype: mapPlotType(p.type) }),
         color: p.color,
         transparency: 0,
         trackPrice: p.type === 'hline',
+        ...(styleLocation ? { location: styleLocation } : {}),
+        ...(charGlyph ? { char: charGlyph } : {}),
       };
       return acc;
     },
@@ -100,16 +105,74 @@ export function buildDefaultInputs(
  * @param plots - Array of parsed plot definitions
  * @returns Record mapping plot IDs to their title and histogram base
  */
-export function buildStylesMetadata(
-  plots: ParsedPlot[],
-): Record<string, { title: string; histogramBase?: number }> {
+export function buildStylesMetadata(plots: ParsedPlot[]): Record<
+  string,
+  {
+    title: string;
+    histogramBase?: number;
+    location?: 'AboveBar' | 'BelowBar' | 'Top' | 'Bottom' | 'Absolute';
+  }
+> {
   return plots.reduce(
     (acc, p) => {
-      acc[p.id] = { title: p.title, histogramBase: 0 };
+      const styleLocation = resolveStyleLocation(p);
+      acc[p.id] = {
+        title: p.title,
+        histogramBase: 0,
+        ...(styleLocation ? { location: styleLocation } : {}),
+      };
       return acc;
     },
-    {} as Record<string, { title: string; histogramBase?: number }>,
+    {} as Record<
+      string,
+      {
+        title: string;
+        histogramBase?: number;
+        location?: 'AboveBar' | 'BelowBar' | 'Top' | 'Bottom' | 'Absolute';
+      }
+    >,
   );
+}
+
+function resolveStyleLocation(
+  plot: ParsedPlot,
+): 'AboveBar' | 'BelowBar' | 'Top' | 'Bottom' | 'Absolute' | undefined {
+  if (plot.type !== 'shape' && plot.type !== 'char') return undefined;
+  const loc = plot.location;
+  if (loc === 'abovebar') return 'AboveBar';
+  if (loc === 'belowbar') return 'BelowBar';
+  if (loc === 'top') return 'Top';
+  if (loc === 'bottom') return 'Bottom';
+  if (loc === 'absolute') return 'Absolute';
+  return 'AboveBar';
+}
+
+function resolveVisualPlottype(plot: ParsedPlot): string | undefined {
+  if (plot.type !== 'shape') return undefined;
+  switch (plot.shape) {
+    case 'triangleup':
+      return 'shape_triangle_up';
+    case 'triangledown':
+      return 'shape_triangle_down';
+    case 'cross':
+      return 'shape_cross';
+    case 'diamond':
+      return 'shape_diamond';
+    case 'square':
+      return 'shape_square';
+    case 'flag':
+      return 'shape_flag';
+    case 'label':
+      return 'shape_label_up';
+    default:
+      return 'shape_circle';
+  }
+}
+
+function resolveCharGlyph(plot: ParsedPlot): string | undefined {
+  if (plot.type !== 'char') return undefined;
+  const glyph = String(plot.char ?? '').trim();
+  return glyph || '•';
 }
 
 /**
@@ -148,11 +211,22 @@ function plotTypeToMetainfoType(
 export function buildPlotsMetadata(plots: ParsedPlot[]): Array<{
   id: string;
   type: 'line' | 'histogram' | 'shapes' | 'chars' | 'bg_colorer';
+  plottype?: string;
+  char?: string;
+  location?: 'AboveBar' | 'BelowBar' | 'Top' | 'Bottom' | 'Absolute';
 }> {
-  return plots.map((p) => ({
-    id: p.id,
-    type: plotTypeToMetainfoType(p.type),
-  }));
+  return plots.map((p) => {
+    const visualPlottype = resolveVisualPlottype(p);
+    const charGlyph = resolveCharGlyph(p);
+    const location = resolveStyleLocation(p);
+    return {
+      id: p.id,
+      type: plotTypeToMetainfoType(p.type),
+      ...(visualPlottype ? { plottype: visualPlottype } : {}),
+      ...(charGlyph ? { char: charGlyph } : {}),
+      ...(location ? { location } : {}),
+    };
+  });
 }
 
 /**
@@ -176,7 +250,7 @@ export function buildInputsMetadata(inputs: ParsedInput[]): Array<{
   defval: number | boolean | string;
   min?: number;
   max?: number;
-  options?: string[];
+  options: string[];
 }> {
   return inputs.map((i) => ({
     id: i.id,
@@ -193,7 +267,9 @@ export function buildInputsMetadata(inputs: ParsedInput[]): Array<{
     defval: i.defval,
     min: i.min,
     max: i.max,
-    options: i.options,
+    // TradingView settings UI assumes iterable options in several
+    // code-paths. Normalize to [] to avoid undefined.map crashes.
+    options: Array.isArray(i.options) ? i.options : [],
   }));
 }
 

@@ -1,12 +1,12 @@
 const _series_close = context.new_var(close);
 const _getHistorical_close = (offset) => _series_close.get(offset);
-indicator("ATR Bands");
+indicator("ATR Bands", true);
 var length = input.int(14, "Length");
 var mult = input.float(2, "Mult");
 var atrVal = Std.atr(context, length);
-var basis = Std.sma(context, close, length);
+var basis = Std.sma(context, _series_close, length);
 var upper = (basis + (atrVal * mult));
 var lower = (basis - (atrVal * mult));
-Std.plot(basis, "Basis");
-Std.plot(upper, "Upper");
-Std.plot(lower, "Lower");
+Std.plot(basis, "Basis", color.gray);
+Std.plot(upper, "Upper", color.red);
+Std.plot(lower, "Lower", color.green);

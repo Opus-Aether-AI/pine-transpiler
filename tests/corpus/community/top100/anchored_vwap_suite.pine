@@ -1,0 +1,11 @@
+//@version=5
+indicator("Anchored VWAP Suite", overlay=true)
+
+src = input.source(close, "Source")
+cur = ta.vwap(src)
+daily = request.security(syminfo.tickerid, "D", ta.vwap(src), barmerge.gaps_off, barmerge.lookahead_on)
+weekly = request.security(syminfo.tickerid, "W", ta.vwap(src), barmerge.gaps_off, barmerge.lookahead_on)
+
+plot(cur, "VWAP Current", color=color.yellow)
+plot(daily, "VWAP Daily", color=color.blue)
+plot(weekly, "VWAP Weekly", color=color.purple)

@@ -20,7 +20,7 @@ import type {
   VariableDeclaration,
   WhileStatement,
 } from '../../src/parser/ast';
-import { parse } from '../utils';
+import { parse, parseWithErrors } from '../utils';
 
 describe('Parser - Statements', () => {
   describe('Variable Declarations', () => {
@@ -112,6 +112,23 @@ describe('Parser - Statements', () => {
       expect(decl.kind).toBe('var');
       expect(decl.typeAnnotation?.name).toBe('int');
     });
+
+    it('should parse comma-chained qualified declarations and reassignments', () => {
+      const ast = parse('var int dir = 0, dir := cond ? 1 : dir');
+      const block = ast.body[0] as BlockStatement;
+
+      expect(block.type).toBe('BlockStatement');
+      expect(block.body[0]?.type).toBe('VariableDeclaration');
+      expect(block.body[1]?.type).toBe('ExpressionStatement');
+    });
+
+    it('should not treat `matrix` identifier as a built-in type annotation', () => {
+      const result = parseWithErrors('var matrix = matrix.new<string>(0, 5, na)');
+      expect(result.hasErrors).toBe(false);
+      const decl = result.program.body[0] as VariableDeclaration;
+      expect((decl.id as Identifier).name).toBe('matrix');
+      expect(decl.typeAnnotation).toBeUndefined();
+    });
   });
 
   describe('If Statements', () => {
@@ -171,6 +188,26 @@ else
       const block = stmt.consequent as BlockStatement;
 
       expect(block.body.length).toBe(3);
+    });
+
+    it('should parse block even when it starts with blank/comment lines', () => {
+      const code = `if x > 0
+
+    // comment
+    y = 1`;
+      const result = parseWithErrors(code);
+      expect(result.hasErrors).toBe(false);
+    });
+
+    it('should parse if-expression assignments', () => {
+      const code = `condition1 = if upper[0] < upper[1]
+    -1
+else
+    1`;
+      const result = parseWithErrors(code);
+      expect(result.hasErrors).toBe(false);
+      const decl = result.program.body[0] as VariableDeclaration;
+      expect(decl.init?.type).toBe('SwitchExpression');
     });
   });
 
@@ -527,6 +564,17 @@ plot(x)`;
       const ast = parse(code);
 
       expect(ast.body.length).toBe(4);
+    });
+
+    it('should parse comma-chained expression statements on one line', () => {
+      const ast = parse('screener(t1), screener(t2), screener(t3)');
+      const block = ast.body[0] as BlockStatement;
+
+      expect(block.type).toBe('BlockStatement');
+      expect(block.body.length).toBe(3);
+      expect(block.body.every((s) => s.type === 'ExpressionStatement')).toBe(
+        true,
+      );
     });
   });
 });

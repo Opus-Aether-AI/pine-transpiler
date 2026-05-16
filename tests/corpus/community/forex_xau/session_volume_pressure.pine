@@ -1,0 +1,25 @@
+//@version=5
+indicator("Session Volume Pressure", overlay=false)
+
+sessionInput = input.session("0930-1600", "Active Session")
+inSession = not na(time("", sessionInput))
+
+buyVol = close > open ? volume : 0
+sellVol = close < open ? volume : 0
+
+var float cumBuy = 0
+var float cumSell = 0
+
+if inSession and not inSession[1]
+    cumBuy := 0
+    cumSell := 0
+
+if inSession
+    cumBuy += buyVol
+    cumSell += sellVol
+
+pressure = cumBuy - cumSell
+
+plot(cumBuy, "Cum Buy", color=color.lime)
+plot(cumSell, "Cum Sell", color=color.red)
+plot(pressure, "Pressure", color=pressure >= 0 ? color.aqua : color.orange, style=plot.style_columns)

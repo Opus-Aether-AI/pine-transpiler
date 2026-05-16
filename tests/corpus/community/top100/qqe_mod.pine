@@ -1,0 +1,20 @@
+//@version=5
+indicator("QQE MOD", overlay=false)
+
+rsiLen = input.int(14, "RSI Length", minval=1)
+smooth = input.int(5, "Smoothing", minval=1)
+factor = input.float(4.236, "QQE Factor", minval=0.1)
+
+r = ta.rsi(close, rsiLen)
+rs = ta.ema(r, smooth)
+changeAbs = math.abs(rs - rs[1])
+atrRsi = ta.rma(changeAbs, rsiLen)
+qqe = ta.rma(atrRsi, rsiLen) * factor
+
+upper = rs + qqe
+lower = rs - qqe
+
+plot(rs, "RSI Smoothed", color=color.aqua)
+plot(upper, "Upper", color=color.red)
+plot(lower, "Lower", color=color.green)
+plot(50, "Mid", color=color.gray)

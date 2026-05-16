@@ -1,0 +1,14 @@
+//@version=5
+indicator("Relative Rotation Graph (RRG-style)", overlay=false)
+
+rsLen = input.int(50, "RS Base Length", minval=2)
+momLen = input.int(10, "Momentum Length", minval=1)
+
+rs = close / ta.sma(close, rsLen)
+rsMom = ta.roc(rs, momLen)
+rsSm = ta.ema(rs, 5)
+rsMomSm = ta.ema(rsMom, 5)
+
+plot(rsSm, "RS Ratio", color=color.blue)
+plot(rsMomSm, "RS Momentum", color=color.orange)
+plot(0, "Zero", color=color.gray)

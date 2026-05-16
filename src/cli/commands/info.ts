@@ -36,9 +36,8 @@ Supported Features:
   • Arrays and tuples
 
 Limitations:
-  • No request.security() support
-  • Limited drawing functions (box, line, label)
-  • No table support
+  • request.security() subset MTF merge (with explicit fallback diagnostics)
+  • Drawing/table are runtime-compatible no-op objects (no visual rendering)
   • Some advanced Pine Script v5 features
 
 For more information, visit:

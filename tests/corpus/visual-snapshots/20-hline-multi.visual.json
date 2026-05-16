@@ -1,0 +1,170 @@
+{
+  "fixture": "20-hline-multi.pine",
+  "stageReached": "complete",
+  "pass": true,
+  "error": null,
+  "runtime": {
+    "barsCompleted": 200,
+    "barsErrored": 0,
+    "declaredPlotCount": 4,
+    "actualPlotCount": 4,
+    "visualEventCount": 4,
+    "visualCalls": [
+      {
+        "call": "hline",
+        "count": 3
+      },
+      {
+        "call": "Std.plot",
+        "count": 1
+      }
+    ],
+    "visualStyleSemantics": {
+      "colors": [
+        "#4CAF50",
+        "#9C27B0",
+        "#9E9E9E",
+        "#FF5252"
+      ],
+      "transpValues": [],
+      "linewidthValues": [],
+      "offsetValues": [],
+      "displayFlags": []
+    },
+    "topRuntimeErrors": [],
+    "unimplementedStdCalls": []
+  },
+  "metainfo": {
+    "plotCount": 4,
+    "plots": [
+      {
+        "id": "plot_0",
+        "type": "line",
+        "price": null
+      },
+      {
+        "id": "plot_1",
+        "type": "line",
+        "price": null
+      },
+      {
+        "id": "plot_2",
+        "type": "line",
+        "price": null
+      },
+      {
+        "id": "plot_3",
+        "type": "line",
+        "price": null
+      }
+    ],
+    "inputCount": 1,
+    "inputs": [
+      {
+        "id": "in_0",
+        "type": "integer",
+        "defval": 14
+      }
+    ],
+    "styleKeys": [
+      "plot_0",
+      "plot_1",
+      "plot_2",
+      "plot_3"
+    ],
+    "styles": [
+      {
+        "id": "plot_0",
+        "title": "RSI",
+        "histogramBase": 0
+      },
+      {
+        "id": "plot_1",
+        "title": "Overbought",
+        "histogramBase": 0
+      },
+      {
+        "id": "plot_2",
+        "title": "Mid",
+        "histogramBase": 0
+      },
+      {
+        "id": "plot_3",
+        "title": "Oversold",
+        "histogramBase": 0
+      }
+    ],
+    "defaultStyles": [
+      {
+        "id": "plot_0",
+        "plottype": 0,
+        "linewidth": 1,
+        "linestyle": 0,
+        "color": "#9C27B0",
+        "transparency": 0,
+        "visible": true,
+        "trackPrice": false
+      },
+      {
+        "id": "plot_1",
+        "plottype": 0,
+        "linewidth": 1,
+        "linestyle": 0,
+        "color": "#787B86",
+        "transparency": 0,
+        "visible": true,
+        "trackPrice": true
+      },
+      {
+        "id": "plot_2",
+        "plottype": 0,
+        "linewidth": 1,
+        "linestyle": 0,
+        "color": "#787B86",
+        "transparency": 0,
+        "visible": true,
+        "trackPrice": true
+      },
+      {
+        "id": "plot_3",
+        "plottype": 0,
+        "linewidth": 1,
+        "linestyle": 0,
+        "color": "#787B86",
+        "transparency": 0,
+        "visible": true,
+        "trackPrice": true
+      }
+    ]
+  },
+  "visualCallCounts": {
+    "Std.plot": 1,
+    "Std.plotshape": 0,
+    "Std.plotchar": 0,
+    "Std.plotarrow": 0,
+    "hline": 3,
+    "Std.bgcolor": 0,
+    "Std.fill": 0,
+    "Std.barcolor": 0,
+    "line.new": 0,
+    "line.set_x2": 0,
+    "line.set_xy1": 0,
+    "line.set_xy2": 0,
+    "line.set_color": 0,
+    "line.delete": 0,
+    "label.new": 0,
+    "label.set_text": 0,
+    "label.set_textcolor": 0,
+    "label.set_style": 0,
+    "label.delete": 0,
+    "box.new": 0,
+    "box.set_bgcolor": 0,
+    "box.set_border_color": 0,
+    "box.set_border_width": 0,
+    "box.delete": 0,
+    "table.new": 0,
+    "table.cell": 0,
+    "table.merge_cells": 0,
+    "table.clear": 0
+  }
+}

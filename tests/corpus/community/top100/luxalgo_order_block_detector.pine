@@ -1,0 +1,17 @@
+//@version=5
+indicator("LuxAlgo Order Block Detector", overlay=true)
+
+look = input.int(20, "Lookback", minval=5)
+impulseUp = close > ta.highest(close[1], look)
+impulseDn = close < ta.lowest(close[1], look)
+
+var float bullOb = na
+var float bearOb = na
+
+if impulseUp
+    bullOb := low
+if impulseDn
+    bearOb := high
+
+plot(bullOb, "Bull OB", color=color.new(color.green, 0))
+plot(bearOb, "Bear OB", color=color.new(color.red, 0))

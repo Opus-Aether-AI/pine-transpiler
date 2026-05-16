@@ -11,6 +11,7 @@ export type {
   // Core runtime types
   CustomIndicator,
   IndicatorConstructor,
+  IndicatorConstructorFactory,
   IndicatorFactory,
   InputCallback,
   PineJSRuntime,
@@ -22,6 +23,7 @@ export type {
   StudyMetaInfo,
   StudyPlotInfo,
   TranspileToPineJSResult,
+  TranspileToStandaloneFactoryResult,
 } from './runtime';
 
 // ============================================================================
@@ -127,6 +129,8 @@ export interface ParsedPlot {
     | 'bottom'
     | 'absolute'
     | undefined;
+  /** For plotchar - glyph rendered by chars plots */
+  char?: string | undefined;
   /** For bg_colorer - palette name */
   palette?: string | undefined;
 }

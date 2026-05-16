@@ -414,6 +414,15 @@ export interface StudyPlotInfo {
     | 'hline'
     | 'bg_colorer';
 
+  /** Visual renderer style marker (required by chart runtime for shapes/chars). */
+  plottype?: number | string;
+
+  /** Chars-plot glyph marker (required for chars renderer contract). */
+  char?: string;
+
+  /** Optional visual location hint (AboveBar/BelowBar/etc.). */
+  location?: string;
+
   /** Optional price for hline */
   price?: number;
 }
@@ -431,8 +440,8 @@ export interface PlotStyle {
   /** Line width in pixels */
   linewidth: number;
 
-  /** Plot type: 0=line, 1=histogram, etc. */
-  plottype: number;
+  /** Plot type: 0=line, 1=histogram, or visual shape marker string. */
+  plottype?: number | string;
 
   /** Whether to track price on the right scale */
   trackPrice?: boolean;
@@ -442,6 +451,12 @@ export interface PlotStyle {
 
   /** Transparency (0-100) */
   transparency?: number;
+
+  /** Char/shape plot vertical placement */
+  location?: 'AboveBar' | 'BelowBar' | 'Top' | 'Bottom' | 'Absolute';
+
+  /** Optional glyph for chars plots */
+  char?: string;
 }
 
 /**
@@ -487,6 +502,7 @@ export interface StudyMetaInfo {
     {
       title: string;
       histogramBase?: number;
+      location?: 'AboveBar' | 'BelowBar' | 'Top' | 'Bottom' | 'Absolute';
     }
   >;
 
@@ -529,6 +545,18 @@ export interface IndicatorConstructor {
 }
 
 /**
+ * Indicator instance factory attached to `CustomIndicator.constructor`.
+ *
+ * TradingView instantiates this with `new indicator.constructor()`. Our
+ * internal tooling may still call it as a plain function, so keep both call
+ * signatures legal.
+ */
+export interface IndicatorConstructorFactory {
+  (): IndicatorConstructor;
+  new (): IndicatorConstructor;
+}
+
+/**
  * Custom Indicator - Complete indicator definition
  * This is what transpileToPineJS() generates
  */
@@ -540,7 +568,7 @@ export interface CustomIndicator {
   metainfo: StudyMetaInfo;
 
   /** Factory function that creates the indicator instance */
-  constructor: () => IndicatorConstructor;
+  constructor: IndicatorConstructorFactory;
 }
 
 // ============================================================================
@@ -585,6 +613,29 @@ export interface TranspileToPineJSResult {
 
   /** Factory function to create the indicator (if successful) */
   indicatorFactory?: IndicatorFactory | undefined;
+
+  /** Error message (if failed) */
+  error?: string | undefined;
+
+  /** Line number where error occurred */
+  errorLine?: number | undefined;
+
+  /** Column number where error occurred */
+  errorColumn?: number | undefined;
+}
+
+/**
+ * Result of transpiling Pine Script to standalone factory module code.
+ *
+ * This path is CSP-safe for strict production environments because the
+ * generated module does not rely on `new Function(...)` at runtime.
+ */
+export interface TranspileToStandaloneFactoryResult {
+  /** Whether transpilation succeeded */
+  success: boolean;
+
+  /** Standalone ESM factory source code (if successful) */
+  factoryCode?: string | undefined;
 
   /** Error message (if failed) */
   error?: string | undefined;

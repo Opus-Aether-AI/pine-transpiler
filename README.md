@@ -10,11 +10,13 @@ This tool allows you to run Pine Script indicators directly within the Charting 
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [API Reference](#api-reference)
+- [TradingView Harness](#tradingview-harness)
 - [Transpiled Output Example](#transpiled-output-example)
 - [Supported Features](#supported-features)
 - [Architecture](#architecture)
 - [Environment Support](#environment-support)
 - [Limitations & Known Issues](#limitations--known-issues)
+- [Future Parity Roadmap](#future-parity-roadmap)
 - [Development](#development)
 - [Changelog](#changelog)
 - [Contributing](#contributing)
@@ -24,9 +26,12 @@ This tool allows you to run Pine Script indicators directly within the Charting 
 
 -   **Pine Script v5/v6 Syntax Support**: Handles variable declarations (`var`, `varip`), types, control flow (`if`, `for`, `while`, `switch`), and functions.
 -   **Standard Library Mapping**: Automatically maps Pine Script's `ta.*`, `math.*`, `time.*`, and `str.*` functions to their `PineJS.Std` equivalents.
--   **StdPlus Polyfills**: Includes a built-in `StdPlus` library to support Pine Script functions that are missing from the native `PineJS.Std` (e.g., `bb`, `kc`, `crossover`, `hma`).
+-   **StdPlus + Runtime Helpers**: Includes built-in polyfills/helpers for missing or behavior-sensitive APIs (for example `bb`, `kc`, `crossover`, `hma`, map/matrix helpers, and session/time helpers).
 -   **Zero Dependencies**: The core transpiler logic is dependency-free and runs in any JavaScript environment.
 -   **TypeScript First**: Full TypeScript support with strict mode enabled and comprehensive type definitions.
+-   **Corpus Governance Tooling**: Lane/authenticity-aware corpus reports (`bun run corpus`) and CI gate budgets (`bun run corpus:gate`) to keep parity stable as fixture count grows.
+-   **Chart Host Safety Gate**: TradingView-like runtime contract checks (`bun run chart:safety`) to catch construct/plot/visual payload regressions before webapp integration.
+-   **TradingView-Shaped Test Harness Export**: Reusable `./test-harness` sub-export that validates constructor contract, plot/style alignment, and reducer safety against transpiled output.
 
 ## Installation
 
@@ -78,7 +83,11 @@ if (result.success) {
 
 #### `transpileToPineJS(code, indicatorId, indicatorName?)`
 
-Transpile Pine Script to a TradingView CustomIndicator factory.
+Transpile Pine Script to a TradingView `CustomIndicator` factory.
+
+This path compiles indicator runtime with `new Function(...)` when the
+indicator is instantiated. Use it for local/dev or environments where
+`unsafe-eval` is allowed.
 
 ```typescript
 function transpileToPineJS(
@@ -92,6 +101,28 @@ interface TranspileToPineJSResult {
   success: boolean;
   indicatorFactory?: IndicatorFactory;  // When success=true
   error?: string;                       // When success=false
+}
+```
+
+#### `transpileToStandaloneFactory(code, indicatorId, indicatorName?)`
+
+Transpile Pine Script to a standalone ESM module string with
+`createIndicator(PineJS)` export.
+
+Use this for strict CSP production environments where `unsafe-eval`
+is blocked.
+
+```typescript
+function transpileToStandaloneFactory(
+  code: string,
+  indicatorId: string,
+  indicatorName?: string
+): TranspileToStandaloneFactoryResult;
+
+interface TranspileToStandaloneFactoryResult {
+  success: boolean;
+  factoryCode?: string;  // Standalone ESM source when success=true
+  error?: string;
 }
 ```
 
@@ -132,6 +163,7 @@ function executePineJS(
 ```typescript
 import { 
   transpileToPineJS,
+  transpileToStandaloneFactory,
   transpile,
   canTranspilePineScript,
   executePineJS,
@@ -147,6 +179,50 @@ import {
   COLOR_MAP,
   PRICE_SOURCES
 } from '@opusaether/pine-transpiler';
+```
+
+#### Harness Sub-export
+```typescript
+import {
+  runTradingViewHarness,
+  type TradingViewHarnessOptions,
+  type TradingViewHarnessReport,
+} from '@opusaether/pine-transpiler/test-harness';
+```
+
+#### Strict CSP Integration
+```typescript
+import { transpileToStandaloneFactory } from '@opusaether/pine-transpiler';
+
+const built = transpileToStandaloneFactory(pineSource, 'ict_killzones', 'ICT Killzones');
+if (!built.success) throw new Error(built.error);
+
+// Persist `built.factoryCode` as a module at build time (example file:
+// generated/ict-killzones.factory.js), then import it in the webapp:
+//
+// import { createIndicator } from './generated/ict-killzones.factory.js';
+// const indicator = createIndicator(PineJS);
+```
+
+## TradingView Harness
+
+Use this harness when you want to catch chart-host breakages before app
+integration (for example non-constructable constructors, missing
+`metainfo.styles[plot.id]`, undefined plot slots, or reducer crashes).
+
+```typescript
+import { runTradingViewHarness } from '@opusaether/pine-transpiler/test-harness';
+
+const report = runTradingViewHarness({
+  fixtureName: 'ict-killzones.pine',
+  source: pineSource,
+  bars: 300,
+  barIndexStart: 10_000,
+});
+
+if (!report.pass) {
+  console.error(report);
+}
 ```
 
 ## Transpiled Output Example
@@ -217,6 +293,12 @@ The transpiler:
 
 #### Arrays
 Basic `array.*` support mapped to JavaScript arrays with type preservation.
+
+#### Maps (Pine v6)
+`map.new`, `map.put`, `map.put_all`, `map.get`, `map.contains`, `map.remove`, `map.size`, `map.keys`, `map.values`, `map.clear`, `map.copy`
+
+#### Matrices (Pine v6, subset)
+`matrix.new`, `matrix.rows`, `matrix.columns`, `matrix.get`, `matrix.set`, `matrix.add_row`, `matrix.remove_row`
 
 ## Architecture
 
@@ -330,57 +412,130 @@ While the transpiler covers a significant portion of Pine Script, there are inhe
 | Feature | Status | Notes |
 |---------|--------|-------|
 | `strategy.*` | ❌ Not Supported | Indicators only; no backtesting |
-| `request.security` | ❌ Not Supported | Requires async data fetching |
-| `request.financial` | ❌ Not Supported | External data sources |
-| `matrix.*` | ❌ Not Supported | Parsed but not implemented |
-| `line.*`, `label.*`, `box.*`, `table.*` | ⚠️ Parsed | No-op stubs; no drawing output |
+| `request.security` | ⚠️ Partial | Deterministic in-process subset (expression passthrough + HTF bucket merge for supported signatures); no external data fetch |
+| `request.financial`, `request.economic`, `request.earnings`, `request.dividends`, `request.splits`, `request.quandl`, `request.seed` | ❌ Not Supported | External data sources |
+| `line.*`, `label.*`, `box.*`, `table.*` | ⚠️ Partial | Stateful runtime-compatible handles with method subsets; no chart rendering output |
+| `polyline.*` | ❌ Not Supported | Not implemented |
 
 ### Known Limitations
 
-1.  **Recursive Calculations**: The `StdPlus` polyfill is stateless. Functions requiring recursive historical state may have incomplete implementations.
-    -   `ta.macd`: Returns correct MACD/signal lines; histogram may show `NaN`
-    -   Custom recursive indicators may not work correctly
+1.  **`request.security` scope**: subset support exists, but full Pine MTF parity is not complete (especially around cross-symbol fetching and complete `barmerge` semantics).
 
-2.  **Historical Access**: Variables with `[offset]` syntax require pre-declaration tracking. Complex nested historical access patterns may not resolve correctly.
+2.  **Drawing/Table semantics**: object lifecycle and common mutators/getters are supported for runtime compatibility, but rendering is intentionally host-owned.
 
-3.  **No Source Maps**: Generated JavaScript cannot be mapped back to Pine Script lines for debugging.
+3.  **Matrix coverage is subset-only**: advanced matrix APIs outside `new/rows/columns/get/set/add_row/remove_row` are not implemented yet.
+
+4.  **No Source Maps**: generated JavaScript cannot be mapped back to Pine Script lines for debugging.
 
 ### Test Coverage
 
-| Component | Coverage | Tests | Notes |
-|-----------|----------|-------|-------|
-| Lexer | ✅ Comprehensive | 85+ | Tokens, operators, indentation |
-| Parser | ✅ Comprehensive | 150+ | Expressions, statements |
-| Generator | ✅ Comprehensive | 200+ | AST generation, metadata visitor |
-| Mappings | ✅ Comprehensive | 250+ | TA, math, time, utilities |
-| CLI | ✅ Good | 15+ | Command-line interface |
-| StdPlus | ✅ Good | 50+ | Polyfill functions |
-| Integration | ✅ Good | 50+ | End-to-end transpilation |
+Coverage is enforced through multiple layers:
+
+- unit/regression suites: `bun test tests/`
+- TradingView-shaped harness suites: `bun run test:harness`
+- corpus execution parity: `bun run corpus`
+- strict numeric checks: `bun run corpus:strict`
+- curated + community indicator matrices: `bun run corpus:matrix`, `bun run corpus:critical`, `bun run corpus:tv100`, `bun run corpus:tv200`, `bun run corpus:forex-xau`
+- differential numeric parity report: `bun run corpus:differential`
+- corpus quality/stability budgets: `bun run corpus:gate`
+- chart-host safety contracts: `bun run chart:safety`
+
+## Future Parity Roadmap
+
+The next accuracy/support roadmap is documented in [FUTURE_PARITY_ROADMAP.md](./FUTURE_PARITY_ROADMAP.md), including:
+
+- phase-by-phase coverage tracking
+- parity KPIs and acceptance gates
+- execution order for semantic, visual, and MTF parity work
 
 ## Development
 
 ```bash
 # Install dependencies
-pnpm install
+bun install
 
 # Run tests
-pnpm test
+bun test tests/
+
+# Run TradingView-shaped harness integration tests
+bun run test:harness
 
 # Run tests in watch mode
-pnpm test -- --watch
+bun test --watch tests/
 
 # Build
-pnpm build
+bun run build
 
 # Type check
-pnpm typecheck
+bun run typecheck
 
 # Lint
-pnpm lint
+bun run lint
 
 # Lint with auto-fix
-pnpm lint:fix
+bun run lint:fix
 ```
+
+### Corpus & Parity Checks
+
+```bash
+# Full corpus scorecard (pass/total + top failures)
+bun run corpus
+
+# Strict numeric parity checks on core indicators
+bun run corpus:strict
+
+# 67-indicator parity matrix (PASS/FAIL/NOT_FOUND)
+bun run corpus:matrix
+
+# Critical real-world market script matrix
+# (high-impact ICT/SMC/killzones/forex/XAU fixtures)
+bun run corpus:critical
+
+# TradingView top-100 community target matrix
+# (PASS/FAIL for imported fixtures, NOT_IN_CORPUS for missing imports)
+bun run corpus:tv100
+
+# TradingView top-200 matrix
+# (top-100 targets + 100 additional popular/customized fixtures)
+bun run corpus:tv200
+
+# Stability gate (lane/authenticity budgets for CI)
+bun run corpus:gate
+
+# Chart-host safety gate (constructor/plot/visual runtime contracts)
+bun run chart:safety
+
+# Visual parity baseline (5 fixtures, snapshot-based)
+bun run corpus:visual
+
+# Refresh corpus + visual snapshots after intentional changes
+bun run corpus:snap
+```
+
+### Corpus Governance
+
+The corpus is now classified using `tests/corpus/manifest.ts`:
+
+- lanes: `curated_core`, `upstream_authentic`, `synthetic_custom`, `quarantine`
+- authenticity classes: `authentic`, `proxy`, `synthetic`
+- categories and feature tags inferred from fixture source
+
+Governance artifacts:
+
+- `bun run test:harness` runs fixture-level descriptor + reducer-survival checks in a TradingView-shaped runtime harness.
+- `bun run corpus` prints pass rate by source, lane, authenticity, category, and top feature coverage.
+- `bun run corpus:critical` tracks regression-critical real-world scripts (ICT/SMC/killzones/XAU) that must remain runtime-stable.
+- `bun run corpus:tv100` / `bun run corpus:tv200` generate matrix artifacts for popular/community suites.
+- `bun run corpus:gate` enforces stability budgets in CI (overall pass, parse-clean, unimplemented std calls, per-lane pass, per-authenticity pass).
+- `bun run chart:safety` enforces TradingView-like host contracts (`new constructor()`, per-bar plot shape, visual-event payload integrity) and writes failure artifacts to `.tmp/chart-safety/`.
+
+Reference docs:
+
+- [CORPUS-BASELINE.md](./CORPUS-BASELINE.md)
+- [TRADINGVIEW_TOP100_MATRIX.md](./TRADINGVIEW_TOP100_MATRIX.md)
+- [TRADINGVIEW_TOP200_MATRIX.md](./TRADINGVIEW_TOP200_MATRIX.md)
+- [CRITICAL_INDICATOR_MATRIX.md](./CRITICAL_INDICATOR_MATRIX.md)
 
 ## Changelog
 
@@ -418,4 +573,3 @@ This project is an independent, open-source initiative and is **not** affiliated
 - **TradingView** and **Pine Script** are trademarks of TradingView Inc.
 - This transpiler is a clean-room implementation based on public documentation and behavior observation. It does not use or contain any proprietary code from TradingView.
 - Use this tool at your own risk. The authors assume no responsibility for trading decisions or financial losses resulting from the use of this software.
-

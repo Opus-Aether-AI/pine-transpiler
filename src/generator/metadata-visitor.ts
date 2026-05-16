@@ -59,7 +59,6 @@ export interface SessionVariable {
  * Unsupported function categories for warning generation
  */
 const UNSUPPORTED_FUNCTIONS = new Set([
-  'request.security',
   'request.financial',
   'request.quandl',
   'request.seed',
@@ -81,6 +80,7 @@ const UNSUPPORTED_FUNCTIONS = new Set([
  * Partially supported functions that may have limited functionality
  */
 const PARTIALLY_SUPPORTED_FUNCTIONS = new Set([
+  'request.security',
   'plotshape',
   'plotchar',
   'plotarrow',
@@ -125,6 +125,12 @@ export class MetadataVisitor {
   private colorVariables: Map<string, { color: string; transparency: number }> =
     new Map();
 
+  // Track string-literal var definitions so plotchar `text =`/`char =`
+  // identifier references resolve to their declared value. Limited to
+  // direct `var x = "literal"` assignments; computed strings stay
+  // unresolved (caller falls back to the bullet glyph).
+  private stringVariables: Map<string, string> = new Map();
+
   // Track session membership variables: varName -> SessionVariable info
   public sessionVariables: Map<string, SessionVariable> = new Map();
 
@@ -148,6 +154,13 @@ export class MetadataVisitor {
   private warnedFunctions: Set<string> = new Set();
 
   public visit(node: Program): void {
+    // Make string-literal var definitions resolvable from inside the
+    // plot extractor before walking the AST. The plot extractor holds
+    // only a callback, so subsequent `trackStringVariable` updates are
+    // visible without re-wiring.
+    this.plotExtractor.setStringResolver((name) =>
+      this.stringVariables.get(name),
+    );
     this.visitStatements(node.body);
   }
 
@@ -168,6 +181,7 @@ export class MetadataVisitor {
         // Track color variable definitions
         if (stmt.init) {
           this.trackColorVariable(stmt.id, stmt.init);
+          this.trackStringVariable(stmt.id, stmt.init);
           this.trackSessionVariable(stmt.id, stmt.init);
           this.trackDerivedSessionVariable(stmt.id, stmt.init);
           this.trackInputVariable(stmt.id, stmt.init);
@@ -332,12 +346,14 @@ export class MetadataVisitor {
       const plot = this.plotExtractor.extractPlotChar(expr);
       plot.id = `plot_${this.plots.length}`;
       this.plots.push(plot);
+    } else if (name === 'plotarrow') {
+      const plot = this.plotExtractor.extractPlotArrow(expr);
+      plot.id = `plot_${this.plots.length}`;
+      this.plots.push(plot);
     } else if (name === 'hline') {
       const plot = this.plotExtractor.extractHline(expr);
-      if (plot) {
-        plot.id = `plot_${this.plots.length}`;
-        this.plots.push(plot);
-      }
+      plot.id = `plot_${this.plots.length}`;
+      this.plots.push(plot);
     } else if (name === 'bgcolor') {
       this.extractBgcolor(expr);
     }
@@ -358,6 +374,21 @@ export class MetadataVisitor {
     if (colorInfo) {
       this.colorVariables.set(varName, colorInfo);
     }
+  }
+
+  /**
+   * Track direct string-literal var assignments, e.g.
+   * `var sunday = "SUNDAY"`. Computed/concatenated string expressions
+   * are intentionally not tracked — keeping resolution narrow avoids
+   * surprising fallout in unrelated scripts.
+   */
+  private trackStringVariable(
+    id: Expression | Expression[],
+    init: Expression,
+  ): void {
+    if (Array.isArray(id) || id.type !== 'Identifier') return;
+    if (init.type !== 'Literal' || typeof init.value !== 'string') return;
+    this.stringVariables.set(id.name, init.value);
   }
 
   /**

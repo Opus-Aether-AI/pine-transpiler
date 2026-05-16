@@ -1,0 +1,19 @@
+//@version=5
+indicator("ICT OTE + PD Arrays", overlay=true)
+
+lookback = input.int(60, "Swing Lookback", minval=10)
+sh = ta.highest(high, lookback)
+sl = ta.lowest(low, lookback)
+rng = sh - sl
+
+oteUpper = sh - rng * 0.62
+oteLower = sh - rng * 0.79
+eq = (sh + sl) / 2.0
+
+p1 = plot(oteUpper, "OTE Upper", color=color.new(color.orange, 0))
+p2 = plot(oteLower, "OTE Lower", color=color.new(color.orange, 0))
+plot(eq, "Equilibrium", color=color.new(color.blue, 0))
+fill(p1, p2, color=color.new(color.orange, 85))
+
+inZone = close <= oteUpper and close >= oteLower
+plotshape(inZone, title="OTE Touch", style=shape.diamond, location=location.belowbar, color=color.orange, size=size.tiny)

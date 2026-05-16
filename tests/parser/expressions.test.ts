@@ -16,7 +16,7 @@ import type {
   UnaryExpression,
   VariableDeclaration,
 } from '../../src/parser/ast';
-import { parse } from '../utils';
+import { parse, parseWithErrors } from '../utils';
 
 describe('Parser - Expressions', () => {
   describe('Literals', () => {
@@ -402,6 +402,14 @@ describe('Parser - Expressions', () => {
       expect(expr.computed).toBe(false);
       expect((expr.object as MemberExpression).computed).toBe(true);
     });
+
+    it('should parse keyword-tokenized property names after dot', () => {
+      const ast = parse('x = syminfo.type');
+      const decl = ast.body[0] as VariableDeclaration;
+      const expr = decl.init as MemberExpression;
+
+      expect((expr.property as Identifier).name).toBe('type');
+    });
   });
 
   describe('Call Expressions', () => {
@@ -539,6 +547,11 @@ describe('Parser - Expressions', () => {
       const decl = ast.body[0] as VariableDeclaration;
 
       expect(decl.init?.type).toBe('ConditionalExpression');
+    });
+
+    it('should not misread comparison < as generic call syntax', () => {
+      const result = parseWithErrors('x = value < array.get(pointer, 0)');
+      expect(result.hasErrors).toBe(false);
     });
   });
 });

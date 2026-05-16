@@ -1,0 +1,13 @@
+//@version=5
+indicator("Multi-Timeframe VWAP Master Pro", overlay=true)
+
+src = input.source(hlc3, "Source")
+cur = ta.vwap(src)
+d = request.security(syminfo.tickerid, "D", ta.vwap(src), barmerge.gaps_off, barmerge.lookahead_on)
+w = request.security(syminfo.tickerid, "W", ta.vwap(src), barmerge.gaps_off, barmerge.lookahead_on)
+m = request.security(syminfo.tickerid, "M", ta.vwap(src), barmerge.gaps_off, barmerge.lookahead_on)
+
+plot(cur, "VWAP Current", color=color.yellow)
+plot(d, "VWAP Daily", color=color.blue)
+plot(w, "VWAP Weekly", color=color.purple)
+plot(m, "VWAP Monthly", color=color.red)

@@ -1,0 +1,75 @@
+//@version=6
+indicator(title="ISV-200 - PRO (Vol-Depletion Logic)", shorttitle="ISV 200", overlay=true, max_lines_count=500)
+
+// ==========================================
+// 1. BOLLINGER BANDS 200
+// ==========================================
+grp_bb = "--- BOLLINGER BANDS ---"
+bb_length = input.int(200, "BB Length", group=grp_bb)
+bb_mult = input.float(2.0, "BB StdDev", group=grp_bb)
+[basis, upper, lower] = ta.bb(close, bb_length, bb_mult)
+
+plot(basis, "MA 200", color=#4caf50, linewidth=1, display=display.all - display.status_line)
+plot(upper, "Upper BB", color=#4caf50, linewidth=1, display=display.all - display.status_line)
+plot(lower, "Lower BB", color=#4caf50, linewidth=1, display=display.all - display.status_line)
+
+// ==========================================
+// 2. VOLUME + CANDLE COLOR
+// ==========================================
+grp_vol = "--- VOLUME SETTINGS ---"
+n_length = input.int(5, "Average candles (n)", group=grp_vol)
+vol_ma_20 = ta.sma(volume, 20)
+vol_ma_n = ta.sma(volume, n_length)
+
+is_vol_spike = volume > vol_ma_n
+barcolor(is_vol_spike ? (close > open ? color.lime : color.red) : na)
+
+// ==========================================
+// 3. PIVOT + CONNECTING LINES (DEPLETION)
+// ==========================================
+lookback = input.int(12, "Pivot width")
+pl = ta.pivotlow(low, lookback, lookback)
+ph = ta.pivothigh(high, lookback, lookback)
+
+var float p1_low_val = na, var int p1_low_idx = na, var float p1_low_volma = na
+var float p1_high_val = na, var int p1_high_idx = na, var float p1_high_volma = na
+
+if not na(pl)
+    float current_vol_ma = vol_ma_20[lookback]
+    if not na(p1_low_val)
+        if pl < p1_low_val and current_vol_ma < p1_low_volma
+            line.new(p1_low_idx, p1_low_val, bar_index - lookback, pl, color=color.teal, width=1)
+
+    p1_low_val := pl
+    p1_low_idx := bar_index - lookback
+    p1_low_volma := current_vol_ma
+
+if not na(ph)
+    float current_vol_ma = vol_ma_20[lookback]
+    if not na(p1_high_val)
+        if ph > p1_high_val and current_vol_ma < p1_high_volma
+            line.new(p1_high_idx, p1_high_val, bar_index - lookback, ph, color=color.maroon, width=1)
+
+    p1_high_val := ph
+    p1_high_idx := bar_index - lookback
+    p1_high_volma := current_vol_ma
+
+// ==========================================
+// 4. SHOW PIVOT POINTS
+// ==========================================
+plotshape(pl, "P Low", shape.circle, location.belowbar, #00897b, offset=-lookback, size=size.tiny)
+plotshape(ph, "P High", shape.circle, location.abovebar, #f44336, offset=-lookback, size=size.tiny)
+
+// === ATR ===
+length = input.int(title="ATR Length", defval=14, minval=1)
+smoothing = input.string(title="ATR Smoothing", defval="RMA", options=["RMA", "SMA", "EMA", "WMA"])
+
+ma_function(source, length, smoothing) =>
+    switch smoothing
+        "RMA" => ta.rma(source, length)
+        "SMA" => ta.sma(source, length)
+        "EMA" => ta.ema(source, length)
+        "WMA" => ta.wma(source, length)
+
+atr = ma_function(ta.tr(true), length, smoothing)
+plot(atr, title="ATR", color=color.new(#B71C1C, 0))

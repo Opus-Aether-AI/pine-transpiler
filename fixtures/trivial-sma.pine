@@ -1,0 +1,5 @@
+//@version=6
+indicator("Harness Trivial SMA", overlay=false)
+len = input.int(14, "Length")
+s = ta.sma(close, len)
+plot(s, title="SMA")

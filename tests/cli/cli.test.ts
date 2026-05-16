@@ -10,6 +10,7 @@ import {
   canTranspilePineScript,
   getMappingStats,
   transpile,
+  transpileToStandaloneFactory,
   transpileToPineJS,
 } from '../../src/index';
 
@@ -107,6 +108,29 @@ plot(close)`;
 
       expect(result.success).toBe(true);
       // Metadata may or may not be included in result
+    });
+  });
+
+  describe('transpileToStandaloneFactory function', () => {
+    it('should return standalone ESM factory code for valid Pine source', () => {
+      const pineCode = `indicator("Standalone Test")
+plot(close)`;
+
+      const result = transpileToStandaloneFactory(pineCode, 'standalone_test');
+
+      expect(result.success).toBe(true);
+      expect(typeof result.factoryCode).toBe('string');
+      expect(result.factoryCode).toContain('function createIndicator(');
+      expect(result.factoryCode).toContain('export { createIndicator }');
+      expect(result.factoryCode).not.toContain('new Function(');
+    });
+
+    it('should return an error result for oversized source', () => {
+      const hugeInput = `x = ${'1 + '.repeat(300000)}1`;
+      const result = transpileToStandaloneFactory(hugeInput, 'too_big');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Input too large');
     });
   });
 

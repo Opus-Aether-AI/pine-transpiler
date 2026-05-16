@@ -1,0 +1,22 @@
+//@version=5
+indicator("ICT Judas Swing Detector", overlay=true)
+
+var float preHigh = na
+var float preLow = na
+
+newPremarket = session.ispremarket and not session.ispremarket[1]
+if newPremarket
+    preHigh := high
+    preLow := low
+
+if session.ispremarket
+    preHigh := na(preHigh) ? high : math.max(preHigh, high)
+    preLow := na(preLow) ? low : math.min(preLow, low)
+
+judasBear = session.ismarket and not na(preHigh) and high > preHigh and close < preHigh
+judasBull = session.ismarket and not na(preLow) and low < preLow and close > preLow
+
+plotshape(judasBear, title="Judas Bear", style=shape.labeldown, location=location.abovebar, color=color.red, text="JS")
+plotshape(judasBull, title="Judas Bull", style=shape.labelup, location=location.belowbar, color=color.lime, text="JS")
+plot(preHigh, "Premarket High", color=color.new(color.red, 60), display=display.none)
+plot(preLow, "Premarket Low", color=color.new(color.green, 60), display=display.none)

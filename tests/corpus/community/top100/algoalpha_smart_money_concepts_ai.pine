@@ -1,0 +1,11 @@
+//@version=5
+indicator("AlgoAlpha Smart Money Concepts [AI]", overlay=true)
+
+mssBull = close > ta.highest(high[1], 15)
+mssBear = close < ta.lowest(low[1], 15)
+imbalance = math.abs(close - open) / math.max(ta.atr(14), syminfo.mintick)
+conf = ta.ema(imbalance, 5)
+
+plotshape(mssBull and conf > 1.2, title="AI Bull", style=shape.labelup, location=location.belowbar, color=color.lime, text="AI")
+plotshape(mssBear and conf > 1.2, title="AI Bear", style=shape.labeldown, location=location.abovebar, color=color.red, text="AI")
+plot(conf, "Confidence", color=color.new(color.blue, 90), display=display.none)

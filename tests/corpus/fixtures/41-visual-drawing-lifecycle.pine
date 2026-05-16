@@ -1,0 +1,32 @@
+//@version=6
+indicator("Visual Drawing Lifecycle", overlay=true, max_labels_count=500, max_lines_count=500, max_boxes_count=500)
+
+base = plot(close, "Base", color=color.red, linewidth=2, transp=25, offset=1, display=display.none)
+plotshape(close > open, "Up", style=shape.triangleup, location=location.abovebar, color=color.green, size=size.small, offset=1, display=display.none)
+plotchar(close < open, "Dn", char="v", location=location.belowbar, color=color.blue, size=size.tiny, offset=-1, display=display.none)
+hline(50, "Mid", color=color.gray, linestyle=hline.style_dashed, linewidth=3)
+bgcolor(close > open ? color.new(color.teal, 80) : na)
+
+var l = line.new(bar_index, high, bar_index + 1, low, color=color.orange, width=2)
+line.set_x2(l, bar_index + 2)
+line.set_xy1(l, bar_index, high)
+line.set_xy2(l, bar_index + 2, low)
+line.set_color(l, color.purple)
+
+var b = box.new(bar_index, high, bar_index + 1, low, bgcolor=color.new(color.blue, 85), border_color=color.yellow, border_width=1)
+box.set_bgcolor(b, color.new(color.fuchsia, 70))
+box.set_border_color(b, color.black)
+box.set_border_width(b, 2)
+
+var lb = label.new(bar_index, high, "L", color=color.black, textcolor=color.white, style=label.style_label_down)
+label.set_text(lb, "L2")
+label.set_textcolor(lb, color.aqua)
+label.set_style(lb, label.style_label_up)
+
+var t = table.new(position.top_right, 2, 2)
+table.cell(t, 0, 0, "A", text_color=color.white, bgcolor=color.new(color.black, 0))
+table.cell(t, 1, 0, "B", text_color=color.yellow, bgcolor=color.new(color.red, 80))
+t.merge_cells(0, 1, 1, 1)
+table.clear(t, 0, 1, 1, 1)
+
+plot(close, "Echo", color=color.orange, display=display.none)

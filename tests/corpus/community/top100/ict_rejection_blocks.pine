@@ -1,0 +1,13 @@
+//@version=5
+indicator("ICT Rejection Blocks", overlay=true)
+
+body = math.abs(close - open)
+upperWick = high - math.max(open, close)
+lowerWick = math.min(open, close) - low
+
+bearReject = upperWick > body * 1.5 and close < open
+bullReject = lowerWick > body * 1.5 and close > open
+
+plotshape(bearReject, title="Bear Rejection", style=shape.labeldown, location=location.abovebar, color=color.red, text="RB")
+plotshape(bullReject, title="Bull Rejection", style=shape.labelup, location=location.belowbar, color=color.lime, text="RB")
+plot(close, "Close", color=color.new(color.gray, 100), display=display.none)

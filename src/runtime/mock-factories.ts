@@ -31,7 +31,11 @@ export interface RuntimeContextInternal {
     timezone?: string;
     minmov?: number;
     pricescale?: number;
+    bars?: number;
   };
+  barIndex?: number;
+  totalBars?: number;
+  isRealtime?: boolean;
   [key: string]: unknown;
 }
 
@@ -97,8 +101,38 @@ export function createInputMock(
 ): InputFunction {
   let _inputIndex = 0;
 
-  const baseInput = (_defval: InputValue, _title?: string) =>
-    inputCallback(_inputIndex++);
+  const coerceInputValue = (
+    defval: InputValue,
+    raw: InputValue,
+  ): InputValue => {
+    // Respect declared input type. Corpus/default callbacks often emit
+    // numeric placeholders for every index; without coercion this leaks
+    // numbers into string/session/timeframe inputs and distorts runtime
+    // semantics (e.g. session/timezone evaluation).
+    if (typeof defval === 'string') {
+      return typeof raw === 'string' ? raw : defval;
+    }
+    if (typeof defval === 'boolean') {
+      if (typeof raw === 'boolean') return raw;
+      if (typeof raw === 'number') return raw !== 0;
+      if (typeof raw === 'string') {
+        const s = raw.trim().toLowerCase();
+        if (s === 'true') return true;
+        if (s === 'false') return false;
+      }
+      return defval;
+    }
+    // Numeric default (int/float/time/price-style inputs).
+    if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+    if (typeof raw === 'string') {
+      const parsed = Number(raw);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return defval;
+  };
+
+  const baseInput = (defval: InputValue, _title?: string) =>
+    coerceInputValue(defval, inputCallback(_inputIndex++));
 
   const input = baseInput as InputFunction;
 
@@ -134,7 +168,7 @@ export function createInputMock(
 // ============================================================================
 
 export interface PlotFunction {
-  (series: number, title?: string, color?: string): void;
+  (series: unknown, title?: string, color?: string): void;
   style_line: number;
   style_histogram: number;
   style_circles: number;
@@ -148,8 +182,29 @@ export interface PlotFunction {
  * Create the plot function mock for runtime
  */
 export function createPlotMock(plotValues: number[]): PlotFunction {
-  const basePlot = (series: number, _title?: string, _color?: string) => {
-    plotValues.push(series);
+  const coercePlotValue = (value: unknown): number => {
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : Number.NaN;
+    }
+    if (typeof value === 'boolean') {
+      return value ? 1 : 0;
+    }
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      'value' in (value as Record<string, unknown>)
+    ) {
+      return coercePlotValue((value as { value?: unknown }).value);
+    }
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : Number.NaN;
+    }
+    return Number.NaN;
+  };
+
+  const basePlot = (series: unknown, _title?: string, _color?: string) => {
+    plotValues.push(coercePlotValue(series));
   };
 
   const plot = basePlot as PlotFunction;

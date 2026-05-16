@@ -1,0 +1,17 @@
+//@version=5
+indicator("AlgoAlpha Trend Strength Oscillator", overlay=false)
+
+fast = input.int(21, "Fast EMA", minval=1)
+slow = input.int(55, "Slow EMA", minval=2)
+atrLen = input.int(14, "ATR Length", minval=1)
+
+emaFast = ta.ema(close, fast)
+emaSlow = ta.ema(close, slow)
+spread = emaFast - emaSlow
+norm = ta.atr(atrLen)
+tso = norm == 0.0 ? 0.0 : spread / norm
+signal = ta.ema(tso, 9)
+
+plot(tso, "TSO", color=color.lime)
+plot(signal, "Signal", color=color.red)
+plot(0, "Zero", color=color.gray)

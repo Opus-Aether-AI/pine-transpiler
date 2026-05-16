@@ -1,0 +1,10 @@
+//@version=5
+indicator("Popular 013 RSI MACD Fusion", overlay=false)
+
+r = ta.rsi(close, 13)
+[macdLine, signalLine, hist] = ta.macd(close, 12, 26, 9)
+score = (r - 50) + (macdLine - signalLine) * 10
+
+plot(score, "Fusion Score", color=color.aqua)
+plot(hist, "MACD Hist", color=color.new(color.blue, 60), style=plot.style_histogram)
+plot(0, "Zero", color=color.gray)

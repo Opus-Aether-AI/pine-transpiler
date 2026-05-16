@@ -1,0 +1,14 @@
+//@version=5
+indicator("Custom 024 Hybrid Table Scanner", overlay=false)
+
+trend = ta.ema(close, 21) > ta.ema(close, 50)
+volUp = volume > ta.sma(volume, 20)
+score = (trend ? 1 : 0) + (volUp ? 1 : 0)
+
+t = table.new(position.top_right, 2, 2)
+table.cell(t, 0, 0, "Trend")
+table.cell(t, 1, 0, trend ? "UP" : "DN")
+table.cell(t, 0, 1, "Score")
+table.cell(t, 1, 1, str.tostring(score))
+
+plot(score, "Score", color=color.aqua)

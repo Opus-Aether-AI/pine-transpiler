@@ -51,7 +51,8 @@ export function roundToMintick(
 export const MATH_HELPER_FUNCTIONS = `
 // Custom math helpers
 const _avg = (...args) => args.reduce((a, b) => a + b, 0) / args.length;
-const _sum = (...args) => args.reduce((a, b) => a + b, 0);
+// Namespaced to avoid collisions with user-defined _sum functions.
+const _pineSum = (...args) => args.reduce((a, b) => a + b, 0);
 const _toDegrees = (radians) => radians * (180 / Math.PI);
 const _toRadians = (degrees) => degrees * (Math.PI / 180);
 const _roundToMintick = (value) => {

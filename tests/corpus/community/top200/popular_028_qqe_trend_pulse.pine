@@ -1,0 +1,14 @@
+//@version=5
+indicator("Popular 028 QQE Trend Pulse", overlay=false)
+
+r = ta.rsi(close, 14)
+rs = ta.ema(r, 5)
+atrRsi = ta.rma(math.abs(rs - rs[1]), 14)
+band = ta.rma(atrRsi, 14) * 4.236
+up = rs + band
+dn = rs - band
+
+plot(rs, "RSI Smooth", color=color.aqua)
+plot(up, "Upper", color=color.red)
+plot(dn, "Lower", color=color.green)
+plot(50, "Mid", color=color.gray)

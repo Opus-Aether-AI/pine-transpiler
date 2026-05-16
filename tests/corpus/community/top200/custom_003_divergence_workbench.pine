@@ -1,0 +1,10 @@
+//@version=5
+indicator("Custom 003 Divergence Workbench", overlay=true)
+
+r = ta.rsi(close, 14)
+bull = low < low[1] and r > r[1]
+bear = high > high[1] and r < r[1]
+
+plotshape(bull, title="Bull", style=shape.labelup, location=location.belowbar, color=color.lime, text="DIV")
+plotshape(bear, title="Bear", style=shape.labeldown, location=location.abovebar, color=color.red, text="DIV")
+plot(r, "RSI", color=color.new(color.blue, 100), display=display.none)

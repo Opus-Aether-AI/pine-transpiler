@@ -1,0 +1,20 @@
+//@version=5
+indicator("XAUUSD ATR Regime Filter", overlay=false)
+
+atrLen = input.int(14, "ATR Length", minval=1)
+emaFastLen = input.int(20, "Fast EMA", minval=1)
+emaSlowLen = input.int(50, "Slow EMA", minval=1)
+volMult = input.float(1.25, "Volatility Threshold", step=0.05)
+
+atrValue = ta.atr(atrLen)
+atrMean = ta.sma(atrValue, atrLen)
+regimeHot = atrValue > atrMean * volMult
+
+emaFast = ta.ema(close, emaFastLen)
+emaSlow = ta.ema(close, emaSlowLen)
+trendScore = emaFast > emaSlow ? 1 : -1
+
+plot(atrValue, "ATR", color=color.orange)
+plot(atrMean, "ATR Mean", color=color.gray)
+plot(trendScore, "Trend Score", color=trendScore > 0 ? color.lime : color.red, style=plot.style_columns)
+bgcolor(regimeHot ? color.new(color.red, 85) : na)
