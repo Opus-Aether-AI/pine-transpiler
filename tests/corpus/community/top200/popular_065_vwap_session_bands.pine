@@ -1,0 +1,12 @@
+//@version=5
+indicator("Popular 065 VWAP Session Bands", overlay=true)
+
+v = ta.vwap(hlc3)
+a = ta.atr(14)
+upper = v + a * 1.2
+lower = v - a * 1.2
+
+pU = plot(upper, "Upper", color=color.new(color.green, 0))
+pL = plot(lower, "Lower", color=color.new(color.red, 0))
+plot(v, "VWAP", color=color.yellow)
+fill(pU, pL, color=session.ismarket ? color.new(color.blue, 88) : color.new(color.gray, 92))

@@ -35,6 +35,10 @@ export const BARSTATE_MAPPINGS: Record<
     stdName: '_isConfirmedBar',
     description: 'Is bar confirmed (closed)',
   },
+  'barstate.islastconfirmedhistory': {
+    stdName: '_isLastConfirmedHistoryBar',
+    description: 'Is the last confirmed historical bar',
+  },
 };
 
 /**
@@ -47,4 +51,5 @@ const _isHistoryBar = true; // Assume history during replay
 const _isRealtimeBar = false;
 const _isNewBar = true; // Simplified
 const _isConfirmedBar = true; // Simplified
+const _isLastConfirmedHistoryBar = false; // Simplified
 `;

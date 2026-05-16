@@ -119,4 +119,5 @@ export interface FunctionMapping {
   stdName?: string;
   jsName?: string;
   contextArg?: boolean;
+  needsSeries?: boolean;
 }

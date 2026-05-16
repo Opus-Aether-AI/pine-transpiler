@@ -1,0 +1,14 @@
+//@version=6
+indicator("Visual Table Scanner", overlay=false)
+
+score = ta.rsi(close, 14)
+trend = ta.ema(close, 20) > ta.ema(close, 50)
+
+var t = table.new(position.top_right, 2, 2)
+table.cell(t, 0, 0, "Trend", text_color=color.white, bgcolor=color.new(color.blue, 70))
+table.cell(t, 1, 0, trend ? "UP" : "DN", text_color=trend ? color.lime : color.red, bgcolor=color.new(color.black, 0))
+table.cell(t, 0, 1, "Score", text_color=color.white, bgcolor=color.new(color.gray, 70))
+table.cell(t, 1, 1, str.tostring(score), text_color=color.yellow, bgcolor=color.new(color.black, 0))
+
+plot(score, "Score", color=trend ? color.lime : color.red, linewidth=1, transp=10, display=display.none, offset=0)
+bgcolor(trend ? color.new(color.green, 90) : color.new(color.red, 90))

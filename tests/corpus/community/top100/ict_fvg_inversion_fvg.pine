@@ -1,0 +1,29 @@
+//@version=5
+indicator("ICT FVG + Inversion FVG", overlay=true)
+
+bullFvg = low > high[2]
+bearFvg = high < low[2]
+
+var float bullTop = na
+var float bullBottom = na
+var float bearTop = na
+var float bearBottom = na
+
+if bullFvg
+    bullTop := low
+    bullBottom := high[2]
+
+if bearFvg
+    bearTop := low[2]
+    bearBottom := high
+
+bullInv = not na(bullBottom) and close < bullBottom
+bearInv = not na(bearTop) and close > bearTop
+
+plot(bullTop, "Bull FVG Top", color=color.new(color.green, 0))
+plot(bullBottom, "Bull FVG Bottom", color=color.new(color.green, 0))
+plot(bearTop, "Bear FVG Top", color=color.new(color.red, 0))
+plot(bearBottom, "Bear FVG Bottom", color=color.new(color.red, 0))
+
+plotshape(bullInv, title="Bull iFVG", style=shape.cross, location=location.abovebar, color=color.red, size=size.tiny)
+plotshape(bearInv, title="Bear iFVG", style=shape.cross, location=location.belowbar, color=color.lime, size=size.tiny)

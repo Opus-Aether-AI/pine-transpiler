@@ -1,0 +1,285 @@
+{
+  "fixture": "41-visual-drawing-lifecycle.pine",
+  "stageReached": "complete",
+  "pass": true,
+  "error": null,
+  "runtime": {
+    "barsCompleted": 200,
+    "barsErrored": 0,
+    "declaredPlotCount": 5,
+    "actualPlotCount": 5,
+    "visualEventCount": 24,
+    "visualCalls": [
+      {
+        "call": "box.new",
+        "count": 1
+      },
+      {
+        "call": "box.set_bgcolor",
+        "count": 1
+      },
+      {
+        "call": "box.set_border_color",
+        "count": 1
+      },
+      {
+        "call": "box.set_border_width",
+        "count": 1
+      },
+      {
+        "call": "hline",
+        "count": 1
+      },
+      {
+        "call": "label.new",
+        "count": 1
+      },
+      {
+        "call": "label.set_style",
+        "count": 1
+      },
+      {
+        "call": "label.set_text",
+        "count": 1
+      },
+      {
+        "call": "label.set_textcolor",
+        "count": 1
+      },
+      {
+        "call": "line.new",
+        "count": 1
+      },
+      {
+        "call": "line.set_color",
+        "count": 1
+      },
+      {
+        "call": "line.set_x2",
+        "count": 1
+      },
+      {
+        "call": "line.set_xy1",
+        "count": 1
+      },
+      {
+        "call": "line.set_xy2",
+        "count": 1
+      },
+      {
+        "call": "Std.bgcolor",
+        "count": 1
+      },
+      {
+        "call": "Std.plot",
+        "count": 2
+      },
+      {
+        "call": "Std.plotchar",
+        "count": 1
+      },
+      {
+        "call": "Std.plotshape",
+        "count": 1
+      },
+      {
+        "call": "table.cell",
+        "count": 2
+      },
+      {
+        "call": "table.clear",
+        "count": 1
+      },
+      {
+        "call": "table.merge_cells",
+        "count": 1
+      },
+      {
+        "call": "table.new",
+        "count": 1
+      }
+    ],
+    "visualStyleSemantics": {
+      "colors": [
+        "#000000",
+        "#00BCD4",
+        "#2962FF",
+        "#4CAF50",
+        "#9C27B0",
+        "#9E9E9E",
+        "#F50057",
+        "#FF5252",
+        "#FF9800",
+        "#FFEB3B",
+        "#FFFFFF"
+      ],
+      "transpValues": [
+        -1,
+        1,
+        25
+      ],
+      "linewidthValues": [
+        1,
+        2,
+        3
+      ],
+      "offsetValues": [
+        -1,
+        1
+      ],
+      "displayFlags": [
+        "display.none"
+      ]
+    },
+    "topRuntimeErrors": [],
+    "unimplementedStdCalls": []
+  },
+  "metainfo": {
+    "plotCount": 5,
+    "plots": [
+      {
+        "id": "plot_0",
+        "type": "line",
+        "price": null
+      },
+      {
+        "id": "plot_1",
+        "type": "shapes",
+        "price": null
+      },
+      {
+        "id": "plot_2",
+        "type": "chars",
+        "price": null
+      },
+      {
+        "id": "plot_3",
+        "type": "line",
+        "price": null
+      },
+      {
+        "id": "plot_4",
+        "type": "line",
+        "price": null
+      }
+    ],
+    "inputCount": 0,
+    "inputs": [],
+    "styleKeys": [
+      "plot_0",
+      "plot_1",
+      "plot_2",
+      "plot_3",
+      "plot_4"
+    ],
+    "styles": [
+      {
+        "id": "plot_0",
+        "title": "Base",
+        "histogramBase": 0
+      },
+      {
+        "id": "plot_1",
+        "title": "Up",
+        "histogramBase": 0
+      },
+      {
+        "id": "plot_2",
+        "title": "Dn",
+        "histogramBase": 0
+      },
+      {
+        "id": "plot_3",
+        "title": "Mid",
+        "histogramBase": 0
+      },
+      {
+        "id": "plot_4",
+        "title": "Echo",
+        "histogramBase": 0
+      }
+    ],
+    "defaultStyles": [
+      {
+        "id": "plot_0",
+        "plottype": 0,
+        "linewidth": 2,
+        "linestyle": 0,
+        "color": "#FF5252",
+        "transparency": 0,
+        "visible": true,
+        "trackPrice": false
+      },
+      {
+        "id": "plot_1",
+        "plottype": null,
+        "linewidth": 1,
+        "linestyle": 0,
+        "color": "#4CAF50",
+        "transparency": 0,
+        "visible": true,
+        "trackPrice": false
+      },
+      {
+        "id": "plot_2",
+        "plottype": null,
+        "linewidth": 1,
+        "linestyle": 0,
+        "color": "#2962FF",
+        "transparency": 0,
+        "visible": true,
+        "trackPrice": false
+      },
+      {
+        "id": "plot_3",
+        "plottype": 0,
+        "linewidth": 1,
+        "linestyle": 0,
+        "color": "#787B86",
+        "transparency": 0,
+        "visible": true,
+        "trackPrice": true
+      },
+      {
+        "id": "plot_4",
+        "plottype": 0,
+        "linewidth": 1,
+        "linestyle": 0,
+        "color": "#FF9800",
+        "transparency": 0,
+        "visible": true,
+        "trackPrice": false
+      }
+    ]
+  },
+  "visualCallCounts": {
+    "Std.plot": 2,
+    "Std.plotshape": 1,
+    "Std.plotchar": 1,
+    "Std.plotarrow": 0,
+    "hline": 1,
+    "Std.bgcolor": 1,
+    "Std.fill": 0,
+    "Std.barcolor": 0,
+    "line.new": 1,
+    "line.set_x2": 1,
+    "line.set_xy1": 1,
+    "line.set_xy2": 1,
+    "line.set_color": 1,
+    "line.delete": 0,
+    "label.new": 1,
+    "label.set_text": 1,
+    "label.set_textcolor": 1,
+    "label.set_style": 1,
+    "label.delete": 0,
+    "box.new": 1,
+    "box.set_bgcolor": 1,
+    "box.set_border_color": 1,
+    "box.set_border_width": 1,
+    "box.delete": 0,
+    "table.new": 1,
+    "table.cell": 2,
+    "table.merge_cells": 0,
+    "table.clear": 1
+  }
+}

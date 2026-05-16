@@ -1,0 +1,14 @@
+//@version=5
+indicator("Map example [veryfid]", overlay=false)
+
+m = map.new<string, float>()
+map.put(m, "open", open)
+map.put(m, "high", high)
+map.put(m, "low", low)
+map.put(m, "close", close)
+
+sum = map.get(m, "open") + map.get(m, "high") + map.get(m, "low") + map.get(m, "close")
+avg = sum / 4.0
+
+plot(avg, "OHLC Avg", color=color.aqua)
+plot(map.size(m), "Map Size", color=color.new(color.orange, 0))

@@ -1,0 +1,18 @@
+//@version=5
+indicator("EMA Ribbon Trend Strength", overlay=true)
+
+ema8 = ta.ema(close, 8)
+ema21 = ta.ema(close, 21)
+ema34 = ta.ema(close, 34)
+ema55 = ta.ema(close, 55)
+
+bull = ema8 > ema21 and ema21 > ema34 and ema34 > ema55
+bear = ema8 < ema21 and ema21 < ema34 and ema34 < ema55
+
+p8 = plot(ema8, "EMA 8", color=color.yellow)
+p21 = plot(ema21, "EMA 21", color=color.orange)
+p34 = plot(ema34, "EMA 34", color=color.blue)
+p55 = plot(ema55, "EMA 55", color=color.purple)
+
+fill(p8, p21, color=bull ? color.new(color.lime, 85) : color.new(color.red, 90))
+fill(p34, p55, color=bear ? color.new(color.red, 85) : color.new(color.lime, 90))

@@ -118,10 +118,26 @@ function runOneBar(
       };
     }
 
-    // Successful run: concat both channels. mock has the actual plot
-    // values; factory has any hline NaNs.
+    // Successful run: prefer the factory's returned series when
+    // present. The factory now normalizes output to declared plot
+    // length and records Std.plot* calls directly into that returned
+    // array; blindly concatenating mock Std captures would double-count
+    // slots for plot/plotchar-heavy scripts.
+    //
+    // Keep the legacy fallback for older outputs that still returned
+    // an empty array while the mock captured Std.plot* values.
     const factoryPlots = Array.isArray(result) ? (result as number[]) : [];
-    const plotOutput = [...runtime.currentBarPlots, ...factoryPlots];
+    const plotOutput =
+      factoryPlots.length > 0
+        ? factoryPlots
+        : [...runtime.currentBarPlots, ...factoryPlots];
+    const undefinedSlot = plotOutput.findIndex((v) => typeof v === 'undefined');
+    if (undefinedSlot >= 0) {
+      return {
+        plotOutput: [],
+        error: new Error(`undefined plot slot at index ${undefinedSlot}`),
+      };
+    }
     return { plotOutput, error: null };
   } catch (error) {
     return { plotOutput: [], error };
@@ -207,20 +223,20 @@ export function runFixture(
   baseResult.stageReached = 'construct';
   baseResult.declaredPlotCount = declaredPlotCount(indicator);
 
-  // Stage 3 — call constructor() to get { main }
+  // Stage 3 — instantiate constructor with `new` (matches TradingView)
   let constructed: { main: (ctx: unknown, cb: unknown) => unknown };
   try {
-    const ctor = indicator.constructor as () => {
+    const ctor = indicator.constructor as new () => {
       main: (ctx: unknown, cb: unknown) => unknown;
     };
-    constructed = ctor();
+    constructed = new ctor();
   } catch (error) {
     baseResult.error = error instanceof Error ? error.message : String(error);
     return baseResult;
   }
 
   if (typeof constructed?.main !== 'function') {
-    baseResult.error = 'constructor() did not produce a callable main()';
+    baseResult.error = 'new constructor() did not produce a callable main()';
     return baseResult;
   }
 

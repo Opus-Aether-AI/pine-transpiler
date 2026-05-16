@@ -1,0 +1,25 @@
+//@version=5
+indicator("Forex Asia Range Box Lite", overlay=true, max_boxes_count=100)
+
+asia = input.session("2000-0000", "Asia Session")
+useText = input.bool(true, "Show Session Label")
+
+inAsia = not na(time("", asia))
+var box asiaBox = na
+var float top = na
+var float bottom = na
+
+if inAsia and not inAsia[1]
+    top := high
+    bottom := low
+    asiaBox := box.new(bar_index, top, bar_index, bottom, border_color=color.blue, bgcolor=color.new(color.blue, 85), text=useText ? "Asia" : na, text_color=color.white)
+else if inAsia
+    top := math.max(top, high)
+    bottom := math.min(bottom, low)
+    if not na(asiaBox)
+        box.set_right(asiaBox, bar_index)
+        box.set_top(asiaBox, top)
+        box.set_bottom(asiaBox, bottom)
+
+plot(top, "Asia High", color=color.aqua, style=plot.style_linebr)
+plot(bottom, "Asia Low", color=color.yellow, style=plot.style_linebr)

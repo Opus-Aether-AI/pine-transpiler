@@ -1,0 +1,12 @@
+//@version=5
+indicator("AlgoAlpha Neural Pulse System", overlay=false)
+
+f1 = ta.ema(ta.roc(close, 1), 5)
+f2 = ta.ema(ta.roc(close, 3), 8)
+f3 = ta.ema(ta.rsi(close, 14) - 50, 5)
+pulse = (f1 + f2 + f3) / 3.0
+signal = ta.ema(pulse, 5)
+
+plot(pulse, "Pulse", color=color.aqua)
+plot(signal, "Signal", color=color.orange)
+plot(0, "Zero", color=color.gray)

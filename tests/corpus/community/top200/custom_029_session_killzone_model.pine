@@ -1,0 +1,12 @@
+//@version=5
+indicator("Custom 029 Session Killzone Model", overlay=true)
+
+isPre = session.ispremarket
+isReg = session.ismarket
+isPost = session.ispostmarket
+
+bgcolor(isPre ? color.new(color.orange, 90) : na)
+bgcolor(isReg ? color.new(color.green, 92) : na)
+bgcolor(isPost ? color.new(color.purple, 92) : na)
+
+plot(isReg ? close : na, "Reg Close", color=color.new(color.green, 0), display=display.none)

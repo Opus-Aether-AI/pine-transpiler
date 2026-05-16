@@ -130,6 +130,27 @@ const StdPlus = {
     },
 
     /**
+     * VWAP wrapper
+     *
+     * Pine supports tuple form:
+     *   [vwap, upper, lower] = ta.vwap(source, anchor, stdevMult)
+     * while some runtimes only expose scalar VWAP.
+     */
+    vwap: function(ctx, source, anchor, stdevMult) {
+        const value = Std.vwap(ctx, source, anchor, stdevMult);
+        if (Array.isArray(value)) return value;
+
+        // Tuple form fallback for runtimes that only return scalar VWAP.
+        if (arguments.length >= 4) {
+            const basis = Number(value);
+            if (!Number.isFinite(basis)) return [NaN, NaN, NaN];
+            return [basis, basis, basis];
+        }
+
+        return value;
+    },
+
+    /**
      * Crossover (A crosses over B)
      */
     crossover: function(ctx, a, b) {

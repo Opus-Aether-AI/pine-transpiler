@@ -74,7 +74,7 @@ export interface VariableDeclaration extends ASTNode {
   type: 'VariableDeclaration';
   id: Identifier | Identifier[]; // Single var or tuple destructuring
   init: Expression | null;
-  kind: 'var' | 'const' | 'let'; // 'var' is persistent, others are standard
+  kind: 'var' | 'varip' | 'const' | 'let'; // 'var'/'varip' are persistent
   typeAnnotation?: TypeAnnotation;
   export?: boolean;
 }

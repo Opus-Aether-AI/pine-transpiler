@@ -14,6 +14,7 @@ import type {
   IfStatement,
   ImportStatement,
   Statement,
+  SwitchExpression,
   SwitchStatement,
   TypeDefinition,
   VariableDeclaration,
@@ -43,8 +44,10 @@ export interface StatementGeneratorInterface {
 export class StatementGenerator implements StatementGeneratorInterface {
   private indentLevel = 0;
   private loopCounter = 0;
+  private functionScopeCounter = 0;
   private historicalVars: Set<string>;
   private expressionGen: ExpressionGeneratorInterface;
+  private functionScopeStack: Array<{ id: string; keyVar: string }> = [];
 
   constructor(
     historicalVars: Set<string>,
@@ -118,6 +121,60 @@ export class StatementGenerator implements StatementGeneratorInterface {
     }
     this.indentLevel--;
     return `{\n${s}\n${indent(this.indentLevel)}}`;
+  }
+
+  private currentPersistentKeyExpr(identifier: string): string {
+    const scope = this.functionScopeStack[this.functionScopeStack.length - 1];
+    if (!scope) return JSON.stringify(identifier);
+    return `${scope.keyVar} + ${JSON.stringify(`::${identifier}`)}`;
+  }
+
+  private statementContainsPersistentDecl(stmt: Statement): boolean {
+    if (stmt.type === 'VariableDeclaration') {
+      return stmt.kind === 'var' || stmt.kind === 'varip';
+    }
+    if (stmt.type === 'BlockStatement') {
+      return this.blockContainsPersistentDecl(stmt);
+    }
+    if (stmt.type === 'IfStatement') {
+      const consequent =
+        stmt.consequent.type === 'BlockStatement'
+          ? this.blockContainsPersistentDecl(stmt.consequent)
+          : this.statementContainsPersistentDecl(stmt.consequent);
+      if (consequent) return true;
+      if (!stmt.alternate) return false;
+      return stmt.alternate.type === 'BlockStatement'
+        ? this.blockContainsPersistentDecl(stmt.alternate)
+        : this.statementContainsPersistentDecl(stmt.alternate);
+    }
+    if (
+      stmt.type === 'ForStatement' ||
+      stmt.type === 'ForInStatement' ||
+      stmt.type === 'WhileStatement'
+    ) {
+      return stmt.body.type === 'BlockStatement'
+        ? this.blockContainsPersistentDecl(stmt.body)
+        : this.statementContainsPersistentDecl(stmt.body);
+    }
+    if (stmt.type === 'SwitchStatement') {
+      for (const c of stmt.cases) {
+        if (
+          c.consequent.type === 'BlockStatement'
+            ? this.blockContainsPersistentDecl(c.consequent)
+            : false
+        ) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  private blockContainsPersistentDecl(block: BlockStatement): boolean {
+    for (const stmt of block.body) {
+      if (this.statementContainsPersistentDecl(stmt)) return true;
+    }
+    return false;
   }
 
   private generateIfStatement(stmt: IfStatement): string {
@@ -209,6 +266,7 @@ export class StatementGenerator implements StatementGeneratorInterface {
     const name = stmt.name;
     const prefix = stmt.export ? 'export ' : '';
     const fields = stmt.fields;
+    const typeCtor = `__type_${sanitizeIdentifier(name)}`;
 
     let constructorBody = '';
     this.indentLevel++;
@@ -234,11 +292,16 @@ export class StatementGenerator implements StatementGeneratorInterface {
       })
       .join(', ');
 
-    // Pine v6 calls type constructors via `MyType.new(args)` (a static
-    // factory). Emit a static `new` method that forwards to the
-    // standard JS constructor so `MyType.new(...)` resolves correctly
-    // alongside `new MyType(...)`.
-    return `${indent(this.indentLevel)}${prefix}class ${name} {\n${indent(this.indentLevel, 1)}constructor(${paramsWithDefaults}) {\n${indent(this.indentLevel, 2)}${constructorBody.trim()}\n${indent(this.indentLevel, 1)}}\n${indent(this.indentLevel, 1)}static new(...args) { return new ${name}(...args); }\n${indent(this.indentLevel)}}`;
+    // Pine keeps type and function namespaces separate (same identifier
+    // can be both a type and a function). JS does not. Emit an internal
+    // type constructor and then:
+    // 1) if the public name already resolves to a function (hoisted),
+    //    attach `.new` on that function; or
+    // 2) bind the public name to the type constructor.
+    //
+    // This preserves both `Foo(...)` and `Foo.new(...)` when names
+    // collide, while keeping `Foo.prototype` available for `method`.
+    return `${indent(this.indentLevel)}var ${typeCtor} = class ${name} {\n${indent(this.indentLevel, 1)}constructor(${paramsWithDefaults}) {\n${indent(this.indentLevel, 2)}${constructorBody.trim()}\n${indent(this.indentLevel, 1)}}\n${indent(this.indentLevel, 1)}static new(...args) { return new ${typeCtor}(...args); }\n${indent(this.indentLevel)}};\n${indent(this.indentLevel)}${prefix}var ${name};\n${indent(this.indentLevel)}if (typeof ${name} === 'function') {\n${indent(this.indentLevel, 1)}if (typeof ${name}.new !== 'function') {\n${indent(this.indentLevel, 2)}${name}.new = (...args) => new ${typeCtor}(...args);\n${indent(this.indentLevel, 1)}}\n${indent(this.indentLevel)}} else {\n${indent(this.indentLevel, 1)}${name} = ${typeCtor};\n${indent(this.indentLevel)}}`;
   }
 
   private generateForStatement(stmt: ForStatement): string {
@@ -325,12 +388,20 @@ export class StatementGenerator implements StatementGeneratorInterface {
     // separate, deeper bug), which produces JS like:
     //   let yValue = a;
     //   let yValue = b;   ← SyntaxError on redeclaration
-    // Switching `let` → `var` makes the redeclaration legal in JS
-    // without changing observable Pine semantics — Pine doesn't have
-    // TDZ semantics, and `var`'s function-scope hoisting matches
-    // Pine's "sequential" reading. `const` (rare in our emit) stays
-    // as-is.
-    const kind = stmt.kind === 'const' ? 'const' : 'var';
+    // Switching declaration emit to `var` makes redeclaration legal in JS
+    // when the parser flattens sibling scopes. Keep this for *all* Pine
+    // declaration kinds, including `const`: Pine `const` is a source-level
+    // qualifier, but emitting JS `const` here can hard-fail compilation with
+    // `Identifier '<x>' has already been declared` on otherwise valid scripts.
+    //
+    // `var`/`varip` declarations are still emitted via runtime-backed helper
+    // initializers so values persist across bars.
+    const kind = 'var';
+    const isPersistent = stmt.kind === 'var' || stmt.kind === 'varip';
+    const isVarip = stmt.kind === 'varip';
+    const initExpr = stmt.init
+      ? this.expressionGen.generateExpression(stmt.init)
+      : 'NaN';
     const init = stmt.init
       ? ` = ${this.expressionGen.generateExpression(stmt.init)}`
       : '';
@@ -351,7 +422,18 @@ export class StatementGenerator implements StatementGeneratorInterface {
       }
     } else {
       const safeName = sanitizeIdentifier(stmt.id.name);
-      code = `${indent(this.indentLevel)}${prefix}${kind} ${safeName}${init};`;
+      if (isPersistent) {
+        const helper = isVarip ? '_pineVarip' : '_pineVar';
+        const stateKeyExpr = this.currentPersistentKeyExpr(safeName);
+        code = `${indent(this.indentLevel)}${prefix}${kind} ${safeName} = ${helper}(${stateKeyExpr}, () => (${initExpr}));`;
+        this.expressionGen.markPersistentIdentifier(
+          safeName,
+          isVarip ? 'varip' : 'var',
+          stateKeyExpr,
+        );
+      } else {
+        code = `${indent(this.indentLevel)}${prefix}${kind} ${safeName}${init};`;
+      }
       if (this.historicalVars.has(stmt.id.name)) {
         code += `\n${indent(this.indentLevel)}const _series_${safeName} = context.new_var(${safeName});`;
         code += `\n${indent(this.indentLevel)}_getHistorical_${safeName} = (offset) => _series_${safeName}.get(offset);`;
@@ -365,42 +447,106 @@ export class StatementGenerator implements StatementGeneratorInterface {
     if (stmt.type !== 'FunctionDeclaration') {
       throw new Error('Expected FunctionDeclaration');
     }
-    const name = sanitizeIdentifier(stmt.id.name);
-    const params = stmt.params
+    const originalName = stmt.id.name;
+    const name = sanitizeIdentifier(originalName);
+    const paramNames = stmt.params
       .map((p) => sanitizeIdentifier(p.name))
       .join(', ');
     const prefix = stmt.export ? 'export ' : '';
+    const scopeOrdinal = this.functionScopeCounter++;
+    const scopeId = `${name}#${scopeOrdinal}`;
+    const scopeKeyVar = `_pineFnScope_${scopeOrdinal}`;
+    const needsPersistentScope =
+      stmt.body.type === 'BlockStatement' &&
+      this.blockContainsPersistentDecl(stmt.body);
 
     let body = '';
-    if (stmt.body.type === 'BlockStatement') {
-      body = this.generateFunctionBody(stmt.body);
-    } else {
-      this.indentLevel++;
-      body = `{\n${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(stmt.body as Expression)};\n${indent(this.indentLevel, -1)}}`;
+    if (needsPersistentScope) {
+      this.functionScopeStack.push({ id: scopeId, keyVar: scopeKeyVar });
+      this.expressionGen.pushPersistentScope();
+    }
+    try {
+      if (stmt.body.type === 'BlockStatement') {
+        body = this.generateFunctionBody(
+          stmt.body,
+          needsPersistentScope ? scopeId : undefined,
+          needsPersistentScope ? scopeKeyVar : undefined,
+        );
+      } else {
+        this.indentLevel++;
+        body = `{\n${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(stmt.body as Expression)};\n${indent(this.indentLevel, -1)}}`;
+      }
+    } finally {
+      if (needsPersistentScope) {
+        this.expressionGen.popPersistentScope();
+        this.functionScopeStack.pop();
+      }
     }
 
-    return `${indent(this.indentLevel)}${prefix}function ${name}(${params}) ${body}`;
+    let out = `${indent(this.indentLevel)}${prefix}function ${name}(${paramNames}) ${body}`;
+
+    // Pine `method` declarations are emitted as plain functions where
+    // the first parameter is the receiver (typed as the defining
+    // `type`, e.g. `method Process(ImbalanceStructure IS, ...)`).
+    // Rebind them onto the receiver prototype so member-call syntax
+    // (`instance.Process(...)`) resolves at runtime.
+    if (stmt.isMethod && stmt.params.length > 0) {
+      const receiverType = stmt.params[0]?.typeAnnotation?.name;
+      if (receiverType) {
+        const receiverName = sanitizeIdentifier(receiverType);
+        const methodParams = stmt.params
+          .slice(1)
+          .map((p) => sanitizeIdentifier(p.name));
+        const methodParamsDecl = methodParams.join(', ');
+        const callArgs = methodParams.length > 0 ? `, ${methodParamsDecl}` : '';
+        out += `\n${indent(this.indentLevel)}if (${receiverName}?.prototype && typeof ${receiverName}.prototype.${name} !== 'function') {\n${indent(this.indentLevel, 1)}${receiverName}.prototype.${name} = function(${methodParamsDecl}) { return ${name}(this${callArgs}); };\n${indent(this.indentLevel)}}`;
+        if (originalName !== name) {
+          // Preserve source-level method names (e.g. `delete`) when
+          // sanitization rewrites the function identifier.
+          out += `\n${indent(this.indentLevel)}if (${receiverName}?.prototype && typeof ${receiverName}.prototype[${JSON.stringify(originalName)}] !== 'function') {\n${indent(this.indentLevel, 1)}${receiverName}.prototype[${JSON.stringify(originalName)}] = function(${methodParamsDecl}) { return ${name}(this${callArgs}); };\n${indent(this.indentLevel)}}`;
+        }
+      }
+    }
+
+    return out;
   }
 
   /**
    * Generate the body of a multi-line Pine function. Pine has implicit
    * return — the value of the last expression in the block is the
-   * function's return value. JS requires an explicit `return`, so the
-   * last ExpressionStatement is rewritten as a ReturnStatement during
-   * emission. Other tail-position constructs (e.g. an `if`) are left
-   * as-is for now; users wanting to return from those should use an
-   * explicit `=>`-form or assign to a result variable.
+   * function's return value. JS requires an explicit `return`, so tail
+   * expressions and switch-statements are rewritten into return forms.
    */
-  private generateFunctionBody(block: BlockStatement): string {
+  private generateFunctionBody(
+    block: BlockStatement,
+    scopeId?: string,
+    scopeKeyVar?: string,
+  ): string {
     this.indentLevel++;
     const statements = block.body;
     const lines: string[] = [];
+    if (scopeId && scopeKeyVar) {
+      lines.push(
+        `${indent(this.indentLevel)}const ${scopeKeyVar} = _pineScopeKey(${JSON.stringify(scopeId)});`,
+      );
+    }
     for (let i = 0; i < statements.length; i++) {
       const s = statements[i];
       const isLast = i === statements.length - 1;
       if (isLast && s.type === 'ExpressionStatement') {
         lines.push(
           `${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(s.expression)};`,
+        );
+      } else if (isLast && s.type === 'SwitchStatement') {
+        // Pine allows a tail-position `switch` in function bodies and
+        // implicitly returns the matched arm's value. Model it as a
+        // SwitchExpression and emit a JS return.
+        const switchExpr: SwitchExpression = {
+          ...s,
+          type: 'SwitchExpression',
+        };
+        lines.push(
+          `${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(switchExpr)};`,
         );
       } else {
         lines.push(this.generateStatement(s));

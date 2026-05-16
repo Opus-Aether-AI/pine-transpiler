@@ -236,7 +236,8 @@ type Point
     float y
 `;
       const js = generateCode(code);
-      expect(js).toContain('class Point');
+      expect(js).toContain('var __type_Point = class Point');
+      expect(js).toContain('var Point;');
       expect(js).toContain('constructor(x, y)');
       expect(js).toContain('this.x = x;');
       expect(js).toContain('this.y = y;');
@@ -259,7 +260,8 @@ export type MyType
     int value
 `;
       const js = generateCode(code);
-      expect(js).toContain('export class MyType');
+      expect(js).toContain('var __type_MyType = class MyType');
+      expect(js).toContain('export var MyType;');
     });
   });
 
@@ -284,16 +286,16 @@ export type MyType
       expect(js).toContain('var x = 42;');
     });
 
-    it('should generate var keyword as let', () => {
+    it('should generate var keyword with persistent helper', () => {
       const code = 'var x = 42';
       const js = generateCode(code);
-      expect(js).toContain('var x = 42;');
+      expect(js).toContain('var x = _pineVar("x", () => (42));');
     });
 
-    it('should generate varip keyword as let', () => {
+    it('should generate varip keyword with per-bar helper', () => {
       const code = 'varip x = 42';
       const js = generateCode(code);
-      expect(js).toContain('var x = 42;');
+      expect(js).toContain('var x = _pineVarip("x", () => (42));');
     });
 
     it('should handle const keyword', () => {
@@ -312,11 +314,21 @@ export type MyType
     it('should generate exported variable', () => {
       const code = 'export var x = 1';
       const js = generateCode(code);
-      // Pine's `var x = 1` and `x = 1` both emit JS `var x = 1;` after
-      // we switched the generator from `let` to `var` to allow safe
-      // redeclaration when the parser flattens block-scoped vars to
-      // top scope.
-      expect(js).toContain('export var x = 1;');
+      expect(js).toContain('export var x = _pineVar("x", () => (1));');
+    });
+
+    it('should key function-local var state by function call site', () => {
+      const code = `
+counter() =>
+    var x = 0
+    x += 1
+    x
+plot(counter())
+`;
+      const js = generateCode(code);
+      expect(js).toContain('const _pineFnScope_0 = _pineScopeKey("counter#0");');
+      expect(js).toContain('var x = _pineVar(_pineFnScope_0 + "::x", () => (0));');
+      expect(js).toContain('x = _pineSetVar(_pineFnScope_0 + "::x", (x + 1))');
     });
   });
 
@@ -378,6 +390,12 @@ export type MyType
         const code = 'x = close[n]';
         const js = generateCode(code);
         expect(js).toContain('_getHistorical_close(n)');
+      });
+
+      it('should materialize history for non-identifier expressions', () => {
+        const code = 'x = (high + low)[1]';
+        const js = generateCode(code);
+        expect(js).toContain('context.new_var((high + low)).get(1)');
       });
     });
 

@@ -1,0 +1,12 @@
+//@version=5
+indicator("Custom 020 Neural Oscillator Lab", overlay=false)
+
+x1 = ta.ema(ta.roc(close, 1), 5)
+x2 = ta.ema(ta.roc(close, 3), 8)
+x3 = ta.ema(ta.rsi(close, 14) - 50, 5)
+osc = (x1 + x2 + x3) / 3.0
+sig = ta.ema(osc, 6)
+
+plot(osc, "Osc", color=color.aqua)
+plot(sig, "Sig", color=color.orange)
+plot(0, "Zero", color=color.gray)

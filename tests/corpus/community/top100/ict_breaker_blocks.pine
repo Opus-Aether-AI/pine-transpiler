@@ -1,0 +1,22 @@
+//@version=5
+indicator("ICT Breaker Blocks", overlay=true)
+
+len = input.int(10, "Pivot Length", minval=2)
+ph = ta.pivothigh(high, len, len)
+pl = ta.pivotlow(low, len, len)
+
+var float breakerHigh = na
+var float breakerLow = na
+
+if not na(ph)
+    breakerHigh := ph
+if not na(pl)
+    breakerLow := pl
+
+bullBreaker = not na(breakerHigh) and close > breakerHigh and open < breakerHigh
+bearBreaker = not na(breakerLow) and close < breakerLow and open > breakerLow
+
+plot(breakerHigh, "Breaker High", color=color.new(color.red, 0))
+plot(breakerLow, "Breaker Low", color=color.new(color.green, 0))
+plotshape(bullBreaker, title="Bull Breaker", style=shape.square, location=location.belowbar, color=color.lime, size=size.tiny)
+plotshape(bearBreaker, title="Bear Breaker", style=shape.square, location=location.abovebar, color=color.red, size=size.tiny)

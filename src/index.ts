@@ -32,6 +32,7 @@ import type {
   TimeFunctionMapping,
   TranspilerRuntimeError,
   TranspileToPineJSResult,
+  TranspileToStandaloneFactoryResult,
 } from './types';
 import { COLOR_MAP, PRICE_SOURCES } from './types';
 
@@ -52,6 +53,7 @@ export type {
   TimeFunctionMapping,
   TranspilerRuntimeError,
   TranspileToPineJSResult,
+  TranspileToStandaloneFactoryResult,
 };
 
 export {
@@ -72,6 +74,25 @@ export {
 
 /** Maximum input size in characters to prevent DoS attacks */
 const MAX_INPUT_SIZE = 1_000_000; // 1MB
+
+function isUnsafeEvalCspError(error: unknown): boolean {
+  const raw = error instanceof Error ? error.message : String(error);
+  const message = raw.toLowerCase();
+  return (
+    message.includes('unsafe-eval') ||
+    message.includes('content security policy') ||
+    message.includes(
+      'violates the following content security policy directive',
+    ) ||
+    message.includes('evaluating a string as javascript')
+  );
+}
+
+function withCspEvalHint(error: unknown): string {
+  const base = error instanceof Error ? error.message : String(error);
+  if (!isUnsafeEvalCspError(error)) return base;
+  return `${base}\nCSP blocked dynamic evaluation. Use transpileToStandaloneFactory(...) and load the generated factory module instead of runtime eval/new Function.`;
+}
 
 /**
  * Transpile Pine Script to JavaScript string (internal helper)
@@ -102,16 +123,44 @@ export function transpile(code: string): string {
 }
 
 /**
+ * Options accepted by {@link transpileToPineJS}.
+ */
+export interface TranspileOptions {
+  /**
+   * Controls the fallback `bg_colorer` plot that synthesizes a
+   * full-column session highlight from `box.new(..., bgcolor=...)`
+   * patterns.
+   *
+   * **Default `false`** — host renderers (e.g. the webapp
+   * `VisualEventsRenderer`) draw proper price-constrained rectangles
+   * from `__visualEvents`; the full-column bg_colorer bands would
+   * visually conflict with them.
+   *
+   * Set to `true` when there is no host renderer and you want the
+   * fallback session-highlight bands rendered directly by the
+   * transpiler (the TradingView CustomIndicator can't draw boxes
+   * natively otherwise). Bands are full-column by construction;
+   * `bg_colorer` has no price-range parameter.
+   *
+   * See HOST_RENDERING_CONTRACT.md § "Opting out of the auto
+   * bg_colorer plot".
+   */
+  autoBgColorerForBoxes?: boolean;
+}
+
+/**
  * Transpile Pine Script v5/v6 code to a TradingView CustomIndicator
  *
  * @param code - Pine Script source code
  * @param indicatorId - Unique identifier
  * @param indicatorName - Display name
+ * @param options - Optional rendering / behavior flags. See {@link TranspileOptions}.
  */
 export function transpileToPineJS(
   code: string,
   indicatorId: string,
   indicatorName?: string,
+  options?: TranspileOptions,
 ): TranspileToPineJSResult {
   try {
     // 0. Validate input size
@@ -151,11 +200,83 @@ export function transpileToPineJS(
       usedSources: visitor.usedSources,
       historicalAccess: visitor.historicalAccess,
       mainBody,
+      autoBgColorerForBoxes: options?.autoBgColorerForBoxes ?? false,
     });
 
     return {
       success: true,
       indicatorFactory,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+/**
+ * Transpile Pine Script v5/v6 code to standalone ESM factory code.
+ *
+ * Unlike {@link transpileToPineJS}, this returns source text that can be
+ * built/served as a static module and does not depend on `new Function(...)`
+ * at indicator runtime.
+ */
+export function transpileToStandaloneFactory(
+  code: string,
+  indicatorId: string,
+  indicatorName?: string,
+  options?: TranspileOptions,
+): TranspileToStandaloneFactoryResult {
+  try {
+    // 0. Validate input size
+    if (code.length > MAX_INPUT_SIZE) {
+      return {
+        success: false,
+        error: `Input too large: ${code.length} characters exceeds maximum of ${MAX_INPUT_SIZE}`,
+      };
+    }
+
+    // 1. Tokenize
+    const lexer = new Lexer(code);
+    const tokens = lexer.tokenize();
+
+    // 2. Parse
+    const parser = new Parser(tokens);
+    const ast = parser.parse();
+
+    // 3. Extract Metadata
+    const visitor = new MetadataVisitor();
+    visitor.visit(ast);
+
+    // 4. Generate transpiled body
+    const generator = new ASTGenerator(visitor.historicalAccess);
+    const mainBody = generator.generate(ast);
+
+    // 5. Emit standalone module factory code
+    const factoryCode = generateStandaloneFactory({
+      indicatorId,
+      indicatorName,
+      name: visitor.name,
+      shortName: visitor.shortName,
+      overlay: visitor.overlay,
+      plots: visitor.plots,
+      inputs: visitor.inputs,
+      bgcolors: visitor.bgcolors,
+      usedSources: visitor.usedSources,
+      historicalAccess: visitor.historicalAccess,
+      mainBody,
+      autoBgColorerForBoxes: options?.autoBgColorerForBoxes ?? false,
+      sessionVariables: visitor.sessionVariables,
+      derivedSessionVariables: visitor.derivedSessionVariables,
+      booleanInputMap: visitor.booleanInputMap,
+      computedVariables: visitor.computedVariables,
+      inputVariableMap: visitor.inputVariableMap,
+    });
+
+    return {
+      success: true,
+      factoryCode,
     };
   } catch (error) {
     return {
@@ -248,10 +369,7 @@ export function executePineJS(
   } catch (error) {
     return {
       success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Unknown PineJS execution error',
+      error: withCspEvalHint(error),
     };
   }
 }

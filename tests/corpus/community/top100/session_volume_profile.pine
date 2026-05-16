@@ -1,0 +1,10 @@
+//@version=5
+indicator("Session Volume Profile", overlay=false)
+
+marketVol = session.ismarket ? volume : 0.0
+preVol = session.ispremarket ? volume : 0.0
+postVol = session.ispostmarket ? volume : 0.0
+
+plot(marketVol, "Market Volume", color=color.aqua, style=plot.style_columns)
+plot(preVol, "Premarket Volume", color=color.orange, style=plot.style_columns)
+plot(postVol, "Postmarket Volume", color=color.purple, style=plot.style_columns)

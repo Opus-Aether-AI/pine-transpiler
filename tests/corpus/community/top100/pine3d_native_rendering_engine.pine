@@ -1,0 +1,12 @@
+//@version=5
+indicator("Pine3D: A Native 3D Graphical Rendering Engine", overlay=false)
+
+x = bar_index
+y = close
+z = ta.ema(close - open, 20)
+
+// Pseudo 3D projection into 2D chart space.
+proj = y + z * 0.25 + math.sin(x * 0.1)
+plot(proj, "Projection", color=color.aqua)
+plot(y, "Base", color=color.gray)
+plot(z, "Depth", color=color.new(color.orange, 70), display=display.none)

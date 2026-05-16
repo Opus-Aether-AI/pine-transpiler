@@ -1,162 +1,142 @@
 # Pine Script Transpiler - Limitations
 
-This document details the limitations and unsupported features of the Pine Script Transpiler.
+This document describes unsupported and partially supported Pine features in the current transpiler/runtime.
 
 ## Unsupported Features
 
-### External Data Requests
-The following `request.*` functions are **not supported** and will generate warnings:
+### External `request.*` APIs
 
-| Function | Description |
-|----------|-------------|
-| `request.security` | Multi-timeframe data requests |
-| `request.financial` | Financial statement data |
-| `request.quandl` | Quandl data provider |
-| `request.seed` | Seed-based data |
-| `request.economic` | Economic calendar data |
-| `request.dividends` | Dividend data |
-| `request.earnings` | Earnings data |
-| `request.splits` | Stock split data |
+Only `request.security` has subset support. The following remain unsupported:
 
-### Ticker Functions
-| Function | Description |
-|----------|-------------|
-| `ticker.new` | Create custom ticker identifiers |
-| `ticker.modify` | Modify ticker settings |
+- `request.financial`
+- `request.quandl`
+- `request.seed`
+- `request.economic`
+- `request.dividends`
+- `request.earnings`
+- `request.splits`
 
-### Alert System
-| Function | Description |
-|----------|-------------|
-| `alert` | Trigger alerts |
-| `alertcondition` | Define alert conditions |
+### Ticker Namespace Extensions
 
-### Logging
-| Function | Description |
-|----------|-------------|
-| `log.info` | Info-level logging |
-| `log.warning` | Warning-level logging |
-| `log.error` | Error-level logging |
-| `runtime.error` | Throw runtime errors |
+- `ticker.new`
+- `ticker.modify`
+
+### Strategy/Backtesting Runtime
+
+The transpiler targets indicators. Strategy execution is not implemented:
+
+- `strategy.entry`
+- `strategy.exit`
+- `strategy.close`
+- `strategy.order`
+- `strategy.cancel`
+- `strategy.risk.*`
+
+### Polyline APIs
+
+- `polyline.*` is not implemented.
 
 ## Partially Supported Features
 
-These features work but with limitations:
+### `request.security` (MTF subset)
 
-### Drawing Functions (Stubs)
-Drawing functions return no-ops and emit warnings. They do not render on charts.
+Current behavior supports practical subset semantics:
 
-| Function | Status |
-|----------|--------|
-| `box.new` | Stub (no visual output) |
-| `box.delete` | Stub |
-| `line.new` | Stub (no visual output) |
-| `line.delete` | Stub |
-| `label.new` | Stub (no visual output) |
-| `label.delete` | Stub |
+- value passthrough for same/lower timeframe requests
+- higher-timeframe bucket merge in runtime
+- tuple expressions
+- `barmerge.gaps_*` and `barmerge.lookahead_*` subset handling
+- explicit runtime diagnostics on unsupported fallback modes
+  (`__runtimeDiagnostics` on the returned plot array), including
+  external symbol and lower-timeframe fallback
 
-### Table Functions (Stubs)
-| Function | Status |
-|----------|--------|
-| `table.new` | Stub (no visual output) |
-| `table.cell` | Stub |
+Not yet supported:
 
-### Plot Variants
-| Function | Status |
-|----------|--------|
-| `plotshape` | Returns NaN placeholder |
-| `plotchar` | Returns NaN placeholder |
-| `plotarrow` | Returns NaN placeholder |
-| `bgcolor` | Stub (no visual output) |
-| `fill` | Stub (no visual output) |
-| `barcolor` | Stub (no visual output) |
+- external symbol data fetching
+- full Pine-equivalent barmerge behavior across all edge cases
 
-### Bar State Detection
-The `barstate.*` properties return **hardcoded values** since actual bar state detection requires deeper runtime integration:
+### Drawing APIs (runtime-compatible handles, partial direct rendering)
 
-| Property | Hardcoded Value |
-|----------|-----------------|
-| `barstate.islast` | `true` |
-| `barstate.isrealtime` | `true` |
-| `barstate.isnew` | `false` |
-| `barstate.isconfirmed` | `true` |
-| `barstate.isfirst` | Not implemented |
-| `barstate.ishistory` | Not implemented |
+Drawing namespaces are stateful, persist across bars (Pine `var` semantics), and support common method subsets so scripts execute. Direct visual rendering inside the transpiler is intentionally limited — TradingView CustomIndicator outputs (plots, palette-backed bg_colorers) cannot draw arbitrary shapes. Anything beyond bg_colorer goes through the host renderer (see [HOST_RENDERING_CONTRACT.md](HOST_RENDERING_CONTRACT.md)).
 
-## Strategy Mode
+Direct rendering inside the transpiler:
 
-The transpiler focuses on **indicators only**. Strategy functions are stubs:
+- **`box.new(..., bgcolor=...)`** — auto-emits a `bg_colorer` plot driven by an 8-slot palette. Session-highlighting scripts (ICT-style killzones, FX sessions) get colored backgrounds with no host work. Palette colors are a fixed rainbow set; slot assignment is first-seen at runtime.
 
-| Function | Status |
-|----------|--------|
-| `strategy` | Declaration stub (no-op) |
-| `strategy.entry` | Not implemented |
-| `strategy.exit` | Not implemented |
-| `strategy.close` | Not implemented |
-| `strategy.order` | Not implemented |
-| `strategy.cancel` | Not implemented |
-| `strategy.risk.*` | Not implemented |
+Tracked-but-not-rendered (host renderer must consume `__visualEvents`):
 
-Backtesting functionality is **not available**.
+- Box rectangles with borders / inline text
+- `line.new` (pivots, separators, opens)
+- `label.new` (text annotations)
+- `table.new` / `table.cell` (TV CustomIndicators have no native runtime table; renderer must use a DOM overlay)
+
+Supported method subsets:
+
+- `line`: `new`, `delete`, `set_x2`, `set_xy1`, `set_xy2`, `set_color`, `get_x2`, `get_y1`, `get_y2`
+- `box`: `new`, `delete`, `set_left`, `set_right`, `set_top`, `set_bottom`, `set_extend`, `set_bgcolor`, `set_border_color`, `set_border_width`, `set_text_color`, `get_left`, `get_right`, `get_top`, `get_bottom`
+- `label`: `new`, `delete`, `set_text`, `set_tooltip`, `set_textcolor`, `set_style`, `set_xy`, `set_x`, `set_y`, `get_text`, `get_y`
+- `table`: `new`, `cell`, `clear`, `merge_cells`
+
+### Plot/Visual Functions
+
+- `plot`, `plotshape`, `plotchar`, `plotarrow`, `bgcolor`, `fill`, `barcolor`, `hline` are runtime-compatible.
+- `plot` / `plotshape` / `plotchar` / `plotarrow` / `hline` render directly through TradingView's CustomIndicator plot output.
+- `plotchar(text = identifier)` resolves through tracked string-literal var definitions and is promoted to the `char` glyph when `char` is empty.
+- `bgcolor`, `fill`, `barcolor` are tracked in visual-event artifacts; rendering of those that don't lower to a `bg_colorer` plot remains host responsibility.
+
+### Pine `var` / `varip` inside function bodies
+
+Function-local persistent state is now runtime-backed and call-site scoped:
+
+- `var` inside functions persists across bars and calls.
+- `varip` inside functions resets on new bars, while persisting intrabar.
+- state keys are isolated per function call-site to match Pine behavior for multi-call scripts.
+
+### Alerts
+
+- `alert()` and `alertcondition()` are runtime no-ops. The transpiler swallows the call without errors or routing. If alerting is required, prefetch the alert condition values via plot outputs and let the host wire its own notification surface. Long-term resolution tracked in Phase 18.
+
+### Session/Time Semantics
+
+- `session.ismarket`, `session.ispremarket`, `session.ispostmarket`, `time_close`, `time_tradingday` are supported with deterministic runtime helpers.
+- Session/timezone semantics are still a compatibility model, not full exchange-engine parity.
 
 ## Data Structures
 
 ### Maps
-Map operations (`map.new`, `map.get`, `map.put`, etc.) are **not implemented**.
+
+Implemented subset:
+
+- `map.new`, `map.put`, `map.put_all`, `map.get`, `map.contains`, `map.remove`, `map.size`, `map.keys`, `map.values`, `map.clear`, `map.copy`
 
 ### Matrices
-Matrix operations (`matrix.new`, `matrix.get`, `matrix.set`, etc.) are **not implemented**.
 
-### Polylines
-`polyline.new` and related functions are **not implemented**.
+Implemented subset:
 
-## Session Detection
+- `matrix.new`, `matrix.rows`, `matrix.columns`, `matrix.get`, `matrix.set`, `matrix.add_row`, `matrix.remove_row`
 
-Session helpers (`session.ismarket`, `session.ispremarket`, `session.ispostmarket`) use **simplified US equity defaults**:
-- Market: 09:30 - 16:00
-- Premarket: 04:00 - 09:30
-- Postmarket: 16:00 - 20:00
+Advanced matrix APIs beyond this subset are not yet implemented.
 
-Custom session strings are parsed but timezone handling is limited.
+## Alerts and Logging
 
-## Time Functions
-
-| Function | Status |
-|----------|--------|
-| `time` | ✅ Fully supported |
-| `time_close` | ✅ Calculated from open + timeframe |
-| `time_tradingday` | ⚠️ Simplified (midnight of bar date) |
+- `alertcondition` and `alert` are runtime no-ops for compatibility.
+- `log.*` and `runtime.error` are partial/non-parity behaviors.
 
 ## Library Imports
 
-- `import "user/lib/1" as Lib` syntax is parsed
-- External library resolution is **not implemented**
-- Only inline library definitions work
+- `import "user/lib/1" as Lib` syntax is parsed.
+- External library resolution/loading is not implemented.
 
-## Input Size Limits
+## Operational Limits
 
-To prevent DoS attacks:
-- Maximum input size: **1MB** (1,000,000 characters)
-- Maximum loop iterations: **10,000**
-- Maximum recursion depth: **1,000**
+To reduce abuse risk:
 
-## Memory Management
+- max input size: `1,000,000` characters
+- max loop iterations: `10,000`
+- max recursion depth: `1,000`
 
-The `StdPlus` polyfill caches series data for functions like HMA and MACD. Call `StdPlus.cleanup(context)` when:
-- Switching symbols
-- Resetting indicator state
-- Before disposing the indicator
+## Recommended Integration Approach
 
-## Recommended Workarounds
-
-### Multi-Timeframe Data
-Instead of `request.security`, pre-compute the data and pass it as input parameters.
-
-### Alerts
-Handle alerting in your application layer after receiving indicator values.
-
-### Drawing
-Implement drawing in your charting application using the plot values as data points.
-
----
-
-For feature requests or bug reports, please open an issue on GitHub.
+- Treat transpiler outputs as executable indicator logic + visual intent events.
+- Handle final rendering and alert routing in the host app.
+- For unsupported external data APIs, prefetch data in your app and feed it as inputs.

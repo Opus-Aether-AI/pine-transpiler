@@ -1,0 +1,22 @@
+//@version=5
+indicator("ATR Trailing Stop Lite", overlay=true)
+
+atrLen = input.int(14, "ATR")
+mult = input.float(2.0, "ATR Mult", step=0.1)
+
+atrValue = ta.atr(atrLen)
+emaTrend = ta.ema(close, 50)
+
+var float longStop = na
+var float shortStop = na
+
+if close >= emaTrend
+    longStop := na(longStop) ? close - atrValue * mult : math.max(longStop, close - atrValue * mult)
+    shortStop := na
+else
+    shortStop := na(shortStop) ? close + atrValue * mult : math.min(shortStop, close + atrValue * mult)
+    longStop := na
+
+plot(emaTrend, "Trend EMA", color=color.gray)
+plot(longStop, "Long Stop", color=color.lime, style=plot.style_linebr)
+plot(shortStop, "Short Stop", color=color.red, style=plot.style_linebr)

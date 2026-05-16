@@ -128,7 +128,11 @@ class MockContext implements RuntimeContextInternal {
     timezone: 'America/New_York',
     minmov: 1,
     pricescale: 100,
+    bars: 0,
   };
+  barIndex = 0;
+  totalBars = 0;
+  isRealtime = false;
 
   private varIndex = 0;
   private varSeries: MockPineSeries[] = [];
@@ -168,11 +172,24 @@ function isSeries(value: unknown): value is PineSeriesLike {
 
 function readSeriesValue(value: unknown, offset = 0): number {
   if (typeof value === 'number') return value;
+  if (typeof value === 'boolean') return value ? 1 : 0;
   if (isSeries(value)) {
     const v = value.get?.(offset);
     return typeof v === 'number' ? v : Number.NaN;
   }
   return Number.NaN;
+}
+
+function collectSeriesHistory(series: unknown): number[] {
+  // Returned oldest -> newest for stable indicator math.
+  const newestToOldest: number[] = [];
+  const MAX = 10_000;
+  for (let i = 0; i < MAX; i++) {
+    const v = readSeriesValue(series, i);
+    if (!Number.isFinite(v)) break;
+    newestToOldest.push(v);
+  }
+  return newestToOldest.reverse();
 }
 
 function buildStd(
@@ -182,6 +199,16 @@ function buildStd(
   currentBarPlots: number[],
 ): StdLibraryInternal {
   const currentBar = (): SyntheticBar | undefined => bars[pointer.current];
+  const resolveTimestampArg = (...args: unknown[]): number => {
+    for (const arg of args) {
+      if (typeof arg === 'number' && Number.isFinite(arg)) return arg;
+      if (isSeries(arg)) {
+        const v = arg.get?.(0);
+        if (typeof v === 'number' && Number.isFinite(v)) return v;
+      }
+    }
+    return currentBar()?.time ?? 0;
+  };
 
   const std: Record<string, unknown> = {
     // Plot family — the transpiler maps `plot()` → `Std.plot()` (see
@@ -238,6 +265,20 @@ function buildStd(
     // Time
     time: () => currentBar()?.time ?? 0,
     time_close: () => (currentBar()?.time ?? 0) + 60_000,
+    hour: (...args: unknown[]) =>
+      new Date(resolveTimestampArg(...args)).getUTCHours(),
+    minute: (...args: unknown[]) =>
+      new Date(resolveTimestampArg(...args)).getUTCMinutes(),
+    second: (...args: unknown[]) =>
+      new Date(resolveTimestampArg(...args)).getUTCSeconds(),
+    year: (...args: unknown[]) =>
+      new Date(resolveTimestampArg(...args)).getUTCFullYear(),
+    month: (...args: unknown[]) =>
+      new Date(resolveTimestampArg(...args)).getUTCMonth() + 1,
+    dayofmonth: (...args: unknown[]) =>
+      new Date(resolveTimestampArg(...args)).getUTCDate(),
+    dayofweek: (...args: unknown[]) =>
+      new Date(resolveTimestampArg(...args)).getUTCDay() + 1,
 
     // Symbol / interval shims
     period: () => '1',
@@ -255,6 +296,14 @@ function buildStd(
       return Number.isFinite(n) ? n : replacement;
     },
     fixnan: (v: unknown) => readSeriesValue(v),
+    toBool: (...args: unknown[]) => {
+      const value = args.length >= 2 ? args[1] : args[0];
+      if (typeof value === 'boolean') return value;
+      const n = readSeriesValue(value);
+      if (Number.isFinite(n)) return n !== 0;
+      if (typeof value === 'string') return value.length > 0;
+      return Boolean(value);
+    },
 
     // Comparisons (Std.ge etc. are emitted by some mappings)
     ge: (a: unknown, b: unknown) => readSeriesValue(a) >= readSeriesValue(b),
@@ -277,24 +326,30 @@ function buildStd(
       return sum / length;
     },
     ema: (_ctx: unknown, series: unknown, length: number) => {
-      const k = 2 / (length + 1);
-      let ema = readSeriesValue(series, length - 1);
-      if (!Number.isFinite(ema)) return Number.NaN;
-      for (let i = length - 2; i >= 0; i--) {
-        const v = readSeriesValue(series, i);
-        if (!Number.isFinite(v)) return Number.NaN;
-        ema = v * k + ema * (1 - k);
+      const values = collectSeriesHistory(series);
+      if (values.length < length) return Number.NaN;
+
+      const alpha = 2 / (length + 1);
+      let ema = 0;
+      for (let i = 0; i < length; i++) ema += values[i];
+      ema /= length;
+
+      for (let i = length; i < values.length; i++) {
+        ema = alpha * values[i] + (1 - alpha) * ema;
       }
       return ema;
     },
     rma: (_ctx: unknown, series: unknown, length: number) => {
-      const k = 1 / length;
-      let rma = readSeriesValue(series, length - 1);
-      if (!Number.isFinite(rma)) return Number.NaN;
-      for (let i = length - 2; i >= 0; i--) {
-        const v = readSeriesValue(series, i);
-        if (!Number.isFinite(v)) return Number.NaN;
-        rma = v * k + rma * (1 - k);
+      const values = collectSeriesHistory(series);
+      if (values.length < length) return Number.NaN;
+
+      let rma = 0;
+      for (let i = 0; i < length; i++) rma += values[i];
+      rma /= length;
+
+      const alpha = 1 / length;
+      for (let i = length; i < values.length; i++) {
+        rma = alpha * values[i] + (1 - alpha) * rma;
       }
       return rma;
     },
@@ -325,18 +380,30 @@ function buildStd(
 
     // Oscillators
     rsi: (_ctx: unknown, series: unknown, length: number) => {
-      let gain = 0;
-      let loss = 0;
-      for (let i = 0; i < length; i++) {
-        const cur = readSeriesValue(series, i);
-        const prev = readSeriesValue(series, i + 1);
-        if (!Number.isFinite(cur) || !Number.isFinite(prev)) return Number.NaN;
-        const diff = cur - prev;
-        if (diff > 0) gain += diff;
-        else loss += -diff;
+      const values = collectSeriesHistory(series);
+      if (values.length <= length) return Number.NaN;
+
+      let gainSum = 0;
+      let lossSum = 0;
+      for (let i = 1; i <= length; i++) {
+        const diff = values[i] - values[i - 1];
+        if (diff >= 0) gainSum += diff;
+        else lossSum += -diff;
       }
-      if (loss === 0) return gain === 0 ? Number.NaN : 100;
-      const rs = gain / length / (loss / length);
+
+      let avgGain = gainSum / length;
+      let avgLoss = lossSum / length;
+
+      for (let i = length + 1; i < values.length; i++) {
+        const diff = values[i] - values[i - 1];
+        const gain = diff > 0 ? diff : 0;
+        const loss = diff < 0 ? -diff : 0;
+        avgGain = (avgGain * (length - 1) + gain) / length;
+        avgLoss = (avgLoss * (length - 1) + loss) / length;
+      }
+
+      if (avgLoss === 0) return avgGain === 0 ? Number.NaN : 100;
+      const rs = avgGain / avgLoss;
       return 100 - 100 / (1 + rs);
     },
     roc: (_ctx: unknown, series: unknown, length: number) => {
@@ -352,6 +419,38 @@ function buildStd(
       return Number.isFinite(cur) && Number.isFinite(prev)
         ? cur - prev
         : Number.NaN;
+    },
+    valuewhen: (
+      _ctx: unknown,
+      condition: unknown,
+      source: unknown,
+      occurrenceRaw: unknown,
+    ) => {
+      const occurrence = Math.max(0, Math.trunc(readSeriesValue(occurrenceRaw)));
+      if (!Number.isFinite(occurrence)) return Number.NaN;
+
+      // Scalar condition can only match the current bar.
+      if (!isSeries(condition)) {
+        const cond = readSeriesValue(condition, 0);
+        if (Number.isFinite(cond) && cond !== 0 && occurrence === 0) {
+          return readSeriesValue(source, 0);
+        }
+        return Number.NaN;
+      }
+
+      let hits = 0;
+      const MAX = 10_000;
+      for (let i = 0; i < MAX; i++) {
+        const cond = readSeriesValue(condition, i);
+        if (!Number.isFinite(cond)) break;
+        if (cond !== 0) {
+          if (hits === occurrence) {
+            return readSeriesValue(source, i);
+          }
+          hits++;
+        }
+      }
+      return Number.NaN;
     },
     // ta.cum is cumulative-sum-from-bar-0. The MockPineSeries the
     // generator wraps `series` in keeps full history, so we sum every
@@ -626,12 +725,21 @@ function buildStd(
 
 export interface CreateMockRuntimeOptions {
   barCount?: number;
+  /**
+   * Initial bar index exposed on context. Useful to emulate chart hosts
+   * that evaluate a study on a loaded history window where the first
+   * processed bar has a large absolute index.
+   */
+  barIndexStart?: number;
 }
 
 export function createMockRuntime(
   options: CreateMockRuntimeOptions = {},
 ): MockRuntime {
   const barCount = options.barCount ?? 200;
+  const barIndexStart = Number.isFinite(options.barIndexStart)
+    ? Math.trunc(options.barIndexStart as number)
+    : 0;
   const bars = generateSyntheticBars(barCount);
   const pointer: BarPointer = { current: 0 };
   const report: MockRuntimeReport = {
@@ -643,6 +751,9 @@ export function createMockRuntime(
   };
 
   const context = new MockContext();
+  context.symbol.bars = barCount;
+  context.totalBars = barCount;
+  context.barIndex = barIndexStart;
   const currentBarPlots: number[] = [];
   const std = buildStd(bars, pointer, report, currentBarPlots);
 
@@ -651,6 +762,7 @@ export function createMockRuntime(
     context,
     advanceBar: () => {
       pointer.current++;
+      context.barIndex = barIndexStart + pointer.current;
     },
     totalBars: barCount,
     resetVarPointer: () => context.resetVarPointer(),

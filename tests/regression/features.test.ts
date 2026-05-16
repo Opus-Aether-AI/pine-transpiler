@@ -5,7 +5,7 @@ describe('New Features', () => {
   it('should transpile export variable', () => {
     const pine = 'export var x = 1';
     const js = transpile(pine);
-    expect(js).toContain('export var x = 1;');
+    expect(js).toContain('export var x = _pineVar("x", () => (1));');
   });
 
   it('should transpile export function', () => {
@@ -21,7 +21,8 @@ export type Point
     float y
 `;
     const js = transpile(pine);
-    expect(js).toContain('export class Point');
+    expect(js).toContain('var __type_Point = class Point');
+    expect(js).toContain('export var Point;');
   });
 
   it('should transpile method declaration', () => {
@@ -45,6 +46,6 @@ export type Point
   it('should transpile ta.hma correctly', () => {
     const pine = 'plot(ta.hma(close, 14))';
     const js = transpile(pine);
-    expect(js).toContain('StdPlus.hma(context, close, 14)');
+    expect(js).toContain('StdPlus.hma(context, _series_close, 14)');
   });
 });

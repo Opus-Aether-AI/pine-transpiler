@@ -532,6 +532,34 @@ describe('generateStandaloneFactory', () => {
 
       expect(result).toContain('return [');
     });
+
+    it('coerces standalone plot outputs to numeric-safe values', () => {
+      const plots: ParsedPlot[] = [
+        {
+          id: 'plot_0',
+          title: 'Safe',
+          varName: 'safe',
+          type: 'line',
+          color: '#2962FF',
+          linewidth: 1,
+          valueExpr: 'safeValue',
+        },
+      ];
+
+      const result = generateStandaloneFactory({
+        indicatorId: 'safe_plot_values',
+        indicatorName: 'Safe Plot Values',
+        name: 'Safe Plot Values',
+        shortName: 'Safe',
+        overlay: true,
+        plots,
+        inputs: [],
+        bgcolors: [],
+      });
+
+      expect(result).toContain('const _coercePlotValue = (v) => {');
+      expect(result).toContain('return [_coercePlotValue(safeValue)];');
+    });
   });
 
   describe('export', () => {

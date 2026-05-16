@@ -29,14 +29,19 @@ function mapPlotType(t) {
 */
 function buildDefaultStyles(plots) {
 	return plots.reduce((acc, p) => {
+		const styleLocation = resolveStyleLocation(p);
+		const visualPlottype = resolveVisualPlottype(p);
+		const charGlyph = resolveCharGlyph(p);
 		acc[p.id] = {
 			linestyle: 0,
 			visible: true,
 			linewidth: p.linewidth,
-			plottype: mapPlotType(p.type),
+			...visualPlottype !== void 0 ? { plottype: visualPlottype } : p.type === "char" ? {} : { plottype: mapPlotType(p.type) },
 			color: p.color,
 			transparency: 0,
-			trackPrice: p.type === "hline"
+			trackPrice: p.type === "hline",
+			...styleLocation ? { location: styleLocation } : {},
+			...charGlyph ? { char: charGlyph } : {}
 		};
 		return acc;
 	}, {});
@@ -61,12 +66,41 @@ function buildDefaultInputs(inputs) {
 */
 function buildStylesMetadata(plots) {
 	return plots.reduce((acc, p) => {
+		const styleLocation = resolveStyleLocation(p);
 		acc[p.id] = {
 			title: p.title,
-			histogramBase: 0
+			histogramBase: 0,
+			...styleLocation ? { location: styleLocation } : {}
 		};
 		return acc;
 	}, {});
+}
+function resolveStyleLocation(plot) {
+	if (plot.type !== "shape" && plot.type !== "char") return void 0;
+	const loc = plot.location;
+	if (loc === "abovebar") return "AboveBar";
+	if (loc === "belowbar") return "BelowBar";
+	if (loc === "top") return "Top";
+	if (loc === "bottom") return "Bottom";
+	if (loc === "absolute") return "Absolute";
+	return "AboveBar";
+}
+function resolveVisualPlottype(plot) {
+	if (plot.type !== "shape") return void 0;
+	switch (plot.shape) {
+		case "triangleup": return "shape_triangle_up";
+		case "triangledown": return "shape_triangle_down";
+		case "cross": return "shape_cross";
+		case "diamond": return "shape_diamond";
+		case "square": return "shape_square";
+		case "flag": return "shape_flag";
+		case "label": return "shape_label_up";
+		default: return "shape_circle";
+	}
+}
+function resolveCharGlyph(plot) {
+	if (plot.type !== "char") return void 0;
+	return String(plot.char ?? "").trim() || "•";
 }
 /**
 * Build the plots metadata array.
@@ -91,10 +125,18 @@ function plotTypeToMetainfoType(type) {
 	}
 }
 function buildPlotsMetadata(plots) {
-	return plots.map((p) => ({
-		id: p.id,
-		type: plotTypeToMetainfoType(p.type)
-	}));
+	return plots.map((p) => {
+		const visualPlottype = resolveVisualPlottype(p);
+		const charGlyph = resolveCharGlyph(p);
+		const location = resolveStyleLocation(p);
+		return {
+			id: p.id,
+			type: plotTypeToMetainfoType(p.type),
+			...visualPlottype ? { plottype: visualPlottype } : {},
+			...charGlyph ? { char: charGlyph } : {},
+			...location ? { location } : {}
+		};
+	});
 }
 /**
 * Build the inputs metadata array.
@@ -110,7 +152,7 @@ function buildInputsMetadata(inputs) {
 		defval: i.defval,
 		min: i.min,
 		max: i.max,
-		options: i.options
+		options: Array.isArray(i.options) ? i.options : []
 	}));
 }
 /**
@@ -197,7 +239,8 @@ var NUMERIC_COMPARISON_MAPPINGS = {
 var MATH_HELPER_FUNCTIONS = `
 // Custom math helpers
 const _avg = (...args) => args.reduce((a, b) => a + b, 0) / args.length;
-const _sum = (...args) => args.reduce((a, b) => a + b, 0);
+// Namespaced to avoid collisions with user-defined _sum functions.
+const _pineSum = (...args) => args.reduce((a, b) => a + b, 0);
 const _toDegrees = (radians) => radians * (180 / Math.PI);
 const _toRadians = (degrees) => degrees * (Math.PI / 180);
 const _roundToMintick = (value) => {
@@ -335,6 +378,27 @@ const StdPlus = {
      */
     mom: function(ctx, source, length) {
         return Std.change(ctx, source, length);
+    },
+
+    /**
+     * VWAP wrapper
+     *
+     * Pine supports tuple form:
+     *   [vwap, upper, lower] = ta.vwap(source, anchor, stdevMult)
+     * while some runtimes only expose scalar VWAP.
+     */
+    vwap: function(ctx, source, anchor, stdevMult) {
+        const value = Std.vwap(ctx, source, anchor, stdevMult);
+        if (Array.isArray(value)) return value;
+
+        // Tuple form fallback for runtimes that only return scalar VWAP.
+        if (arguments.length >= 4) {
+            const basis = Number(value);
+            if (!Number.isFinite(basis)) return [NaN, NaN, NaN];
+            return [basis, basis, basis];
+        }
+
+        return value;
     },
 
     /**
@@ -652,7 +716,7 @@ var MINMAX_MAPPINGS = {
 		description: "Average of values"
 	},
 	"math.sum": {
-		jsName: "_sum",
+		jsName: "_pineSum",
 		isMath: false,
 		minArgs: 1,
 		description: "Sum of values"
@@ -859,10 +923,10 @@ var OSCILLATOR_MAPPINGS = {
 	},
 	"ta.cci": {
 		stdName: "Std.cci",
-		needsSeries: false,
+		needsSeries: true,
 		contextArg: true,
-		argCount: 1,
-		description: "Commodity Channel Index"
+		argCount: 2,
+		description: "Commodity Channel Index (source, length)"
 	},
 	"ta.mfi": {
 		stdName: "Std.mfi",
@@ -1115,7 +1179,7 @@ var VOLUME_MAPPINGS = {
 		description: "Accumulation/Distribution Index"
 	},
 	"ta.vwap": {
-		stdName: "Std.vwap",
+		stdName: "StdPlus.vwap",
 		needsSeries: false,
 		contextArg: true,
 		argCount: 0,
@@ -1452,8 +1516,36 @@ var TIME_FUNCTION_MAPPINGS = {
 */
 var ARRAY_FUNCTION_MAPPINGS = {
 	"array.new": {
-		stdName: "_arrayNewFloat",
+		stdName: "_arrayNew",
 		description: "Create new array (Pine v6 generic, type stripped by parser)"
+	},
+	"array.new_line": {
+		stdName: "_arrayNewLine",
+		description: "Create new line array"
+	},
+	"array.new_box": {
+		stdName: "_arrayNewBox",
+		description: "Create new box array"
+	},
+	"array.new_label": {
+		stdName: "_arrayNewLabel",
+		description: "Create new label array"
+	},
+	"array.new_table": {
+		stdName: "_arrayNewTable",
+		description: "Create new table array"
+	},
+	"array.new_color": {
+		stdName: "_arrayNewAny",
+		description: "Create new color array"
+	},
+	"array.new_map": {
+		stdName: "_arrayNewAny",
+		description: "Create new map array"
+	},
+	"array.new_matrix": {
+		stdName: "_arrayNewAny",
+		description: "Create new matrix array"
 	},
 	"array.new_float": {
 		stdName: "_arrayNewFloat",
@@ -1475,9 +1567,21 @@ var ARRAY_FUNCTION_MAPPINGS = {
 		stdName: "_arrayPush",
 		description: "Add element to end"
 	},
+	"array.unshift": {
+		stdName: "_arrayUnshift",
+		description: "Add element to start"
+	},
 	"array.pop": {
 		stdName: "_arrayPop",
 		description: "Remove and return last element"
+	},
+	"array.shift": {
+		stdName: "_arrayShift",
+		description: "Remove and return first element"
+	},
+	"array.remove": {
+		stdName: "_arrayRemove",
+		description: "Remove and return element at index"
 	},
 	"array.get": {
 		stdName: "_arrayGet",
@@ -1554,6 +1658,10 @@ var ARRAY_FUNCTION_MAPPINGS = {
 	"array.join": {
 		stdName: "_arrayJoin",
 		description: "Join array to string"
+	},
+	"array.from": {
+		stdName: "_arrayFrom",
+		description: "Create array from argument list"
 	}
 };
 /**
@@ -1561,39 +1669,195 @@ var ARRAY_FUNCTION_MAPPINGS = {
 */
 var ARRAY_HELPER_FUNCTIONS = `
 // Array helpers
-const _arrayNewFloat = (size = 0, val = NaN) => Array(size).fill(val);
-const _arrayNewInt = (size = 0, val = 0) => Array(size).fill(val);
-const _arrayNewBool = (size = 0, val = false) => Array(size).fill(val);
-const _arrayNewString = (size = 0, val = '') => Array(size).fill(val);
-const _arrayPush = (arr, val) => { arr.push(val); return arr; };
-const _arrayPop = (arr) => arr.pop();
-const _arrayGet = (arr, i) => arr[i];
-const _arraySet = (arr, i, val) => { arr[i] = val; return arr; };
-const _arraySize = (arr) => arr.length;
-const _arrayAvg = (arr) => arr.reduce((a, b) => a + b, 0) / arr.length;
-const _arraySum = (arr) => arr.reduce((a, b) => a + b, 0);
-const _arrayMin = (arr) => Math.min(...arr);
-const _arrayMax = (arr) => Math.max(...arr);
+const _arraySafeSize = (size) => {
+  const n = Number(size);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(100000, Math.floor(n));
+};
+const _arrayMissingDrawingHandle = new Proxy({}, {
+  get: (_target, prop) => {
+    if (prop === Symbol.toPrimitive) return () => NaN;
+    if (prop === 'valueOf') return () => NaN;
+    if (prop === 'toString') return () => 'na';
+    if (typeof prop === 'string' && prop.startsWith('get_')) {
+      return () => NaN;
+    }
+    // set_* / delete / unknown handle members become no-ops.
+    return () => undefined;
+  },
+});
+const _arrayDrawingKinds = new Set(['line', 'box', 'label', 'table']);
+const _arrayMarkKind = (arr, kind) => {
+  if (!Array.isArray(arr)) return arr;
+  if (typeof kind === 'string' && kind) {
+    Object.defineProperty(arr, '__pineKind', {
+      value: kind,
+      enumerable: false,
+      configurable: true,
+      writable: true,
+    });
+  }
+  return arr;
+};
+const _arrayEnsurePineMethods = (arr) => {
+  if (!Array.isArray(arr)) return arr;
+  if (typeof arr.size !== 'function') {
+    Object.defineProperty(arr, 'size', {
+      value: function() { return this.length; },
+      enumerable: false,
+    });
+  }
+  if (typeof arr.get !== 'function') {
+    Object.defineProperty(arr, 'get', {
+      value: function(i) {
+        const idx = Math.floor(Number(i));
+        if (Number.isFinite(idx) && idx >= 0 && idx < this.length) {
+          return this[idx];
+        }
+        const kind = this.__pineKind;
+        if (typeof kind === 'string' && _arrayDrawingKinds.has(kind)) {
+          return _arrayMissingDrawingHandle;
+        }
+        return NaN;
+      },
+      enumerable: false,
+    });
+  }
+  if (typeof arr.set !== 'function') {
+    Object.defineProperty(arr, 'set', {
+      value: function(i, v) { this[i] = v; return this; },
+      enumerable: false,
+    });
+  }
+  if (typeof arr.remove !== 'function') {
+    Object.defineProperty(arr, 'remove', {
+      value: function(i) {
+        const idx = Math.floor(Number(i));
+        if (!Number.isFinite(idx) || idx < 0 || idx >= this.length) return NaN;
+        const removed = this.splice(idx, 1);
+        return removed.length > 0 ? removed[0] : NaN;
+      },
+      enumerable: false,
+    });
+  }
+  if (typeof arr.clear !== 'function') {
+    Object.defineProperty(arr, 'clear', {
+      value: function() { this.length = 0; return this; },
+      enumerable: false,
+    });
+  }
+  if (typeof arr.first !== 'function') {
+    Object.defineProperty(arr, 'first', {
+      value: function() {
+        return this.length > 0 ? this[0] : NaN;
+      },
+      enumerable: false,
+    });
+  }
+  if (typeof arr.last !== 'function') {
+    Object.defineProperty(arr, 'last', {
+      value: function() {
+        return this.length > 0 ? this[this.length - 1] : NaN;
+      },
+      enumerable: false,
+    });
+  }
+  return arr;
+};
+const _arrayAsArray = (arr) => Array.isArray(arr) ? arr : [];
+const _arrayNumeric = (arr) => _arrayAsArray(arr).filter((v) => typeof v === 'number' && Number.isFinite(v));
+const _arrayNew = (size = 0, val = NaN) => _arrayEnsurePineMethods(Array(_arraySafeSize(size)).fill(val));
+const _arrayNewAny = (size = 0, val = NaN) => _arrayNew(size, val);
+const _arrayNewLine = (size = 0, val = NaN) => _arrayMarkKind(_arrayNewAny(size, val), 'line');
+const _arrayNewBox = (size = 0, val = NaN) => _arrayMarkKind(_arrayNewAny(size, val), 'box');
+const _arrayNewLabel = (size = 0, val = NaN) => _arrayMarkKind(_arrayNewAny(size, val), 'label');
+const _arrayNewTable = (size = 0, val = NaN) => _arrayMarkKind(_arrayNewAny(size, val), 'table');
+const _arrayNewFloat = (size = 0, val = NaN) => _arrayNew(size, val);
+const _arrayNewInt = (size = 0, val = 0) => _arrayNew(size, val);
+const _arrayNewBool = (size = 0, val = false) => _arrayNew(size, val);
+const _arrayNewString = (size = 0, val = '') => _arrayNew(size, val);
+const _arrayFrom = (...values) => _arrayEnsurePineMethods([...values]);
+const _arrayPush = (arr, val) => {
+  if (Array.isArray(arr)) arr.push(val);
+  return arr;
+};
+const _arrayUnshift = (arr, val) => {
+  if (Array.isArray(arr)) arr.unshift(val);
+  return arr;
+};
+const _arrayPop = (arr) => (Array.isArray(arr) ? arr.pop() : NaN);
+const _arrayShift = (arr) => (Array.isArray(arr) ? arr.shift() : NaN);
+const _arrayRemove = (arr, i) => {
+  if (!Array.isArray(arr)) return NaN;
+  const idx = Math.floor(Number(i));
+  if (!Number.isFinite(idx) || idx < 0 || idx >= arr.length) return NaN;
+  const removed = arr.splice(idx, 1);
+  return removed.length > 0 ? removed[0] : NaN;
+};
+const _arrayGet = (arr, i) => {
+  if (!Array.isArray(arr)) return NaN;
+  if (typeof arr.get === 'function') return arr.get(i);
+  const idx = Math.floor(Number(i));
+  return Number.isFinite(idx) ? arr[idx] : NaN;
+};
+const _arraySet = (arr, i, val) => {
+  if (Array.isArray(arr)) arr[i] = val;
+  return arr;
+};
+const _arraySize = (arr) => {
+  if (Array.isArray(arr)) return arr.length;
+  if (arr && typeof arr.size === 'function') return Number(arr.size()) || 0;
+  return 0;
+};
+const _arrayAvg = (arr) => {
+  const xs = _arrayNumeric(arr);
+  if (xs.length === 0) return NaN;
+  return xs.reduce((a, b) => a + b, 0) / xs.length;
+};
+const _arraySum = (arr) => _arrayNumeric(arr).reduce((a, b) => a + b, 0);
+const _arrayMin = (arr) => {
+  const xs = _arrayNumeric(arr);
+  return xs.length === 0 ? NaN : Math.min(...xs);
+};
+const _arrayMax = (arr) => {
+  const xs = _arrayNumeric(arr);
+  return xs.length === 0 ? NaN : Math.max(...xs);
+};
 const _arrayStdev = (arr) => {
   const avg = _arrayAvg(arr);
-  const sqDiffs = arr.map(v => Math.pow(v - avg, 2));
+  if (isNaN(avg)) return NaN;
+  const xs = _arrayNumeric(arr);
+  const sqDiffs = xs.map(v => Math.pow(v - avg, 2));
   return Math.sqrt(_arrayAvg(sqDiffs));
 };
 const _arrayVariance = (arr) => {
   const avg = _arrayAvg(arr);
-  const sqDiffs = arr.map(v => Math.pow(v - avg, 2));
+  if (isNaN(avg)) return NaN;
+  const xs = _arrayNumeric(arr);
+  const sqDiffs = xs.map(v => Math.pow(v - avg, 2));
   return _arrayAvg(sqDiffs);
 };
-const _arraySort = (arr, asc = true) => [...arr].sort((a, b) => asc ? a - b : b - a);
-const _arrayReverse = (arr) => [...arr].reverse();
-const _arraySlice = (arr, start, end) => arr.slice(start, end);
-const _arrayConcat = (arr1, arr2) => arr1.concat(arr2);
-const _arrayCopy = (arr) => [...arr];
-const _arrayClear = (arr) => { arr.length = 0; return arr; };
-const _arrayIncludes = (arr, val) => arr.includes(val);
-const _arrayIndexOf = (arr, val) => arr.indexOf(val);
-const _arrayLastIndexOf = (arr, val) => arr.lastIndexOf(val);
-const _arrayJoin = (arr, sep = ',') => arr.join(sep);
+const _arraySort = (arr, asc = true) => {
+  if (!Array.isArray(arr)) return arr;
+  arr.sort((a, b) => asc ? a - b : b - a);
+  return arr;
+};
+const _arrayReverse = (arr) => {
+  if (!Array.isArray(arr)) return arr;
+  arr.reverse();
+  return arr;
+};
+const _arraySlice = (arr, start, end) => _arrayEnsurePineMethods(_arrayAsArray(arr).slice(start, end));
+const _arrayConcat = (arr1, arr2) => _arrayEnsurePineMethods(_arrayAsArray(arr1).concat(_arrayAsArray(arr2)));
+const _arrayCopy = (arr) => _arrayEnsurePineMethods([..._arrayAsArray(arr)]);
+const _arrayClear = (arr) => {
+  if (Array.isArray(arr)) arr.length = 0;
+  return arr;
+};
+const _arrayIncludes = (arr, val) => _arrayAsArray(arr).includes(val);
+const _arrayIndexOf = (arr, val) => _arrayAsArray(arr).indexOf(val);
+const _arrayLastIndexOf = (arr, val) => _arrayAsArray(arr).lastIndexOf(val);
+const _arrayJoin = (arr, sep = ',') => _arrayAsArray(arr).join(sep);
 `;
 //#endregion
 //#region src/mappings/barstate.ts
@@ -1629,6 +1893,10 @@ var BARSTATE_MAPPINGS = {
 	"barstate.isconfirmed": {
 		stdName: "_isConfirmedBar",
 		description: "Is bar confirmed (closed)"
+	},
+	"barstate.islastconfirmedhistory": {
+		stdName: "_isLastConfirmedHistoryBar",
+		description: "Is the last confirmed historical bar"
 	}
 };
 /**
@@ -1641,6 +1909,7 @@ const _isHistoryBar = true; // Assume history during replay
 const _isRealtimeBar = false;
 const _isNewBar = true; // Simplified
 const _isConfirmedBar = true; // Simplified
+const _isLastConfirmedHistoryBar = false; // Simplified
 `;
 //#endregion
 //#region src/mappings/color.ts
@@ -1770,6 +2039,102 @@ const _mapKeys = (m) => Array.from(m.keys());
 const _mapValues = (m) => Array.from(m.values());
 const _mapClear = (m) => { m.clear(); return m; };
 const _mapCopy = (m) => new Map(m);
+`;
+//#endregion
+//#region src/mappings/matrix.ts
+/**
+* Matrix Function Mappings (Pine v6)
+*
+* Pine `matrix.*` APIs are lowered to lightweight JS helpers so scripts
+* like `var matrix = matrix.new<string>(...)` don't depend on an
+* injected runtime namespace object.
+*/
+var MATRIX_FUNCTION_MAPPINGS = {
+	"matrix.new": {
+		stdName: "_matrixNew",
+		description: "Create a new matrix"
+	},
+	"matrix.rows": {
+		stdName: "_matrixRows",
+		description: "Get row count"
+	},
+	"matrix.columns": {
+		stdName: "_matrixColumns",
+		description: "Get column count"
+	},
+	"matrix.get": {
+		stdName: "_matrixGet",
+		description: "Read a matrix cell"
+	},
+	"matrix.set": {
+		stdName: "_matrixSet",
+		description: "Write a matrix cell"
+	},
+	"matrix.add_row": {
+		stdName: "_matrixAddRow",
+		description: "Insert a row"
+	},
+	"matrix.remove_row": {
+		stdName: "_matrixRemoveRow",
+		description: "Remove a row"
+	}
+};
+var MATRIX_HELPER_FUNCTIONS = `
+// Matrix helpers (Pine v6 matrix.*)
+const _matrixSafeInt = (v, fallback = 0) => {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, Math.floor(n));
+};
+const _matrixNew = (rows = 0, columns = 0, fill = NaN) => {
+  const r = _matrixSafeInt(rows, 0);
+  const c = _matrixSafeInt(columns, 0);
+  const data = Array.from({ length: r }, () => Array(c).fill(fill));
+  return { _rows: data, _columns: c, _fill: fill };
+};
+const _matrixRows = (m) => (Array.isArray(m?._rows) ? m._rows.length : 0);
+const _matrixColumns = (m) =>
+  typeof m?._columns === 'number' ? m._columns : 0;
+const _matrixNormalizeRow = (m, row) => {
+  const values = Array.isArray(row) ? [...row] : [row];
+  const width = _matrixColumns(m);
+  if (width === 0) return values;
+  if (values.length > width) return values.slice(0, width);
+  if (values.length < width) {
+    return values.concat(Array(width - values.length).fill(m?._fill ?? NaN));
+  }
+  return values;
+};
+const _matrixAddRow = (m, index, row) => {
+  if (!Array.isArray(m?._rows)) return m;
+  const at = _matrixSafeInt(index, m._rows.length);
+  const safeIndex = Math.min(at, m._rows.length);
+  m._rows.splice(safeIndex, 0, _matrixNormalizeRow(m, row));
+  return m;
+};
+const _matrixRemoveRow = (m, index) => {
+  if (!Array.isArray(m?._rows) || m._rows.length === 0) return [];
+  const at = _matrixSafeInt(index, m._rows.length - 1);
+  const safeIndex = Math.min(at, m._rows.length - 1);
+  const removed = m._rows.splice(safeIndex, 1);
+  return removed[0] ?? [];
+};
+const _matrixGet = (m, row, column) => {
+  if (!Array.isArray(m?._rows)) return NaN;
+  const r = _matrixSafeInt(row, 0);
+  const c = _matrixSafeInt(column, 0);
+  return m._rows[r]?.[c];
+};
+const _matrixSet = (m, row, column, value) => {
+  if (!Array.isArray(m?._rows)) return m;
+  const r = _matrixSafeInt(row, 0);
+  const c = _matrixSafeInt(column, 0);
+  if (!Array.isArray(m._rows[r])) {
+    m._rows[r] = Array(_matrixColumns(m)).fill(m?._fill ?? NaN);
+  }
+  m._rows[r][c] = value;
+  return m;
+};
 `;
 //#endregion
 //#region src/mappings/string.ts
@@ -2058,6 +2423,7 @@ var ALL_UTILITY_MAPPINGS = {
 	...STRING_FUNCTION_MAPPINGS,
 	...ARRAY_FUNCTION_MAPPINGS,
 	...MAP_FUNCTION_MAPPINGS,
+	...MATRIX_FUNCTION_MAPPINGS,
 	...RUNTIME_ERROR_MAPPING,
 	...PLOT_MAPPINGS
 };
@@ -2096,7 +2462,26 @@ function getMappingStats() {
 */
 function createInputMock(inputCallback, Std, context) {
 	let _inputIndex = 0;
-	const baseInput = (_defval, _title) => inputCallback(_inputIndex++);
+	const coerceInputValue = (defval, raw) => {
+		if (typeof defval === "string") return typeof raw === "string" ? raw : defval;
+		if (typeof defval === "boolean") {
+			if (typeof raw === "boolean") return raw;
+			if (typeof raw === "number") return raw !== 0;
+			if (typeof raw === "string") {
+				const s = raw.trim().toLowerCase();
+				if (s === "true") return true;
+				if (s === "false") return false;
+			}
+			return defval;
+		}
+		if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+		if (typeof raw === "string") {
+			const parsed = Number(raw);
+			if (Number.isFinite(parsed)) return parsed;
+		}
+		return defval;
+	};
+	const baseInput = (defval, _title) => coerceInputValue(defval, inputCallback(_inputIndex++));
 	const input = baseInput;
 	input.int = baseInput;
 	input.float = baseInput;
@@ -2127,8 +2512,18 @@ function createInputMock(inputCallback, Std, context) {
 * Create the plot function mock for runtime
 */
 function createPlotMock(plotValues) {
+	const coercePlotValue = (value) => {
+		if (typeof value === "number") return Number.isFinite(value) ? value : NaN;
+		if (typeof value === "boolean") return value ? 1 : 0;
+		if (typeof value === "object" && value !== null && "value" in value) return coercePlotValue(value.value);
+		if (typeof value === "string") {
+			const parsed = Number(value);
+			return Number.isFinite(parsed) ? parsed : NaN;
+		}
+		return NaN;
+	};
 	const basePlot = (series, _title, _color) => {
-		plotValues.push(series);
+		plotValues.push(coercePlotValue(series));
 	};
 	const plot = basePlot;
 	plot.style_line = 0;
@@ -2219,50 +2614,472 @@ function createPriceSources(Std, context) {
 }
 //#endregion
 //#region src/runtime/stub-namespaces.ts
-/** Track if we've already warned about stub usage to avoid console spam */
-var _stubWarningsShown = null;
-/**
-* Log a warning once per stub type
-*/
-function warnOnceAboutStub(stubName, message) {
-	if (!_stubWarningsShown) _stubWarningsShown = /* @__PURE__ */ new Set();
-	if (!_stubWarningsShown.has(stubName)) {
-		_stubWarningsShown.add(stubName);
-		console.warn(`[pine-transpiler] ${message}`);
-	}
+function toNumber(value, fallback = NaN) {
+	const n = Number(value);
+	return Number.isFinite(n) ? n : fallback;
+}
+function toInteger(value, fallback = 0) {
+	const n = Number(value);
+	return Number.isFinite(n) ? Math.trunc(n) : fallback;
+}
+function asHandle(value) {
+	if (typeof value !== "object" || value === null) return void 0;
+	const candidate = value;
+	if (typeof candidate.__id !== "number") return void 0;
+	return candidate;
+}
+function withConstantFallback(base, prefix) {
+	return new Proxy(base, { get(target, prop) {
+		if (typeof prop !== "string") return void 0;
+		if (prop in target) return target[prop];
+		return `${prefix}.${prop}`;
+	} });
+}
+function resolveHandle(value, store) {
+	const handle = asHandle(value);
+	if (!handle) return void 0;
+	const resolved = store.get(handle.__id);
+	if (!resolved || resolved.__deleted) return void 0;
+	return resolved;
+}
+function makeLineNamespace() {
+	let nextId = 1;
+	const lineStore = /* @__PURE__ */ new Map();
+	const deleteLine = (lineObj) => {
+		const h = resolveHandle(lineObj, lineStore);
+		if (!h) return;
+		h.__deleted = true;
+		lineStore.delete(h.__id);
+	};
+	const setX2 = (lineObj, x2) => {
+		const h = resolveHandle(lineObj, lineStore);
+		if (!h) return;
+		h.x2 = toNumber(x2);
+	};
+	const setXY1 = (lineObj, x1, y1) => {
+		const h = resolveHandle(lineObj, lineStore);
+		if (!h) return;
+		h.x1 = toNumber(x1);
+		h.y1 = toNumber(y1);
+	};
+	const setXY2 = (lineObj, x2, y2) => {
+		const h = resolveHandle(lineObj, lineStore);
+		if (!h) return;
+		h.x2 = toNumber(x2);
+		h.y2 = toNumber(y2);
+	};
+	const setColor = (lineObj, color) => {
+		const h = resolveHandle(lineObj, lineStore);
+		if (!h) return;
+		h.color = color;
+	};
+	const getX2 = (lineObj) => {
+		const h = resolveHandle(lineObj, lineStore);
+		return h ? toNumber(h.x2) : NaN;
+	};
+	const getY1 = (lineObj) => {
+		const h = resolveHandle(lineObj, lineStore);
+		return h ? toNumber(h.y1) : NaN;
+	};
+	const getY2 = (lineObj) => {
+		const h = resolveHandle(lineObj, lineStore);
+		return h ? toNumber(h.y2) : NaN;
+	};
+	const attachLineMethods = (h) => {
+		if (typeof h.delete !== "function") h.delete = () => deleteLine(h);
+		if (typeof h.set_x2 !== "function") h.set_x2 = (x2) => setX2(h, x2);
+		if (typeof h.set_xy1 !== "function") h.set_xy1 = (x1, y1) => setXY1(h, x1, y1);
+		if (typeof h.set_xy2 !== "function") h.set_xy2 = (x2, y2) => setXY2(h, x2, y2);
+		if (typeof h.set_color !== "function") h.set_color = (color) => setColor(h, color);
+		if (typeof h.get_x2 !== "function") h.get_x2 = () => getX2(h);
+		if (typeof h.get_y1 !== "function") h.get_y1 = () => getY1(h);
+		if (typeof h.get_y2 !== "function") h.get_y2 = () => getY2(h);
+	};
+	return withConstantFallback({
+		new: (...args) => {
+			const h = {
+				__id: nextId++,
+				__deleted: false,
+				x1: toNumber(args[0]),
+				y1: toNumber(args[1]),
+				x2: toNumber(args[2]),
+				y2: toNumber(args[3]),
+				color: args[4],
+				style: args[5],
+				width: toInteger(args[6], 1)
+			};
+			attachLineMethods(h);
+			lineStore.set(h.__id, h);
+			return h;
+		},
+		delete: deleteLine,
+		set_x2: setX2,
+		set_xy1: setXY1,
+		set_xy2: setXY2,
+		set_color: setColor,
+		get_x2: getX2,
+		get_y1: getY1,
+		get_y2: getY2,
+		style_solid: "solid",
+		style_dashed: "dashed",
+		style_dotted: "dotted",
+		style_arrow_left: "arrow_left",
+		style_arrow_right: "arrow_right",
+		style_arrow_both: "arrow_both"
+	}, "line");
+}
+function isColorLike(v) {
+	if (typeof v !== "string" || v.length === 0) return false;
+	if (v === "NaN" || v === "na") return false;
+	return v.startsWith("#") || v.startsWith("rgb") || v.startsWith("hsl");
+}
+function makeBoxNamespace() {
+	let nextId = 1;
+	const boxStore = /* @__PURE__ */ new Map();
+	let currentBarTime = NaN;
+	const deleteBox = (boxObj) => {
+		const h = resolveHandle(boxObj, boxStore);
+		if (!h) return;
+		h.__deleted = true;
+		boxStore.delete(h.__id);
+	};
+	const setLeft = (boxObj, left) => {
+		const h = resolveHandle(boxObj, boxStore);
+		if (!h) return;
+		h.left = toNumber(left);
+	};
+	const setRight = (boxObj, right) => {
+		const h = resolveHandle(boxObj, boxStore);
+		if (!h) return;
+		h.right = toNumber(right);
+	};
+	const setTop = (boxObj, top) => {
+		const h = resolveHandle(boxObj, boxStore);
+		if (!h) return;
+		h.top = toNumber(top);
+	};
+	const setBottom = (boxObj, bottom) => {
+		const h = resolveHandle(boxObj, boxStore);
+		if (!h) return;
+		h.bottom = toNumber(bottom);
+	};
+	const setExtend = (boxObj, extend) => {
+		const h = resolveHandle(boxObj, boxStore);
+		if (!h) return;
+		h.extend = extend;
+	};
+	const setBgcolor = (boxObj, color) => {
+		const h = resolveHandle(boxObj, boxStore);
+		if (!h) return;
+		h.bgcolor = color;
+	};
+	const setBorderColor = (boxObj, color) => {
+		const h = resolveHandle(boxObj, boxStore);
+		if (!h) return;
+		h.border_color = color;
+	};
+	const setBorderWidth = (boxObj, width) => {
+		const h = resolveHandle(boxObj, boxStore);
+		if (!h) return;
+		h.border_width = toInteger(width, 1);
+	};
+	const setTextColor = (boxObj, color) => {
+		const h = resolveHandle(boxObj, boxStore);
+		if (!h) return;
+		h.text_color = color;
+	};
+	const getTop = (boxObj) => {
+		const h = resolveHandle(boxObj, boxStore);
+		return h ? toNumber(h.top) : NaN;
+	};
+	const getBottom = (boxObj) => {
+		const h = resolveHandle(boxObj, boxStore);
+		return h ? toNumber(h.bottom) : NaN;
+	};
+	const getLeft = (boxObj) => {
+		const h = resolveHandle(boxObj, boxStore);
+		return h ? toNumber(h.left) : NaN;
+	};
+	const getRight = (boxObj) => {
+		const h = resolveHandle(boxObj, boxStore);
+		return h ? toNumber(h.right) : NaN;
+	};
+	const attachBoxMethods = (h) => {
+		if (typeof h.delete !== "function") h.delete = () => deleteBox(h);
+		if (typeof h.set_left !== "function") h.set_left = (left) => setLeft(h, left);
+		if (typeof h.set_right !== "function") h.set_right = (right) => setRight(h, right);
+		if (typeof h.set_top !== "function") h.set_top = (top) => setTop(h, top);
+		if (typeof h.set_bottom !== "function") h.set_bottom = (bottom) => setBottom(h, bottom);
+		if (typeof h.set_extend !== "function") h.set_extend = (extend) => setExtend(h, extend);
+		if (typeof h.set_bgcolor !== "function") h.set_bgcolor = (color) => setBgcolor(h, color);
+		if (typeof h.set_border_color !== "function") h.set_border_color = (color) => setBorderColor(h, color);
+		if (typeof h.set_border_width !== "function") h.set_border_width = (width) => setBorderWidth(h, width);
+		if (typeof h.set_text_color !== "function") h.set_text_color = (color) => setTextColor(h, color);
+		if (typeof h.get_top !== "function") h.get_top = () => getTop(h);
+		if (typeof h.get_bottom !== "function") h.get_bottom = () => getBottom(h);
+		if (typeof h.get_left !== "function") h.get_left = () => getLeft(h);
+		if (typeof h.get_right !== "function") h.get_right = () => getRight(h);
+	};
+	return withConstantFallback({
+		new: (...args) => {
+			const h = {
+				__id: nextId++,
+				__deleted: false,
+				left: toNumber(args[0]),
+				top: toNumber(args[1]),
+				right: toNumber(args[2]),
+				bottom: toNumber(args[3]),
+				border_color: args[4],
+				border_width: toInteger(args[5], 1),
+				border_style: args[6],
+				extend: args[7],
+				xloc: args[8],
+				bgcolor: args[9],
+				text: args[10],
+				text_size: args[11],
+				text_color: args[12],
+				text_halign: args[13],
+				text_valign: args[14]
+			};
+			attachBoxMethods(h);
+			boxStore.set(h.__id, h);
+			return h;
+		},
+		delete: deleteBox,
+		set_left: setLeft,
+		set_right: setRight,
+		set_top: setTop,
+		set_bottom: setBottom,
+		set_extend: setExtend,
+		set_bgcolor: setBgcolor,
+		set_border_color: setBorderColor,
+		set_border_width: setBorderWidth,
+		set_text_color: setTextColor,
+		get_left: getLeft,
+		get_right: getRight,
+		get_top: getTop,
+		get_bottom: getBottom,
+		__setBarTime: (t) => {
+			const n = Number(t);
+			if (Number.isFinite(n)) currentBarTime = n;
+		},
+		__getActiveBgcolor: () => {
+			if (!Number.isFinite(currentBarTime)) return null;
+			let active = null;
+			for (const h of boxStore.values()) if (typeof h.right === "number" && h.right === currentBarTime) active = h;
+			if (!active) return null;
+			if (isColorLike(active.bgcolor)) return active.bgcolor;
+			if (isColorLike(active.border_color)) return active.border_color;
+			return null;
+		}
+	}, "box");
+}
+function makeLabelNamespace() {
+	let nextId = 1;
+	const labelStore = /* @__PURE__ */ new Map();
+	const deleteLabel = (labelObj) => {
+		const h = resolveHandle(labelObj, labelStore);
+		if (!h) return;
+		h.__deleted = true;
+		labelStore.delete(h.__id);
+	};
+	const setText = (labelObj, text) => {
+		const h = resolveHandle(labelObj, labelStore);
+		if (!h) return;
+		h.text = text == null ? "" : String(text);
+	};
+	const getText = (labelObj) => {
+		const h = resolveHandle(labelObj, labelStore);
+		if (!h) return "";
+		return h.text == null ? "" : String(h.text);
+	};
+	const setTooltip = (labelObj, tooltip) => {
+		const h = resolveHandle(labelObj, labelStore);
+		if (!h) return;
+		h.tooltip = tooltip == null ? "" : String(tooltip);
+	};
+	const setTextcolor = (labelObj, color) => {
+		const h = resolveHandle(labelObj, labelStore);
+		if (!h) return;
+		h.textcolor = color;
+	};
+	const setStyle = (labelObj, style) => {
+		const h = resolveHandle(labelObj, labelStore);
+		if (!h) return;
+		h.style = style;
+	};
+	const setXY = (labelObj, x, y) => {
+		const h = resolveHandle(labelObj, labelStore);
+		if (!h) return;
+		h.x = toNumber(x);
+		h.y = toNumber(y);
+	};
+	const setX = (labelObj, x) => {
+		const h = resolveHandle(labelObj, labelStore);
+		if (!h) return;
+		h.x = toNumber(x);
+	};
+	const setY = (labelObj, y) => {
+		const h = resolveHandle(labelObj, labelStore);
+		if (!h) return;
+		h.y = toNumber(y);
+	};
+	const getY = (labelObj) => {
+		const h = resolveHandle(labelObj, labelStore);
+		return h ? toNumber(h.y) : NaN;
+	};
+	const attachLabelMethods = (h) => {
+		if (typeof h.delete !== "function") h.delete = () => deleteLabel(h);
+		if (typeof h.set_text !== "function") h.set_text = (text) => setText(h, text);
+		if (typeof h.get_text !== "function") h.get_text = () => getText(h);
+		if (typeof h.set_tooltip !== "function") h.set_tooltip = (tooltip) => setTooltip(h, tooltip);
+		if (typeof h.set_textcolor !== "function") h.set_textcolor = (color) => setTextcolor(h, color);
+		if (typeof h.set_style !== "function") h.set_style = (style) => setStyle(h, style);
+		if (typeof h.set_xy !== "function") h.set_xy = (x, y) => setXY(h, x, y);
+		if (typeof h.set_x !== "function") h.set_x = (x) => setX(h, x);
+		if (typeof h.set_y !== "function") h.set_y = (y) => setY(h, y);
+		if (typeof h.get_y !== "function") h.get_y = () => getY(h);
+	};
+	return withConstantFallback({
+		new: (...args) => {
+			const h = {
+				__id: nextId++,
+				__deleted: false,
+				x: toNumber(args[0]),
+				y: toNumber(args[1]),
+				text: args[2] == null ? "" : String(args[2]),
+				xloc: args[3],
+				yloc: args[4],
+				color: args[5],
+				style: args[6],
+				textcolor: args[7],
+				size: args[8],
+				textalign: args[9],
+				tooltip: args[10]
+			};
+			attachLabelMethods(h);
+			labelStore.set(h.__id, h);
+			return h;
+		},
+		delete: deleteLabel,
+		set_text: setText,
+		get_text: getText,
+		set_tooltip: setTooltip,
+		set_textcolor: setTextcolor,
+		set_style: setStyle,
+		set_xy: setXY,
+		set_x: setX,
+		set_y: setY,
+		get_y: getY,
+		style_none: "none",
+		style_xcross: "xcross",
+		style_cross: "cross",
+		style_triangleup: "triangleup",
+		style_triangledown: "triangledown",
+		style_flag: "flag",
+		style_circle: "circle",
+		style_arrowup: "arrowup",
+		style_arrowdown: "arrowdown",
+		style_square: "square",
+		style_diamond: "diamond",
+		style_label_up: "label_up",
+		style_label_down: "label_down",
+		style_label_left: "label_left",
+		style_label_right: "label_right",
+		style_label_lower_left: "label_lower_left",
+		style_label_lower_right: "label_lower_right",
+		style_label_upper_left: "label_upper_left",
+		style_label_upper_right: "label_upper_right",
+		style_label_center: "label_center"
+	}, "label");
+}
+function makeTableNamespace() {
+	let nextId = 1;
+	const tableStore = /* @__PURE__ */ new Map();
+	const keyFor = (col, row) => `${col}:${row}`;
+	const tableCell = (...args) => {
+		const t = resolveHandle(args[0], tableStore);
+		if (!t) return;
+		const col = toInteger(args[1], 0);
+		const row = toInteger(args[2], 0);
+		t.cells.set(keyFor(col, row), {
+			text: args[3],
+			textColor: args[4],
+			textHalign: args[5],
+			textSize: args[6],
+			bgcolor: args[7],
+			tooltip: args[8],
+			textValign: args[9]
+		});
+	};
+	const tableClear = (...args) => {
+		const t = resolveHandle(args[0], tableStore);
+		if (!t) return;
+		if (args.length <= 1) {
+			t.cells.clear();
+			t.merges = [];
+			return;
+		}
+		const startCol = toInteger(args[1], 0);
+		const startRow = toInteger(args[2], 0);
+		const endCol = toInteger(args[3], t.columns - 1);
+		const endRow = toInteger(args[4], t.rows - 1);
+		for (const key of t.cells.keys()) {
+			const [cStr, rStr] = key.split(":");
+			const c = Number(cStr);
+			const r = Number(rStr);
+			if (c >= startCol && c <= endCol && r >= startRow && r <= endRow) t.cells.delete(key);
+		}
+	};
+	const tableMergeCells = (...args) => {
+		const t = resolveHandle(args[0], tableStore);
+		if (!t) return;
+		const startCol = toInteger(args[1], 0);
+		const startRow = toInteger(args[2], 0);
+		const endCol = toInteger(args[3], startCol);
+		const endRow = toInteger(args[4], startRow);
+		t.merges.push([
+			startCol,
+			startRow,
+			endCol,
+			endRow
+		]);
+	};
+	const attachTableMethods = (t) => {
+		if (typeof t.cell !== "function") t.cell = (...args) => tableCell(t, ...args);
+		if (typeof t.clear !== "function") t.clear = (...args) => tableClear(t, ...args);
+		if (typeof t.merge_cells !== "function") t.merge_cells = (...args) => tableMergeCells(t, ...args);
+	};
+	return withConstantFallback({
+		new: (...args) => {
+			const t = {
+				__id: nextId++,
+				__deleted: false,
+				position: args[0],
+				columns: Math.max(0, toInteger(args[1], 0)),
+				rows: Math.max(0, toInteger(args[2], 0)),
+				cells: /* @__PURE__ */ new Map(),
+				merges: []
+			};
+			attachTableMethods(t);
+			tableStore.set(t.__id, t);
+			return t;
+		},
+		cell: tableCell,
+		clear: tableClear,
+		merge_cells: tableMergeCells
+	}, "table");
 }
 /**
-* Create stub namespaces for unsupported features
-* Drawing functions (box, line, label, table) are no-ops with warnings
-* barstate properties return sensible defaults with warnings
+* Create runtime compatibility namespaces.
+* Drawing/table namespaces are stateful no-op objects.
 */
 function createStubNamespaces() {
 	return {
-		box: {
-			new: () => {
-				warnOnceAboutStub("box.new", "box.new() is not supported - drawing functions are stubs");
-			},
-			delete: () => {},
-			set_left: () => {}
-		},
-		line: {
-			new: () => {
-				warnOnceAboutStub("line.new", "line.new() is not supported - drawing functions are stubs");
-			},
-			delete: () => {}
-		},
-		label: {
-			new: () => {
-				warnOnceAboutStub("label.new", "label.new() is not supported - drawing functions are stubs");
-			},
-			delete: () => {}
-		},
-		table: {
-			new: () => {
-				warnOnceAboutStub("table.new", "table.new() is not supported - table functions are stubs");
-			},
-			cell: () => {}
-		},
+		box: makeBoxNamespace(),
+		line: makeLineNamespace(),
+		label: makeLabelNamespace(),
+		table: makeTableNamespace(),
 		str: (() => {
 			const c = (v) => v == null ? "" : String(v);
 			return {
@@ -2308,6 +3125,10 @@ function createStubNamespaces() {
 *                  baseline)
 * - `isconfirmed`— !isrealtime; the last bar of historical replay is
 *                  always confirmed
+* - `islastconfirmedhistory`
+*                — best-effort Pine parity: when bar indexes are known,
+*                  true on the last historical bar (`isRealtime=false`)
+*                  or the bar immediately before realtime (`isRealtime=true`)
 */
 function createBarstate(ctx = {
 	currentTime: -1,
@@ -2333,6 +3154,13 @@ function createBarstate(ctx = {
 		},
 		get isconfirmed() {
 			return !isRealtime;
+		},
+		get islastconfirmedhistory() {
+			if (typeof totalBars === "number" && typeof barIndex === "number") {
+				if (isRealtime) return barIndex === totalBars - 2;
+				return barIndex === totalBars - 1;
+			}
+			return false;
 		}
 	};
 }
@@ -2378,6 +3206,16 @@ var PRICE_SOURCES = [
 ];
 //#endregion
 //#region src/factory/indicator-factory.ts
+function isUnsafeEvalCspError$1(error) {
+	const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+	return message.includes("unsafe-eval") || message.includes("content security policy") || message.includes("violates the following content security policy directive") || message.includes("evaluating a string as javascript");
+}
+function appendCspHint(error) {
+	if (!isUnsafeEvalCspError$1(error)) return error;
+	const hint = "CSP blocked dynamic compilation (`new Function`). Use `transpileToStandaloneFactory(...)` (or CLI `pine-transpiler transpile --format factory`) and load the generated module at build-time.";
+	if (!error.message.includes(hint)) error.message = `${error.message}\n${hint}`;
+	return error;
+}
 /**
 * Safely read an optional field from an opaque object (typically the
 * runtime `context` or `context.symbol`). The PineJS runtime declares
@@ -2395,19 +3233,385 @@ function readBooleanField(obj, key, fallback) {
 	const v = obj[key];
 	return typeof v === "boolean" ? v : fallback;
 }
+function readStringField(obj, key) {
+	const v = obj[key];
+	return typeof v === "string" ? v : void 0;
+}
+function ensureArrayPrototypeCompat() {
+	const define = (name, value) => {
+		if (typeof Array.prototype[name] === "function") return;
+		Object.defineProperty(Array.prototype, name, {
+			value,
+			enumerable: false,
+			configurable: true,
+			writable: true
+		});
+	};
+	const numeric = (arr) => arr.filter((v) => typeof v === "number" && Number.isFinite(v));
+	define("min", function min() {
+		const xs = numeric(this);
+		return xs.length === 0 ? NaN : Math.min(...xs);
+	});
+	define("max", function max() {
+		const xs = numeric(this);
+		return xs.length === 0 ? NaN : Math.max(...xs);
+	});
+	define("sum", function sum() {
+		return numeric(this).reduce((acc, v) => acc + v, 0);
+	});
+	define("avg", function avg() {
+		const xs = numeric(this);
+		if (xs.length === 0) return NaN;
+		return xs.reduce((acc, v) => acc + v, 0) / xs.length;
+	});
+	define("variance", function variance() {
+		const xs = numeric(this);
+		if (xs.length === 0) return NaN;
+		const mean = xs.reduce((acc, v) => acc + v, 0) / xs.length;
+		return xs.map((v) => (v - mean) * (v - mean)).reduce((acc, v) => acc + v, 0) / xs.length;
+	});
+	define("stdev", function stdev() {
+		const v = this.variance?.();
+		return typeof v === "number" ? Math.sqrt(v) : NaN;
+	});
+}
+/**
+* Schema version for the per-bar `__visualEvents` payload. Stamped on
+* the array returned from `main()` so host renderers can detect
+* breaking changes. See HOST_RENDERING_CONTRACT.md for the
+* additive-vs-breaking policy.
+*/
+var VISUAL_EVENTS_VERSION = 1;
+var RUNTIME_DIAGNOSTICS_VERSION = 1;
+function extractHandleId(value) {
+	if (typeof value !== "object" || value === null) return void 0;
+	const id = value.__id;
+	return typeof id === "number" ? id : void 0;
+}
+var VISUAL_STD_CALLS = new Set([
+	"plot",
+	"plotshape",
+	"plotchar",
+	"plotarrow",
+	"hline",
+	"bgcolor",
+	"fill",
+	"barcolor"
+]);
+function coercePlotNumber(value) {
+	if (typeof value === "number") return Number.isFinite(value) ? value : NaN;
+	if (typeof value === "boolean") return value ? 1 : 0;
+	if (typeof value === "object" && value !== null && "value" in value) return coercePlotNumber(value.value);
+	if (typeof value === "string") {
+		const parsed = Number(value);
+		return Number.isFinite(parsed) ? parsed : NaN;
+	}
+	return NaN;
+}
+function coerceShapePlotNumber(value) {
+	if (typeof value === "boolean") return value ? 1 : NaN;
+	const n = coercePlotNumber(value);
+	if (!Number.isFinite(n)) return NaN;
+	return n === 0 ? NaN : n;
+}
+function unwrapVisualValue(value) {
+	if (typeof value === "object" && value !== null && "value" in value) return unwrapVisualValue(value.value);
+	return value;
+}
+function readVisualNumber(value) {
+	const raw = unwrapVisualValue(value);
+	if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
+	if (typeof raw === "string") {
+		const parsed = Number(raw);
+		return Number.isFinite(parsed) ? parsed : null;
+	}
+	return null;
+}
+function readVisualDisplay(value) {
+	const raw = unwrapVisualValue(value);
+	if (typeof raw === "string") {
+		const trimmed = raw.trim();
+		return trimmed ? trimmed : null;
+	}
+	if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
+	return null;
+}
+function readVisualColor(value) {
+	const raw = unwrapVisualValue(value);
+	if (typeof raw !== "string") return null;
+	const token = raw.trim();
+	if (!token) return null;
+	if (/^#[0-9a-fA-F]{3,8}$/.test(token)) return token;
+	if (/^(?:rgb|hsl)a?\(/i.test(token)) return token.replace(/\s+/g, " ");
+	if (/^color\./.test(token)) return token;
+	return null;
+}
+function readTranspFromColor(color) {
+	if (!color) return null;
+	const rgba = color.match(/^rgba\(([^)]+)\)$/i);
+	if (!rgba) return null;
+	const parts = rgba[1].split(",").map((p) => p.trim()).filter((p) => p.length > 0);
+	if (parts.length < 4) return null;
+	const alpha = Number(parts[3]);
+	if (!Number.isFinite(alpha)) return null;
+	return Math.round((1 - Math.min(1, Math.max(0, alpha))) * 100);
+}
+function normalizeVisualStyle(call, args) {
+	const colors = [];
+	for (const arg of args) {
+		const c = readVisualColor(arg);
+		if (c) colors.push(c);
+	}
+	const colorAt = (index) => {
+		const c = readVisualColor(args[index]);
+		if (c) colors.push(c);
+	};
+	const numberAt = (index) => readVisualNumber(args[index]);
+	const displayAt = (index) => readVisualDisplay(args[index]);
+	let transp = null;
+	let linewidth = null;
+	let offset = null;
+	let display = null;
+	const normalizedCall = call.startsWith("Std.") ? call.slice(4) : call;
+	switch (normalizedCall) {
+		case "plot":
+			colorAt(2);
+			linewidth = numberAt(3);
+			transp = numberAt(4) ?? numberAt(6);
+			offset = numberAt(5) ?? numberAt(7);
+			display = displayAt(6) ?? displayAt(9) ?? displayAt(8);
+			break;
+		case "plotshape":
+			colorAt(4);
+			transp = numberAt(6) ?? numberAt(7);
+			offset = numberAt(7) ?? numberAt(8);
+			display = displayAt(8) ?? displayAt(11) ?? displayAt(10) ?? displayAt(9);
+			break;
+		case "plotchar":
+			colorAt(4);
+			transp = numberAt(5) ?? numberAt(6);
+			offset = numberAt(6) ?? numberAt(7);
+			display = displayAt(7) ?? displayAt(10) ?? displayAt(9) ?? displayAt(8);
+			break;
+		case "plotarrow":
+			colorAt(1);
+			transp = numberAt(3);
+			offset = numberAt(4);
+			display = displayAt(7) ?? displayAt(6);
+			break;
+		case "hline":
+			colorAt(2);
+			linewidth = numberAt(4);
+			display = displayAt(6) ?? displayAt(5);
+			break;
+		case "bgcolor":
+			colorAt(0);
+			transp = numberAt(1);
+			display = displayAt(2) ?? displayAt(4) ?? displayAt(3);
+			break;
+		case "fill":
+			colorAt(2);
+			transp = numberAt(3);
+			display = displayAt(6) ?? displayAt(5);
+			break;
+		case "barcolor":
+			colorAt(0);
+			transp = numberAt(1);
+			display = displayAt(2) ?? displayAt(4) ?? displayAt(3);
+			break;
+		default:
+			if (normalizedCall.endsWith(".set_width") || normalizedCall.endsWith(".set_border_width")) linewidth = numberAt(1);
+			if (normalizedCall.endsWith(".set_color") || normalizedCall.endsWith(".set_textcolor") || normalizedCall.endsWith(".set_bgcolor") || normalizedCall.endsWith(".set_border_color")) colorAt(1);
+			if (normalizedCall === "line.new") {
+				colorAt(6);
+				linewidth = numberAt(8);
+			} else if (normalizedCall === "box.new") {
+				colorAt(4);
+				colorAt(9);
+				linewidth = numberAt(5);
+			} else if (normalizedCall === "label.new") {
+				colorAt(5);
+				colorAt(7);
+			} else if (normalizedCall === "table.cell") {
+				colorAt(4);
+				colorAt(5);
+				colorAt(7);
+			}
+			break;
+	}
+	const normalizedColors = [...new Set(colors)].sort((a, b) => a.localeCompare(b));
+	if (transp === null) for (const color of normalizedColors) {
+		const derived = readTranspFromColor(color);
+		if (derived !== null) {
+			transp = derived;
+			break;
+		}
+	}
+	if (normalizedColors.length === 0 && transp === null && linewidth === null && offset === null && display === null) return null;
+	return {
+		colors: normalizedColors,
+		transp,
+		linewidth,
+		offset,
+		display
+	};
+}
+function createVisualStdProxy(std, pushEvent, barIndex, options = {}) {
+	return new Proxy(std, { get(target, prop, receiver) {
+		const value = Reflect.get(target, prop, receiver);
+		if (typeof prop !== "string") return value;
+		if (!VISUAL_STD_CALLS.has(prop)) return value;
+		return (...args) => {
+			pushEvent({
+				call: `Std.${prop}`,
+				args,
+				barIndex
+			});
+			if (options.pushPlotValue) {
+				if (prop === "plot" || prop === "plotarrow") options.pushPlotValue(coercePlotNumber(args[0]));
+				else if (prop === "plotshape" || prop === "plotchar") options.pushPlotValue(coerceShapePlotNumber(args[0]));
+				else if (prop === "hline") options.pushPlotValue(NaN);
+			}
+			if (typeof value === "function") return value.apply(target, args);
+		};
+	} });
+}
+function wrapVisualHandle(namespace, handle, ctx) {
+	if (typeof handle !== "object" || handle === null) return handle;
+	const handleId = extractHandleId(handle);
+	return new Proxy(handle, { get(target, prop, receiver) {
+		const value = Reflect.get(target, prop, receiver);
+		if (typeof prop !== "string") return value;
+		if (typeof value !== "function") return value;
+		return (...args) => {
+			if (handleId !== void 0) ctx.pushEvent({
+				call: `${namespace}.${prop}`,
+				args,
+				barIndex: ctx.barIndex,
+				pineHandleId: handleId
+			});
+			return value.apply(target, args);
+		};
+	} });
+}
+function createVisualNamespaceProxy(namespace, ns, ctx) {
+	return new Proxy(ns, { get(target, prop, receiver) {
+		const value = Reflect.get(target, prop, receiver);
+		if (typeof prop !== "string") return value;
+		if (typeof value !== "function") return value;
+		return (...args) => {
+			const result = value.apply(target, args);
+			const handleId = prop === "new" ? extractHandleId(result) : extractHandleId(args[0]);
+			if (handleId !== void 0) ctx.pushEvent({
+				call: `${namespace}.${prop}`,
+				args,
+				barIndex: ctx.barIndex,
+				pineHandleId: handleId
+			});
+			if (prop === "new") return wrapVisualHandle(namespace, result, ctx);
+			return result;
+		};
+	} });
+}
+/**
+* Runtime helper bundle for persistent Pine variables.
+*
+* - `var`   values persist across all bars.
+* - `varip` values persist within a bar, then reset when bar identity
+*           (bar_index/time) changes.
+*
+* State is stored on `context` so it survives per-bar function calls.
+*/
+var STATE_HELPER_FUNCTIONS = `
+const _pineState = (() => {
+  const host = context;
+  if (!host.__pineState || typeof host.__pineState !== 'object') {
+    host.__pineState = {
+      var: Object.create(null),
+      varip: Object.create(null),
+      varipBarKey: null,
+      scopeOrdinal: 0,
+    };
+  }
+  const state = host.__pineState;
+  const hasBarIndex = typeof bar_index === 'number' && Number.isFinite(bar_index);
+  const hasTime = typeof time === 'number' && Number.isFinite(time);
+  const currentBarKey = hasBarIndex
+    ? 'i:' + String(bar_index)
+    : hasTime
+      ? 't:' + String(time)
+      : 'unknown';
+  if (state.varipBarKey !== currentBarKey) {
+    state.varip = Object.create(null);
+    state.varipBarKey = currentBarKey;
+  }
+  return state;
+})();
+const _pineVar = (key, init) => {
+  if (!Object.prototype.hasOwnProperty.call(_pineState.var, key)) {
+    _pineState.var[key] = init();
+  }
+  return _pineState.var[key];
+};
+const _pineSetVar = (key, value) => {
+  _pineState.var[key] = value;
+  return value;
+};
+const _pineVarip = (key, init) => {
+  if (!Object.prototype.hasOwnProperty.call(_pineState.varip, key)) {
+    _pineState.varip[key] = init();
+  }
+  return _pineState.varip[key];
+};
+const _pineSetVarip = (key, value) => {
+  _pineState.varip[key] = value;
+  return value;
+};
+const _pineInferScopeCallSite = (fallbackOrdinal) => {
+  try {
+    const stack = new Error().stack;
+    if (typeof stack !== 'string') return 'ord:' + String(fallbackOrdinal);
+    const lines = stack.split('\\n');
+    let nonHelperFrames = 0;
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line || line.includes('_pineInferScopeCallSite') || line.includes('_pineScopeKey')) {
+        continue;
+      }
+      const m = line.match(/:(\\d+):(\\d+)\\)?$/);
+      if (!m) continue;
+      nonHelperFrames += 1;
+      if (nonHelperFrames >= 2) {
+        return m[1] + ':' + m[2];
+      }
+    }
+  } catch {
+    // Fall through to ordinal fallback.
+  }
+  return 'scope';
+};
+const _pineScopeKey = (scopeId) => {
+  const ordinal = Number(_pineState.scopeOrdinal || 0);
+  _pineState.scopeOrdinal = ordinal + 1;
+  const callSite = _pineInferScopeCallSite(ordinal);
+  return String(scopeId) + '|' + callSite;
+};
+`;
 /**
 * Analyze which helpers are needed based on the transpiled code
 */
 function analyzeRequiredHelpers(mainBody) {
 	return {
-		needsMath: mainBody.includes("_avg(") || mainBody.includes("_sum(") || mainBody.includes("_toDegrees(") || mainBody.includes("_toRadians(") || mainBody.includes("_roundToMintick("),
+		needsMath: mainBody.includes("_avg(") || mainBody.includes("_pineSum(") || mainBody.includes("_toDegrees(") || mainBody.includes("_toRadians(") || mainBody.includes("_roundToMintick("),
 		needsSession: mainBody.includes("_isInSession(") || mainBody.includes("_isMarketSession(") || mainBody.includes("_isPremarket(") || mainBody.includes("_isPostmarket(") || mainBody.includes("_getTimeClose(") || mainBody.includes("_getTradingDayTime("),
 		needsStdPlus: mainBody.includes("StdPlus."),
-		needsArray: mainBody.includes("_arrayNew") || mainBody.includes("_arrayPush(") || mainBody.includes("_arrayPop(") || mainBody.includes("_arrayGet(") || mainBody.includes("_arraySet(") || mainBody.includes("_arraySize(") || mainBody.includes("_arrayAvg(") || mainBody.includes("_arraySum(") || mainBody.includes("_arrayMin(") || mainBody.includes("_arrayMax(") || mainBody.includes("_arrayStdev(") || mainBody.includes("_arrayVariance(") || mainBody.includes("_arraySort(") || mainBody.includes("_arrayReverse(") || mainBody.includes("_arraySlice(") || mainBody.includes("_arrayConcat(") || mainBody.includes("_arrayCopy(") || mainBody.includes("_arrayClear(") || mainBody.includes("_arrayIncludes(") || mainBody.includes("_arrayIndexOf(") || mainBody.includes("_arrayLastIndexOf(") || mainBody.includes("_arrayJoin("),
-		needsMap: mainBody.includes("_mapNew(") || mainBody.includes("_mapPut(") || mainBody.includes("_mapGet(") || mainBody.includes("_mapContains(") || mainBody.includes("_mapRemove(") || mainBody.includes("_mapSize(") || mainBody.includes("_mapKeys(") || mainBody.includes("_mapValues(") || mainBody.includes("_mapClear("),
+		needsArray: mainBody.includes("_arrayNew") || mainBody.includes("_arrayFrom(") || mainBody.includes("_arrayPush(") || mainBody.includes("_arrayUnshift(") || mainBody.includes("_arrayPop(") || mainBody.includes("_arrayShift(") || mainBody.includes("_arrayRemove(") || mainBody.includes("_arrayGet(") || mainBody.includes("_arraySet(") || mainBody.includes("_arraySize(") || mainBody.includes("_arrayAvg(") || mainBody.includes("_arraySum(") || mainBody.includes("_arrayMin(") || mainBody.includes("_arrayMax(") || mainBody.includes("_arrayStdev(") || mainBody.includes("_arrayVariance(") || mainBody.includes("_arraySort(") || mainBody.includes("_arrayReverse(") || mainBody.includes("_arraySlice(") || mainBody.includes("_arrayConcat(") || mainBody.includes("_arrayCopy(") || mainBody.includes("_arrayClear(") || mainBody.includes("_arrayIncludes(") || mainBody.includes("_arrayIndexOf(") || mainBody.includes("_arrayLastIndexOf(") || mainBody.includes("_arrayJoin("),
+		needsMap: mainBody.includes("_mapNew(") || mainBody.includes("_mapPut(") || mainBody.includes("_mapPutAll(") || mainBody.includes("_mapGet(") || mainBody.includes("_mapContains(") || mainBody.includes("_mapRemove(") || mainBody.includes("_mapSize(") || mainBody.includes("_mapKeys(") || mainBody.includes("_mapValues(") || mainBody.includes("_mapClear(") || mainBody.includes("_mapCopy("),
+		needsMatrix: mainBody.includes("_matrixNew(") || mainBody.includes("_matrixRows(") || mainBody.includes("_matrixColumns(") || mainBody.includes("_matrixGet(") || mainBody.includes("_matrixSet(") || mainBody.includes("_matrixAddRow(") || mainBody.includes("_matrixRemoveRow("),
 		needsColor: mainBody.includes("_colorNew("),
 		needsString: /\b_str[A-Z]/.test(mainBody),
-		needsUtility: mainBody.includes("_pineNa(") || mainBody.includes("_pineNz(") || mainBody.includes("_pineFixnan(")
+		needsUtility: mainBody.includes("_pineNa(") || mainBody.includes("_pineNz(") || mainBody.includes("_pineFixnan("),
+		needsState: mainBody.includes("_pineVar(") || mainBody.includes("_pineVarip(") || mainBody.includes("_pineSetVar(") || mainBody.includes("_pineSetVarip(") || mainBody.includes("_pineScopeKey(")
 	};
 }
 /**
@@ -2415,31 +3619,145 @@ function analyzeRequiredHelpers(mainBody) {
 */
 function generatePreamble(usedSources, historicalAccess, mainBody = "") {
 	let preamble = "";
+	const declaredHistorical = /* @__PURE__ */ new Set();
 	for (const source of usedSources) {
 		preamble += `const _series_${source} = context.new_var(${source});\n`;
 		preamble += `const _getHistorical_${source} = (offset) => _series_${source}.get(offset);\n`;
+		declaredHistorical.add(source);
 	}
-	for (const v of historicalAccess) if (!usedSources.has(v)) preamble += `let _getHistorical_${v} = (offset) => NaN;\n`;
-	const { needsMath, needsSession, needsStdPlus, needsArray, needsMap, needsColor, needsString, needsUtility } = analyzeRequiredHelpers(mainBody);
+	for (const v of historicalAccess) if (!usedSources.has(v)) {
+		preamble += `let _getHistorical_${v} = (offset) => NaN;\n`;
+		declaredHistorical.add(v);
+	}
+	for (const match of mainBody.matchAll(/_getHistorical_([A-Za-z0-9_]+)\s*\(/g)) {
+		const v = match[1];
+		if (!declaredHistorical.has(v)) {
+			preamble += `let _getHistorical_${v} = (offset) => NaN;\n`;
+			declaredHistorical.add(v);
+		}
+	}
+	const { needsMath, needsSession, needsStdPlus, needsArray, needsMap, needsMatrix, needsColor, needsString, needsUtility, needsState } = analyzeRequiredHelpers(mainBody);
 	if (needsMath) preamble += `${MATH_HELPER_FUNCTIONS}\n`;
 	if (needsSession) preamble += `${ALL_TIME_HELPERS}\n`;
 	if (needsStdPlus) preamble += `${STD_PLUS_LIBRARY}\n`;
 	if (needsArray) preamble += `${ARRAY_HELPER_FUNCTIONS}\n`;
 	if (needsMap) preamble += `${MAP_HELPER_FUNCTIONS}\n`;
+	if (needsMatrix) preamble += `${MATRIX_HELPER_FUNCTIONS}\n`;
 	if (needsColor) preamble += `${COLOR_HELPER_FUNCTIONS}\n`;
 	if (needsString) preamble += `${STRING_HELPER_FUNCTIONS}\n`;
 	if (needsUtility) preamble += `${UTILITY_HELPER_FUNCTIONS}\n`;
+	if (needsState) preamble += `${STATE_HELPER_FUNCTIONS}\n`;
 	return preamble;
 }
 /**
 * Build an indicator factory from the given options
 */
 function buildIndicatorFactory(options) {
-	const { indicatorId, indicatorName, name, shortName, overlay, plots, inputs, usedSources, historicalAccess, mainBody } = options;
+	const { indicatorId, indicatorName, name, shortName, overlay, plots, inputs, usedSources, historicalAccess, mainBody, autoBgColorerForBoxes = false } = options;
 	const body = generatePreamble(usedSources, historicalAccess, mainBody) + mainBody;
+	const hasAutoBgColorer = autoBgColorerForBoxes && body.includes("box.new(");
+	const AUTO_BG_PLOT_ID = "__auto_bg__";
+	const AUTO_BG_PALETTE_ID = "__auto_bg_palette__";
+	const AUTO_BG_PALETTE_COLORS = {
+		0: { name: "None" },
+		1: { name: "Session 1" },
+		2: { name: "Session 2" },
+		3: { name: "Session 3" },
+		4: { name: "Session 4" },
+		5: { name: "Session 5" },
+		6: { name: "Session 6" },
+		7: { name: "Session 7" }
+	};
+	const AUTO_BG_PALETTE_DEFAULTS = {
+		0: {
+			color: "rgba(0, 0, 0, 0)",
+			width: 1,
+			style: 0
+		},
+		1: {
+			color: "rgba(33, 150, 243, 0.08)",
+			width: 1,
+			style: 0
+		},
+		2: {
+			color: "rgba(244, 67, 54, 0.08)",
+			width: 1,
+			style: 0
+		},
+		3: {
+			color: "rgba(76, 175, 80, 0.08)",
+			width: 1,
+			style: 0
+		},
+		4: {
+			color: "rgba(255, 235, 59, 0.08)",
+			width: 1,
+			style: 0
+		},
+		5: {
+			color: "rgba(156, 39, 176, 0.08)",
+			width: 1,
+			style: 0
+		},
+		6: {
+			color: "rgba(255, 152, 0, 0.08)",
+			width: 1,
+			style: 0
+		},
+		7: {
+			color: "rgba(0, 188, 212, 0.08)",
+			width: 1,
+			style: 0
+		}
+	};
+	const AUTO_BG_VAL_TO_INDEX = {
+		0: 0,
+		1: 1,
+		2: 2,
+		3: 3,
+		4: 4,
+		5: 5,
+		6: 6,
+		7: 7
+	};
+	const AUTO_BG_DEFAULT_STYLE = {
+		linestyle: 0,
+		visible: true,
+		linewidth: 1,
+		plottype: "bg_colorer",
+		color: "rgba(0, 0, 0, 0)",
+		transparency: 85,
+		trackPrice: false
+	};
+	const totalPlotCount = plots.length + (hasAutoBgColorer ? 1 : 0);
 	const indicatorFactory = (PineJS) => {
 		const Std = PineJS.Std;
 		const safeId = sanitizeIndicatorId(indicatorId);
+		const colorToSlot = /* @__PURE__ */ new Map();
+		const resolveBgSlot = (color) => {
+			if (typeof color !== "string" || !color) return 0;
+			const cached = colorToSlot.get(color);
+			if (cached !== void 0) return cached;
+			const slot = colorToSlot.size % 7 + 1;
+			colorToSlot.set(color, slot);
+			return slot;
+		};
+		const basePlots = buildPlotsMetadata(plots);
+		const baseStyles = buildStylesMetadata(plots);
+		const baseDefaultStyles = buildDefaultStyles(plots);
+		const augmentedPlots = hasAutoBgColorer ? [...basePlots, {
+			id: AUTO_BG_PLOT_ID,
+			type: "bg_colorer",
+			palette: AUTO_BG_PALETTE_ID
+		}] : basePlots;
+		const augmentedStyles = hasAutoBgColorer ? {
+			...baseStyles,
+			[AUTO_BG_PLOT_ID]: { title: "Session Background" }
+		} : baseStyles;
+		const augmentedDefaultStyles = hasAutoBgColorer ? {
+			...baseDefaultStyles,
+			[AUTO_BG_PLOT_ID]: AUTO_BG_DEFAULT_STYLE
+		} : baseDefaultStyles;
 		return {
 			name: `User_${safeId}`,
 			metainfo: {
@@ -2449,22 +3767,32 @@ function buildIndicatorFactory(options) {
 				is_price_study: overlay,
 				isCustomIndicator: true,
 				format: { type: "inherit" },
-				plots: buildPlotsMetadata(plots),
+				plots: augmentedPlots,
+				...hasAutoBgColorer ? { palettes: { [AUTO_BG_PALETTE_ID]: {
+					colors: AUTO_BG_PALETTE_COLORS,
+					valToIndex: AUTO_BG_VAL_TO_INDEX
+				} } } : {},
 				defaults: {
-					styles: buildDefaultStyles(plots),
-					inputs: buildDefaultInputs(inputs)
+					styles: augmentedDefaultStyles,
+					inputs: buildDefaultInputs(inputs),
+					...hasAutoBgColorer ? { palettes: { [AUTO_BG_PALETTE_ID]: { colors: AUTO_BG_PALETTE_DEFAULTS } } } : {}
 				},
-				styles: buildStylesMetadata(plots),
+				styles: augmentedStyles,
 				inputs: buildInputsMetadata(inputs)
 			},
-			constructor: () => {
+			constructor: function() {
 				let _previousBarTime = -1;
+				let _fallbackBarIndex = -1;
+				let _processedBars = 0;
+				let _processedBarKey = null;
+				const _requestSecurityState = /* @__PURE__ */ new Map();
+				const _requestSecurityDiagnosticsSeen = /* @__PURE__ */ new Set();
 				let compiledScript;
 				try {
-					compiledScript = new Function("Std", "context", "input", "plot", "indicator", "study", "strategy", "color", "ta", "math", "timeframe", "plotshape", "plotchar", "plotarrow", "hline", "bgcolor", "fill", "barcolor", "box", "line", "label", "table", "str", "syminfo", "barstate", "shape", "location", "size", "alertcondition", "alert", "request", "array", "time", "bar_index", "hour", "minute", "second", "year", "month", "dayofmonth", "dayofweek", "chart", "format", "string", "xloc", "yloc", "extend", "position", "text", "display", "ticker", "close", "open", "high", "low", "volume", "hl2", "hlc3", "ohlc4", body);
+					compiledScript = new Function("Std", "context", "input", "plot", "indicator", "study", "strategy", "color", "ta", "math", "timeframe", "plotshape", "plotchar", "plotarrow", "hline", "bgcolor", "fill", "barcolor", "box", "line", "label", "table", "str", "syminfo", "barstate", "shape", "location", "size", "alertcondition", "alert", "request", "session", "array", "time", "time_close", "time_tradingday", "bar_index", "hour", "minute", "second", "year", "month", "dayofmonth", "dayofweek", "timestamp", "chart", "format", "string", "xloc", "yloc", "extend", "position", "order", "text", "display", "ticker", "barmerge", "close", "open", "high", "low", "volume", "hl2", "hlc3", "ohlc4", body);
 				} catch (e) {
 					console.error("Compilation error", e);
-					const compileErr = e instanceof Error ? e : new Error(String(e));
+					const compileErr = appendCspHint(e instanceof Error ? e : new Error(String(e)));
 					Object.defineProperty(compileErr, "__compileError", {
 						value: true,
 						enumerable: false,
@@ -2475,46 +3803,374 @@ function buildIndicatorFactory(options) {
 						throw compileErr;
 					};
 				}
-				return { main: (context, inputCallback) => {
-					const ta = Std;
+				const stubsRaw = createStubNamespaces();
+				const visualCtx = {
+					pushEvent: () => void 0,
+					barIndex: -1
+				};
+				const stubs = {
+					...stubsRaw,
+					line: createVisualNamespaceProxy("line", stubsRaw.line, visualCtx),
+					box: createVisualNamespaceProxy("box", stubsRaw.box, visualCtx),
+					label: createVisualNamespaceProxy("label", stubsRaw.label, visualCtx),
+					table: createVisualNamespaceProxy("table", stubsRaw.table, visualCtx)
+				};
+				const main = (context, inputCallback) => {
 					const _plotValues = [];
+					const _visualEvents = [];
+					const _runtimeDiagnostics = [];
 					const stdLib = Std;
 					const ctx = context;
+					ensureArrayPrototypeCompat();
 					const input = createInputMock(inputCallback, stdLib, ctx);
 					const plot = createPlotMock(_plotValues);
 					const math = createMathMock();
 					const timeframe = createTimeframeMock(stdLib, ctx);
 					const syminfo = createSyminfoMock(ctx);
-					const stubs = createStubNamespaces();
 					const sources = createPriceSources(stdLib, ctx);
 					const stdTime = stdLib.time;
-					const currentBarTime = typeof stdTime === "function" ? Number(stdTime(ctx)) : -1;
+					const rawBarTime = typeof stdTime === "function" ? Number(stdTime(ctx)) : -1;
+					const currentBarTime = Number.isFinite(rawBarTime) ? rawBarTime : -1;
+					if (hasAutoBgColorer) {
+						const setBarTime = stubsRaw.box.__setBarTime;
+						if (typeof setBarTime === "function") setBarTime(currentBarTime);
+					}
+					const observedBarIndex = readNumberField(ctx, "barIndex");
+					const resolvedBarIndex = typeof observedBarIndex === "number" ? observedBarIndex : _fallbackBarIndex + 1;
+					_fallbackBarIndex = resolvedBarIndex;
+					const resolvedTotalBars = readNumberField(ctx.symbol, "bars") ?? readNumberField(ctx, "totalBars");
+					const currentBarKey = Number.isFinite(currentBarTime) ? `t:${currentBarTime}` : `i:${resolvedBarIndex}`;
+					const priorProcessedBars = _processedBarKey === currentBarKey ? Math.max(0, _processedBars - 1) : _processedBars;
+					const markProcessedBar = () => {
+						if (_processedBarKey !== currentBarKey) {
+							_processedBarKey = currentBarKey;
+							_processedBars += 1;
+						}
+					};
+					const pushVisualEvent = (event) => {
+						_visualEvents.push({
+							...event,
+							style: normalizeVisualStyle(event.call, event.args)
+						});
+					};
+					visualCtx.pushEvent = pushVisualEvent;
+					visualCtx.barIndex = resolvedBarIndex;
+					const stdWithVisual = createVisualStdProxy(Std, pushVisualEvent, resolvedBarIndex, { pushPlotValue: (value) => {
+						_plotValues.push(value);
+					} });
+					const parseTimeframeToMs = (raw) => {
+						const tf = String(raw ?? "").trim();
+						if (!tf) return null;
+						const m = tf.toUpperCase().match(/^(\d+)?([SMHDWMY])?$/);
+						if (!m) return null;
+						const num = Number(m[1] ?? 1);
+						if (!Number.isFinite(num) || num <= 0) return null;
+						const unit = m[2] ?? "";
+						if (!unit) return num * 6e4;
+						if (unit === "S") return num * 1e3;
+						if (unit === "H") return num * 36e5;
+						if (unit === "D") return num * 864e5;
+						if (unit === "W") return num * 6048e5;
+						if (unit === "M") return num * 2592e6;
+						if (unit === "Y") return num * 31536e6;
+						return null;
+					};
+					const parseOffsetMinutes = (raw) => {
+						const normalized = raw.trim().toUpperCase();
+						if (normalized === "GMT" || normalized === "UTC" || normalized === "GMT+0" || normalized === "GMT-0") return 0;
+						const m = normalized.match(/^(?:GMT|UTC)([+-])(\d{1,2})(?::?(\d{2}))?$/);
+						if (!m) return null;
+						const sign = m[1] === "-" ? -1 : 1;
+						const hours = Number(m[2]);
+						const minutes = Number(m[3] ?? 0);
+						if (!Number.isFinite(hours) || !Number.isFinite(minutes) || hours > 14 || minutes > 59) return null;
+						return sign * (hours * 60 + minutes);
+					};
+					const weekdayToPine = (weekday) => {
+						const upper = weekday.slice(0, 3).toUpperCase();
+						if (upper === "SUN") return 1;
+						if (upper === "MON") return 2;
+						if (upper === "TUE") return 3;
+						if (upper === "WED") return 4;
+						if (upper === "THU") return 5;
+						if (upper === "FRI") return 6;
+						if (upper === "SAT") return 7;
+						return null;
+					};
+					const readClockAt = (timestamp, timezone) => {
+						if (typeof timezone === "string" && timezone.trim()) {
+							const offset = parseOffsetMinutes(timezone);
+							if (offset !== null) {
+								const shifted = new Date(timestamp + offset * 6e4);
+								return {
+									year: shifted.getUTCFullYear(),
+									month: shifted.getUTCMonth() + 1,
+									dayOfMonth: shifted.getUTCDate(),
+									hour: shifted.getUTCHours(),
+									minute: shifted.getUTCMinutes(),
+									second: shifted.getUTCSeconds(),
+									dayOfWeek: shifted.getUTCDay() + 1
+								};
+							}
+							try {
+								const parts = new Intl.DateTimeFormat("en-US", {
+									timeZone: timezone,
+									hour12: false,
+									year: "numeric",
+									month: "2-digit",
+									day: "2-digit",
+									hour: "2-digit",
+									minute: "2-digit",
+									second: "2-digit",
+									weekday: "short"
+								}).formatToParts(new Date(timestamp));
+								const year = Number(parts.find((p) => p.type === "year")?.value ?? NaN);
+								const month = Number(parts.find((p) => p.type === "month")?.value ?? NaN);
+								const dayOfMonth = Number(parts.find((p) => p.type === "day")?.value ?? NaN);
+								const hour = Number(parts.find((p) => p.type === "hour")?.value ?? NaN);
+								const minute = Number(parts.find((p) => p.type === "minute")?.value ?? NaN);
+								const second = Number(parts.find((p) => p.type === "second")?.value ?? NaN);
+								const dayOfWeek = weekdayToPine(parts.find((p) => p.type === "weekday")?.value ?? "");
+								if (Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(dayOfMonth) && Number.isFinite(hour) && Number.isFinite(minute) && Number.isFinite(second) && dayOfWeek !== null) return {
+									year,
+									month,
+									dayOfMonth,
+									hour,
+									minute,
+									second,
+									dayOfWeek
+								};
+							} catch {}
+						}
+						const d = new Date(timestamp);
+						return {
+							year: d.getUTCFullYear(),
+							month: d.getUTCMonth() + 1,
+							dayOfMonth: d.getUTCDate(),
+							hour: d.getUTCHours(),
+							minute: d.getUTCMinutes(),
+							second: d.getUTCSeconds(),
+							dayOfWeek: d.getUTCDay() + 1
+						};
+					};
+					const isInSessionAt = (timestamp, sessionRaw, timezone) => {
+						const [timeRangeRaw, daysRaw] = sessionRaw.split(":");
+						const [startRaw = "", endRaw = ""] = (timeRangeRaw ?? "").split("-");
+						if (startRaw.length < 4 || endRaw.length < 4) return false;
+						const startHour = Number(startRaw.slice(0, 2));
+						const startMinute = Number(startRaw.slice(2, 4));
+						const endHour = Number(endRaw.slice(0, 2));
+						const endMinute = Number(endRaw.slice(2, 4));
+						if (!Number.isFinite(startHour) || !Number.isFinite(startMinute) || !Number.isFinite(endHour) || !Number.isFinite(endMinute)) return false;
+						const { hour, minute, dayOfWeek } = readClockAt(timestamp, timezone);
+						const days = (daysRaw ?? "1234567").trim();
+						if (days && !days.includes(String(dayOfWeek))) return false;
+						const current = hour * 60 + minute;
+						const start = startHour * 60 + startMinute;
+						const end = endHour * 60 + endMinute;
+						if (start <= end) return current >= start && current < end;
+						return current >= start || current < end;
+					};
+					const chartTimeframeMs = parseTimeframeToMs(timeframe.period) ?? 6e4;
+					const resolveBarsBackTime = (timeframeArg, barsBackArg) => {
+						const barsBackValue = Number(barsBackArg ?? 0);
+						const barsBack = Number.isFinite(barsBackValue) && barsBackValue > 0 ? Math.trunc(barsBackValue) : 0;
+						if (barsBack > priorProcessedBars) return NaN;
+						if (!Number.isFinite(currentBarTime)) return NaN;
+						if (barsBack === 0) return currentBarTime;
+						const timeframeMs = parseTimeframeToMs(timeframeArg) ?? chartTimeframeMs;
+						if (!Number.isFinite(timeframeMs) || timeframeMs <= 0) return NaN;
+						return currentBarTime - barsBack * timeframeMs;
+					};
+					const compatTime = (...args) => {
+						const timeframeArg = args[0];
+						const sessionArg = args[1];
+						let timezoneArg = args[2];
+						let barsBackArg = args[3];
+						if (barsBackArg === void 0 && typeof timezoneArg === "number" && Number.isFinite(timezoneArg)) {
+							barsBackArg = timezoneArg;
+							timezoneArg = void 0;
+						}
+						const timestamp = resolveBarsBackTime(timeframeArg, barsBackArg);
+						if (!Number.isFinite(timestamp)) return NaN;
+						const sessionStr = typeof sessionArg === "string" ? sessionArg.trim() : "";
+						if (!sessionStr) return timestamp;
+						return isInSessionAt(timestamp, sessionStr, timezoneArg) ? timestamp : NaN;
+					};
+					const isContextLike = (value) => typeof value === "object" && value !== null && "new_var" in value;
+					const toFiniteTimestamp = (value) => {
+						if (typeof value === "number") return Number.isFinite(value) ? value : null;
+						if (typeof value === "string") {
+							const parsed = Number(value);
+							return Number.isFinite(parsed) ? parsed : null;
+						}
+						if (typeof value === "object" && value !== null && "value" in value) return toFiniteTimestamp(value.value);
+						return null;
+					};
+					const readClockFromArgs = (timestampArg, timezoneArg) => {
+						return readClockAt(toFiniteTimestamp(timestampArg) ?? (Number.isFinite(currentBarTime) ? currentBarTime : 0), timezoneArg);
+					};
+					const callHostStdDatePart = (prop, args) => {
+						const hostValue = stdWithVisual[prop];
+						if (typeof hostValue !== "function") return null;
+						try {
+							const raw = hostValue(...args);
+							const n = Number(raw);
+							return Number.isFinite(n) ? n : null;
+						} catch {
+							return null;
+						}
+					};
+					const compatDayOfWeek = (...args) => {
+						const first = args[0];
+						if (isContextLike(first)) {
+							const host = callHostStdDatePart("dayofweek", args);
+							if (host !== null) return host;
+							return readClockFromArgs(currentBarTime, args[1]).dayOfWeek;
+						}
+						return readClockFromArgs(first, args[1]).dayOfWeek;
+					};
+					const compatHour = (...args) => {
+						const first = args[0];
+						if (isContextLike(first)) {
+							const host = callHostStdDatePart("hour", args);
+							if (host !== null) return host;
+							return readClockFromArgs(currentBarTime, args[1]).hour;
+						}
+						return readClockFromArgs(first, args[1]).hour;
+					};
+					const compatMinute = (...args) => {
+						const first = args[0];
+						if (isContextLike(first)) {
+							const host = callHostStdDatePart("minute", args);
+							if (host !== null) return host;
+							return readClockFromArgs(currentBarTime, args[1]).minute;
+						}
+						return readClockFromArgs(first, args[1]).minute;
+					};
+					const compatSecond = (...args) => {
+						const first = args[0];
+						if (isContextLike(first)) {
+							const host = callHostStdDatePart("second", args);
+							if (host !== null) return host;
+							return readClockFromArgs(currentBarTime, args[1]).second;
+						}
+						return readClockFromArgs(first, args[1]).second;
+					};
+					const compatYear = (...args) => {
+						const first = args[0];
+						if (isContextLike(first)) {
+							const host = callHostStdDatePart("year", args);
+							if (host !== null) return host;
+							return readClockFromArgs(currentBarTime, args[1]).year;
+						}
+						return readClockFromArgs(first, args[1]).year;
+					};
+					const compatMonth = (...args) => {
+						const first = args[0];
+						if (isContextLike(first)) {
+							const host = callHostStdDatePart("month", args);
+							if (host !== null) return host;
+							return readClockFromArgs(currentBarTime, args[1]).month;
+						}
+						return readClockFromArgs(first, args[1]).month;
+					};
+					const compatDayOfMonth = (...args) => {
+						const first = args[0];
+						if (isContextLike(first)) {
+							const host = callHostStdDatePart("dayofmonth", args);
+							if (host !== null) return host;
+							return readClockFromArgs(currentBarTime, args[1]).dayOfMonth;
+						}
+						return readClockFromArgs(first, args[1]).dayOfMonth;
+					};
+					const stdWithCompatTime = new Proxy(stdWithVisual, { get(target, prop, receiver) {
+						if (prop === "time") return compatTime;
+						if (prop === "dayofweek") return compatDayOfWeek;
+						if (prop === "hour") return compatHour;
+						if (prop === "minute") return compatMinute;
+						if (prop === "second") return compatSecond;
+						if (prop === "year") return compatYear;
+						if (prop === "month") return compatMonth;
+						if (prop === "dayofmonth") return compatDayOfMonth;
+						return Reflect.get(target, prop, receiver);
+					} });
+					const ta = stdWithCompatTime;
 					const barstate = createBarstate({
 						currentTime: currentBarTime,
 						previousTime: _previousBarTime,
-						totalBars: readNumberField(ctx.symbol, "bars"),
-						barIndex: readNumberField(ctx, "barIndex"),
-						isRealtime: readBooleanField(ctx, "isRealtime", true)
+						totalBars: resolvedTotalBars,
+						barIndex: resolvedBarIndex,
+						isRealtime: readBooleanField(ctx, "isRealtime", false)
 					});
 					_previousBarTime = currentBarTime;
 					const indicator = () => {};
 					const study = () => {};
-					const strategy = () => {};
-					const plotshape = () => {
+					const strategy = (() => {});
+					strategy.entry = () => {};
+					strategy.exit = () => {};
+					strategy.close = () => {};
+					strategy.close_all = () => {};
+					strategy.order = () => {};
+					strategy.cancel = () => {};
+					strategy.risk = new Proxy({}, { get: () => () => {} });
+					strategy.long = 1;
+					strategy.short = -1;
+					strategy.initial_capital = 1e5;
+					strategy.position_size = 0;
+					const plotshape = (...args) => {
+						pushVisualEvent({
+							call: "plotshape",
+							args,
+							barIndex: resolvedBarIndex
+						});
 						_plotValues.push(NaN);
 					};
-					const plotchar = () => {
+					const plotchar = (...args) => {
+						pushVisualEvent({
+							call: "plotchar",
+							args,
+							barIndex: resolvedBarIndex
+						});
 						_plotValues.push(NaN);
 					};
-					const plotarrow = () => {
+					const plotarrow = (...args) => {
+						pushVisualEvent({
+							call: "plotarrow",
+							args,
+							barIndex: resolvedBarIndex
+						});
 						_plotValues.push(NaN);
 					};
-					const hline = () => {
+					const hline = (...args) => {
+						pushVisualEvent({
+							call: "hline",
+							args,
+							barIndex: resolvedBarIndex
+						});
 						_plotValues.push(NaN);
 					};
-					const bgcolor = () => {};
-					const fill = () => {};
-					const barcolor = () => {};
+					const bgcolor = (...args) => {
+						pushVisualEvent({
+							call: "bgcolor",
+							args,
+							barIndex: resolvedBarIndex
+						});
+					};
+					const fill = (...args) => {
+						pushVisualEvent({
+							call: "fill",
+							args,
+							barIndex: resolvedBarIndex
+						});
+					};
+					const barcolor = (...args) => {
+						pushVisualEvent({
+							call: "barcolor",
+							args,
+							barIndex: resolvedBarIndex
+						});
+					};
 					const color = COLOR_MAP;
 					const shape = {
 						triangleup: "shape_triangle_up",
@@ -2568,6 +4224,10 @@ function buildIndicatorFactory(options) {
 						both: "both"
 					};
 					const position = new Proxy({}, { get: (_t, p) => `position.${String(p)}` });
+					const order = {
+						ascending: true,
+						descending: false
+					};
 					const text = {
 						align_left: "left",
 						align_center: "center",
@@ -2577,16 +4237,150 @@ function buildIndicatorFactory(options) {
 					};
 					const display = new Proxy({}, { get: (_t, p) => `display.${String(p)}` });
 					const ticker = callableProxy("ticker");
+					const barmerge = {
+						lookahead_on: "lookahead_on",
+						lookahead_off: "lookahead_off",
+						gaps_on: "gaps_on",
+						gaps_off: "gaps_off"
+					};
 					const alertcondition = () => {};
 					const alert = () => {};
-					const naIterable = { [Symbol.iterator]() {
+					const makeNaIterable = () => ({ [Symbol.iterator]() {
 						return { next: () => ({
 							value: NaN,
 							done: false
 						}) };
-					} };
-					const naFallback = () => naIterable;
-					const request = new Proxy({}, { get: () => naFallback });
+					} });
+					const naFallback = () => makeNaIterable();
+					let _requestSecurityCallIndex = 0;
+					const emitRequestSecurityDiagnostic = (code, message, dedupeKey) => {
+						const key = dedupeKey ?? `${code}|${message}`;
+						if (_requestSecurityDiagnosticsSeen.has(key)) return;
+						_requestSecurityDiagnosticsSeen.add(key);
+						_runtimeDiagnostics.push({
+							feature: "request.security",
+							code,
+							message,
+							barIndex: resolvedBarIndex
+						});
+					};
+					const inferRequestSecurityCallSite = () => {
+						const fallbackOrdinal = _requestSecurityCallIndex;
+						_requestSecurityCallIndex += 1;
+						try {
+							const stack = (/* @__PURE__ */ new Error()).stack;
+							if (typeof stack !== "string") return `ord:${fallbackOrdinal}`;
+							const lines = stack.split("\n");
+							for (const raw of lines) {
+								const line = raw.trim();
+								if (!line || line.includes("requestSecurity")) continue;
+								const m = line.match(/<anonymous>:(\d+):(\d+)/);
+								if (m) return `${m[1]}:${m[2]}`;
+							}
+						} catch {}
+						return `ord:${fallbackOrdinal}`;
+					};
+					const cloneValue = (value) => {
+						if (Array.isArray(value)) return value.map((v) => cloneValue(v));
+						return value;
+					};
+					const naLike = (value) => {
+						if (Array.isArray(value)) return value.map(() => NaN);
+						return NaN;
+					};
+					const parseTimeframeToMinutes = (raw) => {
+						const tf = String(raw ?? "").trim();
+						if (!tf) return null;
+						const m = tf.toUpperCase().match(/^(\d+)?([SMHDWMY])?$/);
+						if (!m) return null;
+						const num = Number(m[1] ?? 1);
+						if (!Number.isFinite(num) || num <= 0) return null;
+						const unit = m[2] ?? "";
+						if (!unit) return num;
+						if (unit === "S") return num / 60;
+						if (unit === "M") return num * 43800;
+						if (unit === "H") return num * 60;
+						if (unit === "D") return num * 1440;
+						if (unit === "W") return num * 10080;
+						if (unit === "Y") return num * 525600;
+						return null;
+					};
+					const resolveMergeMode = (extras) => {
+						let gaps = "gaps_off";
+						let lookahead = "lookahead_off";
+						for (const extra of extras) {
+							const s = String(extra ?? "");
+							if (s.includes("gaps_on")) gaps = "gaps_on";
+							if (s.includes("gaps_off")) gaps = "gaps_off";
+							if (s.includes("lookahead_on")) lookahead = "lookahead_on";
+							if (s.includes("lookahead_off")) lookahead = "lookahead_off";
+						}
+						return {
+							gaps,
+							lookahead
+						};
+					};
+					const requestSecurity = (...args) => {
+						if (args.length < 3) {
+							emitRequestSecurityDiagnostic("request.security/arity", "request.security requires at least symbol, timeframe, and expression");
+							return naFallback();
+						}
+						const symbolArg = args[0];
+						const timeframeArg = args[1];
+						const expressionArg = args[2];
+						const merge = resolveMergeMode(args.slice(3));
+						const currentTfRaw = typeof stdLib.period === "function" ? stdLib.period(ctx) : null;
+						const currentTfMins = parseTimeframeToMinutes(currentTfRaw);
+						const targetTfMins = parseTimeframeToMinutes(timeframeArg);
+						const currentTicker = String(readStringField(ctx.symbol, "tickerid") ?? "");
+						const requestedTicker = typeof symbolArg === "string" ? symbolArg : String(symbolArg ?? "").trim();
+						if (requestedTicker && currentTicker && requestedTicker !== currentTicker) emitRequestSecurityDiagnostic("request.security/external-symbol-fallback", `request.security("${requestedTicker}") uses fallback passthrough because external symbol data is unavailable`, `ext-symbol|${requestedTicker}`);
+						if (currentTfMins === null || targetTfMins === null) {
+							emitRequestSecurityDiagnostic("request.security/invalid-timeframe", `request.security fallback passthrough for timeframe="${String(timeframeArg)}" (chart="${String(currentTfRaw ?? "")}")`, `invalid-timeframe|${String(currentTfRaw ?? "")}|${String(timeframeArg)}`);
+							return expressionArg;
+						}
+						if (targetTfMins === currentTfMins) return expressionArg;
+						if (targetTfMins < currentTfMins) {
+							emitRequestSecurityDiagnostic("request.security/lower-timeframe-fallback", `request.security("${String(timeframeArg)}") is lower than chart timeframe "${String(currentTfRaw)}"; using passthrough fallback`, `lower-tf|${String(currentTfRaw)}|${String(timeframeArg)}`);
+							return expressionArg;
+						}
+						if (!Number.isFinite(currentBarTime) || currentBarTime < 0) {
+							emitRequestSecurityDiagnostic("request.security/missing-bar-time-fallback", "request.security fallback passthrough because current bar time is unavailable");
+							return expressionArg;
+						}
+						const bucketSizeMs = targetTfMins * 6e4;
+						if (!Number.isFinite(bucketSizeMs) || bucketSizeMs <= 0) {
+							emitRequestSecurityDiagnostic("request.security/invalid-timeframe", `request.security fallback passthrough for non-positive bucket size derived from timeframe="${String(timeframeArg)}"`, `bucket-size|${String(timeframeArg)}`);
+							return expressionArg;
+						}
+						const callSite = inferRequestSecurityCallSite();
+						const bucket = Math.floor(currentBarTime / bucketSizeMs);
+						const key = `${callSite}|${String(symbolArg)}|${String(timeframeArg)}|${merge.gaps}|${merge.lookahead}`;
+						const existing = _requestSecurityState.get(key);
+						let changedBucket = false;
+						if (!existing) {
+							_requestSecurityState.set(key, {
+								lastBucket: bucket,
+								currentValue: cloneValue(expressionArg),
+								confirmedValue: naLike(expressionArg)
+							});
+							changedBucket = true;
+						} else if (existing.lastBucket !== bucket) {
+							existing.confirmedValue = cloneValue(existing.currentValue);
+							existing.currentValue = cloneValue(expressionArg);
+							existing.lastBucket = bucket;
+							changedBucket = true;
+						} else existing.currentValue = cloneValue(expressionArg);
+						const state = _requestSecurityState.get(key);
+						if (!state) return expressionArg;
+						const merged = merge.lookahead === "lookahead_on" ? state.currentValue : state.confirmedValue;
+						if (merge.gaps === "gaps_on" && !changedBucket) return naLike(expressionArg);
+						return cloneValue(merged);
+					};
+					const request = new Proxy({ security: requestSecurity }, { get: (target, prop) => {
+						const fn = target[String(prop)];
+						return typeof fn === "function" ? fn : naFallback;
+					} });
 					const array = new Proxy({}, { get: () => naFallback });
 					const hour = (t) => new Date(t ?? time).getUTCHours();
 					const minute = (t) => new Date(t ?? time).getUTCMinutes();
@@ -2595,24 +4389,146 @@ function buildIndicatorFactory(options) {
 					const month = (t) => new Date(t ?? time).getUTCMonth() + 1;
 					const dayofmonth = (t) => new Date(t ?? time).getUTCDate();
 					const dayofweek = (t) => new Date(t ?? time).getUTCDay() + 1;
+					const timestamp = (...args) => {
+						const base = typeof args[0] === "string" ? 1 : 0;
+						const y = Number(args[base] ?? 1970);
+						const m = Number(args[base + 1] ?? 1);
+						const d = Number(args[base + 2] ?? 1);
+						const h = Number(args[base + 3] ?? 0);
+						const min = Number(args[base + 4] ?? 0);
+						const s = Number(args[base + 5] ?? 0);
+						const ms = Number(args[base + 6] ?? 0);
+						return Date.UTC(y, m - 1, d, h, min, s, ms);
+					};
 					const stdTimeFn = stdLib.time;
 					const time = typeof stdTimeFn === "function" ? Number(stdTimeFn(ctx)) : 0;
-					const bar_index = readNumberField(ctx, "barIndex") ?? 0;
+					const stdTimeCloseFn = stdLib.time_close;
+					const time_close = typeof stdTimeCloseFn === "function" ? Number(stdTimeCloseFn(ctx)) : time + 6e4;
+					const _td = new Date(time);
+					_td.setUTCHours(0, 0, 0, 0);
+					const time_tradingday = _td.getTime();
+					const bar_index = resolvedBarIndex;
+					const readClock = () => {
+						const stdHourFn = stdLib.hour;
+						const stdMinuteFn = stdLib.minute;
+						const stdDayOfWeekFn = stdLib.dayofweek;
+						const fallbackDate = new Date(time);
+						const hourVal = typeof stdHourFn === "function" ? Number(stdHourFn(ctx)) : fallbackDate.getUTCHours();
+						const minuteVal = typeof stdMinuteFn === "function" ? Number(stdMinuteFn(ctx)) : fallbackDate.getUTCMinutes();
+						const dayOfWeekVal = typeof stdDayOfWeekFn === "function" ? Number(stdDayOfWeekFn(ctx)) : fallbackDate.getUTCDay() + 1;
+						return {
+							hour: Number.isFinite(hourVal) ? hourVal : fallbackDate.getUTCHours(),
+							minute: Number.isFinite(minuteVal) ? minuteVal : fallbackDate.getUTCMinutes(),
+							dayOfWeek: Number.isFinite(dayOfWeekVal) ? dayOfWeekVal : fallbackDate.getUTCDay() + 1
+						};
+					};
+					const isInSession = (sessionStr) => {
+						if (!sessionStr) return false;
+						const [timeRangeRaw, daysRaw] = sessionStr.split(":");
+						const [startRaw = "", endRaw = ""] = (timeRangeRaw ?? "").split("-");
+						if (startRaw.length < 4 || endRaw.length < 4) return false;
+						const startHour = Number(startRaw.slice(0, 2));
+						const startMinute = Number(startRaw.slice(2, 4));
+						const endHour = Number(endRaw.slice(0, 2));
+						const endMinute = Number(endRaw.slice(2, 4));
+						if (!Number.isFinite(startHour) || !Number.isFinite(startMinute) || !Number.isFinite(endHour) || !Number.isFinite(endMinute)) return false;
+						const days = daysRaw ?? "1234567";
+						const { hour: currentHour, minute: currentMinute, dayOfWeek } = readClock();
+						if (!days.includes(String(dayOfWeek))) return false;
+						const current = currentHour * 60 + currentMinute;
+						const start = startHour * 60 + startMinute;
+						const end = endHour * 60 + endMinute;
+						if (start <= end) return current >= start && current < end;
+						return current >= start || current < end;
+					};
+					const session = {
+						get ismarket() {
+							return isInSession(readStringField(ctx.symbol, "session_regular") ?? "0930-1600");
+						},
+						get ispremarket() {
+							return isInSession(readStringField(ctx.symbol, "session_premarket") ?? "0400-0930");
+						},
+						get ispostmarket() {
+							return isInSession(readStringField(ctx.symbol, "session_postmarket") ?? "1600-2000");
+						}
+					};
 					try {
-						compiledScript(Std, context, input, plot, indicator, study, strategy, color, ta, math, timeframe, plotshape, plotchar, plotarrow, hline, bgcolor, fill, barcolor, stubs.box, stubs.line, stubs.label, stubs.table, stubs.str, syminfo, barstate, shape, location, size, alertcondition, alert, request, array, time, bar_index, hour, minute, second, year, month, dayofmonth, dayofweek, chart, format, string, xloc, yloc, extend, position, text, display, ticker, sources.close, sources.open, sources.high, sources.low, sources.volume, sources.hl2, sources.hlc3, sources.ohlc4);
-						return _plotValues;
+						compiledScript(stdWithCompatTime, context, input, plot, indicator, study, strategy, color, ta, math, timeframe, plotshape, plotchar, plotarrow, hline, bgcolor, fill, barcolor, stubs.box, stubs.line, stubs.label, stubs.table, stubs.str, syminfo, barstate, shape, location, size, alertcondition, alert, request, session, array, time, time_close, time_tradingday, bar_index, hour, minute, second, year, month, dayofmonth, dayofweek, timestamp, chart, format, string, xloc, yloc, extend, position, order, text, display, ticker, barmerge, sources.close, sources.open, sources.high, sources.low, sources.volume, sources.hl2, sources.hlc3, sources.ohlc4);
+						let autoBgSlot = 0;
+						if (hasAutoBgColorer) {
+							const getActive = stubsRaw.box.__getActiveBgcolor;
+							if (typeof getActive === "function") autoBgSlot = resolveBgSlot(getActive());
+						}
+						const normalizedPlotValues = Array.from({ length: totalPlotCount }, (_unused, i) => {
+							if (hasAutoBgColorer && i === plots.length) return autoBgSlot;
+							return coercePlotNumber(_plotValues[i]);
+						});
+						Object.defineProperty(normalizedPlotValues, "__visualEvents", {
+							value: _visualEvents,
+							enumerable: false,
+							writable: false,
+							configurable: false
+						});
+						Object.defineProperty(normalizedPlotValues, "__visualEventsVersion", {
+							value: VISUAL_EVENTS_VERSION,
+							enumerable: false,
+							writable: false,
+							configurable: false
+						});
+						Object.defineProperty(normalizedPlotValues, "__runtimeDiagnostics", {
+							value: _runtimeDiagnostics,
+							enumerable: false,
+							writable: false,
+							configurable: false
+						});
+						Object.defineProperty(normalizedPlotValues, "__runtimeDiagnosticsVersion", {
+							value: RUNTIME_DIAGNOSTICS_VERSION,
+							enumerable: false,
+							writable: false,
+							configurable: false
+						});
+						markProcessedBar();
+						return normalizedPlotValues;
 					} catch (e) {
 						if (!(typeof e === "object" && e !== null && e.__compileError === true)) console.error("Script execution error", e);
-						const fallback = plots.map((_p) => NaN);
+						const fallback = Array.from({ length: totalPlotCount }, () => NaN);
+						Object.defineProperty(fallback, "__visualEvents", {
+							value: _visualEvents,
+							enumerable: false,
+							writable: false,
+							configurable: false
+						});
+						Object.defineProperty(fallback, "__visualEventsVersion", {
+							value: VISUAL_EVENTS_VERSION,
+							enumerable: false,
+							writable: false,
+							configurable: false
+						});
+						Object.defineProperty(fallback, "__runtimeDiagnostics", {
+							value: _runtimeDiagnostics,
+							enumerable: false,
+							writable: false,
+							configurable: false
+						});
+						Object.defineProperty(fallback, "__runtimeDiagnosticsVersion", {
+							value: RUNTIME_DIAGNOSTICS_VERSION,
+							enumerable: false,
+							writable: false,
+							configurable: false
+						});
 						Object.defineProperty(fallback, "__caughtError", {
 							value: e,
 							enumerable: false,
 							writable: false,
 							configurable: false
 						});
+						markProcessedBar();
 						return fallback;
 					}
-				} };
+				};
+				const descriptor = { main };
+				if (this) Object.assign(this, descriptor);
+				return descriptor;
 			}
 		};
 	};
@@ -2692,9 +4608,10 @@ function generateStandaloneFactory(options) {
 		transparency: 0,
 		color: plot.color || "#2962FF"
 	};
-	else if (plot.type === "shape") styleDefaults[plot.id] = {
-		plottype: "shape_circle",
-		location: "AboveBar",
+	else if (plot.type === "shape" || plot.type === "char") styleDefaults[plot.id] = {
+		...plot.type === "shape" ? { plottype: "shape_circle" } : {},
+		...plot.type === "char" ? { char: String(plot.char ?? "").trim() || "•" } : {},
+		location: plot.location === "belowbar" ? "BelowBar" : plot.location === "top" ? "Top" : plot.location === "bottom" ? "Bottom" : plot.location === "absolute" ? "Absolute" : "AboveBar",
 		color: plot.color || "#2962FF",
 		size: "small"
 	};
@@ -2702,10 +4619,14 @@ function generateStandaloneFactory(options) {
 	for (const input of inputs) inputDefaults[input.id] = input.defval;
 	const stylesMetadata = {};
 	if (hasBgcolors) stylesMetadata.sessionBg = { title: "Session Background" };
-	for (const plot of plots) stylesMetadata[plot.id] = {
-		title: plot.title || plot.id,
-		...plot.type === "histogram" ? { histogramBase: 0 } : {}
-	};
+	for (const plot of plots) {
+		const location = plot.type === "shape" || plot.type === "char" ? plot.location === "belowbar" ? "BelowBar" : plot.location === "top" ? "Top" : plot.location === "bottom" ? "Bottom" : plot.location === "absolute" ? "Absolute" : "AboveBar" : void 0;
+		stylesMetadata[plot.id] = {
+			title: plot.title || plot.id,
+			...plot.type === "histogram" ? { histogramBase: 0 } : {},
+			...location ? { location } : {}
+		};
+	}
 	const inputsMetadata = inputs.map((input) => ({
 		id: input.id,
 		name: input.name,
@@ -2889,6 +4810,19 @@ function generateNativeMainBody(inputs, plots, bgcolors, sessionVariables, deriv
 		lines.push("");
 		lines.push("        return [colorIndex];");
 	} else if (hasPlots) {
+		lines.push("        const _coercePlotValue = (v) => {");
+		lines.push("          if (typeof v === \"number\") return Number.isFinite(v) ? v : NaN;");
+		lines.push("          if (typeof v === \"boolean\") return v ? 1 : 0;");
+		lines.push("          if (v && typeof v === \"object\" && Object.prototype.hasOwnProperty.call(v, \"value\")) {");
+		lines.push("            return _coercePlotValue(v.value);");
+		lines.push("          }");
+		lines.push("          if (typeof v === \"string\") {");
+		lines.push("            const n = Number(v);");
+		lines.push("            return Number.isFinite(n) ? n : NaN;");
+		lines.push("          }");
+		lines.push("          return NaN;");
+		lines.push("        };");
+		lines.push("");
 		lines.push("        // Return plot values");
 		const plotReturns = [];
 		for (const plot of plots) if (plot.valueExpr) {
@@ -2902,8 +4836,8 @@ function generateNativeMainBody(inputs, plots, bgcolors, sessionVariables, deriv
 				if (args.includes("context")) return match;
 				return `Std.${fn}(${args}, context)`;
 			});
-			plotReturns.push(expr);
-		} else plotReturns.push("NaN");
+			plotReturns.push(`_coercePlotValue(${expr})`);
+		} else plotReturns.push("_coercePlotValue(NaN)");
 		lines.push(`        return [${plotReturns.join(", ")}];`);
 	} else lines.push("        return [];");
 	return lines.join("\n");
@@ -3020,6 +4954,257 @@ function isNamedArgument(arg) {
 	return arg.type === "AssignmentExpression" && arg.operator === "=" && !Array.isArray(arg.left) && arg.left.type === "Identifier";
 }
 /**
+* Pine v6 canonical positional-arg order for drawing-namespace
+* constructors and table.cell. When a user calls these with named
+* args (`box.new(time, high, time, low, bgcolor = c, text = t)`),
+* the parser preserves the source order — but downstream consumers
+* (runtime stubs, the host VisualEventsRenderer that reads
+* `__visualEvents[*].args`) need a deterministic layout. We reorder
+* named args into these slots and pad missing slots with `na` so
+* `args[i]` always means the same Pine parameter.
+*
+* Order taken directly from Pine v6 reference signatures.
+*/
+var DRAWING_CANONICAL_ARG_ORDER = {
+	"box.new": [
+		"left",
+		"top",
+		"right",
+		"bottom",
+		"border_color",
+		"border_width",
+		"border_style",
+		"extend",
+		"xloc",
+		"bgcolor",
+		"text",
+		"text_size",
+		"text_color",
+		"text_halign",
+		"text_valign",
+		"text_wrap",
+		"force_overlay",
+		"text_font_family"
+	],
+	"line.new": [
+		"x1",
+		"y1",
+		"x2",
+		"y2",
+		"xloc",
+		"extend",
+		"color",
+		"style",
+		"width",
+		"force_overlay"
+	],
+	"label.new": [
+		"x",
+		"y",
+		"text",
+		"xloc",
+		"yloc",
+		"color",
+		"style",
+		"textcolor",
+		"size",
+		"textalign",
+		"tooltip",
+		"text_font_family",
+		"force_overlay",
+		"text_formatting"
+	],
+	"table.new": [
+		"position",
+		"columns",
+		"rows",
+		"bgcolor",
+		"frame_color",
+		"frame_width",
+		"border_color",
+		"border_width",
+		"force_overlay"
+	],
+	"table.cell": [
+		"table_id",
+		"column",
+		"row",
+		"text",
+		"width",
+		"height",
+		"text_color",
+		"text_halign",
+		"text_valign",
+		"text_size",
+		"bgcolor",
+		"tooltip",
+		"text_font_family",
+		"text_formatting"
+	]
+};
+/**
+* Canonical positional order for typed input helpers.
+*
+* Pine allows named args (`input.int(title="Len", defval=14)`), but our
+* runtime input mock only treats the first argument as the default value.
+* If named args are emitted in source order, `title` can incorrectly land
+* in slot 0 and coerce the runtime value to a string.
+*/
+var INPUT_CANONICAL_ARG_ORDER = {
+	input: [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm",
+		"options",
+		"minval",
+		"maxval",
+		"step"
+	],
+	"input.int": [
+		"defval",
+		"title",
+		"minval",
+		"maxval",
+		"step",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm",
+		"options"
+	],
+	"input.float": [
+		"defval",
+		"title",
+		"minval",
+		"maxval",
+		"step",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm",
+		"options"
+	],
+	"input.bool": [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	],
+	"input.string": [
+		"defval",
+		"title",
+		"options",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	],
+	"input.source": [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	],
+	"input.color": [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	],
+	"input.timeframe": [
+		"defval",
+		"title",
+		"options",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	],
+	"input.session": [
+		"defval",
+		"title",
+		"options",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	],
+	"input.time": [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	],
+	"input.symbol": [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	],
+	"input.text_area": [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	],
+	"input.price": [
+		"defval",
+		"title",
+		"minval",
+		"maxval",
+		"step",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	]
+};
+var BUILTIN_SERIES_IDENTIFIERS = new Set([
+	"open",
+	"high",
+	"low",
+	"close",
+	"volume",
+	"hl2",
+	"hlc3",
+	"ohlc4",
+	"time"
+]);
+var IMPLICIT_SERIES_BY_TA_CALL = {
+	"ta.highest": "context.new_var(high)",
+	"ta.lowest": "context.new_var(low)",
+	"ta.highestbars": "context.new_var(high)",
+	"ta.lowestbars": "context.new_var(low)"
+};
+/**
 * Unified lookup map for all Pine Script function mappings.
 * Built once at module load for O(1) lookup instead of O(k) sequential checks.
 */
@@ -3042,6 +5227,7 @@ var ExpressionGenerator = class {
 	constructor() {
 		this.indentLevel = 0;
 		this.statementGen = null;
+		this.persistentScopes = [/* @__PURE__ */ new Map()];
 	}
 	setIndentLevel(level) {
 		this.indentLevel = level;
@@ -3055,6 +5241,25 @@ var ExpressionGenerator = class {
 	*/
 	setStatementGenerator(gen) {
 		this.statementGen = gen;
+	}
+	markPersistentIdentifier(identifier, kind, stateKeyExpr = JSON.stringify(identifier)) {
+		this.persistentScopes[this.persistentScopes.length - 1].set(identifier, {
+			kind,
+			keyExpr: stateKeyExpr
+		});
+	}
+	pushPersistentScope() {
+		this.persistentScopes.push(/* @__PURE__ */ new Map());
+	}
+	popPersistentScope() {
+		if (this.persistentScopes.length > 1) this.persistentScopes.pop();
+	}
+	resolvePersistentIdentifier(identifier) {
+		for (let i = this.persistentScopes.length - 1; i >= 0; i--) {
+			const hit = this.persistentScopes[i]?.get(identifier);
+			if (hit) return hit;
+		}
+		return null;
 	}
 	generateExpression(expr) {
 		switch (expr.type) {
@@ -3087,20 +5292,152 @@ var ExpressionGenerator = class {
 	}
 	generateCallExpression(expr) {
 		let callee = this.generateExpression(expr.callee);
-		const args = expr.arguments.filter((a) => !isNamedArgument(a)).map((a) => this.generateExpression(a));
+		const pineCallee = callee;
+		const runtimeArgExprs = this.normalizeCallArguments(pineCallee, expr.arguments).map((a) => isNamedArgument(a) ? a.right : a);
+		const args = runtimeArgExprs.map((a) => this.generateExpression(a));
 		const mapping = UNIFIED_FUNCTION_MAP.get(callee);
 		if (mapping) {
 			callee = mapping.stdName || mapping.jsName || callee;
+			if (mapping.needsSeries && args.length > 0) {
+				const implicitSeries = this.resolveImplicitSeriesArg(pineCallee, runtimeArgExprs.length);
+				if (implicitSeries) args.unshift(implicitSeries);
+				else args[0] = this.wrapSeriesArgument(runtimeArgExprs[0], args[0]);
+			}
 			if (mapping.contextArg) args.unshift("context");
 		}
 		return `${callee}(${args.join(", ")})`;
+	}
+	/**
+	* Pine named args can be supplied out of order. Most callers can emit
+	* runtime args in source order, but a few call families need a
+	* deterministic positional layout downstream:
+	*
+	*   • `request.security` — runtime needs symbol/timeframe/expression
+	*     at the first three positional slots
+	*   • Drawing constructors (`box.new`, `line.new`, `label.new`,
+	*     `table.new`, `table.cell`) — runtime stubs and the host
+	*     VisualEventsRenderer read `args[i]` knowing it means a specific
+	*     Pine parameter; without reordering, named-arg scripts pass
+	*     bgcolor through the slot the runtime expects to hold
+	*     border_color, etc.
+	*
+	* Reordering is local to these specific callees. Everything else
+	* keeps the generic value-only named-arg emit (see `isNamedArgument`).
+	*/
+	normalizeCallArguments(pineCallee, args) {
+		if (pineCallee === "request.security") return this.normalizeRequestSecurityArgs(args);
+		const inputCanonicalOrder = INPUT_CANONICAL_ARG_ORDER[pineCallee];
+		if (inputCanonicalOrder) return this.normalizeByCanonicalOrder(args, inputCanonicalOrder);
+		const canonicalOrder = DRAWING_CANONICAL_ARG_ORDER[pineCallee];
+		if (canonicalOrder) return this.normalizeByCanonicalOrder(args, canonicalOrder);
+		return args;
+	}
+	normalizeRequestSecurityArgs(args) {
+		const positional = [];
+		const namedOrdered = [];
+		for (const arg of args) if (isNamedArgument(arg)) namedOrdered.push({
+			name: arg.left.name,
+			value: arg.right
+		});
+		else positional.push(arg);
+		if (namedOrdered.length === 0) return args;
+		const namedLookup = /* @__PURE__ */ new Map();
+		for (const entry of namedOrdered) namedLookup.set(entry.name, entry.value);
+		let positionalCursor = 0;
+		const takePositional = () => {
+			const value = positional[positionalCursor];
+			positionalCursor += 1;
+			return value;
+		};
+		const symbol = namedLookup.get("symbol") ?? takePositional();
+		const timeframe = namedLookup.get("timeframe") ?? takePositional();
+		const expression = namedLookup.get("expression") ?? takePositional();
+		const normalized = [];
+		if (symbol) normalized.push(symbol);
+		if (timeframe) normalized.push(timeframe);
+		if (expression) normalized.push(expression);
+		while (positionalCursor < positional.length) {
+			normalized.push(positional[positionalCursor]);
+			positionalCursor += 1;
+		}
+		for (const entry of namedOrdered) {
+			if (entry.name === "symbol" || entry.name === "timeframe" || entry.name === "expression") continue;
+			normalized.push(entry.value);
+		}
+		return normalized;
+	}
+	/**
+	* Drawing-namespace `.new` and `table.cell` reorder.
+	*
+	* Splits args into positional + named; positional args bind to the
+	* first N canonical slots (preserving source order); named args fill
+	* their declared slot from `canonicalOrder`. Missing slots are padded
+	* with a synthesized `na` Identifier so `args[i]` is always present
+	* and means the same parameter regardless of which args the script
+	* supplied.
+	*
+	* Named args whose name isn't in `canonicalOrder` are dropped — that
+	* shouldn't happen for the supported callees, but if Pine adds a new
+	* param we don't know about yet, dropping it is safer than shifting
+	* subsequent slots.
+	*/
+	normalizeByCanonicalOrder(args, canonicalOrder) {
+		const positional = [];
+		const namedLookup = /* @__PURE__ */ new Map();
+		for (const arg of args) if (isNamedArgument(arg)) namedLookup.set(arg.left.name, arg.right);
+		else positional.push(arg);
+		if (namedLookup.size === 0) return args;
+		const naExpr = {
+			type: "Literal",
+			value: null,
+			raw: "na",
+			kind: "na"
+		};
+		const highestNamedSlot = Math.max(-1, ...[...namedLookup.keys()].map((name) => canonicalOrder.indexOf(name)));
+		const fillLength = Math.max(positional.length, highestNamedSlot + 1);
+		const normalized = [];
+		for (let i = 0; i < fillLength; i++) {
+			const paramName = canonicalOrder[i];
+			if (i < positional.length) {
+				normalized.push(positional[i]);
+				continue;
+			}
+			if (paramName && namedLookup.has(paramName)) {
+				normalized.push(namedLookup.get(paramName));
+				continue;
+			}
+			normalized.push(naExpr);
+		}
+		return normalized;
+	}
+	/**
+	* TA mappings marked `needsSeries` must receive a Pine series object,
+	* not a scalar snapshot. For base sources we reuse the preamble's
+	* `_series_<name>` bindings; for computed expressions we materialize a
+	* per-call-site series via `context.new_var(expr)`.
+	*/
+	wrapSeriesArgument(argExpr, emittedArg) {
+		if (emittedArg.startsWith("_series_") || emittedArg.startsWith("context.new_var(")) return emittedArg;
+		if (argExpr.type === "Identifier" && BUILTIN_SERIES_IDENTIFIERS.has(argExpr.name)) return `_series_${sanitizeIdentifier(argExpr.name)}`;
+		return `context.new_var(${emittedArg})`;
+	}
+	/**
+	* A handful of TA calls allow omitted source args in Pine and default
+	* to built-in series. When only one argument is supplied we inject the
+	* implicit series so the mapped Std call keeps Pine-compatible arity.
+	*/
+	resolveImplicitSeriesArg(pineCallee, providedArgCount) {
+		const implicit = IMPLICIT_SERIES_BY_TA_CALL[pineCallee];
+		if (!implicit) return null;
+		if (providedArgCount !== 1) return null;
+		return implicit;
 	}
 	generateMemberExpression(expr) {
 		const object = this.generateExpression(expr.object);
 		if (expr.computed) {
 			const property = this.generateExpression(expr.property);
 			if (expr.object.type === "Identifier") return `_getHistorical_${object}(${property})`;
-			return `${object}[${property}]`;
+			return `context.new_var(${object}).get(${property})`;
 		}
 		return `${object}.${expr.property.name}`;
 	}
@@ -3111,11 +5448,28 @@ var ExpressionGenerator = class {
 		return `[${expr.elements.map((e) => this.generateExpression(e)).join(", ")}]`;
 	}
 	generateAssignmentExpression(expr) {
-		if (Array.isArray(expr.left)) return `[${expr.left.map((id) => id.name).join(", ")}] = ${this.generateExpression(expr.right)}`;
-		const left = expr.left.type === "Identifier" ? expr.left.name : this.generateMemberExpression(expr.left);
+		if (Array.isArray(expr.left)) return `[${expr.left.map((id) => sanitizeIdentifier(id.name)).join(", ")}] = ${this.generateExpression(expr.right)}`;
+		const leftIdentifier = !Array.isArray(expr.left) && expr.left.type === "Identifier" ? expr.left : null;
+		const isIdentifierLeft = leftIdentifier !== null;
+		const left = leftIdentifier ? sanitizeIdentifier(leftIdentifier.name) : this.generateMemberExpression(expr.left);
 		let op = expr.operator;
 		if (op === ":=") op = "=";
-		return `${left} ${op} ${this.generateExpression(expr.right)}`;
+		const right = this.generateExpression(expr.right);
+		const persistentBinding = this.resolvePersistentIdentifier(left);
+		if (isIdentifierLeft && persistentBinding) {
+			const setter = persistentBinding.kind === "varip" ? "_pineSetVarip" : "_pineSetVar";
+			const keyExpr = persistentBinding.keyExpr;
+			if (op === "=") return `(${left} = ${setter}(${keyExpr}, ${right}))`;
+			const binaryOp = {
+				"+=": "+",
+				"-=": "-",
+				"*=": "*",
+				"/=": "/",
+				"%=": "%"
+			}[op];
+			if (binaryOp) return `(${left} = ${setter}(${keyExpr}, (${left} ${binaryOp} ${right})))`;
+		}
+		return `${left} ${op} ${right}`;
 	}
 	generateLiteral(expr) {
 		if (expr.kind === "string" || expr.kind === "color") return JSON.stringify(expr.value);
@@ -3222,6 +5576,8 @@ var StatementGenerator = class {
 	constructor(historicalVars, expressionGen) {
 		this.indentLevel = 0;
 		this.loopCounter = 0;
+		this.functionScopeCounter = 0;
+		this.functionScopeStack = [];
 		this.historicalVars = historicalVars;
 		this.expressionGen = expressionGen;
 	}
@@ -3264,6 +5620,29 @@ var StatementGenerator = class {
 		else s = `${indent(this.indentLevel)}${this.expressionGen.generateExpression(stmt)};`;
 		this.indentLevel--;
 		return `{\n${s}\n${indent(this.indentLevel)}}`;
+	}
+	currentPersistentKeyExpr(identifier) {
+		const scope = this.functionScopeStack[this.functionScopeStack.length - 1];
+		if (!scope) return JSON.stringify(identifier);
+		return `${scope.keyVar} + ${JSON.stringify(`::${identifier}`)}`;
+	}
+	statementContainsPersistentDecl(stmt) {
+		if (stmt.type === "VariableDeclaration") return stmt.kind === "var" || stmt.kind === "varip";
+		if (stmt.type === "BlockStatement") return this.blockContainsPersistentDecl(stmt);
+		if (stmt.type === "IfStatement") {
+			if (stmt.consequent.type === "BlockStatement" ? this.blockContainsPersistentDecl(stmt.consequent) : this.statementContainsPersistentDecl(stmt.consequent)) return true;
+			if (!stmt.alternate) return false;
+			return stmt.alternate.type === "BlockStatement" ? this.blockContainsPersistentDecl(stmt.alternate) : this.statementContainsPersistentDecl(stmt.alternate);
+		}
+		if (stmt.type === "ForStatement" || stmt.type === "ForInStatement" || stmt.type === "WhileStatement") return stmt.body.type === "BlockStatement" ? this.blockContainsPersistentDecl(stmt.body) : this.statementContainsPersistentDecl(stmt.body);
+		if (stmt.type === "SwitchStatement") {
+			for (const c of stmt.cases) if (c.consequent.type === "BlockStatement" ? this.blockContainsPersistentDecl(c.consequent) : false) return true;
+		}
+		return false;
+	}
+	blockContainsPersistentDecl(block) {
+		for (const stmt of block.body) if (this.statementContainsPersistentDecl(stmt)) return true;
+		return false;
 	}
 	generateIfStatement(stmt) {
 		const test = this.expressionGen.generateExpression(stmt.test);
@@ -3325,6 +5704,7 @@ var StatementGenerator = class {
 		const name = stmt.name;
 		const prefix = stmt.export ? "export " : "";
 		const fields = stmt.fields;
+		const typeCtor = `__type_${sanitizeIdentifier(name)}`;
 		let constructorBody = "";
 		this.indentLevel++;
 		this.indentLevel++;
@@ -3339,7 +5719,7 @@ var StatementGenerator = class {
 			if (f.init) return `${fname} = ${this.expressionGen.generateExpression(f.init)}`;
 			return fname;
 		}).join(", ");
-		return `${indent(this.indentLevel)}${prefix}class ${name} {\n${indent(this.indentLevel, 1)}constructor(${paramsWithDefaults}) {\n${indent(this.indentLevel, 2)}${constructorBody.trim()}\n${indent(this.indentLevel, 1)}}\n${indent(this.indentLevel, 1)}static new(...args) { return new ${name}(...args); }\n${indent(this.indentLevel)}}`;
+		return `${indent(this.indentLevel)}var ${typeCtor} = class ${name} {\n${indent(this.indentLevel, 1)}constructor(${paramsWithDefaults}) {\n${indent(this.indentLevel, 2)}${constructorBody.trim()}\n${indent(this.indentLevel, 1)}}\n${indent(this.indentLevel, 1)}static new(...args) { return new ${typeCtor}(...args); }\n${indent(this.indentLevel)}};\n${indent(this.indentLevel)}${prefix}var ${name};\n${indent(this.indentLevel)}if (typeof ${name} === 'function') {\n${indent(this.indentLevel, 1)}if (typeof ${name}.new !== 'function') {\n${indent(this.indentLevel, 2)}${name}.new = (...args) => new ${typeCtor}(...args);\n${indent(this.indentLevel, 1)}}\n${indent(this.indentLevel)}} else {\n${indent(this.indentLevel, 1)}${name} = ${typeCtor};\n${indent(this.indentLevel)}}`;
 	}
 	generateForStatement(stmt) {
 		let loopVarName = "";
@@ -3389,7 +5769,10 @@ var StatementGenerator = class {
 		return `${indent(this.indentLevel)}for (const ${name} of ${right}) ${body}`;
 	}
 	generateVariableDeclaration(stmt) {
-		const kind = stmt.kind === "const" ? "const" : "var";
+		const kind = "var";
+		const isPersistent = stmt.kind === "var" || stmt.kind === "varip";
+		const isVarip = stmt.kind === "varip";
+		const initExpr = stmt.init ? this.expressionGen.generateExpression(stmt.init) : "NaN";
 		const init = stmt.init ? ` = ${this.expressionGen.generateExpression(stmt.init)}` : "";
 		const prefix = stmt.export ? "export " : "";
 		let code = "";
@@ -3405,7 +5788,12 @@ var StatementGenerator = class {
 			}
 		} else {
 			const safeName = sanitizeIdentifier(stmt.id.name);
-			code = `${indent(this.indentLevel)}${prefix}${kind} ${safeName}${init};`;
+			if (isPersistent) {
+				const helper = isVarip ? "_pineVarip" : "_pineVar";
+				const stateKeyExpr = this.currentPersistentKeyExpr(safeName);
+				code = `${indent(this.indentLevel)}${prefix}${kind} ${safeName} = ${helper}(${stateKeyExpr}, () => (${initExpr}));`;
+				this.expressionGen.markPersistentIdentifier(safeName, isVarip ? "varip" : "var", stateKeyExpr);
+			} else code = `${indent(this.indentLevel)}${prefix}${kind} ${safeName}${init};`;
 			if (this.historicalVars.has(stmt.id.name)) {
 				code += `\n${indent(this.indentLevel)}const _series_${safeName} = context.new_var(${safeName});`;
 				code += `\n${indent(this.indentLevel)}_getHistorical_${safeName} = (offset) => _series_${safeName}.get(offset);`;
@@ -3415,34 +5803,70 @@ var StatementGenerator = class {
 	}
 	generateFunctionDeclaration(stmt) {
 		if (stmt.type !== "FunctionDeclaration") throw new Error("Expected FunctionDeclaration");
-		const name = sanitizeIdentifier(stmt.id.name);
-		const params = stmt.params.map((p) => sanitizeIdentifier(p.name)).join(", ");
+		const originalName = stmt.id.name;
+		const name = sanitizeIdentifier(originalName);
+		const paramNames = stmt.params.map((p) => sanitizeIdentifier(p.name)).join(", ");
 		const prefix = stmt.export ? "export " : "";
+		const scopeOrdinal = this.functionScopeCounter++;
+		const scopeId = `${name}#${scopeOrdinal}`;
+		const scopeKeyVar = `_pineFnScope_${scopeOrdinal}`;
+		const needsPersistentScope = stmt.body.type === "BlockStatement" && this.blockContainsPersistentDecl(stmt.body);
 		let body = "";
-		if (stmt.body.type === "BlockStatement") body = this.generateFunctionBody(stmt.body);
-		else {
-			this.indentLevel++;
-			body = `{\n${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(stmt.body)};\n${indent(this.indentLevel, -1)}}`;
+		if (needsPersistentScope) {
+			this.functionScopeStack.push({
+				id: scopeId,
+				keyVar: scopeKeyVar
+			});
+			this.expressionGen.pushPersistentScope();
 		}
-		return `${indent(this.indentLevel)}${prefix}function ${name}(${params}) ${body}`;
+		try {
+			if (stmt.body.type === "BlockStatement") body = this.generateFunctionBody(stmt.body, needsPersistentScope ? scopeId : void 0, needsPersistentScope ? scopeKeyVar : void 0);
+			else {
+				this.indentLevel++;
+				body = `{\n${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(stmt.body)};\n${indent(this.indentLevel, -1)}}`;
+			}
+		} finally {
+			if (needsPersistentScope) {
+				this.expressionGen.popPersistentScope();
+				this.functionScopeStack.pop();
+			}
+		}
+		let out = `${indent(this.indentLevel)}${prefix}function ${name}(${paramNames}) ${body}`;
+		if (stmt.isMethod && stmt.params.length > 0) {
+			const receiverType = stmt.params[0]?.typeAnnotation?.name;
+			if (receiverType) {
+				const receiverName = sanitizeIdentifier(receiverType);
+				const methodParams = stmt.params.slice(1).map((p) => sanitizeIdentifier(p.name));
+				const methodParamsDecl = methodParams.join(", ");
+				const callArgs = methodParams.length > 0 ? `, ${methodParamsDecl}` : "";
+				out += `\n${indent(this.indentLevel)}if (${receiverName}?.prototype && typeof ${receiverName}.prototype.${name} !== 'function') {\n${indent(this.indentLevel, 1)}${receiverName}.prototype.${name} = function(${methodParamsDecl}) { return ${name}(this${callArgs}); };\n${indent(this.indentLevel)}}`;
+				if (originalName !== name) out += `\n${indent(this.indentLevel)}if (${receiverName}?.prototype && typeof ${receiverName}.prototype[${JSON.stringify(originalName)}] !== 'function') {\n${indent(this.indentLevel, 1)}${receiverName}.prototype[${JSON.stringify(originalName)}] = function(${methodParamsDecl}) { return ${name}(this${callArgs}); };\n${indent(this.indentLevel)}}`;
+			}
+		}
+		return out;
 	}
 	/**
 	* Generate the body of a multi-line Pine function. Pine has implicit
 	* return — the value of the last expression in the block is the
-	* function's return value. JS requires an explicit `return`, so the
-	* last ExpressionStatement is rewritten as a ReturnStatement during
-	* emission. Other tail-position constructs (e.g. an `if`) are left
-	* as-is for now; users wanting to return from those should use an
-	* explicit `=>`-form or assign to a result variable.
+	* function's return value. JS requires an explicit `return`, so tail
+	* expressions and switch-statements are rewritten into return forms.
 	*/
-	generateFunctionBody(block) {
+	generateFunctionBody(block, scopeId, scopeKeyVar) {
 		this.indentLevel++;
 		const statements = block.body;
 		const lines = [];
+		if (scopeId && scopeKeyVar) lines.push(`${indent(this.indentLevel)}const ${scopeKeyVar} = _pineScopeKey(${JSON.stringify(scopeId)});`);
 		for (let i = 0; i < statements.length; i++) {
 			const s = statements[i];
-			if (i === statements.length - 1 && s.type === "ExpressionStatement") lines.push(`${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(s.expression)};`);
-			else lines.push(this.generateStatement(s));
+			const isLast = i === statements.length - 1;
+			if (isLast && s.type === "ExpressionStatement") lines.push(`${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(s.expression)};`);
+			else if (isLast && s.type === "SwitchStatement") {
+				const switchExpr = {
+					...s,
+					type: "SwitchExpression"
+				};
+				lines.push(`${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(switchExpr)};`);
+			} else lines.push(this.generateStatement(s));
 		}
 		this.indentLevel--;
 		return `{\n${lines.join("\n")}\n${indent(this.indentLevel)}}`;
@@ -3615,6 +6039,23 @@ var InputExtractor = class {
 var PlotExtractor = class {
 	constructor() {
 		this.plotCount = 0;
+		this.stringResolver = () => void 0;
+	}
+	setStringResolver(fn) {
+		this.stringResolver = fn;
+	}
+	/**
+	* Read a string-typed arg, resolving identifier references through
+	* the injected resolver. Returns null when the arg is missing OR not
+	* resolvable; empty-string literals pass through as `''` so callers
+	* can distinguish "Pine explicitly set this empty" from "absent".
+	*/
+	resolveStringArg(expr) {
+		if (!expr) return null;
+		const literal = getStringValue(expr);
+		if (typeof literal === "string") return literal;
+		if (expr.type === "Identifier") return this.stringResolver(expr.name) ?? null;
+		return null;
 	}
 	/**
 	* Convert an expression to a string representation for code generation
@@ -3633,6 +6074,33 @@ var PlotExtractor = class {
 			case "UnaryExpression": return `${expr.operator}${this.exprToString(expr.argument)}`;
 			default: return "";
 		}
+	}
+	extractLocation(expr) {
+		if (!expr || expr.type !== "MemberExpression") return void 0;
+		if (expr.object.type !== "Identifier") return void 0;
+		if (expr.object.name !== "location") return void 0;
+		if (expr.property.type !== "Identifier") return void 0;
+		const loc = expr.property.name.toLowerCase();
+		if (loc === "abovebar") return "abovebar";
+		if (loc === "belowbar") return "belowbar";
+		if (loc === "top") return "top";
+		if (loc === "bottom") return "bottom";
+		if (loc === "absolute") return "absolute";
+	}
+	extractShape(expr) {
+		if (!expr || expr.type !== "MemberExpression") return void 0;
+		if (expr.object.type !== "Identifier") return void 0;
+		if (expr.object.name !== "shape") return void 0;
+		if (expr.property.type !== "Identifier") return void 0;
+		const style = expr.property.name.toLowerCase();
+		if (style === "circle") return "circle";
+		if (style === "cross" || style === "xcross") return "cross";
+		if (style === "diamond") return "diamond";
+		if (style === "square") return "square";
+		if (style === "triangleup") return "triangleup";
+		if (style === "triangledown") return "triangledown";
+		if (style === "flag") return "flag";
+		if (style === "labelup" || style === "labeldown") return "label";
 	}
 	/**
 	* Extract a plot() call
@@ -3674,6 +6142,65 @@ var PlotExtractor = class {
 		const valueArg = getArg(args, 0, "series");
 		const valueExpr = valueArg ? this.exprToString(valueArg) : "";
 		const title = getStringValue(getArg(args, 1, "title")) || `Shape ${++this.plotCount}`;
+		const shape = this.extractShape(getArg(args, 2, "style")) ?? "circle";
+		const location = this.extractLocation(getArg(args, 3, "location")) ?? "abovebar";
+		const color = this.extractColor(getArg(args, 4, "color") ?? args[0]);
+		return {
+			id: `plot_${this.plotCount - 1}`,
+			title,
+			varName: `plot_${this.plotCount - 1}`,
+			type: "shape",
+			color,
+			linewidth: 1,
+			valueExpr,
+			shape,
+			location
+		};
+	}
+	/**
+	* Extract a plotchar() call.
+	*
+	* Pine's plotchar signature: `plotchar(series, title, char, location,
+	* color, offset, text, textcolor, ...)`. Pine renders `char` at the
+	* price point and `text` as a label next to it. TV CustomIndicator
+	* `chars` plots only expose a single `char` style field, so when the
+	* Pine source leaves `char` empty but supplies `text` (a common
+	* pattern for day/session labels) we promote `text` into the char
+	* slot — better than rendering a generic `•`.
+	*/
+	extractPlotChar(expr) {
+		const args = expr.arguments;
+		const valueArg = getArg(args, 0, "series");
+		const valueExpr = valueArg ? this.exprToString(valueArg) : "";
+		const title = getStringValue(getArg(args, 1, "title")) || `Char ${++this.plotCount}`;
+		const charArg = this.resolveStringArg(getArg(args, 2, "char"));
+		const textArg = this.resolveStringArg(getArg(args, 6, "text"));
+		const charValue = charArg || textArg || "•";
+		const location = this.extractLocation(getArg(args, 3, "location")) ?? "abovebar";
+		const color = this.extractColor(getArg(args, 4, "color") ?? args[0]);
+		return {
+			id: `plot_${this.plotCount - 1}`,
+			title,
+			varName: `plot_${this.plotCount - 1}`,
+			type: "char",
+			color,
+			linewidth: 1,
+			valueExpr,
+			char: charValue,
+			location
+		};
+	}
+	/**
+	* Extract a plotarrow() call
+	*
+	* We model arrows as shape plots in metainfo to ensure they are
+	* counted as declared outputs in corpus parity checks.
+	*/
+	extractPlotArrow(expr) {
+		const args = expr.arguments;
+		const valueArg = getArg(args, 0, "series");
+		const valueExpr = valueArg ? this.exprToString(valueArg) : "";
+		const title = getStringValue(getArg(args, 1, "title")) || `Arrow ${++this.plotCount}`;
 		return {
 			id: `plot_${this.plotCount - 1}`,
 			title,
@@ -3682,23 +6209,8 @@ var PlotExtractor = class {
 			color: "#000000",
 			linewidth: 1,
 			valueExpr,
-			shape: "circle",
+			shape: "triangleup",
 			location: "abovebar"
-		};
-	}
-	/**
-	* Extract a plotchar() call
-	*/
-	extractPlotChar(expr) {
-		const args = expr.arguments;
-		const title = getStringValue(getArg(args, 1, "title")) || `Char ${++this.plotCount}`;
-		return {
-			id: `plot_${this.plotCount - 1}`,
-			title,
-			varName: `plot_${this.plotCount - 1}`,
-			type: "char",
-			color: "#000000",
-			linewidth: 1
 		};
 	}
 	/**
@@ -3706,9 +6218,10 @@ var PlotExtractor = class {
 	*/
 	extractHline(expr) {
 		const args = expr.arguments;
-		const price = getNumberValue(getArg(args, 0, "price"));
+		const priceArg = getArg(args, 0, "price");
+		const price = getNumberValue(priceArg);
+		const valueExpr = priceArg ? this.exprToString(priceArg) : "";
 		const title = getStringValue(getArg(args, 1, "title")) || `HLine ${++this.plotCount}`;
-		if (price === null) return null;
 		return {
 			id: `plot_${this.plotCount - 1}`,
 			title,
@@ -3716,7 +6229,8 @@ var PlotExtractor = class {
 			type: "hline",
 			color: "#787B86",
 			linewidth: 1,
-			price
+			price: price ?? void 0,
+			valueExpr
 		};
 	}
 	/**
@@ -3752,7 +6266,6 @@ var PlotExtractor = class {
 * Unsupported function categories for warning generation
 */
 var UNSUPPORTED_FUNCTIONS = new Set([
-	"request.security",
 	"request.financial",
 	"request.quandl",
 	"request.seed",
@@ -3773,6 +6286,7 @@ var UNSUPPORTED_FUNCTIONS = new Set([
 * Partially supported functions that may have limited functionality
 */
 var PARTIALLY_SUPPORTED_FUNCTIONS = new Set([
+	"request.security",
 	"plotshape",
 	"plotchar",
 	"plotarrow",
@@ -3801,6 +6315,7 @@ var MetadataVisitor = class {
 		this.usedSources = /* @__PURE__ */ new Set();
 		this.historicalAccess = /* @__PURE__ */ new Set();
 		this.colorVariables = /* @__PURE__ */ new Map();
+		this.stringVariables = /* @__PURE__ */ new Map();
 		this.sessionVariables = /* @__PURE__ */ new Map();
 		this.derivedSessionVariables = /* @__PURE__ */ new Map();
 		this.inputVariableMap = /* @__PURE__ */ new Map();
@@ -3811,6 +6326,7 @@ var MetadataVisitor = class {
 		this.warnedFunctions = /* @__PURE__ */ new Set();
 	}
 	visit(node) {
+		this.plotExtractor.setStringResolver((name) => this.stringVariables.get(name));
 		this.visitStatements(node.body);
 	}
 	visitStatements(stmts) {
@@ -3825,6 +6341,7 @@ var MetadataVisitor = class {
 			case "VariableDeclaration":
 				if (stmt.init) {
 					this.trackColorVariable(stmt.id, stmt.init);
+					this.trackStringVariable(stmt.id, stmt.init);
 					this.trackSessionVariable(stmt.id, stmt.init);
 					this.trackDerivedSessionVariable(stmt.id, stmt.init);
 					this.trackInputVariable(stmt.id, stmt.init);
@@ -3959,12 +6476,14 @@ var MetadataVisitor = class {
 			const plot = this.plotExtractor.extractPlotChar(expr);
 			plot.id = `plot_${this.plots.length}`;
 			this.plots.push(plot);
+		} else if (name === "plotarrow") {
+			const plot = this.plotExtractor.extractPlotArrow(expr);
+			plot.id = `plot_${this.plots.length}`;
+			this.plots.push(plot);
 		} else if (name === "hline") {
 			const plot = this.plotExtractor.extractHline(expr);
-			if (plot) {
-				plot.id = `plot_${this.plots.length}`;
-				this.plots.push(plot);
-			}
+			plot.id = `plot_${this.plots.length}`;
+			this.plots.push(plot);
 		} else if (name === "bgcolor") this.extractBgcolor(expr);
 	}
 	/**
@@ -3975,6 +6494,17 @@ var MetadataVisitor = class {
 		const varName = id.name;
 		const colorInfo = this.extractColorInfoFromInit(init);
 		if (colorInfo) this.colorVariables.set(varName, colorInfo);
+	}
+	/**
+	* Track direct string-literal var assignments, e.g.
+	* `var sunday = "SUNDAY"`. Computed/concatenated string expressions
+	* are intentionally not tracked — keeping resolution narrow avoids
+	* surprising fallout in unrelated scripts.
+	*/
+	trackStringVariable(id, init) {
+		if (Array.isArray(id) || id.type !== "Identifier") return;
+		if (init.type !== "Literal" || typeof init.value !== "string") return;
+		this.stringVariables.set(id.name, init.value);
 	}
 	/**
 	* Track input variable assignments (e.g., sSydney = input.session(...))
@@ -4485,12 +7015,38 @@ var Lexer = class {
 		if (this.tokens.length === 0) return false;
 		const last = this.tokens[this.tokens.length - 1];
 		if (last.type === TokenType.COMMA) return true;
+		if (last.type === TokenType.COLON) return true;
 		if (last.type !== TokenType.OPERATOR) return false;
 		if (last.value === "=>") return false;
 		return true;
 	}
+	/**
+	* Some Pine scripts continue an expression by placing the operator at
+	* the start of the next line, e.g.:
+	*   x = "a"
+	*     + "b"
+	* Treat that newline as a soft continuation.
+	*/
+	nextLineStartsWithContinuationCue() {
+		let i = this.pos + 1;
+		while (i < this.code.length && (this.code[i] === " " || this.code[i] === "	")) i++;
+		if (i >= this.code.length) return false;
+		if (this.code[i] === "\n") return false;
+		if (this.code[i] === "/" && this.code[i + 1] === "/") return false;
+		const ch = this.code[i];
+		if (ch === "+" || ch === "*" || ch === "/" || ch === "%") return true;
+		if (this.code.startsWith("and", i)) {
+			const end = this.code[i + 3] || "";
+			return !/[a-zA-Z0-9_]/.test(end);
+		}
+		if (this.code.startsWith("or", i)) {
+			const end = this.code[i + 2] || "";
+			return !/[a-zA-Z0-9_]/.test(end);
+		}
+		return false;
+	}
 	handleNewline() {
-		if (this.bracketDepth > 0 || this.lastTokenIsContinuationCue()) {
+		if (this.bracketDepth > 0 || this.lastTokenIsContinuationCue() || this.nextLineStartsWithContinuationCue()) {
 			this.advance();
 			while (this.pos < this.code.length && (this.code[this.pos] === " " || this.code[this.pos] === "	")) this.advance();
 			return;
@@ -5056,7 +7612,7 @@ var ExpressionParser = class extends ParserBase {
 		let expr = this.parsePrimary();
 		while (true) if (this.match(TokenType.LPAREN)) expr = this.finishCall(expr);
 		else if (this.match(TokenType.DOT)) {
-			const name = this.consume(TokenType.IDENTIFIER, "Expected property name after .");
+			const name = this.consumeIdentifierLike("Expected property name after .");
 			expr = {
 				type: "MemberExpression",
 				object: expr,
@@ -5075,20 +7631,17 @@ var ExpressionParser = class extends ParserBase {
 				property: index,
 				computed: true
 			};
-		} else if (this.check(TokenType.OPERATOR) && this.peek().value === "<") {
-			const next = this.peekNext();
-			if (next && (this.checkTypeAnnotationWithToken(next) || next.type === TokenType.IDENTIFIER && this.tokens[this.current + 2]?.value === ">")) {
+		} else if (this.isGenericCallStart()) {
+			this.advance();
+			const typeArgs = [];
+			do
+				typeArgs.push(this.parseTypeAnnotation());
+			while (this.match(TokenType.COMMA));
+			if (!this.matchOperator(">")) throw this.error(this.peek(), "Expected > after generic arguments.");
+			if (this.check(TokenType.LPAREN)) {
 				this.advance();
-				const typeArgs = [];
-				do
-					typeArgs.push(this.parseTypeAnnotation());
-				while (this.match(TokenType.COMMA));
-				if (!this.matchOperator(">")) throw this.error(this.peek(), "Expected > after generic arguments.");
-				if (this.check(TokenType.LPAREN)) {
-					this.advance();
-					expr = this.finishCall(expr, typeArgs);
-				} else throw this.error(this.peek(), "Expected ( after generic arguments.");
-			} else break;
+				expr = this.finishCall(expr, typeArgs);
+			} else throw this.error(this.peek(), "Expected ( after generic arguments.");
 		} else break;
 		return expr;
 	}
@@ -5098,8 +7651,8 @@ var ExpressionParser = class extends ParserBase {
 	finishCall(callee, typeArguments) {
 		const args = [];
 		if (!this.check(TokenType.RPAREN)) do
-			if (this.check(TokenType.IDENTIFIER) && this.peekNext()?.value === "=") {
-				const name = this.consume(TokenType.IDENTIFIER, "Expected argument name.").value;
+			if ((this.check(TokenType.IDENTIFIER) || this.check(TokenType.KEYWORD)) && this.peekNext()?.value === "=") {
+				const name = this.consumeIdentifierLike("Expected argument name.").value;
 				this.advance();
 				const value = this.parseExpression();
 				args.push({
@@ -5120,6 +7673,45 @@ var ExpressionParser = class extends ParserBase {
 			arguments: args,
 			typeArguments
 		};
+	}
+	/**
+	* Pine member properties / named-arg labels can be keyword tokens in our
+	* stream (e.g. `syminfo.type`, `foo(type=...)`), so callers need a
+	* broader "identifier-like" consume helper.
+	*/
+	consumeIdentifierLike(message) {
+		if (this.check(TokenType.IDENTIFIER) || this.check(TokenType.KEYWORD)) return this.advance();
+		throw this.error(this.peek(), message);
+	}
+	/**
+	* Detect whether a `<...>` sequence after an identifier/member is truly
+	* generic-call syntax (`fn<T>(...)`) versus a plain comparison
+	* (`value < array.get(...)`).
+	*/
+	isGenericCallStart() {
+		if (!(this.check(TokenType.OPERATOR) && this.peek().value === "<")) return false;
+		let i = this.current;
+		let depth = 0;
+		while (i < this.tokens.length) {
+			const token = this.tokens[i];
+			if (token.type === TokenType.OPERATOR && token.value === "<") {
+				depth++;
+				i++;
+				continue;
+			}
+			if (token.type === TokenType.OPERATOR && token.value === ">") {
+				depth--;
+				if (depth === 0) return this.tokens[i + 1]?.type === TokenType.LPAREN;
+				if (depth < 0) return false;
+				i++;
+				continue;
+			}
+			if (depth > 0) {
+				if (!(token.type === TokenType.IDENTIFIER || token.type === TokenType.KEYWORD || token.type === TokenType.COMMA || token.type === TokenType.LBRACKET || token.type === TokenType.RBRACKET)) return false;
+			}
+			i++;
+		}
+		return false;
 	}
 };
 //#endregion
@@ -5181,7 +7773,8 @@ var Parser = class extends ExpressionParser {
 				case "continue": return { type: "ContinueStatement" };
 				case "var":
 				case "varip":
-				case "const": return this.parseVariableDeclaration(keyword);
+				case "const":
+				case "let": return this.parseQualifiedDeclarationList(keyword);
 				case "switch": return this.parseSwitchStatement();
 				case "type": return this.parseTypeDefinition();
 				case "import": return this.parseImportStatement();
@@ -5210,13 +7803,29 @@ var Parser = class extends ExpressionParser {
 			}
 		}
 		const expr = this.parseExpression();
-		if (this.match(TokenType.NEWLINE) || this.isAtEnd()) return {
+		if (this.check(TokenType.COMMA)) {
+			const items = [{
+				type: "ExpressionStatement",
+				expression: expr
+			}];
+			while (this.match(TokenType.COMMA)) items.push({
+				type: "ExpressionStatement",
+				expression: this.parseExpression()
+			});
+			if (this.match(TokenType.NEWLINE) || this.check(TokenType.DEDENT) || this.isAtEnd()) return {
+				type: "BlockStatement",
+				body: items
+			};
+			throw this.error(this.peek(), "Expected newline after statement.");
+		}
+		if (this.match(TokenType.NEWLINE) || this.check(TokenType.DEDENT) || this.isAtEnd()) return {
 			type: "ExpressionStatement",
 			expression: expr
 		};
 		throw this.error(this.peek(), "Expected newline after statement.");
 	}
 	parseBlock() {
+		while (this.match(TokenType.NEWLINE));
 		this.consume(TokenType.INDENT, "Expected indentation for block.");
 		const body = [];
 		while (!this.check(TokenType.DEDENT) && !this.isAtEnd()) {
@@ -5521,15 +8130,7 @@ var Parser = class extends ExpressionParser {
 		].includes(after.value);
 	}
 	parseVariableOrAssignment() {
-		let typeAnnotation;
-		if (this.checkTypeAnnotation()) typeAnnotation = this.parseTypeAnnotation();
-		else if (this.isUserTypePrefix()) {
-			this.advance();
-			while (this.check(TokenType.LBRACKET) && this.peekNext()?.type === TokenType.RBRACKET) {
-				this.advance();
-				this.advance();
-			}
-		}
+		const typeAnnotation = this.tryParseLeadingTypeAnnotation();
 		let id;
 		if (this.match(TokenType.LBRACKET)) {
 			const ids = [];
@@ -5548,7 +8149,7 @@ var Parser = class extends ExpressionParser {
 				name: this.consume(TokenType.IDENTIFIER, "Expected identifier.").value
 			};
 			while (this.match(TokenType.DOT)) {
-				const prop = this.consume(TokenType.IDENTIFIER, "Expected property name after .").value;
+				const prop = this.consumeIdentifierLike("Expected property name after .").value;
 				expr = {
 					type: "MemberExpression",
 					object: expr,
@@ -5591,11 +8192,77 @@ var Parser = class extends ExpressionParser {
 		};
 	}
 	parseVariableDeclaration(kind) {
-		let typeAnnotation;
-		if (this.checkTypeAnnotation()) typeAnnotation = this.parseTypeAnnotation();
+		const typeAnnotation = this.tryParseLeadingTypeAnnotation();
 		const name = this.consume(TokenType.IDENTIFIER, "Expected variable name.").value;
 		this.consume(TokenType.OPERATOR, "Expected =");
 		const init = this.parseExpression();
+		return {
+			type: "VariableDeclaration",
+			id: {
+				type: "Identifier",
+				name
+			},
+			init,
+			kind,
+			typeAnnotation
+		};
+	}
+	/**
+	* Parse declarations introduced by a qualifier keyword (`var`, `varip`,
+	* `const`, `let`). Pine allows comma-chaining:
+	*   var int dir = 0, dir := cond ? 1 : dir
+	*   var a = array.new_line(), var b = array.new_line()
+	*/
+	parseQualifiedDeclarationList(kind) {
+		const first = this.parseVariableDeclaration(kind);
+		if (!this.check(TokenType.COMMA)) return first;
+		const items = [first];
+		while (this.match(TokenType.COMMA)) {
+			let itemKind = kind;
+			if (this.check(TokenType.KEYWORD) && [
+				"var",
+				"varip",
+				"const",
+				"let"
+			].includes(this.peek().value)) itemKind = this.advance().value;
+			items.push(this.parseQualifiedListItem(itemKind));
+		}
+		return {
+			type: "BlockStatement",
+			body: items
+		};
+	}
+	/**
+	* Parse one comma-chained element in a qualified declaration list.
+	* Items can be either fresh declarations (`x = ...`) or reassignments
+	* (`x := ...`, `x += ...`).
+	*/
+	parseQualifiedListItem(kind) {
+		const typeAnnotation = this.tryParseLeadingTypeAnnotation();
+		const name = this.consume(TokenType.IDENTIFIER, "Expected variable name.").value;
+		const operatorToken = this.consume(TokenType.OPERATOR, "Expected = or :=");
+		const operator = operatorToken.value;
+		const COMPOUND_ASSIGN = new Set([
+			"+=",
+			"-=",
+			"*=",
+			"/=",
+			"%="
+		]);
+		if (operator !== "=" && operator !== ":=" && !COMPOUND_ASSIGN.has(operator)) throw this.error(operatorToken, "Expected = or := in assignment.");
+		const init = this.parseExpression();
+		if (operator === ":=" || COMPOUND_ASSIGN.has(operator)) return {
+			type: "ExpressionStatement",
+			expression: {
+				type: "AssignmentExpression",
+				operator: operator === ":=" ? ":=" : operator,
+				left: {
+					type: "Identifier",
+					name
+				},
+				right: init
+			}
+		};
 		return {
 			type: "VariableDeclaration",
 			id: {
@@ -5631,6 +8298,7 @@ var Parser = class extends ExpressionParser {
 			}
 			if ([
 				"var",
+				"varip",
 				"const",
 				"let"
 			].includes(keyword)) {
@@ -5680,7 +8348,32 @@ var Parser = class extends ExpressionParser {
 			arguments: args
 		};
 	}
+	/**
+	* Parse an optional leading type annotation only when it is
+	* syntactically unambiguous that a variable name follows. This avoids
+	* misclassifying identifiers that happen to share built-in type names
+	* (e.g. `var matrix = ...`, `box = ...`) as declarations-with-type.
+	*/
+	tryParseLeadingTypeAnnotation() {
+		if (!this.checkTypeAnnotation() && !this.isUserTypePrefix()) return;
+		const saved = this.current;
+		try {
+			const parsed = this.parseTypeAnnotation();
+			if (!this.check(TokenType.IDENTIFIER)) {
+				this.current = saved;
+				return;
+			}
+			return parsed;
+		} catch {
+			this.current = saved;
+			return;
+		}
+	}
 	parsePrimary() {
+		if (this.check(TokenType.KEYWORD) && this.peek().value === "if") {
+			this.advance();
+			return this.parseIfExpression();
+		}
 		if (this.check(TokenType.KEYWORD) && this.peek().value === "switch") {
 			this.advance();
 			const stmt = this.parseSwitchStatement();
@@ -5761,6 +8454,55 @@ var Parser = class extends ExpressionParser {
 		}
 		throw this.error(this.peek(), "Expect expression.");
 	}
+	/**
+	* Pine supports `if` as an expression:
+	*   x = if cond
+	*     1
+	*   else
+	*     0
+	* Reuse SwitchExpression-without-discriminant as the internal form
+	* because its generator already emits an if/else value expression.
+	*/
+	parseIfExpression() {
+		const cases = [];
+		const firstTest = this.parseExpression();
+		const firstConsequent = this.parseIfExpressionConsequent();
+		cases.push({
+			type: "SwitchCase",
+			test: firstTest,
+			consequent: firstConsequent
+		});
+		while (this.check(TokenType.KEYWORD) && this.peek().value === "else") {
+			this.advance();
+			if (this.check(TokenType.KEYWORD) && this.peek().value === "if") {
+				this.advance();
+				const test = this.parseExpression();
+				const consequent = this.parseIfExpressionConsequent();
+				cases.push({
+					type: "SwitchCase",
+					test,
+					consequent
+				});
+				continue;
+			}
+			const consequent = this.parseIfExpressionConsequent();
+			cases.push({
+				type: "SwitchCase",
+				test: null,
+				consequent
+			});
+			break;
+		}
+		return {
+			type: "SwitchExpression",
+			discriminant: void 0,
+			cases
+		};
+	}
+	parseIfExpressionConsequent() {
+		if (this.match(TokenType.NEWLINE)) return this.parseBlock();
+		return this.parseExpression();
+	}
 	isFunctionDeclaration() {
 		let temp = this.current + 1;
 		if (this.tokens[temp].type !== TokenType.LPAREN) return false;
@@ -5782,6 +8524,15 @@ var Parser = class extends ExpressionParser {
 */
 /** Maximum input size in characters to prevent DoS attacks */
 var MAX_INPUT_SIZE = 1e6;
+function isUnsafeEvalCspError(error) {
+	const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+	return message.includes("unsafe-eval") || message.includes("content security policy") || message.includes("violates the following content security policy directive") || message.includes("evaluating a string as javascript");
+}
+function withCspEvalHint(error) {
+	const base = error instanceof Error ? error.message : String(error);
+	if (!isUnsafeEvalCspError(error)) return base;
+	return `${base}\nCSP blocked dynamic evaluation. Use transpileToStandaloneFactory(...) and load the generated factory module instead of runtime eval/new Function.`;
+}
 /**
 * Transpile Pine Script to JavaScript string (internal helper)
 */
@@ -5798,8 +8549,9 @@ function transpile(code) {
 * @param code - Pine Script source code
 * @param indicatorId - Unique identifier
 * @param indicatorName - Display name
+* @param options - Optional rendering / behavior flags. See {@link TranspileOptions}.
 */
-function transpileToPineJS(code, indicatorId, indicatorName) {
+function transpileToPineJS(code, indicatorId, indicatorName, options) {
 	try {
 		if (code.length > MAX_INPUT_SIZE) return {
 			success: false,
@@ -5822,7 +8574,54 @@ function transpileToPineJS(code, indicatorId, indicatorName) {
 				bgcolors: visitor.bgcolors,
 				usedSources: visitor.usedSources,
 				historicalAccess: visitor.historicalAccess,
-				mainBody
+				mainBody,
+				autoBgColorerForBoxes: options?.autoBgColorerForBoxes ?? false
+			})
+		};
+	} catch (error) {
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : String(error)
+		};
+	}
+}
+/**
+* Transpile Pine Script v5/v6 code to standalone ESM factory code.
+*
+* Unlike {@link transpileToPineJS}, this returns source text that can be
+* built/served as a static module and does not depend on `new Function(...)`
+* at indicator runtime.
+*/
+function transpileToStandaloneFactory(code, indicatorId, indicatorName, options) {
+	try {
+		if (code.length > MAX_INPUT_SIZE) return {
+			success: false,
+			error: `Input too large: ${code.length} characters exceeds maximum of ${MAX_INPUT_SIZE}`
+		};
+		const ast = new Parser(new Lexer(code).tokenize()).parse();
+		const visitor = new MetadataVisitor();
+		visitor.visit(ast);
+		const mainBody = new ASTGenerator(visitor.historicalAccess).generate(ast);
+		return {
+			success: true,
+			factoryCode: generateStandaloneFactory({
+				indicatorId,
+				indicatorName,
+				name: visitor.name,
+				shortName: visitor.shortName,
+				overlay: visitor.overlay,
+				plots: visitor.plots,
+				inputs: visitor.inputs,
+				bgcolors: visitor.bgcolors,
+				usedSources: visitor.usedSources,
+				historicalAccess: visitor.historicalAccess,
+				mainBody,
+				autoBgColorerForBoxes: options?.autoBgColorerForBoxes ?? false,
+				sessionVariables: visitor.sessionVariables,
+				derivedSessionVariables: visitor.derivedSessionVariables,
+				booleanInputMap: visitor.booleanInputMap,
+				computedVariables: visitor.computedVariables,
+				inputVariableMap: visitor.inputVariableMap
 			})
 		};
 	} catch (error) {
@@ -5889,112 +8688,11 @@ function executePineJS(code, indicatorId, indicatorName) {
 	} catch (error) {
 		return {
 			success: false,
-			error: error instanceof Error ? error.message : "Unknown PineJS execution error"
+			error: withCspEvalHint(error)
 		};
 	}
 }
 //#endregion
-Object.defineProperty(exports, "ASTGenerator", {
-	enumerable: true,
-	get: function() {
-		return ASTGenerator;
-	}
-});
-Object.defineProperty(exports, "COLOR_MAP", {
-	enumerable: true,
-	get: function() {
-		return COLOR_MAP;
-	}
-});
-Object.defineProperty(exports, "Lexer", {
-	enumerable: true,
-	get: function() {
-		return Lexer;
-	}
-});
-Object.defineProperty(exports, "MATH_FUNCTION_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return MATH_FUNCTION_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "MULTI_OUTPUT_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return MULTI_OUTPUT_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "MetadataVisitor", {
-	enumerable: true,
-	get: function() {
-		return MetadataVisitor;
-	}
-});
-Object.defineProperty(exports, "PRICE_SOURCES", {
-	enumerable: true,
-	get: function() {
-		return PRICE_SOURCES;
-	}
-});
-Object.defineProperty(exports, "Parser", {
-	enumerable: true,
-	get: function() {
-		return Parser;
-	}
-});
-Object.defineProperty(exports, "TA_FUNCTION_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return TA_FUNCTION_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "TIME_FUNCTION_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return TIME_FUNCTION_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "canTranspilePineScript", {
-	enumerable: true,
-	get: function() {
-		return canTranspilePineScript;
-	}
-});
-Object.defineProperty(exports, "executePineJS", {
-	enumerable: true,
-	get: function() {
-		return executePineJS;
-	}
-});
-Object.defineProperty(exports, "generateStandaloneFactory", {
-	enumerable: true,
-	get: function() {
-		return generateStandaloneFactory;
-	}
-});
-Object.defineProperty(exports, "getAllPineFunctionNames", {
-	enumerable: true,
-	get: function() {
-		return getAllPineFunctionNames;
-	}
-});
-Object.defineProperty(exports, "getMappingStats", {
-	enumerable: true,
-	get: function() {
-		return getMappingStats;
-	}
-});
-Object.defineProperty(exports, "transpile", {
-	enumerable: true,
-	get: function() {
-		return transpile;
-	}
-});
-Object.defineProperty(exports, "transpileToPineJS", {
-	enumerable: true,
-	get: function() {
-		return transpileToPineJS;
-	}
-});
+export { transpileToStandaloneFactory as a, PRICE_SOURCES as c, TIME_FUNCTION_MAPPINGS as d, MULTI_OUTPUT_MAPPINGS as f, transpileToPineJS as i, getAllPineFunctionNames as l, MATH_FUNCTION_MAPPINGS as m, executePineJS as n, generateStandaloneFactory as o, TA_FUNCTION_MAPPINGS as p, transpile as r, COLOR_MAP as s, canTranspilePineScript as t, getMappingStats as u };
 
-//# sourceMappingURL=src-HUNt1eQ9.cjs.map
+//# sourceMappingURL=src-AslWKdrK.js.map

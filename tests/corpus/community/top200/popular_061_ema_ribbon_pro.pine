@@ -1,0 +1,14 @@
+//@version=5
+indicator("Popular 061 EMA Ribbon Pro", overlay=true)
+
+f = ta.ema(close, 9)
+m = ta.ema(close, 26)
+s = ta.ema(close, 57)
+
+trendUp = f > m and m > s
+trendDn = f < m and m < s
+
+plot(f, "EMA Fast", color=color.new(color.aqua, 0))
+plot(m, "EMA Mid", color=color.new(color.orange, 0))
+plot(s, "EMA Slow", color=color.new(color.red, 0))
+bgcolor(trendUp ? color.new(color.green, 92) : trendDn ? color.new(color.red, 92) : na)

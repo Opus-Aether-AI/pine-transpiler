@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { a as Parser, c as ASTGenerator, i as transpileToPineJS, l as generateStandaloneFactory, o as Lexer, p as getMappingStats, r as transpile, s as MetadataVisitor, t as canTranspilePineScript } from "../src-BJfKjyvb.js";
+import { a as transpileToStandaloneFactory, i as transpileToPineJS, r as transpile, t as canTranspilePineScript, u as getMappingStats } from "../src-AslWKdrK.js";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -169,9 +169,8 @@ Supported Features:
   • Arrays and tuples
 
 Limitations:
-  • No request.security() support
-  • Limited drawing functions (box, line, label)
-  • No table support
+  • request.security() subset MTF merge (with explicit fallback diagnostics)
+  • Drawing/table are runtime-compatible no-op objects (no visual rendering)
   • Some advanced Pine Script v5 features
 
 For more information, visit:
@@ -246,33 +245,12 @@ function commandTranspile(file, options) {
 	} else if (format === "factory") {
 		const indicatorId = options.id || deriveIndicatorId(file);
 		const indicatorName = options.name;
-		try {
-			const ast = new Parser(new Lexer(code).tokenize()).parse();
-			const visitor = new MetadataVisitor();
-			visitor.visit(ast);
-			const mainBody = new ASTGenerator(visitor.historicalAccess).generate(ast);
-			writeOutput(generateStandaloneFactory({
-				indicatorId,
-				indicatorName,
-				name: visitor.name,
-				shortName: visitor.shortName,
-				overlay: visitor.overlay,
-				plots: visitor.plots,
-				inputs: visitor.inputs,
-				bgcolors: visitor.bgcolors,
-				usedSources: visitor.usedSources,
-				historicalAccess: visitor.historicalAccess,
-				mainBody,
-				sessionVariables: visitor.sessionVariables,
-				derivedSessionVariables: visitor.derivedSessionVariables,
-				booleanInputMap: visitor.booleanInputMap,
-				computedVariables: visitor.computedVariables,
-				inputVariableMap: visitor.inputVariableMap
-			}), options.output);
-		} catch (error) {
-			console.error("Transpilation error:", error instanceof Error ? error.message : error);
+		const result = transpileToStandaloneFactory(code, indicatorId, indicatorName);
+		if (!result.success || !result.factoryCode) {
+			console.error("Transpilation error:", result.error ?? "Unknown error");
 			process.exit(1);
 		}
+		writeOutput(result.factoryCode, options.output);
 	} else {
 		console.error(`Error: Unknown format '${format}'. Use 'js', 'pinejs', or 'factory'.`);
 		process.exit(1);

@@ -1,0 +1,12 @@
+//@version=5
+indicator("Popular 030 Market Structure Sweep", overlay=true)
+
+buyLiq = ta.highest(high, 25)
+sellLiq = ta.lowest(low, 25)
+sweepUp = high > buyLiq[1] and close < buyLiq[1]
+sweepDn = low < sellLiq[1] and close > sellLiq[1]
+
+plot(buyLiq, "Buy Liquidity", color=color.new(color.red, 0))
+plot(sellLiq, "Sell Liquidity", color=color.new(color.green, 0))
+plotshape(sweepUp, title="Sweep Up", style=shape.triangledown, location=location.abovebar, color=color.red, size=size.tiny)
+plotshape(sweepDn, title="Sweep Down", style=shape.triangleup, location=location.belowbar, color=color.lime, size=size.tiny)

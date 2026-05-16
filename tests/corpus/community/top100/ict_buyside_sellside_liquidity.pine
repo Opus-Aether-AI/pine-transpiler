@@ -1,0 +1,14 @@
+//@version=5
+indicator("ICT Buyside/Sellside Liquidity", overlay=true)
+
+len = input.int(20, "Swing Length", minval=2)
+buyside = ta.highest(high, len)
+sellside = ta.lowest(low, len)
+
+tookBuyside = high > buyside[1]
+tookSellside = low < sellside[1]
+
+plot(buyside, "Buyside", color=color.new(color.red, 0))
+plot(sellside, "Sellside", color=color.new(color.green, 0))
+plotshape(tookBuyside, title="Buyside Sweep", style=shape.triangledown, location=location.abovebar, color=color.red, size=size.tiny)
+plotshape(tookSellside, title="Sellside Sweep", style=shape.triangleup, location=location.belowbar, color=color.lime, size=size.tiny)

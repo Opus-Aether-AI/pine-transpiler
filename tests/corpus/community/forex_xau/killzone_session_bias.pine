@@ -1,0 +1,21 @@
+//@version=5
+indicator("Killzone Session Bias", overlay=true)
+
+asia = input.session("2000-0000", "Asia")
+london = input.session("0200-0500", "London")
+newyork = input.session("0930-1130", "NY AM")
+
+inAsia = not na(time("", asia))
+inLondon = not na(time("", london))
+inNy = not na(time("", newyork))
+
+emaLen = input.int(34, "EMA")
+emaValue = ta.ema(close, emaLen)
+biasBull = close > emaValue
+
+bgcolor(inAsia ? color.new(color.blue, 90) : na)
+bgcolor(inLondon ? color.new(color.orange, 90) : na)
+bgcolor(inNy ? color.new(color.green, 90) : na)
+plot(emaValue, "EMA", color=biasBull ? color.lime : color.red, linewidth=2)
+plotchar(inLondon and biasBull, title="London Bull", char="L", location=location.bottom, color=color.lime)
+plotchar(inNy and not biasBull, title="NY Bear", char="N", location=location.top, color=color.red)

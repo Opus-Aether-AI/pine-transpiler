@@ -1,0 +1,35 @@
+//@version=5
+indicator("ICT BOS/CHoCH Screener", overlay=true)
+
+leftBars = input.int(3, "Pivot Left", minval=1)
+rightBars = input.int(3, "Pivot Right", minval=1)
+
+ph = ta.pivothigh(high, leftBars, rightBars)
+pl = ta.pivotlow(low, leftBars, rightBars)
+
+var float lastHi = na
+var float lastLo = na
+var int trend = 0
+
+if not na(ph)
+    lastHi := ph
+if not na(pl)
+    lastLo := pl
+
+bosBull = not na(lastHi) and close > lastHi
+bosBear = not na(lastLo) and close < lastLo
+
+prevTrend = trend
+if bosBull
+    trend := 1
+if bosBear
+    trend := -1
+
+chochBull = bosBull and prevTrend == -1
+chochBear = bosBear and prevTrend == 1
+
+plotshape(bosBull, title="BOS Bull", style=shape.triangleup, location=location.belowbar, color=color.lime, size=size.tiny)
+plotshape(bosBear, title="BOS Bear", style=shape.triangledown, location=location.abovebar, color=color.red, size=size.tiny)
+plotshape(chochBull, title="CHoCH Bull", style=shape.circle, location=location.belowbar, color=color.teal, size=size.tiny)
+plotshape(chochBear, title="CHoCH Bear", style=shape.circle, location=location.abovebar, color=color.fuchsia, size=size.tiny)
+plot(trend, "Trend", color=color.new(color.gray, 100), display=display.none)

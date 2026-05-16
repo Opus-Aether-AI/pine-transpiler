@@ -1,0 +1,13 @@
+//@version=5
+indicator("AlgoAlpha Order Block Probability", overlay=true)
+
+look = input.int(20, "Lookback", minval=5)
+impulse = math.abs(close - open) > ta.atr(14) * 0.8
+bullOb = impulse and close > ta.highest(close[1], look)
+bearOb = impulse and close < ta.lowest(close[1], look)
+
+prob = ta.ema(volume / math.max(ta.sma(volume, 20), 1), 5)
+
+plotshape(bullOb, title="Bull OB", style=shape.square, location=location.belowbar, color=color.new(color.green, 0), size=size.tiny)
+plotshape(bearOb, title="Bear OB", style=shape.square, location=location.abovebar, color=color.new(color.red, 0), size=size.tiny)
+plot(prob, "OB Probability", color=color.new(color.blue, 90), display=display.none)

@@ -1,0 +1,13 @@
+//@version=5
+indicator("XAUUSD Vector SMC [MatsukazeAlgo]", overlay=true)
+
+volAvg = ta.sma(volume, 10)
+strongBull = close > open and volume >= volAvg * 2
+strongBear = close < open and volume >= volAvg * 2
+
+bullOb = strongBull and close > ta.highest(close[1], 10)
+bearOb = strongBear and close < ta.lowest(close[1], 10)
+
+plotshape(bullOb, title="Bull OB", style=shape.square, location=location.belowbar, color=color.lime, size=size.tiny)
+plotshape(bearOb, title="Bear OB", style=shape.square, location=location.abovebar, color=color.red, size=size.tiny)
+bgcolor(strongBull ? color.new(color.green, 92) : strongBear ? color.new(color.red, 92) : na)

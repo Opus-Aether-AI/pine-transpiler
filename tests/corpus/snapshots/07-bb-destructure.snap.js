@@ -112,6 +112,27 @@ const StdPlus = {
     },
 
     /**
+     * VWAP wrapper
+     *
+     * Pine supports tuple form:
+     *   [vwap, upper, lower] = ta.vwap(source, anchor, stdevMult)
+     * while some runtimes only expose scalar VWAP.
+     */
+    vwap: function(ctx, source, anchor, stdevMult) {
+        const value = Std.vwap(ctx, source, anchor, stdevMult);
+        if (Array.isArray(value)) return value;
+
+        // Tuple form fallback for runtimes that only return scalar VWAP.
+        if (arguments.length >= 4) {
+            const basis = Number(value);
+            if (!Number.isFinite(basis)) return [NaN, NaN, NaN];
+            return [basis, basis, basis];
+        }
+
+        return value;
+    },
+
+    /**
      * Crossover (A crosses over B)
      */
     crossover: function(ctx, a, b) {
@@ -268,10 +289,10 @@ const StdPlus = {
     }
 };
 
-indicator("Bollinger Bands");
+indicator("Bollinger Bands", true);
 var length = input.int(20, "Length");
 var mult = input.float(2, "Multiplier");
-var [basis, upper, lower] = StdPlus.bb(context, close, length, mult);
-Std.plot(basis, "Basis");
-Std.plot(upper, "Upper");
-Std.plot(lower, "Lower");
+var [basis, upper, lower] = StdPlus.bb(context, _series_close, length, mult);
+Std.plot(basis, "Basis", color.gray);
+Std.plot(upper, "Upper", color.red);
+Std.plot(lower, "Lower", color.green);
