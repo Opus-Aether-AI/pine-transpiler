@@ -20,8 +20,8 @@ This project adheres to a Code of Conduct that all contributors are expected to 
 
 ### Prerequisites
 
-- Node.js 18+ 
-- pnpm 8+
+- Node.js 18+
+- Bun 1.3+
 - Git
 
 ### Development Setup
@@ -33,28 +33,26 @@ git clone https://github.com/YOUR_USERNAME/pine-transpiler.git
 cd pine-transpiler
 ```
 
-2. **Install dependencies**
+2. **Install dependencies** (`prepare` builds `dist/` automatically)
 
 ```bash
-pnpm install
+bun install
 ```
 
-3. **Build the package**
+3. **Verify the build locally**
 
 ```bash
-pnpm build
+bun run typecheck   # tsc --noEmit
+bun run lint        # biome check src
+bun run test        # unit + integration suite
+bun run corpus      # real-world Pine corpus pass rate
+bun run build       # produces the published dist/
 ```
 
-4. **Run type checking**
+4. **Enforce the coverage gate** (CI runs this — 95% line + 95% function aggregate)
 
 ```bash
-pnpm typecheck
-```
-
-5. **Run linting**
-
-```bash
-pnpm lint
+bun run test:coverage
 ```
 
 ## How to Contribute
@@ -101,10 +99,10 @@ We use [Biome](https://biomejs.dev/) for code formatting and linting:
 
 ```bash
 # Check code style
-pnpm lint
+bun run lint
 
 # Auto-fix issues
-pnpm lint:fix
+bun run lint:fix
 ```
 
 ### File Organization

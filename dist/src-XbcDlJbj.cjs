@@ -3617,7 +3617,7 @@ function analyzeRequiredHelpers(mainBody) {
 /**
 * Generate preamble code for the indicator
 */
-function generatePreamble(usedSources, historicalAccess, mainBody = "") {
+function generatePreamble(usedSources, historicalAccess, mainBody = "", helperUsage) {
 	let preamble = "";
 	const declaredHistorical = /* @__PURE__ */ new Set();
 	for (const source of usedSources) {
@@ -3636,7 +3636,7 @@ function generatePreamble(usedSources, historicalAccess, mainBody = "") {
 			declaredHistorical.add(v);
 		}
 	}
-	const { needsMath, needsSession, needsStdPlus, needsArray, needsMap, needsMatrix, needsColor, needsString, needsUtility, needsState } = analyzeRequiredHelpers(mainBody);
+	const { needsMath, needsSession, needsStdPlus, needsArray, needsMap, needsMatrix, needsColor, needsString, needsUtility, needsState } = helperUsage ?? analyzeRequiredHelpers(mainBody);
 	if (needsMath) preamble += `${MATH_HELPER_FUNCTIONS}\n`;
 	if (needsSession) preamble += `${ALL_TIME_HELPERS}\n`;
 	if (needsStdPlus) preamble += `${STD_PLUS_LIBRARY}\n`;
@@ -3653,8 +3653,8 @@ function generatePreamble(usedSources, historicalAccess, mainBody = "") {
 * Build an indicator factory from the given options
 */
 function buildIndicatorFactory(options) {
-	const { indicatorId, indicatorName, name, shortName, overlay, plots, inputs, usedSources, historicalAccess, mainBody, autoBgColorerForBoxes = false } = options;
-	const body = generatePreamble(usedSources, historicalAccess, mainBody) + mainBody;
+	const { indicatorId, indicatorName, name, shortName, overlay, plots, inputs, usedSources, historicalAccess, mainBody, helperUsage, autoBgColorerForBoxes = false } = options;
+	const body = generatePreamble(usedSources, historicalAccess, mainBody, helperUsage) + mainBody;
 	const hasAutoBgColorer = autoBgColorerForBoxes && body.includes("box.new(");
 	const AUTO_BG_PLOT_ID = "__auto_bg__";
 	const AUTO_BG_PALETTE_ID = "__auto_bg_palette__";
@@ -4865,1963 +4865,82 @@ function topologicalSort(vars) {
 	return result;
 }
 //#endregion
-//#region src/generator/generator-utils.ts
-/** Maximum iterations allowed in while/for loops to prevent infinite loops */
-var MAX_LOOP_ITERATIONS = 1e4;
+//#region src/generator/helper-usage.ts
 /**
-* Reserved/dangerous identifier names that could cause security issues or conflicts
-* These are sanitized by prefixing with '_pine_' when used as variable names
-*/
-var DANGEROUS_IDENTIFIERS = new Set([
-	"__proto__",
-	"constructor",
-	"prototype",
-	"__defineGetter__",
-	"__defineSetter__",
-	"__lookupGetter__",
-	"__lookupSetter__",
-	"eval",
-	"Function",
-	"arguments",
-	"caller",
-	"callee",
-	"this",
-	"super",
-	"class",
-	"enum",
-	"extends",
-	"static",
-	"yield",
-	"await",
-	"let",
-	"const",
-	"var",
-	"return",
-	"throw",
-	"typeof",
-	"instanceof",
-	"in",
-	"of",
-	"new",
-	"delete",
-	"void",
-	"null",
-	"undefined"
-]);
-/**
-* Sanitize an identifier name to prevent security issues
-*/
-function sanitizeIdentifier(name) {
-	if (DANGEROUS_IDENTIFIERS.has(name)) return `_pine_${name}`;
-	return name;
-}
-/**
-* Check if a node is a statement (vs expression)
-*/
-function isStatement(node) {
-	return "type" in node && (node.type.endsWith("Statement") || node.type === "VariableDeclaration" || node.type === "FunctionDeclaration" || node.type === "TypeDefinition");
-}
-/**
-* Generate indentation string for the given level
-* @param level The indentation level (0-based)
-* @param offset Optional offset to add to the level
-* @returns The indentation string
-*/
-function indent(level, offset = 0) {
-	return "  ".repeat(Math.max(0, level + offset));
-}
-//#endregion
-//#region src/generator/expression-generator.ts
-/**
-* Expression Generator
+* Classify a helper identifier into its category by prefix or exact
+* name. Returns null for identifiers that don't correspond to a
+* preamble-injected helper (e.g. `Std.sma`, `Math.abs`, user-defined
+* function names).
 *
-* Handles generation of JavaScript expressions from Pine Script AST expression nodes.
+* Names are matched against the same set that
+* `src/factory/indicator-factory.ts#analyzeRequiredHelpers` checks for —
+* keeping the two in sync is the whole point of this module.
 */
-/**
-* A Pine call argument written as `name=value` parses to an
-* AssignmentExpression with an Identifier on the left and operator `=`.
-* Those are metadata-only (the metadata visitor consumes them via
-* getArg) and must NOT be emitted into the runtime call: JS would
-* interpret `name = value` as an assignment that rewrites whatever
-* `name` shadows in the wrapper closure.
-*
-* Pine's reassignment operator `:=` also parses to AssignmentExpression
-* with an Identifier left — but `f(x := computedValue)` is a real
-* side-effecting reassignment in an argument position, NOT a named arg.
-* Only the `=` form is dropped.
-*/
-function isNamedArgument(arg) {
-	return arg.type === "AssignmentExpression" && arg.operator === "=" && !Array.isArray(arg.left) && arg.left.type === "Identifier";
-}
-/**
-* Pine v6 canonical positional-arg order for drawing-namespace
-* constructors and table.cell. When a user calls these with named
-* args (`box.new(time, high, time, low, bgcolor = c, text = t)`),
-* the parser preserves the source order — but downstream consumers
-* (runtime stubs, the host VisualEventsRenderer that reads
-* `__visualEvents[*].args`) need a deterministic layout. We reorder
-* named args into these slots and pad missing slots with `na` so
-* `args[i]` always means the same Pine parameter.
-*
-* Order taken directly from Pine v6 reference signatures.
-*/
-var DRAWING_CANONICAL_ARG_ORDER = {
-	"box.new": [
-		"left",
-		"top",
-		"right",
-		"bottom",
-		"border_color",
-		"border_width",
-		"border_style",
-		"extend",
-		"xloc",
-		"bgcolor",
-		"text",
-		"text_size",
-		"text_color",
-		"text_halign",
-		"text_valign",
-		"text_wrap",
-		"force_overlay",
-		"text_font_family"
-	],
-	"line.new": [
-		"x1",
-		"y1",
-		"x2",
-		"y2",
-		"xloc",
-		"extend",
-		"color",
-		"style",
-		"width",
-		"force_overlay"
-	],
-	"label.new": [
-		"x",
-		"y",
-		"text",
-		"xloc",
-		"yloc",
-		"color",
-		"style",
-		"textcolor",
-		"size",
-		"textalign",
-		"tooltip",
-		"text_font_family",
-		"force_overlay",
-		"text_formatting"
-	],
-	"table.new": [
-		"position",
-		"columns",
-		"rows",
-		"bgcolor",
-		"frame_color",
-		"frame_width",
-		"border_color",
-		"border_width",
-		"force_overlay"
-	],
-	"table.cell": [
-		"table_id",
-		"column",
-		"row",
-		"text",
-		"width",
-		"height",
-		"text_color",
-		"text_halign",
-		"text_valign",
-		"text_size",
-		"bgcolor",
-		"tooltip",
-		"text_font_family",
-		"text_formatting"
-	]
-};
-/**
-* Canonical positional order for typed input helpers.
-*
-* Pine allows named args (`input.int(title="Len", defval=14)`), but our
-* runtime input mock only treats the first argument as the default value.
-* If named args are emitted in source order, `title` can incorrectly land
-* in slot 0 and coerce the runtime value to a string.
-*/
-var INPUT_CANONICAL_ARG_ORDER = {
-	input: [
-		"defval",
-		"title",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm",
-		"options",
-		"minval",
-		"maxval",
-		"step"
-	],
-	"input.int": [
-		"defval",
-		"title",
-		"minval",
-		"maxval",
-		"step",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm",
-		"options"
-	],
-	"input.float": [
-		"defval",
-		"title",
-		"minval",
-		"maxval",
-		"step",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm",
-		"options"
-	],
-	"input.bool": [
-		"defval",
-		"title",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	],
-	"input.string": [
-		"defval",
-		"title",
-		"options",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	],
-	"input.source": [
-		"defval",
-		"title",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	],
-	"input.color": [
-		"defval",
-		"title",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	],
-	"input.timeframe": [
-		"defval",
-		"title",
-		"options",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	],
-	"input.session": [
-		"defval",
-		"title",
-		"options",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	],
-	"input.time": [
-		"defval",
-		"title",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	],
-	"input.symbol": [
-		"defval",
-		"title",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	],
-	"input.text_area": [
-		"defval",
-		"title",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	],
-	"input.price": [
-		"defval",
-		"title",
-		"minval",
-		"maxval",
-		"step",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	]
-};
-var BUILTIN_SERIES_IDENTIFIERS = new Set([
-	"open",
-	"high",
-	"low",
-	"close",
-	"volume",
-	"hl2",
-	"hlc3",
-	"ohlc4",
-	"time"
-]);
-var IMPLICIT_SERIES_BY_TA_CALL = {
-	"ta.highest": "context.new_var(high)",
-	"ta.lowest": "context.new_var(low)",
-	"ta.highestbars": "context.new_var(high)",
-	"ta.lowestbars": "context.new_var(low)"
-};
-/**
-* Unified lookup map for all Pine Script function mappings.
-* Built once at module load for O(1) lookup instead of O(k) sequential checks.
-*/
-var UNIFIED_FUNCTION_MAP = /* @__PURE__ */ new Map();
-function buildUnifiedFunctionMap() {
-	const allMappings = [
-		TA_FUNCTION_MAPPINGS,
-		MATH_FUNCTION_MAPPINGS,
-		TIME_FUNCTION_MAPPINGS,
-		ALL_UTILITY_MAPPINGS,
-		MULTI_OUTPUT_MAPPINGS
-	];
-	for (const mappingGroup of allMappings) for (const [key, value] of Object.entries(mappingGroup)) if (!UNIFIED_FUNCTION_MAP.has(key)) UNIFIED_FUNCTION_MAP.set(key, value);
-}
-buildUnifiedFunctionMap();
-/**
-* Generates JavaScript expressions from Pine Script AST expression nodes.
-*/
-var ExpressionGenerator = class {
-	constructor() {
-		this.indentLevel = 0;
-		this.statementGen = null;
-		this.persistentScopes = [/* @__PURE__ */ new Map()];
-	}
-	setIndentLevel(level) {
-		this.indentLevel = level;
-	}
-	getIndentLevel() {
-		return this.indentLevel;
-	}
-	/**
-	* Set the statement generator for mutual reference.
-	* This breaks the circular dependency.
-	*/
-	setStatementGenerator(gen) {
-		this.statementGen = gen;
-	}
-	markPersistentIdentifier(identifier, kind, stateKeyExpr = JSON.stringify(identifier)) {
-		this.persistentScopes[this.persistentScopes.length - 1].set(identifier, {
-			kind,
-			keyExpr: stateKeyExpr
-		});
-	}
-	pushPersistentScope() {
-		this.persistentScopes.push(/* @__PURE__ */ new Map());
-	}
-	popPersistentScope() {
-		if (this.persistentScopes.length > 1) this.persistentScopes.pop();
-	}
-	resolvePersistentIdentifier(identifier) {
-		for (let i = this.persistentScopes.length - 1; i >= 0; i--) {
-			const hit = this.persistentScopes[i]?.get(identifier);
-			if (hit) return hit;
-		}
-		return null;
-	}
-	generateExpression(expr) {
-		switch (expr.type) {
-			case "BinaryExpression": return this.generateBinaryExpression(expr);
-			case "UnaryExpression": return this.generateUnaryExpression(expr);
-			case "CallExpression": return this.generateCallExpression(expr);
-			case "MemberExpression": return this.generateMemberExpression(expr);
-			case "ConditionalExpression": return this.generateConditionalExpression(expr);
-			case "AssignmentExpression": return this.generateAssignmentExpression(expr);
-			case "ArrayExpression": return this.generateArrayExpression(expr);
-			case "Identifier": return sanitizeIdentifier(expr.name);
-			case "Literal": return this.generateLiteral(expr);
-			case "SwitchExpression": return this.generateSwitchExpression(expr);
-			default: throw new Error(`Unknown expression type: ${expr.type}`);
-		}
-	}
-	generateBinaryExpression(expr) {
-		let op = expr.operator;
-		if (op === "and") op = "&&";
-		if (op === "or") op = "||";
-		if (op === "!=") op = "!==";
-		if (op === "==") op = "===";
-		return `(${this.generateExpression(expr.left)} ${op} ${this.generateExpression(expr.right)})`;
-	}
-	generateUnaryExpression(expr) {
-		let op = expr.operator;
-		if (op === "not") op = "!";
-		if (expr.prefix) return `${op}${this.generateExpression(expr.argument)}`;
-		return `${this.generateExpression(expr.argument)}${op}`;
-	}
-	generateCallExpression(expr) {
-		let callee = this.generateExpression(expr.callee);
-		const pineCallee = callee;
-		const runtimeArgExprs = this.normalizeCallArguments(pineCallee, expr.arguments).map((a) => isNamedArgument(a) ? a.right : a);
-		const args = runtimeArgExprs.map((a) => this.generateExpression(a));
-		const mapping = UNIFIED_FUNCTION_MAP.get(callee);
-		if (mapping) {
-			callee = mapping.stdName || mapping.jsName || callee;
-			if (mapping.needsSeries && args.length > 0) {
-				const implicitSeries = this.resolveImplicitSeriesArg(pineCallee, runtimeArgExprs.length);
-				if (implicitSeries) args.unshift(implicitSeries);
-				else args[0] = this.wrapSeriesArgument(runtimeArgExprs[0], args[0]);
-			}
-			if (mapping.contextArg) args.unshift("context");
-		}
-		return `${callee}(${args.join(", ")})`;
-	}
-	/**
-	* Pine named args can be supplied out of order. Most callers can emit
-	* runtime args in source order, but a few call families need a
-	* deterministic positional layout downstream:
-	*
-	*   • `request.security` — runtime needs symbol/timeframe/expression
-	*     at the first three positional slots
-	*   • Drawing constructors (`box.new`, `line.new`, `label.new`,
-	*     `table.new`, `table.cell`) — runtime stubs and the host
-	*     VisualEventsRenderer read `args[i]` knowing it means a specific
-	*     Pine parameter; without reordering, named-arg scripts pass
-	*     bgcolor through the slot the runtime expects to hold
-	*     border_color, etc.
-	*
-	* Reordering is local to these specific callees. Everything else
-	* keeps the generic value-only named-arg emit (see `isNamedArgument`).
-	*/
-	normalizeCallArguments(pineCallee, args) {
-		if (pineCallee === "request.security") return this.normalizeRequestSecurityArgs(args);
-		const inputCanonicalOrder = INPUT_CANONICAL_ARG_ORDER[pineCallee];
-		if (inputCanonicalOrder) return this.normalizeByCanonicalOrder(args, inputCanonicalOrder);
-		const canonicalOrder = DRAWING_CANONICAL_ARG_ORDER[pineCallee];
-		if (canonicalOrder) return this.normalizeByCanonicalOrder(args, canonicalOrder);
-		return args;
-	}
-	normalizeRequestSecurityArgs(args) {
-		const positional = [];
-		const namedOrdered = [];
-		for (const arg of args) if (isNamedArgument(arg)) namedOrdered.push({
-			name: arg.left.name,
-			value: arg.right
-		});
-		else positional.push(arg);
-		if (namedOrdered.length === 0) return args;
-		const namedLookup = /* @__PURE__ */ new Map();
-		for (const entry of namedOrdered) namedLookup.set(entry.name, entry.value);
-		let positionalCursor = 0;
-		const takePositional = () => {
-			const value = positional[positionalCursor];
-			positionalCursor += 1;
-			return value;
-		};
-		const symbol = namedLookup.get("symbol") ?? takePositional();
-		const timeframe = namedLookup.get("timeframe") ?? takePositional();
-		const expression = namedLookup.get("expression") ?? takePositional();
-		const normalized = [];
-		if (symbol) normalized.push(symbol);
-		if (timeframe) normalized.push(timeframe);
-		if (expression) normalized.push(expression);
-		while (positionalCursor < positional.length) {
-			normalized.push(positional[positionalCursor]);
-			positionalCursor += 1;
-		}
-		for (const entry of namedOrdered) {
-			if (entry.name === "symbol" || entry.name === "timeframe" || entry.name === "expression") continue;
-			normalized.push(entry.value);
-		}
-		return normalized;
-	}
-	/**
-	* Drawing-namespace `.new` and `table.cell` reorder.
-	*
-	* Splits args into positional + named; positional args bind to the
-	* first N canonical slots (preserving source order); named args fill
-	* their declared slot from `canonicalOrder`. Missing slots are padded
-	* with a synthesized `na` Identifier so `args[i]` is always present
-	* and means the same parameter regardless of which args the script
-	* supplied.
-	*
-	* Named args whose name isn't in `canonicalOrder` are dropped — that
-	* shouldn't happen for the supported callees, but if Pine adds a new
-	* param we don't know about yet, dropping it is safer than shifting
-	* subsequent slots.
-	*/
-	normalizeByCanonicalOrder(args, canonicalOrder) {
-		const positional = [];
-		const namedLookup = /* @__PURE__ */ new Map();
-		for (const arg of args) if (isNamedArgument(arg)) namedLookup.set(arg.left.name, arg.right);
-		else positional.push(arg);
-		if (namedLookup.size === 0) return args;
-		const naExpr = {
-			type: "Literal",
-			value: null,
-			raw: "na",
-			kind: "na"
-		};
-		const highestNamedSlot = Math.max(-1, ...[...namedLookup.keys()].map((name) => canonicalOrder.indexOf(name)));
-		const fillLength = Math.max(positional.length, highestNamedSlot + 1);
-		const normalized = [];
-		for (let i = 0; i < fillLength; i++) {
-			const paramName = canonicalOrder[i];
-			if (i < positional.length) {
-				normalized.push(positional[i]);
-				continue;
-			}
-			if (paramName && namedLookup.has(paramName)) {
-				normalized.push(namedLookup.get(paramName));
-				continue;
-			}
-			normalized.push(naExpr);
-		}
-		return normalized;
-	}
-	/**
-	* TA mappings marked `needsSeries` must receive a Pine series object,
-	* not a scalar snapshot. For base sources we reuse the preamble's
-	* `_series_<name>` bindings; for computed expressions we materialize a
-	* per-call-site series via `context.new_var(expr)`.
-	*/
-	wrapSeriesArgument(argExpr, emittedArg) {
-		if (emittedArg.startsWith("_series_") || emittedArg.startsWith("context.new_var(")) return emittedArg;
-		if (argExpr.type === "Identifier" && BUILTIN_SERIES_IDENTIFIERS.has(argExpr.name)) return `_series_${sanitizeIdentifier(argExpr.name)}`;
-		return `context.new_var(${emittedArg})`;
-	}
-	/**
-	* A handful of TA calls allow omitted source args in Pine and default
-	* to built-in series. When only one argument is supplied we inject the
-	* implicit series so the mapped Std call keeps Pine-compatible arity.
-	*/
-	resolveImplicitSeriesArg(pineCallee, providedArgCount) {
-		const implicit = IMPLICIT_SERIES_BY_TA_CALL[pineCallee];
-		if (!implicit) return null;
-		if (providedArgCount !== 1) return null;
-		return implicit;
-	}
-	generateMemberExpression(expr) {
-		const object = this.generateExpression(expr.object);
-		if (expr.computed) {
-			const property = this.generateExpression(expr.property);
-			if (expr.object.type === "Identifier") return `_getHistorical_${object}(${property})`;
-			return `context.new_var(${object}).get(${property})`;
-		}
-		return `${object}.${expr.property.name}`;
-	}
-	generateConditionalExpression(expr) {
-		return `(${this.generateExpression(expr.test)} ? ${this.generateExpression(expr.consequent)} : ${this.generateExpression(expr.alternate)})`;
-	}
-	generateArrayExpression(expr) {
-		return `[${expr.elements.map((e) => this.generateExpression(e)).join(", ")}]`;
-	}
-	generateAssignmentExpression(expr) {
-		if (Array.isArray(expr.left)) return `[${expr.left.map((id) => sanitizeIdentifier(id.name)).join(", ")}] = ${this.generateExpression(expr.right)}`;
-		const leftIdentifier = !Array.isArray(expr.left) && expr.left.type === "Identifier" ? expr.left : null;
-		const isIdentifierLeft = leftIdentifier !== null;
-		const left = leftIdentifier ? sanitizeIdentifier(leftIdentifier.name) : this.generateMemberExpression(expr.left);
-		let op = expr.operator;
-		if (op === ":=") op = "=";
-		const right = this.generateExpression(expr.right);
-		const persistentBinding = this.resolvePersistentIdentifier(left);
-		if (isIdentifierLeft && persistentBinding) {
-			const setter = persistentBinding.kind === "varip" ? "_pineSetVarip" : "_pineSetVar";
-			const keyExpr = persistentBinding.keyExpr;
-			if (op === "=") return `(${left} = ${setter}(${keyExpr}, ${right}))`;
-			const binaryOp = {
-				"+=": "+",
-				"-=": "-",
-				"*=": "*",
-				"/=": "/",
-				"%=": "%"
-			}[op];
-			if (binaryOp) return `(${left} = ${setter}(${keyExpr}, (${left} ${binaryOp} ${right})))`;
-		}
-		return `${left} ${op} ${right}`;
-	}
-	generateLiteral(expr) {
-		if (expr.kind === "string" || expr.kind === "color") return JSON.stringify(expr.value);
-		if (expr.kind === "na") return "NaN";
-		return String(expr.value);
-	}
-	generateSwitchExpression(expr) {
-		let result = "(() => {\n";
-		this.indentLevel++;
-		if (expr.discriminant) {
-			result += `${indent(this.indentLevel)}switch (${this.generateExpression(expr.discriminant)}) {\n`;
-			this.indentLevel++;
-			for (const c of expr.cases) {
-				if (c.test === null) result += `${indent(this.indentLevel)}default:\n`;
-				else result += `${indent(this.indentLevel)}case ${this.generateExpression(c.test)}:\n`;
-				this.indentLevel++;
-				if (c.consequent.type === "BlockStatement") result += this.generateBlockExpressionWithImplicitReturn(c.consequent);
-				else result += `${indent(this.indentLevel)}return ${this.generateExpression(c.consequent)};\n`;
-				this.indentLevel--;
-			}
-			this.indentLevel--;
-			result += `${indent(this.indentLevel)}}\n`;
-		} else for (let i = 0; i < expr.cases.length; i++) {
-			const c = expr.cases[i];
-			const test = c.test ? this.generateExpression(c.test) : "true";
-			const prefix = i === 0 ? "if" : "else if";
-			if (c.test === null && i > 0) result += `${indent(this.indentLevel)}else {\n`;
-			else result += `${indent(this.indentLevel)}${prefix} (${test}) {\n`;
-			this.indentLevel++;
-			if (c.consequent.type === "BlockStatement") result += this.generateBlockExpressionWithImplicitReturn(c.consequent);
-			else result += `${indent(this.indentLevel)}return ${this.generateExpression(c.consequent)};\n`;
-			this.indentLevel--;
-			result += `${indent(this.indentLevel)}}\n`;
-		}
-		this.indentLevel--;
-		result += `${indent(this.indentLevel)}})()`;
-		return result;
-	}
-	/**
-	* Generate a block expression that returns the last expression's value.
-	*/
-	generateBlockExpressionWithImplicitReturn(block) {
-		if (block.body.length === 0) return `${indent(this.indentLevel)}return undefined;`;
-		const statements = block.body;
-		const allButLast = statements.slice(0, -1);
-		const lastStmt = statements[statements.length - 1];
-		let result = "";
-		this.indentLevel++;
-		for (const stmt of allButLast) if (this.statementGen) result += `${this.statementGen.generateStatement(stmt)}\n`;
-		if (lastStmt.type === "ExpressionStatement") result += `${indent(this.indentLevel)}return ${this.generateExpression(lastStmt.expression)};\n`;
-		else if (lastStmt.type === "ReturnStatement") {
-			if (this.statementGen) result += `${this.statementGen.generateStatement(lastStmt)}\n`;
-		} else if (lastStmt.type === "IfStatement") result += `${this.generateIfExpressionWithImplicitReturn(lastStmt)}\n`;
-		else if (this.statementGen) result += `${this.statementGen.generateStatement(lastStmt)}\n`;
-		this.indentLevel--;
-		return result;
-	}
-	/**
-	* Generate an if expression with implicit return handling
-	*/
-	generateIfExpressionWithImplicitReturn(stmt) {
-		const test = this.generateExpression(stmt.test);
-		let result = `${indent(this.indentLevel)}if (${test}) {\n`;
-		if (stmt.consequent.type === "BlockStatement") result += this.generateBlockExpressionWithImplicitReturn(stmt.consequent);
-		else if (isStatement(stmt.consequent)) {
-			this.indentLevel++;
-			if (stmt.consequent.type === "ExpressionStatement") result += `${indent(this.indentLevel)}return ${this.generateExpression(stmt.consequent.expression)};\n`;
-			else if (this.statementGen) result += `${this.statementGen.generateStatement(stmt.consequent)}\n`;
-			this.indentLevel--;
-		} else {
-			this.indentLevel++;
-			result += `${indent(this.indentLevel)}return ${this.generateExpression(stmt.consequent)};\n`;
-			this.indentLevel--;
-		}
-		result += `${indent(this.indentLevel)}}`;
-		if (stmt.alternate) if (stmt.alternate.type === "IfStatement") result += ` else ${this.generateIfExpressionWithImplicitReturn(stmt.alternate).trim()}`;
-		else if (stmt.alternate.type === "BlockStatement") {
-			result += ` else {\n`;
-			result += this.generateBlockExpressionWithImplicitReturn(stmt.alternate);
-			result += `${indent(this.indentLevel)}}`;
-		} else if (isStatement(stmt.alternate)) {
-			result += ` else {\n`;
-			this.indentLevel++;
-			if (stmt.alternate.type === "ExpressionStatement") result += `${indent(this.indentLevel)}return ${this.generateExpression(stmt.alternate.expression)};\n`;
-			else if (this.statementGen) result += `${this.statementGen.generateStatement(stmt.alternate)}\n`;
-			this.indentLevel--;
-			result += `${indent(this.indentLevel)}}`;
-		} else {
-			result += ` else {\n`;
-			this.indentLevel++;
-			result += `${indent(this.indentLevel)}return ${this.generateExpression(stmt.alternate)};\n`;
-			this.indentLevel--;
-			result += `${indent(this.indentLevel)}}`;
-		}
-		return result;
-	}
-};
-//#endregion
-//#region src/generator/statement-generator.ts
-/**
-* Generates JavaScript statements from Pine Script AST statement nodes.
-*/
-var StatementGenerator = class {
-	constructor(historicalVars, expressionGen) {
-		this.indentLevel = 0;
-		this.loopCounter = 0;
-		this.functionScopeCounter = 0;
-		this.functionScopeStack = [];
-		this.historicalVars = historicalVars;
-		this.expressionGen = expressionGen;
-	}
-	setIndentLevel(level) {
-		this.indentLevel = level;
-	}
-	getIndentLevel() {
-		return this.indentLevel;
-	}
-	generateStatement(stmt) {
-		switch (stmt.type) {
-			case "VariableDeclaration": return this.generateVariableDeclaration(stmt);
-			case "FunctionDeclaration": return this.generateFunctionDeclaration(stmt);
-			case "ExpressionStatement": return `${indent(this.indentLevel)}${this.expressionGen.generateExpression(stmt.expression)};`;
-			case "BlockStatement": return this.generateBlockStatement(stmt);
-			case "IfStatement": return this.generateIfStatement(stmt);
-			case "ForStatement": return this.generateForStatement(stmt);
-			case "ForInStatement": return this.generateForInStatement(stmt);
-			case "WhileStatement": return this.generateWhileStatement(stmt);
-			case "ReturnStatement": return `${indent(this.indentLevel)}return ${stmt.argument ? this.expressionGen.generateExpression(stmt.argument) : ""};`;
-			case "BreakStatement": return `${indent(this.indentLevel)}break;`;
-			case "ContinueStatement": return `${indent(this.indentLevel)}continue;`;
-			case "SwitchStatement": return this.generateSwitchStatement(stmt);
-			case "TypeDefinition": return this.generateTypeDefinition(stmt);
-			case "ImportStatement": return this.generateImportStatement(stmt);
-			default: throw new Error(`Unknown statement type: ${stmt.type}`);
-		}
-	}
-	generateBlockStatement(stmt) {
-		this.indentLevel++;
-		const body = stmt.body.map((s) => this.generateStatement(s)).join("\n");
-		this.indentLevel--;
-		return `{\n${body}\n${indent(this.indentLevel)}}`;
-	}
-	generateStatementOrBlock(stmt) {
-		if (stmt.type === "BlockStatement") return this.generateBlockStatement(stmt);
-		this.indentLevel++;
-		let s;
-		if (isStatement(stmt)) s = this.generateStatement(stmt);
-		else s = `${indent(this.indentLevel)}${this.expressionGen.generateExpression(stmt)};`;
-		this.indentLevel--;
-		return `{\n${s}\n${indent(this.indentLevel)}}`;
-	}
-	currentPersistentKeyExpr(identifier) {
-		const scope = this.functionScopeStack[this.functionScopeStack.length - 1];
-		if (!scope) return JSON.stringify(identifier);
-		return `${scope.keyVar} + ${JSON.stringify(`::${identifier}`)}`;
-	}
-	statementContainsPersistentDecl(stmt) {
-		if (stmt.type === "VariableDeclaration") return stmt.kind === "var" || stmt.kind === "varip";
-		if (stmt.type === "BlockStatement") return this.blockContainsPersistentDecl(stmt);
-		if (stmt.type === "IfStatement") {
-			if (stmt.consequent.type === "BlockStatement" ? this.blockContainsPersistentDecl(stmt.consequent) : this.statementContainsPersistentDecl(stmt.consequent)) return true;
-			if (!stmt.alternate) return false;
-			return stmt.alternate.type === "BlockStatement" ? this.blockContainsPersistentDecl(stmt.alternate) : this.statementContainsPersistentDecl(stmt.alternate);
-		}
-		if (stmt.type === "ForStatement" || stmt.type === "ForInStatement" || stmt.type === "WhileStatement") return stmt.body.type === "BlockStatement" ? this.blockContainsPersistentDecl(stmt.body) : this.statementContainsPersistentDecl(stmt.body);
-		if (stmt.type === "SwitchStatement") {
-			for (const c of stmt.cases) if (c.consequent.type === "BlockStatement" ? this.blockContainsPersistentDecl(c.consequent) : false) return true;
-		}
-		return false;
-	}
-	blockContainsPersistentDecl(block) {
-		for (const stmt of block.body) if (this.statementContainsPersistentDecl(stmt)) return true;
-		return false;
-	}
-	generateIfStatement(stmt) {
-		const test = this.expressionGen.generateExpression(stmt.test);
-		const consequent = this.generateStatementOrBlock(stmt.consequent);
-		let result = `${indent(this.indentLevel)}if (${test}) ${consequent}`;
-		if (stmt.alternate) {
-			const alternate = this.generateStatementOrBlock(stmt.alternate);
-			if (stmt.alternate.type === "IfStatement") result += ` else ${alternate.trim()}`;
-			else result += ` else ${alternate}`;
-		}
-		return result;
-	}
-	generateWhileStatement(stmt) {
-		const loopVar = `_loop_${this.loopCounter++}`;
-		const test = this.expressionGen.generateExpression(stmt.test);
-		let bodyContent = this.generateStatementOrBlock(stmt.body);
-		const lines = bodyContent.split("\n");
-		if (lines.length >= 2) {
-			lines.shift();
-			lines.pop();
-			bodyContent = lines.join("\n");
-		}
-		this.indentLevel++;
-		const guard = `${indent(this.indentLevel)}if (++${loopVar} > ${MAX_LOOP_ITERATIONS}) throw new Error("Loop limit exceeded (max ${MAX_LOOP_ITERATIONS} iterations)");`;
-		this.indentLevel--;
-		return `${indent(this.indentLevel)}let ${loopVar} = 0;\n${indent(this.indentLevel)}while (${test}) {\n${guard}\n${bodyContent}\n${indent(this.indentLevel)}}`;
-	}
-	generateSwitchStatement(stmt) {
-		if (!stmt.discriminant) {
-			let result = "";
-			for (let i = 0; i < stmt.cases.length; i++) {
-				const c = stmt.cases[i];
-				if (i === 0) if (c.test) result += `${indent(this.indentLevel)}if (${this.expressionGen.generateExpression(c.test)}) ${this.generateStatementOrBlock(c.consequent)}`;
-				else result += this.generateStatementOrBlock(c.consequent);
-				else if (c.test) result += ` else if (${this.expressionGen.generateExpression(c.test)}) ${this.generateStatementOrBlock(c.consequent)}`;
-				else result += ` else ${this.generateStatementOrBlock(c.consequent)}`;
-			}
-			return result;
-		}
-		const disc = this.expressionGen.generateExpression(stmt.discriminant);
-		let result = `${indent(this.indentLevel)}switch (${disc}) {\n`;
-		this.indentLevel++;
-		for (const c of stmt.cases) {
-			if (c.test === null) result += `${indent(this.indentLevel)}default:\n`;
-			else result += `${indent(this.indentLevel)}case ${this.expressionGen.generateExpression(c.test)}:\n`;
-			this.indentLevel++;
-			if (c.consequent.type === "BlockStatement") {
-				const block = this.generateBlockStatement(c.consequent);
-				result += `${indent(this.indentLevel)}${block}\n`;
-			} else result += `${indent(this.indentLevel)}${this.expressionGen.generateExpression(c.consequent)};\n`;
-			result += `${indent(this.indentLevel)}break;\n`;
-			this.indentLevel--;
-		}
-		this.indentLevel--;
-		result += `${indent(this.indentLevel)}}`;
-		return result;
-	}
-	generateTypeDefinition(stmt) {
-		const name = stmt.name;
-		const prefix = stmt.export ? "export " : "";
-		const fields = stmt.fields;
-		const typeCtor = `__type_${sanitizeIdentifier(name)}`;
-		let constructorBody = "";
-		this.indentLevel++;
-		this.indentLevel++;
-		constructorBody = fields.map((f) => {
-			const fname = f.id.name;
-			return `${indent(this.indentLevel)}this.${fname} = ${fname};`;
-		}).join("\n");
-		this.indentLevel--;
-		this.indentLevel--;
-		const paramsWithDefaults = fields.map((f) => {
-			const fname = f.id.name;
-			if (f.init) return `${fname} = ${this.expressionGen.generateExpression(f.init)}`;
-			return fname;
-		}).join(", ");
-		return `${indent(this.indentLevel)}var ${typeCtor} = class ${name} {\n${indent(this.indentLevel, 1)}constructor(${paramsWithDefaults}) {\n${indent(this.indentLevel, 2)}${constructorBody.trim()}\n${indent(this.indentLevel, 1)}}\n${indent(this.indentLevel, 1)}static new(...args) { return new ${typeCtor}(...args); }\n${indent(this.indentLevel)}};\n${indent(this.indentLevel)}${prefix}var ${name};\n${indent(this.indentLevel)}if (typeof ${name} === 'function') {\n${indent(this.indentLevel, 1)}if (typeof ${name}.new !== 'function') {\n${indent(this.indentLevel, 2)}${name}.new = (...args) => new ${typeCtor}(...args);\n${indent(this.indentLevel, 1)}}\n${indent(this.indentLevel)}} else {\n${indent(this.indentLevel, 1)}${name} = ${typeCtor};\n${indent(this.indentLevel)}}`;
-	}
-	generateForStatement(stmt) {
-		let loopVarName = "";
-		if (stmt.init.type === "VariableDeclaration") {
-			const decl = stmt.init;
-			loopVarName = Array.isArray(decl.id) ? decl.id[0].name : decl.id.name;
-		} else if (stmt.init.type === "AssignmentExpression") {
-			const assign = stmt.init;
-			if (!Array.isArray(assign.left) && assign.left.type === "Identifier") loopVarName = assign.left.name;
-		}
-		let initStr = "";
-		if (stmt.init.type === "VariableDeclaration") {
-			const decl = stmt.init;
-			const kind = "let";
-			const init = decl.init ? ` = ${this.expressionGen.generateExpression(decl.init)}` : "";
-			initStr = `${kind} ${loopVarName}${init}`;
-		} else if (loopVarName) {
-			const assign = stmt.init;
-			initStr = `let ${loopVarName} = ${this.expressionGen.generateExpression(assign.right)}`;
-		} else initStr = this.expressionGen.generateAssignmentExpression(stmt.init);
-		const testStr = this.expressionGen.generateExpression(stmt.test);
-		let updateStr = "";
-		if (stmt.update) if (loopVarName) updateStr = `${loopVarName} += ${this.expressionGen.generateExpression(stmt.update)}`;
-		else updateStr = this.expressionGen.generateExpression(stmt.update);
-		else if (loopVarName) updateStr = `${loopVarName}++`;
-		const loopVar = `_loop_${this.loopCounter++}`;
-		let bodyContent = this.generateStatementOrBlock(stmt.body);
-		const lines = bodyContent.split("\n");
-		if (lines.length >= 2) {
-			lines.shift();
-			lines.pop();
-			bodyContent = lines.join("\n");
-		}
-		this.indentLevel++;
-		const guard = `${indent(this.indentLevel)}if (++${loopVar} > ${MAX_LOOP_ITERATIONS}) throw new Error("Loop limit exceeded (max ${MAX_LOOP_ITERATIONS} iterations)");`;
-		this.indentLevel--;
-		return `${indent(this.indentLevel)}let ${loopVar} = 0;\n${indent(this.indentLevel)}for (${initStr}; ${testStr}; ${updateStr}) {\n${guard}\n${bodyContent}\n${indent(this.indentLevel)}}`;
-	}
-	generateForInStatement(stmt) {
-		const right = this.expressionGen.generateExpression(stmt.right);
-		const body = this.generateStatementOrBlock(stmt.body);
-		if (Array.isArray(stmt.left)) {
-			const ids = stmt.left.map((id) => sanitizeIdentifier(id.name)).join(", ");
-			return `${indent(this.indentLevel)}for (const [${ids}] of ${right}.entries()) ${body}`;
-		}
-		const name = sanitizeIdentifier(stmt.left.name);
-		return `${indent(this.indentLevel)}for (const ${name} of ${right}) ${body}`;
-	}
-	generateVariableDeclaration(stmt) {
-		const kind = "var";
-		const isPersistent = stmt.kind === "var" || stmt.kind === "varip";
-		const isVarip = stmt.kind === "varip";
-		const initExpr = stmt.init ? this.expressionGen.generateExpression(stmt.init) : "NaN";
-		const init = stmt.init ? ` = ${this.expressionGen.generateExpression(stmt.init)}` : "";
-		const prefix = stmt.export ? "export " : "";
-		let code = "";
-		if (Array.isArray(stmt.id)) {
-			const ids = stmt.id.map((id) => sanitizeIdentifier(id.name)).join(", ");
-			code = `${indent(this.indentLevel)}${prefix}${kind} [${ids}]${init};`;
-			for (const id of stmt.id) {
-				const safeName = sanitizeIdentifier(id.name);
-				if (this.historicalVars.has(id.name)) {
-					code += `\n${indent(this.indentLevel)}const _series_${safeName} = context.new_var(${safeName});`;
-					code += `\n${indent(this.indentLevel)}_getHistorical_${safeName} = (offset) => _series_${safeName}.get(offset);`;
-				}
-			}
-		} else {
-			const safeName = sanitizeIdentifier(stmt.id.name);
-			if (isPersistent) {
-				const helper = isVarip ? "_pineVarip" : "_pineVar";
-				const stateKeyExpr = this.currentPersistentKeyExpr(safeName);
-				code = `${indent(this.indentLevel)}${prefix}${kind} ${safeName} = ${helper}(${stateKeyExpr}, () => (${initExpr}));`;
-				this.expressionGen.markPersistentIdentifier(safeName, isVarip ? "varip" : "var", stateKeyExpr);
-			} else code = `${indent(this.indentLevel)}${prefix}${kind} ${safeName}${init};`;
-			if (this.historicalVars.has(stmt.id.name)) {
-				code += `\n${indent(this.indentLevel)}const _series_${safeName} = context.new_var(${safeName});`;
-				code += `\n${indent(this.indentLevel)}_getHistorical_${safeName} = (offset) => _series_${safeName}.get(offset);`;
-			}
-		}
-		return code;
-	}
-	generateFunctionDeclaration(stmt) {
-		if (stmt.type !== "FunctionDeclaration") throw new Error("Expected FunctionDeclaration");
-		const originalName = stmt.id.name;
-		const name = sanitizeIdentifier(originalName);
-		const paramNames = stmt.params.map((p) => sanitizeIdentifier(p.name)).join(", ");
-		const prefix = stmt.export ? "export " : "";
-		const scopeOrdinal = this.functionScopeCounter++;
-		const scopeId = `${name}#${scopeOrdinal}`;
-		const scopeKeyVar = `_pineFnScope_${scopeOrdinal}`;
-		const needsPersistentScope = stmt.body.type === "BlockStatement" && this.blockContainsPersistentDecl(stmt.body);
-		let body = "";
-		if (needsPersistentScope) {
-			this.functionScopeStack.push({
-				id: scopeId,
-				keyVar: scopeKeyVar
-			});
-			this.expressionGen.pushPersistentScope();
-		}
-		try {
-			if (stmt.body.type === "BlockStatement") body = this.generateFunctionBody(stmt.body, needsPersistentScope ? scopeId : void 0, needsPersistentScope ? scopeKeyVar : void 0);
-			else {
-				this.indentLevel++;
-				body = `{\n${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(stmt.body)};\n${indent(this.indentLevel, -1)}}`;
-			}
-		} finally {
-			if (needsPersistentScope) {
-				this.expressionGen.popPersistentScope();
-				this.functionScopeStack.pop();
-			}
-		}
-		let out = `${indent(this.indentLevel)}${prefix}function ${name}(${paramNames}) ${body}`;
-		if (stmt.isMethod && stmt.params.length > 0) {
-			const receiverType = stmt.params[0]?.typeAnnotation?.name;
-			if (receiverType) {
-				const receiverName = sanitizeIdentifier(receiverType);
-				const methodParams = stmt.params.slice(1).map((p) => sanitizeIdentifier(p.name));
-				const methodParamsDecl = methodParams.join(", ");
-				const callArgs = methodParams.length > 0 ? `, ${methodParamsDecl}` : "";
-				out += `\n${indent(this.indentLevel)}if (${receiverName}?.prototype && typeof ${receiverName}.prototype.${name} !== 'function') {\n${indent(this.indentLevel, 1)}${receiverName}.prototype.${name} = function(${methodParamsDecl}) { return ${name}(this${callArgs}); };\n${indent(this.indentLevel)}}`;
-				if (originalName !== name) out += `\n${indent(this.indentLevel)}if (${receiverName}?.prototype && typeof ${receiverName}.prototype[${JSON.stringify(originalName)}] !== 'function') {\n${indent(this.indentLevel, 1)}${receiverName}.prototype[${JSON.stringify(originalName)}] = function(${methodParamsDecl}) { return ${name}(this${callArgs}); };\n${indent(this.indentLevel)}}`;
-			}
-		}
-		return out;
-	}
-	/**
-	* Generate the body of a multi-line Pine function. Pine has implicit
-	* return — the value of the last expression in the block is the
-	* function's return value. JS requires an explicit `return`, so tail
-	* expressions and switch-statements are rewritten into return forms.
-	*/
-	generateFunctionBody(block, scopeId, scopeKeyVar) {
-		this.indentLevel++;
-		const statements = block.body;
-		const lines = [];
-		if (scopeId && scopeKeyVar) lines.push(`${indent(this.indentLevel)}const ${scopeKeyVar} = _pineScopeKey(${JSON.stringify(scopeId)});`);
-		for (let i = 0; i < statements.length; i++) {
-			const s = statements[i];
-			const isLast = i === statements.length - 1;
-			if (isLast && s.type === "ExpressionStatement") lines.push(`${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(s.expression)};`);
-			else if (isLast && s.type === "SwitchStatement") {
-				const switchExpr = {
-					...s,
-					type: "SwitchExpression"
-				};
-				lines.push(`${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(switchExpr)};`);
-			} else lines.push(this.generateStatement(s));
-		}
-		this.indentLevel--;
-		return `{\n${lines.join("\n")}\n${indent(this.indentLevel)}}`;
-	}
-	generateImportStatement(stmt) {
-		if (stmt.as) return `${indent(this.indentLevel)}import * as ${stmt.as} from ${JSON.stringify(stmt.source)};`;
-		return `${indent(this.indentLevel)}import ${JSON.stringify(stmt.source)};`;
-	}
-};
-//#endregion
-//#region src/generator/ast-generator.ts
-/**
-* Main AST Generator that orchestrates code generation.
-* Delegates to StatementGenerator and ExpressionGenerator for the actual work.
-*/
-var ASTGenerator = class {
-	constructor(historicalVars = /* @__PURE__ */ new Set()) {
-		this.expressionGen = new ExpressionGenerator();
-		this.statementGen = new StatementGenerator(historicalVars, this.expressionGen);
-		this.expressionGen.setStatementGenerator(this.statementGen);
-	}
-	/**
-	* Generate JavaScript code from a Pine Script AST Program.
-	*/
-	generate(node) {
-		return node.body.map((stmt) => this.statementGen.generateStatement(stmt)).join("\n");
-	}
-};
-//#endregion
-//#region src/generator/call-expression-helper.ts
-/**
-* Get argument value by name or position from a list of expressions.
-* Handles both named arguments (AssignmentExpression) and positional arguments.
-*/
-function getArg(args, index, name) {
-	for (const arg of args) if (arg.type === "AssignmentExpression" && !Array.isArray(arg.left) && arg.left.type === "Identifier") {
-		if (arg.left.name === name) return arg.right;
-	}
-	if (index < args.length) {
-		const arg = args[index];
-		if (arg.type !== "AssignmentExpression") return arg;
-	}
+function classifyHelperName(name) {
+	if (name.startsWith("StdPlus.")) return "stdplus";
+	if (name === "_avg" || name === "_pineSum" || name === "_toDegrees" || name === "_toRadians" || name === "_roundToMintick") return "math";
+	if (name === "_isInSession" || name === "_isMarketSession" || name === "_isPremarket" || name === "_isPostmarket" || name === "_getTimeClose" || name === "_getTradingDayTime") return "session";
+	if (name.startsWith("_array")) return "array";
+	if (name.startsWith("_map")) return "map";
+	if (name.startsWith("_matrix")) return "matrix";
+	if (name.startsWith("_color")) return "color";
+	if (/^_str[A-Z]/.test(name)) return "string";
+	if (name === "_pineNa" || name === "_pineNz" || name === "_pineFixnan") return "utility";
+	if (name === "_pineVar" || name === "_pineVarip" || name === "_pineSetVar" || name === "_pineSetVarip" || name === "_pineScopeKey") return "state";
 	return null;
 }
 /**
-* Extract a string value from an expression.
+* Accumulating set of helper categories used during code generation.
+* Created fresh per transpilation; mutated by the generators at every
+* helper emission; consumed by the factory builder when assembling
+* the preamble.
 */
-function getStringValue(expr) {
-	if (!expr) return null;
-	if (expr.type === "Literal" && typeof expr.value === "string") return expr.value;
-	return null;
-}
-/**
-* Extract a number value from an expression.
-* Handles negative numbers (UnaryExpression with '-' operator).
-*/
-function getNumberValue(expr) {
-	if (!expr) return null;
-	if (expr.type === "Literal" && typeof expr.value === "number") return expr.value;
-	if (expr.type === "UnaryExpression" && expr.operator === "-" && expr.argument.type === "Literal") return -expr.argument.value;
-	return null;
-}
-/**
-* Extract a boolean value from an expression.
-*/
-function getBooleanValue(expr) {
-	if (!expr) return null;
-	if (expr.type === "Literal" && typeof expr.value === "boolean") return expr.value;
-	return null;
-}
-/**
-* Get the function name from an expression.
-* Handles both Identifier and MemberExpression callee types.
-*/
-function getFnName(node) {
-	if (node.type === "Identifier") return node.name;
-	if (node.type === "MemberExpression") {
-		let propName = "";
-		if (node.property.type === "Identifier") propName = node.property.name;
-		return `${getFnName(node.object)}.${propName}`;
-	}
-	return "";
-}
-//#endregion
-//#region src/generator/input-extractor.ts
-/**
-* Extracts input declarations from Pine Script.
-*/
-var InputExtractor = class {
+var HelperUsage = class {
 	constructor() {
-		this.inputCount = 0;
+		this.categories = /* @__PURE__ */ new Set();
+	}
+	/** Mark a category as used. */
+	mark(category) {
+		this.categories.add(category);
 	}
 	/**
-	* Extract input from a CallExpression
+	* Classify an emitted helper identifier and mark its category as
+	* used. Returns true if the identifier was a helper; false for
+	* non-helper names (which is the common case — most calls are to
+	* `Std.X` or user-defined functions).
 	*/
-	extractInput(expr, fnName) {
-		const args = expr.arguments;
-		const defvalExpr = getArg(args, 0, "defval");
-		const titleExpr = getArg(args, 1, "title");
-		let type = "float";
-		let defval = 0;
-		if (fnName === "input.int") {
-			type = "integer";
-			defval = getNumberValue(defvalExpr) ?? 0;
-		} else if (fnName === "input.bool") {
-			type = "bool";
-			defval = getBooleanValue(defvalExpr) ?? false;
-		} else if (fnName === "input.string") {
-			type = "string";
-			defval = getStringValue(defvalExpr) ?? "";
-		} else if (fnName === "input.session") {
-			type = "session";
-			defval = getStringValue(defvalExpr) ?? "0930-1600:23456";
-		} else if (fnName === "input.source") {
-			type = "source";
-			if (defvalExpr?.type === "Identifier") defval = defvalExpr.name;
-			else defval = "close";
-		} else if (fnName === "input.time") {
-			type = "integer";
-			defval = getNumberValue(defvalExpr) ?? Date.now();
-		} else if (fnName === "input.symbol") {
-			type = "string";
-			defval = getStringValue(defvalExpr) ?? "";
-		} else if (defvalExpr?.type === "Literal") {
-			if (typeof defvalExpr.value === "boolean") {
-				type = "bool";
-				defval = defvalExpr.value;
-			} else if (typeof defvalExpr.value === "string") {
-				type = "string";
-				defval = defvalExpr.value;
-			} else if (typeof defvalExpr.value === "number") {
-				type = "float";
-				defval = defvalExpr.value;
-			}
-		}
-		const title = getStringValue(titleExpr) || `Input ${++this.inputCount}`;
-		const min = getNumberValue(getArg(args, 2, "minval"));
-		const max = getNumberValue(getArg(args, 3, "maxval"));
-		let options;
-		const optionsExpr = getArg(args, 4, "options");
-		if (optionsExpr && optionsExpr.type === "ArrayExpression") options = optionsExpr.elements.map((e) => e.type === "Literal" ? String(e.value) : null).filter((s) => s !== null);
+	markByName(name) {
+		const category = classifyHelperName(name);
+		if (category === null) return false;
+		this.categories.add(category);
+		return true;
+	}
+	has(category) {
+		return this.categories.has(category);
+	}
+	/**
+	* Project the tracked set into the record shape that
+	* `generatePreamble` consumes. Order mirrors the historical
+	* `analyzeRequiredHelpers` return value so call sites are drop-in
+	* substitutable.
+	*/
+	toRecord() {
 		return {
-			id: `in_${this.inputCount - 1}`,
-			name: title,
-			type,
-			defval,
-			min: min ?? void 0,
-			max: max ?? void 0,
-			options
+			needsMath: this.categories.has("math"),
+			needsSession: this.categories.has("session"),
+			needsStdPlus: this.categories.has("stdplus"),
+			needsArray: this.categories.has("array"),
+			needsMap: this.categories.has("map"),
+			needsMatrix: this.categories.has("matrix"),
+			needsColor: this.categories.has("color"),
+			needsString: this.categories.has("string"),
+			needsUtility: this.categories.has("utility"),
+			needsState: this.categories.has("state")
 		};
 	}
-	/**
-	* Reset the input counter (useful for testing)
-	*/
-	reset() {
-		this.inputCount = 0;
-	}
-	/**
-	* Get current input count
-	*/
-	getInputCount() {
-		return this.inputCount;
-	}
-};
-//#endregion
-//#region src/generator/plot-extractor.ts
-/**
-* Extracts plot declarations from Pine Script.
-*/
-var PlotExtractor = class {
-	constructor() {
-		this.plotCount = 0;
-		this.stringResolver = () => void 0;
-	}
-	setStringResolver(fn) {
-		this.stringResolver = fn;
-	}
-	/**
-	* Read a string-typed arg, resolving identifier references through
-	* the injected resolver. Returns null when the arg is missing OR not
-	* resolvable; empty-string literals pass through as `''` so callers
-	* can distinguish "Pine explicitly set this empty" from "absent".
-	*/
-	resolveStringArg(expr) {
-		if (!expr) return null;
-		const literal = getStringValue(expr);
-		if (typeof literal === "string") return literal;
-		if (expr.type === "Identifier") return this.stringResolver(expr.name) ?? null;
-		return null;
-	}
-	/**
-	* Convert an expression to a string representation for code generation
-	*/
-	exprToString(expr) {
-		switch (expr.type) {
-			case "Identifier": return expr.name;
-			case "Literal":
-				if (typeof expr.value === "string") return `"${expr.value}"`;
-				return String(expr.value);
-			case "MemberExpression":
-				if (expr.object.type === "Identifier" && expr.property.type === "Identifier") return `${expr.object.name}.${expr.property.name}`;
-				return "";
-			case "CallExpression": return `${getFnName(expr.callee)}(${expr.arguments.map((a) => this.exprToString(a)).join(", ")})`;
-			case "BinaryExpression": return `(${this.exprToString(expr.left)} ${expr.operator} ${this.exprToString(expr.right)})`;
-			case "UnaryExpression": return `${expr.operator}${this.exprToString(expr.argument)}`;
-			default: return "";
-		}
-	}
-	extractLocation(expr) {
-		if (!expr || expr.type !== "MemberExpression") return void 0;
-		if (expr.object.type !== "Identifier") return void 0;
-		if (expr.object.name !== "location") return void 0;
-		if (expr.property.type !== "Identifier") return void 0;
-		const loc = expr.property.name.toLowerCase();
-		if (loc === "abovebar") return "abovebar";
-		if (loc === "belowbar") return "belowbar";
-		if (loc === "top") return "top";
-		if (loc === "bottom") return "bottom";
-		if (loc === "absolute") return "absolute";
-	}
-	extractShape(expr) {
-		if (!expr || expr.type !== "MemberExpression") return void 0;
-		if (expr.object.type !== "Identifier") return void 0;
-		if (expr.object.name !== "shape") return void 0;
-		if (expr.property.type !== "Identifier") return void 0;
-		const style = expr.property.name.toLowerCase();
-		if (style === "circle") return "circle";
-		if (style === "cross" || style === "xcross") return "cross";
-		if (style === "diamond") return "diamond";
-		if (style === "square") return "square";
-		if (style === "triangleup") return "triangleup";
-		if (style === "triangledown") return "triangledown";
-		if (style === "flag") return "flag";
-		if (style === "labelup" || style === "labeldown") return "label";
-	}
-	/**
-	* Extract a plot() call
-	*/
-	extractPlot(expr) {
-		const args = expr.arguments;
-		const valueArg = getArg(args, 0, "series");
-		const valueExpr = valueArg ? this.exprToString(valueArg) : "";
-		const title = getStringValue(getArg(args, 1, "title")) || `Plot ${++this.plotCount}`;
-		let color = "#2962FF";
-		const colorExpr = getArg(args, 2, "color");
-		if (colorExpr) color = this.extractColor(colorExpr);
-		const linewidth = getNumberValue(getArg(args, 3, "linewidth")) || 1;
-		let type = "line";
-		const styleExpr = getArg(args, 4, "style");
-		if (styleExpr) {
-			const name = getFnName(styleExpr);
-			if (name.includes("histogram") || name.includes("columns")) type = "histogram";
-			else if (name.includes("circles")) type = "circles";
-			else if (name.includes("area")) type = "area";
-			else if (name.includes("cross")) type = "cross";
-			else if (name.includes("stepline")) type = "stepline";
-		}
-		return {
-			id: `plot_${this.plotCount - 1}`,
-			title,
-			varName: `plot_${this.plotCount - 1}`,
-			type,
-			color,
-			linewidth,
-			valueExpr
-		};
-	}
-	/**
-	* Extract a plotshape() call
-	*/
-	extractPlotShape(expr) {
-		const args = expr.arguments;
-		const valueArg = getArg(args, 0, "series");
-		const valueExpr = valueArg ? this.exprToString(valueArg) : "";
-		const title = getStringValue(getArg(args, 1, "title")) || `Shape ${++this.plotCount}`;
-		const shape = this.extractShape(getArg(args, 2, "style")) ?? "circle";
-		const location = this.extractLocation(getArg(args, 3, "location")) ?? "abovebar";
-		const color = this.extractColor(getArg(args, 4, "color") ?? args[0]);
-		return {
-			id: `plot_${this.plotCount - 1}`,
-			title,
-			varName: `plot_${this.plotCount - 1}`,
-			type: "shape",
-			color,
-			linewidth: 1,
-			valueExpr,
-			shape,
-			location
-		};
-	}
-	/**
-	* Extract a plotchar() call.
-	*
-	* Pine's plotchar signature: `plotchar(series, title, char, location,
-	* color, offset, text, textcolor, ...)`. Pine renders `char` at the
-	* price point and `text` as a label next to it. TV CustomIndicator
-	* `chars` plots only expose a single `char` style field, so when the
-	* Pine source leaves `char` empty but supplies `text` (a common
-	* pattern for day/session labels) we promote `text` into the char
-	* slot — better than rendering a generic `•`.
-	*/
-	extractPlotChar(expr) {
-		const args = expr.arguments;
-		const valueArg = getArg(args, 0, "series");
-		const valueExpr = valueArg ? this.exprToString(valueArg) : "";
-		const title = getStringValue(getArg(args, 1, "title")) || `Char ${++this.plotCount}`;
-		const charArg = this.resolveStringArg(getArg(args, 2, "char"));
-		const textArg = this.resolveStringArg(getArg(args, 6, "text"));
-		const charValue = charArg || textArg || "•";
-		const location = this.extractLocation(getArg(args, 3, "location")) ?? "abovebar";
-		const color = this.extractColor(getArg(args, 4, "color") ?? args[0]);
-		return {
-			id: `plot_${this.plotCount - 1}`,
-			title,
-			varName: `plot_${this.plotCount - 1}`,
-			type: "char",
-			color,
-			linewidth: 1,
-			valueExpr,
-			char: charValue,
-			location
-		};
-	}
-	/**
-	* Extract a plotarrow() call
-	*
-	* We model arrows as shape plots in metainfo to ensure they are
-	* counted as declared outputs in corpus parity checks.
-	*/
-	extractPlotArrow(expr) {
-		const args = expr.arguments;
-		const valueArg = getArg(args, 0, "series");
-		const valueExpr = valueArg ? this.exprToString(valueArg) : "";
-		const title = getStringValue(getArg(args, 1, "title")) || `Arrow ${++this.plotCount}`;
-		return {
-			id: `plot_${this.plotCount - 1}`,
-			title,
-			varName: `plot_${this.plotCount - 1}`,
-			type: "shape",
-			color: "#000000",
-			linewidth: 1,
-			valueExpr,
-			shape: "triangleup",
-			location: "abovebar"
-		};
-	}
-	/**
-	* Extract an hline() call
-	*/
-	extractHline(expr) {
-		const args = expr.arguments;
-		const priceArg = getArg(args, 0, "price");
-		const price = getNumberValue(priceArg);
-		const valueExpr = priceArg ? this.exprToString(priceArg) : "";
-		const title = getStringValue(getArg(args, 1, "title")) || `HLine ${++this.plotCount}`;
-		return {
-			id: `plot_${this.plotCount - 1}`,
-			title,
-			varName: `plot_${this.plotCount - 1}`,
-			type: "hline",
-			color: "#787B86",
-			linewidth: 1,
-			price: price ?? void 0,
-			valueExpr
-		};
-	}
-	/**
-	* Extract color from an expression
-	*/
-	extractColor(colorExpr) {
-		if (colorExpr.type === "Literal" && typeof colorExpr.value === "string") return colorExpr.value;
-		if (colorExpr.type === "MemberExpression" && colorExpr.object.type === "Identifier" && colorExpr.object.name === "color") {
-			if (colorExpr.property.type === "Identifier") {
-				const colorName = colorExpr.property.name;
-				if (COLOR_MAP[colorName]) return COLOR_MAP[colorName];
-			}
-		}
-		if (colorExpr.type === "Identifier" && COLOR_MAP[colorExpr.name]) return COLOR_MAP[colorExpr.name];
-		return "#2962FF";
-	}
-	/**
-	* Reset the plot counter
-	*/
-	reset() {
-		this.plotCount = 0;
-	}
-	/**
-	* Get current plot count
-	*/
-	getPlotCount() {
-		return this.plotCount;
-	}
-};
-//#endregion
-//#region src/generator/metadata-visitor.ts
-/**
-* Unsupported function categories for warning generation
-*/
-var UNSUPPORTED_FUNCTIONS = new Set([
-	"request.financial",
-	"request.quandl",
-	"request.seed",
-	"request.economic",
-	"request.dividends",
-	"request.earnings",
-	"request.splits",
-	"ticker.new",
-	"ticker.modify",
-	"alert",
-	"alertcondition",
-	"runtime.error",
-	"log.info",
-	"log.warning",
-	"log.error"
-]);
-/**
-* Partially supported functions that may have limited functionality
-*/
-var PARTIALLY_SUPPORTED_FUNCTIONS = new Set([
-	"request.security",
-	"plotshape",
-	"plotchar",
-	"plotarrow",
-	"bgcolor",
-	"fill",
-	"barcolor",
-	"box.new",
-	"line.new",
-	"label.new",
-	"table.new",
-	"table.cell"
-]);
-/**
-* Deprecated functions that should be migrated
-*/
-var DEPRECATED_FUNCTIONS = new Set(["study", "security"]);
-var MetadataVisitor = class {
-	constructor() {
-		this.inputs = [];
-		this.plots = [];
-		this.bgcolors = [];
-		this.name = "Untitled Script";
-		this.shortName = "Untitled";
-		this.overlay = false;
-		this.warnings = [];
-		this.usedSources = /* @__PURE__ */ new Set();
-		this.historicalAccess = /* @__PURE__ */ new Set();
-		this.colorVariables = /* @__PURE__ */ new Map();
-		this.stringVariables = /* @__PURE__ */ new Map();
-		this.sessionVariables = /* @__PURE__ */ new Map();
-		this.derivedSessionVariables = /* @__PURE__ */ new Map();
-		this.inputVariableMap = /* @__PURE__ */ new Map();
-		this.booleanInputMap = /* @__PURE__ */ new Map();
-		this.computedVariables = /* @__PURE__ */ new Map();
-		this.inputExtractor = new InputExtractor();
-		this.plotExtractor = new PlotExtractor();
-		this.warnedFunctions = /* @__PURE__ */ new Set();
-	}
-	visit(node) {
-		this.plotExtractor.setStringResolver((name) => this.stringVariables.get(name));
-		this.visitStatements(node.body);
-	}
-	visitStatements(stmts) {
-		for (const stmt of stmts) this.visitStatement(stmt);
-	}
-	visitStatement(stmt) {
-		if (!stmt) return;
-		switch (stmt.type) {
-			case "ExpressionStatement":
-				this.visitExpression(stmt.expression);
-				break;
-			case "VariableDeclaration":
-				if (stmt.init) {
-					this.trackColorVariable(stmt.id, stmt.init);
-					this.trackStringVariable(stmt.id, stmt.init);
-					this.trackSessionVariable(stmt.id, stmt.init);
-					this.trackDerivedSessionVariable(stmt.id, stmt.init);
-					this.trackInputVariable(stmt.id, stmt.init);
-					this.trackComputedVariable(stmt.id, stmt.init);
-					this.visitExpression(stmt.init);
-				}
-				break;
-			case "FunctionDeclaration":
-				if (stmt.body.type === "BlockStatement") this.visitStatement(stmt.body);
-				else this.visitExpression(stmt.body);
-				break;
-			case "BlockStatement":
-				this.visitStatements(stmt.body);
-				break;
-			case "IfStatement":
-				this.visitExpression(stmt.test);
-				this.visitStatement(stmt.consequent);
-				if (stmt.alternate) this.visitStatement(stmt.alternate);
-				break;
-			case "WhileStatement":
-				this.visitExpression(stmt.test);
-				this.visitStatement(stmt.body);
-				break;
-			case "ForStatement":
-				if (stmt.init.type === "VariableDeclaration") {
-					if (stmt.init.init) this.visitExpression(stmt.init.init);
-				} else this.visitExpression(stmt.init);
-				this.visitExpression(stmt.test);
-				if (stmt.update) this.visitExpression(stmt.update);
-				this.visitStatement(stmt.body);
-				break;
-			case "ReturnStatement":
-				if (stmt.argument) this.visitExpression(stmt.argument);
-				break;
-			case "SwitchStatement":
-				if (stmt.discriminant) this.visitExpression(stmt.discriminant);
-				for (const c of stmt.cases) {
-					if (c.test) this.visitExpression(c.test);
-					if (isStatement(c.consequent)) this.visitStatement(c.consequent);
-					else this.visitExpression(c.consequent);
-				}
-				break;
-		}
-	}
-	visitExpression(expr) {
-		if (!expr) return;
-		switch (expr.type) {
-			case "CallExpression":
-				this.visitCallExpression(expr);
-				for (const arg of expr.arguments) this.visitExpression(arg);
-				break;
-			case "BinaryExpression":
-				this.visitExpression(expr.left);
-				this.visitExpression(expr.right);
-				break;
-			case "UnaryExpression":
-				this.visitExpression(expr.argument);
-				break;
-			case "MemberExpression":
-				this.visitMemberExpression(expr);
-				break;
-			case "ConditionalExpression":
-				this.visitExpression(expr.test);
-				this.visitExpression(expr.consequent);
-				this.visitExpression(expr.alternate);
-				break;
-			case "AssignmentExpression":
-				if (!Array.isArray(expr.left) && expr.left.type === "MemberExpression") this.visitMemberExpression(expr.left);
-				this.visitExpression(expr.right);
-				break;
-			case "Identifier":
-				this.visitIdentifier(expr);
-				break;
-		}
-	}
-	visitIdentifier(node) {
-		const name = node.name;
-		if ([
-			"open",
-			"close",
-			"high",
-			"low",
-			"volume",
-			"hl2",
-			"hlc3",
-			"ohlc4"
-		].includes(name)) this.usedSources.add(name);
-	}
-	visitMemberExpression(node) {
-		this.visitExpression(node.object);
-		if (node.computed) {
-			if (node.object.type === "Identifier") {
-				const name = node.object.name;
-				this.historicalAccess.add(name);
-				if ([
-					"open",
-					"close",
-					"high",
-					"low",
-					"volume",
-					"hl2",
-					"hlc3",
-					"ohlc4"
-				].includes(name)) this.usedSources.add(name);
-			}
-			this.visitExpression(node.property);
-		}
-	}
-	visitCallExpression(expr) {
-		const callee = expr.callee;
-		if (callee.type !== "Identifier" && callee.type !== "MemberExpression") return;
-		const name = getFnName(callee);
-		this.checkFunctionSupport(name, expr);
-		if ([
-			"indicator",
-			"study",
-			"strategy"
-		].includes(name)) this.extractIndicatorMeta(expr);
-		else if (name.startsWith("input")) {
-			const input = this.inputExtractor.extractInput(expr, name);
-			input.id = `in_${this.inputs.length}`;
-			this.inputs.push(input);
-		} else if (name === "plot") {
-			const plot = this.plotExtractor.extractPlot(expr);
-			plot.id = `plot_${this.plots.length}`;
-			this.plots.push(plot);
-		} else if (name === "plotshape") {
-			const plot = this.plotExtractor.extractPlotShape(expr);
-			plot.id = `plot_${this.plots.length}`;
-			this.plots.push(plot);
-		} else if (name === "plotchar") {
-			const plot = this.plotExtractor.extractPlotChar(expr);
-			plot.id = `plot_${this.plots.length}`;
-			this.plots.push(plot);
-		} else if (name === "plotarrow") {
-			const plot = this.plotExtractor.extractPlotArrow(expr);
-			plot.id = `plot_${this.plots.length}`;
-			this.plots.push(plot);
-		} else if (name === "hline") {
-			const plot = this.plotExtractor.extractHline(expr);
-			plot.id = `plot_${this.plots.length}`;
-			this.plots.push(plot);
-		} else if (name === "bgcolor") this.extractBgcolor(expr);
-	}
-	/**
-	* Track color variable definitions (e.g., SydneyCol = color.new(color.teal, 88))
-	*/
-	trackColorVariable(id, init) {
-		if (Array.isArray(id) || id.type !== "Identifier") return;
-		const varName = id.name;
-		const colorInfo = this.extractColorInfoFromInit(init);
-		if (colorInfo) this.colorVariables.set(varName, colorInfo);
-	}
-	/**
-	* Track direct string-literal var assignments, e.g.
-	* `var sunday = "SUNDAY"`. Computed/concatenated string expressions
-	* are intentionally not tracked — keeping resolution narrow avoids
-	* surprising fallout in unrelated scripts.
-	*/
-	trackStringVariable(id, init) {
-		if (Array.isArray(id) || id.type !== "Identifier") return;
-		if (init.type !== "Literal" || typeof init.value !== "string") return;
-		this.stringVariables.set(id.name, init.value);
-	}
-	/**
-	* Track input variable assignments (e.g., sSydney = input.session(...))
-	* This maps variable names to their input index for later resolution
-	*/
-	trackInputVariable(id, init) {
-		if (Array.isArray(id) || id.type !== "Identifier") return;
-		const varName = id.name;
-		if (init.type === "CallExpression") {
-			const fnName = getFnName(init.callee);
-			if (fnName.startsWith("input")) {
-				const inputIndex = this.inputs.length;
-				this.inputVariableMap.set(varName, inputIndex);
-				if (fnName === "input.bool" || fnName === "input") this.booleanInputMap.set(varName, inputIndex);
-			}
-		}
-	}
-	/**
-	* Track session membership variables
-	* e.g., inSydney = not na(time(timeframe.period, sSydney, "Australia/Sydney"))
-	*/
-	trackSessionVariable(id, init) {
-		if (Array.isArray(id) || id.type !== "Identifier") return;
-		const varName = id.name;
-		if (init.type === "UnaryExpression" && init.operator === "not") {
-			const arg = init.argument;
-			if (arg.type === "CallExpression") {
-				if ((arg.callee.type === "Identifier" && arg.callee.name === "na" || arg.callee.type === "Literal" && arg.callee.kind === "na") && arg.arguments.length > 0) {
-					const naArg = arg.arguments[0];
-					if (naArg.type === "CallExpression") {
-						if (getFnName(naArg.callee) === "time" && naArg.arguments.length >= 3) {
-							const sessionArg = naArg.arguments[1];
-							const tzArg = naArg.arguments[2];
-							let sessionInputVar = "";
-							let timezone = "";
-							if (sessionArg.type === "Identifier") sessionInputVar = sessionArg.name;
-							if (tzArg.type === "Literal" && typeof tzArg.value === "string") timezone = tzArg.value;
-							if (sessionInputVar && timezone) {
-								const inputIndex = this.inputVariableMap.get(sessionInputVar);
-								this.sessionVariables.set(varName, {
-									varName,
-									sessionInputVar,
-									timezone,
-									inputIndex
-								});
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-	/**
-	* Track derived session variables (overlaps)
-	* e.g., inLonNy = inLondon and inNY
-	*/
-	trackDerivedSessionVariable(id, init) {
-		if (Array.isArray(id) || id.type !== "Identifier") return;
-		const varName = id.name;
-		if (init.type === "BinaryExpression" && (init.operator === "and" || init.operator === "or")) {
-			const referencesSession = (expr) => {
-				if (expr.type === "Identifier") return this.sessionVariables.has(expr.name) || this.derivedSessionVariables.has(expr.name);
-				if (expr.type === "BinaryExpression") return referencesSession(expr.left) || referencesSession(expr.right);
-				return false;
-			};
-			if (referencesSession(init.left) || referencesSession(init.right)) {
-				const exprStr = this.stringifyCondition(init);
-				this.derivedSessionVariables.set(varName, exprStr);
-			}
-		}
-	}
-	/**
-	* Track computed variables (ta.*, arithmetic, etc.) for code generation
-	*/
-	trackComputedVariable(id, init) {
-		if (Array.isArray(id) || id.type !== "Identifier") return;
-		const varName = id.name;
-		if (this.sessionVariables.has(varName) || this.derivedSessionVariables.has(varName) || this.inputVariableMap.has(varName) || this.colorVariables.has(varName)) return;
-		if (init.type === "CallExpression") {
-			const fnName = getFnName(init.callee);
-			if (fnName.startsWith("table.") || fnName.startsWith("label.") || fnName.startsWith("box.") || fnName.startsWith("line.") || fnName.startsWith("linefill.") || fnName.startsWith("polyline.")) return;
-		}
-		const { expression, dependencies } = this.exprToNative(init);
-		if (expression) this.computedVariables.set(varName, {
-			name: varName,
-			expression,
-			dependencies
-		});
-	}
-	/**
-	* Convert a Pine Script expression to native JS code
-	*/
-	exprToNative(expr) {
-		const deps = [];
-		const convert = (e) => {
-			switch (e.type) {
-				case "Identifier":
-					deps.push(e.name);
-					return e.name;
-				case "Literal":
-					if (typeof e.value === "string") return `"${e.value}"`;
-					if (e.value === null) return "NaN";
-					return String(e.value);
-				case "BinaryExpression": {
-					const left = convert(e.left);
-					const right = convert(e.right);
-					let op = e.operator;
-					if (op === "and") op = "&&";
-					if (op === "or") op = "||";
-					return `(${left} ${op} ${right})`;
-				}
-				case "UnaryExpression": {
-					let op = e.operator;
-					if (op === "not") op = "!";
-					return `${op}${convert(e.argument)}`;
-				}
-				case "CallExpression": {
-					const fnName = getFnName(e.callee);
-					const args = e.arguments.map((a) => convert(a)).join(", ");
-					if (fnName.startsWith("ta.")) return `${fnName.replace("ta.", "Std.")}(${args}, context)`;
-					if (fnName.startsWith("math.")) return `${fnName.replace("math.", "Math.")}(${args})`;
-					return `${fnName}(${args})`;
-				}
-				case "MemberExpression":
-					if (e.object.type === "Identifier" && e.property.type === "Identifier") {
-						const objName = e.object.name;
-						const propName = e.property.name;
-						if ([
-							"open",
-							"high",
-							"low",
-							"close",
-							"volume",
-							"hl2",
-							"hlc3",
-							"ohlc4"
-						].includes(objName)) {
-							deps.push(objName);
-							return `Std.${objName}(context)`;
-						}
-						return `${objName}.${propName}`;
-					}
-					if (e.computed && e.property.type === "Literal") return `${convert(e.object)}[${e.property.value}]`;
-					return "";
-				case "ConditionalExpression": return `(${convert(e.test)} ? ${convert(e.consequent)} : ${convert(e.alternate)})`;
-				default: return "";
-			}
-		};
-		return {
-			expression: convert(expr),
-			dependencies: deps
-		};
-	}
-	/**
-	* Extract color info from an initializer expression
-	*/
-	extractColorInfoFromInit(expr) {
-		if (expr.type === "CallExpression") {
-			const fnName = getFnName(expr.callee);
-			if ((fnName === "color.new" || fnName === "_colorNew") && expr.arguments.length >= 2) {
-				const baseColor = this.extractColorFromExpr(expr.arguments[0]);
-				let transparency = 0;
-				const transpArg = expr.arguments[1];
-				if (transpArg.type === "Literal" && typeof transpArg.value === "number") transparency = transpArg.value;
-				if (baseColor) return {
-					color: baseColor,
-					transparency
-				};
-			}
-		}
-		return null;
-	}
-	/**
-	* Extract bgcolor() call information
-	*/
-	extractBgcolor(expr) {
-		const args = expr.arguments;
-		if (args.length === 0) return;
-		const colorArg = args[0];
-		let color = "#808080";
-		let transparency = 80;
-		let conditionExpr = "";
-		const extractedInfo = this.extractColorInfo(colorArg);
-		if (extractedInfo) {
-			color = extractedInfo.color;
-			transparency = extractedInfo.transparency;
-		}
-		if (colorArg.type === "ConditionalExpression") conditionExpr = this.stringifyCondition(colorArg.test);
-		this.bgcolors.push({
-			index: this.bgcolors.length,
-			condition: conditionExpr,
-			color,
-			transparency
-		});
-	}
-	/**
-	* Stringify a condition expression for code generation
-	*/
-	stringifyCondition(expr) {
-		switch (expr.type) {
-			case "Identifier": return expr.name;
-			case "Literal": return String(expr.value);
-			case "BinaryExpression": {
-				const left = this.stringifyCondition(expr.left);
-				const right = this.stringifyCondition(expr.right);
-				let op = expr.operator;
-				if (op === "and") op = "&&";
-				if (op === "or") op = "||";
-				return `(${left} ${op} ${right})`;
-			}
-			case "UnaryExpression": {
-				let op = expr.operator;
-				if (op === "not") op = "!";
-				return `${op}${this.stringifyCondition(expr.argument)}`;
-			}
-			case "MemberExpression":
-				if (expr.object.type === "Identifier" && expr.property.type === "Identifier") return `${expr.object.name}.${expr.property.name}`;
-				return "";
-			case "CallExpression": return `${getFnName(expr.callee)}(${expr.arguments.map((a) => this.stringifyCondition(a)).join(", ")})`;
-			default: return "";
-		}
-	}
-	/**
-	* Extract color and transparency from an expression
-	*/
-	extractColorInfo(expr) {
-		if (expr.type === "CallExpression") {
-			const fnName = getFnName(expr.callee);
-			if ((fnName === "color.new" || fnName === "_colorNew") && expr.arguments.length >= 2) {
-				const baseColor = this.extractColorFromExpr(expr.arguments[0]);
-				let transparency = 0;
-				const transpArg = expr.arguments[1];
-				if (transpArg.type === "Literal" && typeof transpArg.value === "number") transparency = transpArg.value;
-				if (baseColor) return {
-					color: baseColor,
-					transparency
-				};
-			}
-		}
-		if (expr.type === "ConditionalExpression") return this.extractColorInfo(expr.consequent);
-		if (expr.type === "Identifier") {
-			const tracked = this.colorVariables.get(expr.name);
-			if (tracked) return tracked;
-		}
-		const directColor = this.extractColorFromExpr(expr);
-		if (directColor) return {
-			color: directColor,
-			transparency: 0
-		};
-		return null;
-	}
-	/**
-	* Extract color from expression (color.red, #FF0000, etc.)
-	*/
-	extractColorFromExpr(expr) {
-		if (expr.type === "Literal" && typeof expr.value === "string") return expr.value;
-		if (expr.type === "MemberExpression" && expr.object.type === "Identifier" && expr.object.name === "color" && expr.property.type === "Identifier") return {
-			blue: "#2962FF",
-			red: "#FF5252",
-			green: "#4CAF50",
-			yellow: "#FFEB3B",
-			orange: "#FF9800",
-			purple: "#9C27B0",
-			white: "#FFFFFF",
-			black: "#000000",
-			gray: "#9E9E9E",
-			teal: "#009688",
-			aqua: "#00BCD4",
-			lime: "#CDDC39",
-			pink: "#E91E63",
-			navy: "#1A237E",
-			maroon: "#B71C1C"
-		}[expr.property.name] || null;
-		if (expr.type === "Identifier") return null;
-		return null;
-	}
-	/**
-	* Check if a function is supported and add appropriate warnings
-	*/
-	checkFunctionSupport(fnName, expr) {
-		if (this.warnedFunctions.has(fnName)) return;
-		if (UNSUPPORTED_FUNCTIONS.has(fnName)) {
-			this.warnedFunctions.add(fnName);
-			this.warnings.push({
-				type: "unsupported",
-				message: `Function '${fnName}' is not supported and will be ignored at runtime`,
-				functionName: fnName,
-				line: this.getExpressionLine(expr)
-			});
-		} else if (PARTIALLY_SUPPORTED_FUNCTIONS.has(fnName)) {
-			this.warnedFunctions.add(fnName);
-			this.warnings.push({
-				type: "partial",
-				message: `Function '${fnName}' has limited support - some features may not work as expected`,
-				functionName: fnName,
-				line: this.getExpressionLine(expr)
-			});
-		} else if (DEPRECATED_FUNCTIONS.has(fnName)) {
-			this.warnedFunctions.add(fnName);
-			this.warnings.push({
-				type: "deprecated",
-				message: `Function '${fnName}' is deprecated - consider using the recommended alternative`,
-				functionName: fnName,
-				line: this.getExpressionLine(expr)
-			});
-		}
-	}
-	getExpressionLine(_expr) {}
-	extractIndicatorMeta(expr) {
-		const args = expr.arguments;
-		const title = getStringValue(getArg(args, 0, "title"));
-		if (title) this.name = title;
-		const shorttitle = getStringValue(getArg(args, 1, "shorttitle"));
-		if (shorttitle) this.shortName = shorttitle;
-		else if (title) this.shortName = title;
-		const overlay = getBooleanValue(getArg(args, 2, "overlay"));
-		if (overlay !== null) this.overlay = overlay;
+	/** Merge another tracker's categories into this one. */
+	mergeFrom(other) {
+		for (const category of other.categories) this.categories.add(category);
 	}
 };
 //#endregion
@@ -8513,6 +6632,2110 @@ var Parser = class extends ExpressionParser {
 	}
 };
 //#endregion
+//#region src/generator/generator-utils.ts
+/** Maximum iterations allowed in while/for loops to prevent infinite loops */
+var MAX_LOOP_ITERATIONS = 1e4;
+/**
+* Reserved/dangerous identifier names that could cause security issues or conflicts
+* These are sanitized by prefixing with '_pine_' when used as variable names
+*/
+var DANGEROUS_IDENTIFIERS = new Set([
+	"__proto__",
+	"constructor",
+	"prototype",
+	"__defineGetter__",
+	"__defineSetter__",
+	"__lookupGetter__",
+	"__lookupSetter__",
+	"eval",
+	"Function",
+	"arguments",
+	"caller",
+	"callee",
+	"this",
+	"super",
+	"class",
+	"enum",
+	"extends",
+	"static",
+	"yield",
+	"await",
+	"let",
+	"const",
+	"var",
+	"return",
+	"throw",
+	"typeof",
+	"instanceof",
+	"in",
+	"of",
+	"new",
+	"delete",
+	"void",
+	"null",
+	"undefined"
+]);
+/**
+* Sanitize an identifier name to prevent security issues
+*/
+function sanitizeIdentifier(name) {
+	if (DANGEROUS_IDENTIFIERS.has(name)) return `_pine_${name}`;
+	return name;
+}
+/**
+* Check if a node is a statement (vs expression)
+*/
+function isStatement(node) {
+	return "type" in node && (node.type.endsWith("Statement") || node.type === "VariableDeclaration" || node.type === "FunctionDeclaration" || node.type === "TypeDefinition");
+}
+/**
+* Generate indentation string for the given level
+* @param level The indentation level (0-based)
+* @param offset Optional offset to add to the level
+* @returns The indentation string
+*/
+function indent(level, offset = 0) {
+	return "  ".repeat(Math.max(0, level + offset));
+}
+//#endregion
+//#region src/generator/expression-generator.ts
+/**
+* Expression Generator
+*
+* Handles generation of JavaScript expressions from Pine Script AST expression nodes.
+*/
+/**
+* A Pine call argument written as `name=value` parses to an
+* AssignmentExpression with an Identifier on the left and operator `=`.
+* Those are metadata-only (the metadata visitor consumes them via
+* getArg) and must NOT be emitted into the runtime call: JS would
+* interpret `name = value` as an assignment that rewrites whatever
+* `name` shadows in the wrapper closure.
+*
+* Pine's reassignment operator `:=` also parses to AssignmentExpression
+* with an Identifier left — but `f(x := computedValue)` is a real
+* side-effecting reassignment in an argument position, NOT a named arg.
+* Only the `=` form is dropped.
+*/
+function isNamedArgument(arg) {
+	return arg.type === "AssignmentExpression" && arg.operator === "=" && !Array.isArray(arg.left) && arg.left.type === "Identifier";
+}
+/**
+* Pine v6 canonical positional-arg order for drawing-namespace
+* constructors and table.cell. When a user calls these with named
+* args (`box.new(time, high, time, low, bgcolor = c, text = t)`),
+* the parser preserves the source order — but downstream consumers
+* (runtime stubs, the host VisualEventsRenderer that reads
+* `__visualEvents[*].args`) need a deterministic layout. We reorder
+* named args into these slots and pad missing slots with `na` so
+* `args[i]` always means the same Pine parameter.
+*
+* Order taken directly from Pine v6 reference signatures.
+*/
+var DRAWING_CANONICAL_ARG_ORDER = {
+	"box.new": [
+		"left",
+		"top",
+		"right",
+		"bottom",
+		"border_color",
+		"border_width",
+		"border_style",
+		"extend",
+		"xloc",
+		"bgcolor",
+		"text",
+		"text_size",
+		"text_color",
+		"text_halign",
+		"text_valign",
+		"text_wrap",
+		"force_overlay",
+		"text_font_family"
+	],
+	"line.new": [
+		"x1",
+		"y1",
+		"x2",
+		"y2",
+		"xloc",
+		"extend",
+		"color",
+		"style",
+		"width",
+		"force_overlay"
+	],
+	"label.new": [
+		"x",
+		"y",
+		"text",
+		"xloc",
+		"yloc",
+		"color",
+		"style",
+		"textcolor",
+		"size",
+		"textalign",
+		"tooltip",
+		"text_font_family",
+		"force_overlay",
+		"text_formatting"
+	],
+	"table.new": [
+		"position",
+		"columns",
+		"rows",
+		"bgcolor",
+		"frame_color",
+		"frame_width",
+		"border_color",
+		"border_width",
+		"force_overlay"
+	],
+	"table.cell": [
+		"table_id",
+		"column",
+		"row",
+		"text",
+		"width",
+		"height",
+		"text_color",
+		"text_halign",
+		"text_valign",
+		"text_size",
+		"bgcolor",
+		"tooltip",
+		"text_font_family",
+		"text_formatting"
+	]
+};
+/**
+* Canonical positional order for typed input helpers.
+*
+* Pine allows named args (`input.int(title="Len", defval=14)`), but our
+* runtime input mock only treats the first argument as the default value.
+* If named args are emitted in source order, `title` can incorrectly land
+* in slot 0 and coerce the runtime value to a string.
+*/
+var INPUT_CANONICAL_ARG_ORDER = {
+	input: [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm",
+		"options",
+		"minval",
+		"maxval",
+		"step"
+	],
+	"input.int": [
+		"defval",
+		"title",
+		"minval",
+		"maxval",
+		"step",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm",
+		"options"
+	],
+	"input.float": [
+		"defval",
+		"title",
+		"minval",
+		"maxval",
+		"step",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm",
+		"options"
+	],
+	"input.bool": [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	],
+	"input.string": [
+		"defval",
+		"title",
+		"options",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	],
+	"input.source": [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	],
+	"input.color": [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	],
+	"input.timeframe": [
+		"defval",
+		"title",
+		"options",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	],
+	"input.session": [
+		"defval",
+		"title",
+		"options",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	],
+	"input.time": [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	],
+	"input.symbol": [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	],
+	"input.text_area": [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	],
+	"input.price": [
+		"defval",
+		"title",
+		"minval",
+		"maxval",
+		"step",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	]
+};
+var BUILTIN_SERIES_IDENTIFIERS = new Set([
+	"open",
+	"high",
+	"low",
+	"close",
+	"volume",
+	"hl2",
+	"hlc3",
+	"ohlc4",
+	"time"
+]);
+var IMPLICIT_SERIES_BY_TA_CALL = {
+	"ta.highest": "context.new_var(high)",
+	"ta.lowest": "context.new_var(low)",
+	"ta.highestbars": "context.new_var(high)",
+	"ta.lowestbars": "context.new_var(low)"
+};
+/**
+* Unified lookup map for all Pine Script function mappings.
+* Built once at module load for O(1) lookup instead of O(k) sequential checks.
+*/
+var UNIFIED_FUNCTION_MAP = /* @__PURE__ */ new Map();
+function buildUnifiedFunctionMap() {
+	const allMappings = [
+		TA_FUNCTION_MAPPINGS,
+		MATH_FUNCTION_MAPPINGS,
+		TIME_FUNCTION_MAPPINGS,
+		ALL_UTILITY_MAPPINGS,
+		MULTI_OUTPUT_MAPPINGS
+	];
+	for (const mappingGroup of allMappings) for (const [key, value] of Object.entries(mappingGroup)) if (!UNIFIED_FUNCTION_MAP.has(key)) UNIFIED_FUNCTION_MAP.set(key, value);
+}
+buildUnifiedFunctionMap();
+/**
+* Generates JavaScript expressions from Pine Script AST expression nodes.
+*/
+var ExpressionGenerator = class {
+	constructor(helperUsage = new HelperUsage()) {
+		this.indentLevel = 0;
+		this.statementGen = null;
+		this.persistentScopes = [/* @__PURE__ */ new Map()];
+		this.helperUsage = helperUsage;
+	}
+	setIndentLevel(level) {
+		this.indentLevel = level;
+	}
+	getIndentLevel() {
+		return this.indentLevel;
+	}
+	/**
+	* Set the statement generator for mutual reference.
+	* This breaks the circular dependency.
+	*/
+	setStatementGenerator(gen) {
+		this.statementGen = gen;
+	}
+	markPersistentIdentifier(identifier, kind, stateKeyExpr = JSON.stringify(identifier)) {
+		this.persistentScopes[this.persistentScopes.length - 1].set(identifier, {
+			kind,
+			keyExpr: stateKeyExpr
+		});
+	}
+	pushPersistentScope() {
+		this.persistentScopes.push(/* @__PURE__ */ new Map());
+	}
+	popPersistentScope() {
+		if (this.persistentScopes.length > 1) this.persistentScopes.pop();
+	}
+	resolvePersistentIdentifier(identifier) {
+		for (let i = this.persistentScopes.length - 1; i >= 0; i--) {
+			const hit = this.persistentScopes[i]?.get(identifier);
+			if (hit) return hit;
+		}
+		return null;
+	}
+	generateExpression(expr) {
+		switch (expr.type) {
+			case "BinaryExpression": return this.generateBinaryExpression(expr);
+			case "UnaryExpression": return this.generateUnaryExpression(expr);
+			case "CallExpression": return this.generateCallExpression(expr);
+			case "MemberExpression": return this.generateMemberExpression(expr);
+			case "ConditionalExpression": return this.generateConditionalExpression(expr);
+			case "AssignmentExpression": return this.generateAssignmentExpression(expr);
+			case "ArrayExpression": return this.generateArrayExpression(expr);
+			case "Identifier": return sanitizeIdentifier(expr.name);
+			case "Literal": return this.generateLiteral(expr);
+			case "SwitchExpression": return this.generateSwitchExpression(expr);
+			default: throw new Error(`Unknown expression type: ${expr.type}`);
+		}
+	}
+	generateBinaryExpression(expr) {
+		let op = expr.operator;
+		if (op === "and") op = "&&";
+		if (op === "or") op = "||";
+		if (op === "!=") op = "!==";
+		if (op === "==") op = "===";
+		return `(${this.generateExpression(expr.left)} ${op} ${this.generateExpression(expr.right)})`;
+	}
+	generateUnaryExpression(expr) {
+		let op = expr.operator;
+		if (op === "not") op = "!";
+		if (expr.prefix) return `${op}${this.generateExpression(expr.argument)}`;
+		return `${this.generateExpression(expr.argument)}${op}`;
+	}
+	generateCallExpression(expr) {
+		let callee = this.generateExpression(expr.callee);
+		const pineCallee = callee;
+		const runtimeArgExprs = this.normalizeCallArguments(pineCallee, expr.arguments).map((a) => isNamedArgument(a) ? a.right : a);
+		const args = runtimeArgExprs.map((a) => this.generateExpression(a));
+		const mapping = UNIFIED_FUNCTION_MAP.get(callee);
+		if (mapping) {
+			callee = mapping.stdName || mapping.jsName || callee;
+			this.helperUsage.markByName(callee);
+			if (mapping.needsSeries && args.length > 0) {
+				const implicitSeries = this.resolveImplicitSeriesArg(pineCallee, runtimeArgExprs.length);
+				if (implicitSeries) args.unshift(implicitSeries);
+				else args[0] = this.wrapSeriesArgument(runtimeArgExprs[0], args[0]);
+			}
+			if (mapping.contextArg) args.unshift("context");
+		}
+		return `${callee}(${args.join(", ")})`;
+	}
+	/**
+	* Pine named args can be supplied out of order. Most callers can emit
+	* runtime args in source order, but a few call families need a
+	* deterministic positional layout downstream:
+	*
+	*   • `request.security` — runtime needs symbol/timeframe/expression
+	*     at the first three positional slots
+	*   • Drawing constructors (`box.new`, `line.new`, `label.new`,
+	*     `table.new`, `table.cell`) — runtime stubs and the host
+	*     VisualEventsRenderer read `args[i]` knowing it means a specific
+	*     Pine parameter; without reordering, named-arg scripts pass
+	*     bgcolor through the slot the runtime expects to hold
+	*     border_color, etc.
+	*
+	* Reordering is local to these specific callees. Everything else
+	* keeps the generic value-only named-arg emit (see `isNamedArgument`).
+	*/
+	normalizeCallArguments(pineCallee, args) {
+		if (pineCallee === "request.security") return this.normalizeRequestSecurityArgs(args);
+		const inputCanonicalOrder = INPUT_CANONICAL_ARG_ORDER[pineCallee];
+		if (inputCanonicalOrder) return this.normalizeByCanonicalOrder(args, inputCanonicalOrder);
+		const canonicalOrder = DRAWING_CANONICAL_ARG_ORDER[pineCallee];
+		if (canonicalOrder) return this.normalizeByCanonicalOrder(args, canonicalOrder);
+		return args;
+	}
+	normalizeRequestSecurityArgs(args) {
+		const positional = [];
+		const namedOrdered = [];
+		for (const arg of args) if (isNamedArgument(arg)) namedOrdered.push({
+			name: arg.left.name,
+			value: arg.right
+		});
+		else positional.push(arg);
+		if (namedOrdered.length === 0) return args;
+		const namedLookup = /* @__PURE__ */ new Map();
+		for (const entry of namedOrdered) namedLookup.set(entry.name, entry.value);
+		let positionalCursor = 0;
+		const takePositional = () => {
+			const value = positional[positionalCursor];
+			positionalCursor += 1;
+			return value;
+		};
+		const symbol = namedLookup.get("symbol") ?? takePositional();
+		const timeframe = namedLookup.get("timeframe") ?? takePositional();
+		const expression = namedLookup.get("expression") ?? takePositional();
+		const normalized = [];
+		if (symbol) normalized.push(symbol);
+		if (timeframe) normalized.push(timeframe);
+		if (expression) normalized.push(expression);
+		while (positionalCursor < positional.length) {
+			normalized.push(positional[positionalCursor]);
+			positionalCursor += 1;
+		}
+		for (const entry of namedOrdered) {
+			if (entry.name === "symbol" || entry.name === "timeframe" || entry.name === "expression") continue;
+			normalized.push(entry.value);
+		}
+		return normalized;
+	}
+	/**
+	* Drawing-namespace `.new` and `table.cell` reorder.
+	*
+	* Splits args into positional + named; positional args bind to the
+	* first N canonical slots (preserving source order); named args fill
+	* their declared slot from `canonicalOrder`. Missing slots are padded
+	* with a synthesized `na` Identifier so `args[i]` is always present
+	* and means the same parameter regardless of which args the script
+	* supplied.
+	*
+	* Named args whose name isn't in `canonicalOrder` are dropped — that
+	* shouldn't happen for the supported callees, but if Pine adds a new
+	* param we don't know about yet, dropping it is safer than shifting
+	* subsequent slots.
+	*/
+	normalizeByCanonicalOrder(args, canonicalOrder) {
+		const positional = [];
+		const namedLookup = /* @__PURE__ */ new Map();
+		for (const arg of args) if (isNamedArgument(arg)) namedLookup.set(arg.left.name, arg.right);
+		else positional.push(arg);
+		if (namedLookup.size === 0) return args;
+		const naExpr = {
+			type: "Literal",
+			value: null,
+			raw: "na",
+			kind: "na"
+		};
+		const highestNamedSlot = Math.max(-1, ...[...namedLookup.keys()].map((name) => canonicalOrder.indexOf(name)));
+		const fillLength = Math.max(positional.length, highestNamedSlot + 1);
+		const normalized = [];
+		for (let i = 0; i < fillLength; i++) {
+			const paramName = canonicalOrder[i];
+			if (i < positional.length) {
+				normalized.push(positional[i]);
+				continue;
+			}
+			if (paramName && namedLookup.has(paramName)) {
+				normalized.push(namedLookup.get(paramName));
+				continue;
+			}
+			normalized.push(naExpr);
+		}
+		return normalized;
+	}
+	/**
+	* TA mappings marked `needsSeries` must receive a Pine series object,
+	* not a scalar snapshot. For base sources we reuse the preamble's
+	* `_series_<name>` bindings; for computed expressions we materialize a
+	* per-call-site series via `context.new_var(expr)`.
+	*/
+	wrapSeriesArgument(argExpr, emittedArg) {
+		if (emittedArg.startsWith("_series_") || emittedArg.startsWith("context.new_var(")) return emittedArg;
+		if (argExpr.type === "Identifier" && BUILTIN_SERIES_IDENTIFIERS.has(argExpr.name)) return `_series_${sanitizeIdentifier(argExpr.name)}`;
+		return `context.new_var(${emittedArg})`;
+	}
+	/**
+	* A handful of TA calls allow omitted source args in Pine and default
+	* to built-in series. When only one argument is supplied we inject the
+	* implicit series so the mapped Std call keeps Pine-compatible arity.
+	*/
+	resolveImplicitSeriesArg(pineCallee, providedArgCount) {
+		const implicit = IMPLICIT_SERIES_BY_TA_CALL[pineCallee];
+		if (!implicit) return null;
+		if (providedArgCount !== 1) return null;
+		return implicit;
+	}
+	generateMemberExpression(expr) {
+		const object = this.generateExpression(expr.object);
+		if (expr.computed) {
+			const property = this.generateExpression(expr.property);
+			if (expr.object.type === "Identifier") return `_getHistorical_${object}(${property})`;
+			return `context.new_var(${object}).get(${property})`;
+		}
+		return `${object}.${expr.property.name}`;
+	}
+	generateConditionalExpression(expr) {
+		return `(${this.generateExpression(expr.test)} ? ${this.generateExpression(expr.consequent)} : ${this.generateExpression(expr.alternate)})`;
+	}
+	generateArrayExpression(expr) {
+		return `[${expr.elements.map((e) => this.generateExpression(e)).join(", ")}]`;
+	}
+	generateAssignmentExpression(expr) {
+		if (Array.isArray(expr.left)) return `[${expr.left.map((id) => sanitizeIdentifier(id.name)).join(", ")}] = ${this.generateExpression(expr.right)}`;
+		const leftIdentifier = !Array.isArray(expr.left) && expr.left.type === "Identifier" ? expr.left : null;
+		const isIdentifierLeft = leftIdentifier !== null;
+		const left = leftIdentifier ? sanitizeIdentifier(leftIdentifier.name) : this.generateMemberExpression(expr.left);
+		let op = expr.operator;
+		if (op === ":=") op = "=";
+		const right = this.generateExpression(expr.right);
+		const persistentBinding = this.resolvePersistentIdentifier(left);
+		if (isIdentifierLeft && persistentBinding) {
+			const setter = persistentBinding.kind === "varip" ? "_pineSetVarip" : "_pineSetVar";
+			this.helperUsage.markByName(setter);
+			const keyExpr = persistentBinding.keyExpr;
+			if (op === "=") return `(${left} = ${setter}(${keyExpr}, ${right}))`;
+			const binaryOp = {
+				"+=": "+",
+				"-=": "-",
+				"*=": "*",
+				"/=": "/",
+				"%=": "%"
+			}[op];
+			if (binaryOp) return `(${left} = ${setter}(${keyExpr}, (${left} ${binaryOp} ${right})))`;
+		}
+		return `${left} ${op} ${right}`;
+	}
+	generateLiteral(expr) {
+		if (expr.kind === "string" || expr.kind === "color") return JSON.stringify(expr.value);
+		if (expr.kind === "na") return "NaN";
+		return String(expr.value);
+	}
+	generateSwitchExpression(expr) {
+		let result = "(() => {\n";
+		this.indentLevel++;
+		if (expr.discriminant) {
+			result += `${indent(this.indentLevel)}switch (${this.generateExpression(expr.discriminant)}) {\n`;
+			this.indentLevel++;
+			for (const c of expr.cases) {
+				if (c.test === null) result += `${indent(this.indentLevel)}default:\n`;
+				else result += `${indent(this.indentLevel)}case ${this.generateExpression(c.test)}:\n`;
+				this.indentLevel++;
+				if (c.consequent.type === "BlockStatement") result += this.generateBlockExpressionWithImplicitReturn(c.consequent);
+				else result += `${indent(this.indentLevel)}return ${this.generateExpression(c.consequent)};\n`;
+				this.indentLevel--;
+			}
+			this.indentLevel--;
+			result += `${indent(this.indentLevel)}}\n`;
+		} else for (let i = 0; i < expr.cases.length; i++) {
+			const c = expr.cases[i];
+			const test = c.test ? this.generateExpression(c.test) : "true";
+			const prefix = i === 0 ? "if" : "else if";
+			if (c.test === null && i > 0) result += `${indent(this.indentLevel)}else {\n`;
+			else result += `${indent(this.indentLevel)}${prefix} (${test}) {\n`;
+			this.indentLevel++;
+			if (c.consequent.type === "BlockStatement") result += this.generateBlockExpressionWithImplicitReturn(c.consequent);
+			else result += `${indent(this.indentLevel)}return ${this.generateExpression(c.consequent)};\n`;
+			this.indentLevel--;
+			result += `${indent(this.indentLevel)}}\n`;
+		}
+		this.indentLevel--;
+		result += `${indent(this.indentLevel)}})()`;
+		return result;
+	}
+	/**
+	* Generate a block expression that returns the last expression's value.
+	*/
+	generateBlockExpressionWithImplicitReturn(block) {
+		if (block.body.length === 0) return `${indent(this.indentLevel)}return undefined;`;
+		const statements = block.body;
+		const allButLast = statements.slice(0, -1);
+		const lastStmt = statements[statements.length - 1];
+		let result = "";
+		this.indentLevel++;
+		for (const stmt of allButLast) if (this.statementGen) result += `${this.statementGen.generateStatement(stmt)}\n`;
+		if (lastStmt.type === "ExpressionStatement") result += `${indent(this.indentLevel)}return ${this.generateExpression(lastStmt.expression)};\n`;
+		else if (lastStmt.type === "ReturnStatement") {
+			if (this.statementGen) result += `${this.statementGen.generateStatement(lastStmt)}\n`;
+		} else if (lastStmt.type === "IfStatement") result += `${this.generateIfExpressionWithImplicitReturn(lastStmt)}\n`;
+		else if (this.statementGen) result += `${this.statementGen.generateStatement(lastStmt)}\n`;
+		this.indentLevel--;
+		return result;
+	}
+	/**
+	* Generate an if expression with implicit return handling
+	*/
+	generateIfExpressionWithImplicitReturn(stmt) {
+		const test = this.generateExpression(stmt.test);
+		let result = `${indent(this.indentLevel)}if (${test}) {\n`;
+		if (stmt.consequent.type === "BlockStatement") result += this.generateBlockExpressionWithImplicitReturn(stmt.consequent);
+		else if (isStatement(stmt.consequent)) {
+			this.indentLevel++;
+			if (stmt.consequent.type === "ExpressionStatement") result += `${indent(this.indentLevel)}return ${this.generateExpression(stmt.consequent.expression)};\n`;
+			else if (this.statementGen) result += `${this.statementGen.generateStatement(stmt.consequent)}\n`;
+			this.indentLevel--;
+		} else {
+			this.indentLevel++;
+			result += `${indent(this.indentLevel)}return ${this.generateExpression(stmt.consequent)};\n`;
+			this.indentLevel--;
+		}
+		result += `${indent(this.indentLevel)}}`;
+		if (stmt.alternate) if (stmt.alternate.type === "IfStatement") result += ` else ${this.generateIfExpressionWithImplicitReturn(stmt.alternate).trim()}`;
+		else if (stmt.alternate.type === "BlockStatement") {
+			result += ` else {\n`;
+			result += this.generateBlockExpressionWithImplicitReturn(stmt.alternate);
+			result += `${indent(this.indentLevel)}}`;
+		} else if (isStatement(stmt.alternate)) {
+			result += ` else {\n`;
+			this.indentLevel++;
+			if (stmt.alternate.type === "ExpressionStatement") result += `${indent(this.indentLevel)}return ${this.generateExpression(stmt.alternate.expression)};\n`;
+			else if (this.statementGen) result += `${this.statementGen.generateStatement(stmt.alternate)}\n`;
+			this.indentLevel--;
+			result += `${indent(this.indentLevel)}}`;
+		} else {
+			result += ` else {\n`;
+			this.indentLevel++;
+			result += `${indent(this.indentLevel)}return ${this.generateExpression(stmt.alternate)};\n`;
+			this.indentLevel--;
+			result += `${indent(this.indentLevel)}}`;
+		}
+		return result;
+	}
+};
+//#endregion
+//#region src/generator/statement-generator.ts
+/**
+* Generates JavaScript statements from Pine Script AST statement nodes.
+*/
+var StatementGenerator = class {
+	constructor(historicalVars, expressionGen) {
+		this.indentLevel = 0;
+		this.loopCounter = 0;
+		this.functionScopeCounter = 0;
+		this.functionScopeStack = [];
+		this.historicalVars = historicalVars;
+		this.expressionGen = expressionGen;
+	}
+	setIndentLevel(level) {
+		this.indentLevel = level;
+	}
+	getIndentLevel() {
+		return this.indentLevel;
+	}
+	generateStatement(stmt) {
+		switch (stmt.type) {
+			case "VariableDeclaration": return this.generateVariableDeclaration(stmt);
+			case "FunctionDeclaration": return this.generateFunctionDeclaration(stmt);
+			case "ExpressionStatement": return `${indent(this.indentLevel)}${this.expressionGen.generateExpression(stmt.expression)};`;
+			case "BlockStatement": return this.generateBlockStatement(stmt);
+			case "IfStatement": return this.generateIfStatement(stmt);
+			case "ForStatement": return this.generateForStatement(stmt);
+			case "ForInStatement": return this.generateForInStatement(stmt);
+			case "WhileStatement": return this.generateWhileStatement(stmt);
+			case "ReturnStatement": return `${indent(this.indentLevel)}return ${stmt.argument ? this.expressionGen.generateExpression(stmt.argument) : ""};`;
+			case "BreakStatement": return `${indent(this.indentLevel)}break;`;
+			case "ContinueStatement": return `${indent(this.indentLevel)}continue;`;
+			case "SwitchStatement": return this.generateSwitchStatement(stmt);
+			case "TypeDefinition": return this.generateTypeDefinition(stmt);
+			case "ImportStatement": return this.generateImportStatement(stmt);
+			default: throw new Error(`Unknown statement type: ${stmt.type}`);
+		}
+	}
+	generateBlockStatement(stmt) {
+		this.indentLevel++;
+		const body = stmt.body.map((s) => this.generateStatement(s)).join("\n");
+		this.indentLevel--;
+		return `{\n${body}\n${indent(this.indentLevel)}}`;
+	}
+	generateStatementOrBlock(stmt) {
+		if (stmt.type === "BlockStatement") return this.generateBlockStatement(stmt);
+		this.indentLevel++;
+		let s;
+		if (isStatement(stmt)) s = this.generateStatement(stmt);
+		else s = `${indent(this.indentLevel)}${this.expressionGen.generateExpression(stmt)};`;
+		this.indentLevel--;
+		return `{\n${s}\n${indent(this.indentLevel)}}`;
+	}
+	currentPersistentKeyExpr(identifier) {
+		const scope = this.functionScopeStack[this.functionScopeStack.length - 1];
+		if (!scope) return JSON.stringify(identifier);
+		return `${scope.keyVar} + ${JSON.stringify(`::${identifier}`)}`;
+	}
+	statementContainsPersistentDecl(stmt) {
+		if (stmt.type === "VariableDeclaration") return stmt.kind === "var" || stmt.kind === "varip";
+		if (stmt.type === "BlockStatement") return this.blockContainsPersistentDecl(stmt);
+		if (stmt.type === "IfStatement") {
+			if (stmt.consequent.type === "BlockStatement" ? this.blockContainsPersistentDecl(stmt.consequent) : this.statementContainsPersistentDecl(stmt.consequent)) return true;
+			if (!stmt.alternate) return false;
+			return stmt.alternate.type === "BlockStatement" ? this.blockContainsPersistentDecl(stmt.alternate) : this.statementContainsPersistentDecl(stmt.alternate);
+		}
+		if (stmt.type === "ForStatement" || stmt.type === "ForInStatement" || stmt.type === "WhileStatement") return stmt.body.type === "BlockStatement" ? this.blockContainsPersistentDecl(stmt.body) : this.statementContainsPersistentDecl(stmt.body);
+		if (stmt.type === "SwitchStatement") {
+			for (const c of stmt.cases) if (c.consequent.type === "BlockStatement" ? this.blockContainsPersistentDecl(c.consequent) : false) return true;
+		}
+		return false;
+	}
+	blockContainsPersistentDecl(block) {
+		for (const stmt of block.body) if (this.statementContainsPersistentDecl(stmt)) return true;
+		return false;
+	}
+	generateIfStatement(stmt) {
+		const test = this.expressionGen.generateExpression(stmt.test);
+		const consequent = this.generateStatementOrBlock(stmt.consequent);
+		let result = `${indent(this.indentLevel)}if (${test}) ${consequent}`;
+		if (stmt.alternate) {
+			const alternate = this.generateStatementOrBlock(stmt.alternate);
+			if (stmt.alternate.type === "IfStatement") result += ` else ${alternate.trim()}`;
+			else result += ` else ${alternate}`;
+		}
+		return result;
+	}
+	generateWhileStatement(stmt) {
+		const loopVar = `_loop_${this.loopCounter++}`;
+		const test = this.expressionGen.generateExpression(stmt.test);
+		let bodyContent = this.generateStatementOrBlock(stmt.body);
+		const lines = bodyContent.split("\n");
+		if (lines.length >= 2) {
+			lines.shift();
+			lines.pop();
+			bodyContent = lines.join("\n");
+		}
+		this.indentLevel++;
+		const guard = `${indent(this.indentLevel)}if (++${loopVar} > ${MAX_LOOP_ITERATIONS}) throw new Error("Loop limit exceeded (max ${MAX_LOOP_ITERATIONS} iterations)");`;
+		this.indentLevel--;
+		return `${indent(this.indentLevel)}let ${loopVar} = 0;\n${indent(this.indentLevel)}while (${test}) {\n${guard}\n${bodyContent}\n${indent(this.indentLevel)}}`;
+	}
+	generateSwitchStatement(stmt) {
+		if (!stmt.discriminant) {
+			let result = "";
+			for (let i = 0; i < stmt.cases.length; i++) {
+				const c = stmt.cases[i];
+				if (i === 0) if (c.test) result += `${indent(this.indentLevel)}if (${this.expressionGen.generateExpression(c.test)}) ${this.generateStatementOrBlock(c.consequent)}`;
+				else result += this.generateStatementOrBlock(c.consequent);
+				else if (c.test) result += ` else if (${this.expressionGen.generateExpression(c.test)}) ${this.generateStatementOrBlock(c.consequent)}`;
+				else result += ` else ${this.generateStatementOrBlock(c.consequent)}`;
+			}
+			return result;
+		}
+		const disc = this.expressionGen.generateExpression(stmt.discriminant);
+		let result = `${indent(this.indentLevel)}switch (${disc}) {\n`;
+		this.indentLevel++;
+		for (const c of stmt.cases) {
+			if (c.test === null) result += `${indent(this.indentLevel)}default:\n`;
+			else result += `${indent(this.indentLevel)}case ${this.expressionGen.generateExpression(c.test)}:\n`;
+			this.indentLevel++;
+			if (c.consequent.type === "BlockStatement") {
+				const block = this.generateBlockStatement(c.consequent);
+				result += `${indent(this.indentLevel)}${block}\n`;
+			} else result += `${indent(this.indentLevel)}${this.expressionGen.generateExpression(c.consequent)};\n`;
+			result += `${indent(this.indentLevel)}break;\n`;
+			this.indentLevel--;
+		}
+		this.indentLevel--;
+		result += `${indent(this.indentLevel)}}`;
+		return result;
+	}
+	generateTypeDefinition(stmt) {
+		const name = stmt.name;
+		const prefix = stmt.export ? "export " : "";
+		const fields = stmt.fields;
+		const typeCtor = `__type_${sanitizeIdentifier(name)}`;
+		let constructorBody = "";
+		this.indentLevel++;
+		this.indentLevel++;
+		constructorBody = fields.map((f) => {
+			const fname = f.id.name;
+			return `${indent(this.indentLevel)}this.${fname} = ${fname};`;
+		}).join("\n");
+		this.indentLevel--;
+		this.indentLevel--;
+		const paramsWithDefaults = fields.map((f) => {
+			const fname = f.id.name;
+			if (f.init) return `${fname} = ${this.expressionGen.generateExpression(f.init)}`;
+			return fname;
+		}).join(", ");
+		return `${indent(this.indentLevel)}var ${typeCtor} = class ${name} {\n${indent(this.indentLevel, 1)}constructor(${paramsWithDefaults}) {\n${indent(this.indentLevel, 2)}${constructorBody.trim()}\n${indent(this.indentLevel, 1)}}\n${indent(this.indentLevel, 1)}static new(...args) { return new ${typeCtor}(...args); }\n${indent(this.indentLevel)}};\n${indent(this.indentLevel)}${prefix}var ${name};\n${indent(this.indentLevel)}if (typeof ${name} === 'function') {\n${indent(this.indentLevel, 1)}if (typeof ${name}.new !== 'function') {\n${indent(this.indentLevel, 2)}${name}.new = (...args) => new ${typeCtor}(...args);\n${indent(this.indentLevel, 1)}}\n${indent(this.indentLevel)}} else {\n${indent(this.indentLevel, 1)}${name} = ${typeCtor};\n${indent(this.indentLevel)}}`;
+	}
+	generateForStatement(stmt) {
+		let loopVarName = "";
+		if (stmt.init.type === "VariableDeclaration") {
+			const decl = stmt.init;
+			loopVarName = Array.isArray(decl.id) ? decl.id[0].name : decl.id.name;
+		} else if (stmt.init.type === "AssignmentExpression") {
+			const assign = stmt.init;
+			if (!Array.isArray(assign.left) && assign.left.type === "Identifier") loopVarName = assign.left.name;
+		}
+		let initStr = "";
+		if (stmt.init.type === "VariableDeclaration") {
+			const decl = stmt.init;
+			const kind = "let";
+			const init = decl.init ? ` = ${this.expressionGen.generateExpression(decl.init)}` : "";
+			initStr = `${kind} ${loopVarName}${init}`;
+		} else if (loopVarName) {
+			const assign = stmt.init;
+			initStr = `let ${loopVarName} = ${this.expressionGen.generateExpression(assign.right)}`;
+		} else initStr = this.expressionGen.generateAssignmentExpression(stmt.init);
+		const testStr = this.expressionGen.generateExpression(stmt.test);
+		let updateStr = "";
+		if (stmt.update) if (loopVarName) updateStr = `${loopVarName} += ${this.expressionGen.generateExpression(stmt.update)}`;
+		else updateStr = this.expressionGen.generateExpression(stmt.update);
+		else if (loopVarName) updateStr = `${loopVarName}++`;
+		const loopVar = `_loop_${this.loopCounter++}`;
+		let bodyContent = this.generateStatementOrBlock(stmt.body);
+		const lines = bodyContent.split("\n");
+		if (lines.length >= 2) {
+			lines.shift();
+			lines.pop();
+			bodyContent = lines.join("\n");
+		}
+		this.indentLevel++;
+		const guard = `${indent(this.indentLevel)}if (++${loopVar} > ${MAX_LOOP_ITERATIONS}) throw new Error("Loop limit exceeded (max ${MAX_LOOP_ITERATIONS} iterations)");`;
+		this.indentLevel--;
+		return `${indent(this.indentLevel)}let ${loopVar} = 0;\n${indent(this.indentLevel)}for (${initStr}; ${testStr}; ${updateStr}) {\n${guard}\n${bodyContent}\n${indent(this.indentLevel)}}`;
+	}
+	generateForInStatement(stmt) {
+		const right = this.expressionGen.generateExpression(stmt.right);
+		const body = this.generateStatementOrBlock(stmt.body);
+		if (Array.isArray(stmt.left)) {
+			const ids = stmt.left.map((id) => sanitizeIdentifier(id.name)).join(", ");
+			return `${indent(this.indentLevel)}for (const [${ids}] of ${right}.entries()) ${body}`;
+		}
+		const name = sanitizeIdentifier(stmt.left.name);
+		return `${indent(this.indentLevel)}for (const ${name} of ${right}) ${body}`;
+	}
+	generateVariableDeclaration(stmt) {
+		const kind = "var";
+		const isPersistent = stmt.kind === "var" || stmt.kind === "varip";
+		const isVarip = stmt.kind === "varip";
+		const initExpr = stmt.init ? this.expressionGen.generateExpression(stmt.init) : "NaN";
+		const init = stmt.init ? ` = ${this.expressionGen.generateExpression(stmt.init)}` : "";
+		const prefix = stmt.export ? "export " : "";
+		let code = "";
+		if (Array.isArray(stmt.id)) {
+			const ids = stmt.id.map((id) => sanitizeIdentifier(id.name)).join(", ");
+			code = `${indent(this.indentLevel)}${prefix}${kind} [${ids}]${init};`;
+			for (const id of stmt.id) {
+				const safeName = sanitizeIdentifier(id.name);
+				if (this.historicalVars.has(id.name)) {
+					code += `\n${indent(this.indentLevel)}const _series_${safeName} = context.new_var(${safeName});`;
+					code += `\n${indent(this.indentLevel)}_getHistorical_${safeName} = (offset) => _series_${safeName}.get(offset);`;
+				}
+			}
+		} else {
+			const safeName = sanitizeIdentifier(stmt.id.name);
+			if (isPersistent) {
+				const helper = isVarip ? "_pineVarip" : "_pineVar";
+				this.expressionGen.helperUsage.markByName(helper);
+				const stateKeyExpr = this.currentPersistentKeyExpr(safeName);
+				code = `${indent(this.indentLevel)}${prefix}${kind} ${safeName} = ${helper}(${stateKeyExpr}, () => (${initExpr}));`;
+				this.expressionGen.markPersistentIdentifier(safeName, isVarip ? "varip" : "var", stateKeyExpr);
+			} else code = `${indent(this.indentLevel)}${prefix}${kind} ${safeName}${init};`;
+			if (this.historicalVars.has(stmt.id.name)) {
+				code += `\n${indent(this.indentLevel)}const _series_${safeName} = context.new_var(${safeName});`;
+				code += `\n${indent(this.indentLevel)}_getHistorical_${safeName} = (offset) => _series_${safeName}.get(offset);`;
+			}
+		}
+		return code;
+	}
+	generateFunctionDeclaration(stmt) {
+		if (stmt.type !== "FunctionDeclaration") throw new Error("Expected FunctionDeclaration");
+		const originalName = stmt.id.name;
+		const name = sanitizeIdentifier(originalName);
+		const paramNames = stmt.params.map((p) => sanitizeIdentifier(p.name)).join(", ");
+		const prefix = stmt.export ? "export " : "";
+		const scopeOrdinal = this.functionScopeCounter++;
+		const scopeId = `${name}#${scopeOrdinal}`;
+		const scopeKeyVar = `_pineFnScope_${scopeOrdinal}`;
+		const needsPersistentScope = stmt.body.type === "BlockStatement" && this.blockContainsPersistentDecl(stmt.body);
+		let body = "";
+		if (needsPersistentScope) {
+			this.functionScopeStack.push({
+				id: scopeId,
+				keyVar: scopeKeyVar
+			});
+			this.expressionGen.pushPersistentScope();
+		}
+		try {
+			if (stmt.body.type === "BlockStatement") body = this.generateFunctionBody(stmt.body, needsPersistentScope ? scopeId : void 0, needsPersistentScope ? scopeKeyVar : void 0);
+			else {
+				this.indentLevel++;
+				body = `{\n${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(stmt.body)};\n${indent(this.indentLevel, -1)}}`;
+			}
+		} finally {
+			if (needsPersistentScope) {
+				this.expressionGen.popPersistentScope();
+				this.functionScopeStack.pop();
+			}
+		}
+		let out = `${indent(this.indentLevel)}${prefix}function ${name}(${paramNames}) ${body}`;
+		if (stmt.isMethod && stmt.params.length > 0) {
+			const receiverType = stmt.params[0]?.typeAnnotation?.name;
+			if (receiverType) {
+				const receiverName = sanitizeIdentifier(receiverType);
+				const methodParams = stmt.params.slice(1).map((p) => sanitizeIdentifier(p.name));
+				const methodParamsDecl = methodParams.join(", ");
+				const callArgs = methodParams.length > 0 ? `, ${methodParamsDecl}` : "";
+				out += `\n${indent(this.indentLevel)}if (${receiverName}?.prototype && typeof ${receiverName}.prototype.${name} !== 'function') {\n${indent(this.indentLevel, 1)}${receiverName}.prototype.${name} = function(${methodParamsDecl}) { return ${name}(this${callArgs}); };\n${indent(this.indentLevel)}}`;
+				if (originalName !== name) out += `\n${indent(this.indentLevel)}if (${receiverName}?.prototype && typeof ${receiverName}.prototype[${JSON.stringify(originalName)}] !== 'function') {\n${indent(this.indentLevel, 1)}${receiverName}.prototype[${JSON.stringify(originalName)}] = function(${methodParamsDecl}) { return ${name}(this${callArgs}); };\n${indent(this.indentLevel)}}`;
+			}
+		}
+		return out;
+	}
+	/**
+	* Generate the body of a multi-line Pine function. Pine has implicit
+	* return — the value of the last expression in the block is the
+	* function's return value. JS requires an explicit `return`, so tail
+	* expressions and switch-statements are rewritten into return forms.
+	*/
+	generateFunctionBody(block, scopeId, scopeKeyVar) {
+		this.indentLevel++;
+		const statements = block.body;
+		const lines = [];
+		if (scopeId && scopeKeyVar) {
+			this.expressionGen.helperUsage.markByName("_pineScopeKey");
+			lines.push(`${indent(this.indentLevel)}const ${scopeKeyVar} = _pineScopeKey(${JSON.stringify(scopeId)});`);
+		}
+		for (let i = 0; i < statements.length; i++) {
+			const s = statements[i];
+			const isLast = i === statements.length - 1;
+			if (isLast && s.type === "ExpressionStatement") lines.push(`${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(s.expression)};`);
+			else if (isLast && s.type === "SwitchStatement") {
+				const switchExpr = {
+					...s,
+					type: "SwitchExpression"
+				};
+				lines.push(`${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(switchExpr)};`);
+			} else lines.push(this.generateStatement(s));
+		}
+		this.indentLevel--;
+		return `{\n${lines.join("\n")}\n${indent(this.indentLevel)}}`;
+	}
+	generateImportStatement(stmt) {
+		if (stmt.as) return `${indent(this.indentLevel)}import * as ${stmt.as} from ${JSON.stringify(stmt.source)};`;
+		return `${indent(this.indentLevel)}import ${JSON.stringify(stmt.source)};`;
+	}
+};
+//#endregion
+//#region src/generator/ast-generator.ts
+/**
+* Main AST Generator that orchestrates code generation.
+* Delegates to StatementGenerator and ExpressionGenerator for the actual work.
+*/
+var ASTGenerator = class {
+	constructor(historicalVars = /* @__PURE__ */ new Set(), helperUsage = new HelperUsage()) {
+		this.helperUsage = helperUsage;
+		this.expressionGen = new ExpressionGenerator(this.helperUsage);
+		this.statementGen = new StatementGenerator(historicalVars, this.expressionGen);
+		this.expressionGen.setStatementGenerator(this.statementGen);
+	}
+	/**
+	* Generate JavaScript code from a Pine Script AST Program.
+	*/
+	generate(node) {
+		return node.body.map((stmt) => this.statementGen.generateStatement(stmt)).join("\n");
+	}
+};
+//#endregion
+//#region src/generator/call-expression-helper.ts
+/**
+* Get argument value by name or position from a list of expressions.
+* Handles both named arguments (AssignmentExpression) and positional arguments.
+*/
+function getArg(args, index, name) {
+	for (const arg of args) if (arg.type === "AssignmentExpression" && !Array.isArray(arg.left) && arg.left.type === "Identifier") {
+		if (arg.left.name === name) return arg.right;
+	}
+	if (index < args.length) {
+		const arg = args[index];
+		if (arg.type !== "AssignmentExpression") return arg;
+	}
+	return null;
+}
+/**
+* Extract a string value from an expression.
+*/
+function getStringValue(expr) {
+	if (!expr) return null;
+	if (expr.type === "Literal" && typeof expr.value === "string") return expr.value;
+	return null;
+}
+/**
+* Extract a number value from an expression.
+* Handles negative numbers (UnaryExpression with '-' operator).
+*/
+function getNumberValue(expr) {
+	if (!expr) return null;
+	if (expr.type === "Literal" && typeof expr.value === "number") return expr.value;
+	if (expr.type === "UnaryExpression" && expr.operator === "-" && expr.argument.type === "Literal") return -expr.argument.value;
+	return null;
+}
+/**
+* Extract a boolean value from an expression.
+*/
+function getBooleanValue(expr) {
+	if (!expr) return null;
+	if (expr.type === "Literal" && typeof expr.value === "boolean") return expr.value;
+	return null;
+}
+/**
+* Get the function name from an expression.
+* Handles both Identifier and MemberExpression callee types.
+*/
+function getFnName(node) {
+	if (node.type === "Identifier") return node.name;
+	if (node.type === "MemberExpression") {
+		let propName = "";
+		if (node.property.type === "Identifier") propName = node.property.name;
+		return `${getFnName(node.object)}.${propName}`;
+	}
+	return "";
+}
+//#endregion
+//#region src/generator/input-extractor.ts
+/**
+* Extracts input declarations from Pine Script.
+*/
+var InputExtractor = class {
+	constructor() {
+		this.inputCount = 0;
+	}
+	/**
+	* Extract input from a CallExpression
+	*/
+	extractInput(expr, fnName) {
+		const args = expr.arguments;
+		const defvalExpr = getArg(args, 0, "defval");
+		const titleExpr = getArg(args, 1, "title");
+		let type = "float";
+		let defval = 0;
+		if (fnName === "input.int") {
+			type = "integer";
+			defval = getNumberValue(defvalExpr) ?? 0;
+		} else if (fnName === "input.bool") {
+			type = "bool";
+			defval = getBooleanValue(defvalExpr) ?? false;
+		} else if (fnName === "input.string") {
+			type = "string";
+			defval = getStringValue(defvalExpr) ?? "";
+		} else if (fnName === "input.session") {
+			type = "session";
+			defval = getStringValue(defvalExpr) ?? "0930-1600:23456";
+		} else if (fnName === "input.source") {
+			type = "source";
+			if (defvalExpr?.type === "Identifier") defval = defvalExpr.name;
+			else defval = "close";
+		} else if (fnName === "input.time") {
+			type = "integer";
+			defval = getNumberValue(defvalExpr) ?? Date.now();
+		} else if (fnName === "input.symbol") {
+			type = "string";
+			defval = getStringValue(defvalExpr) ?? "";
+		} else if (defvalExpr?.type === "Literal") {
+			if (typeof defvalExpr.value === "boolean") {
+				type = "bool";
+				defval = defvalExpr.value;
+			} else if (typeof defvalExpr.value === "string") {
+				type = "string";
+				defval = defvalExpr.value;
+			} else if (typeof defvalExpr.value === "number") {
+				type = "float";
+				defval = defvalExpr.value;
+			}
+		}
+		const title = getStringValue(titleExpr) || `Input ${++this.inputCount}`;
+		const min = getNumberValue(getArg(args, 2, "minval"));
+		const max = getNumberValue(getArg(args, 3, "maxval"));
+		let options;
+		const optionsExpr = getArg(args, 4, "options");
+		if (optionsExpr && optionsExpr.type === "ArrayExpression") options = optionsExpr.elements.map((e) => e.type === "Literal" ? String(e.value) : null).filter((s) => s !== null);
+		return {
+			id: `in_${this.inputCount - 1}`,
+			name: title,
+			type,
+			defval,
+			min: min ?? void 0,
+			max: max ?? void 0,
+			options
+		};
+	}
+	/**
+	* Reset the input counter (useful for testing)
+	*/
+	reset() {
+		this.inputCount = 0;
+	}
+	/**
+	* Get current input count
+	*/
+	getInputCount() {
+		return this.inputCount;
+	}
+};
+//#endregion
+//#region src/generator/plot-extractor.ts
+/**
+* Extracts plot declarations from Pine Script.
+*/
+var PlotExtractor = class {
+	constructor() {
+		this.plotCount = 0;
+		this.stringResolver = () => void 0;
+	}
+	setStringResolver(fn) {
+		this.stringResolver = fn;
+	}
+	/**
+	* Read a string-typed arg, resolving identifier references through
+	* the injected resolver. Returns null when the arg is missing OR not
+	* resolvable; empty-string literals pass through as `''` so callers
+	* can distinguish "Pine explicitly set this empty" from "absent".
+	*/
+	resolveStringArg(expr) {
+		if (!expr) return null;
+		const literal = getStringValue(expr);
+		if (typeof literal === "string") return literal;
+		if (expr.type === "Identifier") return this.stringResolver(expr.name) ?? null;
+		return null;
+	}
+	/**
+	* Convert an expression to a string representation for code generation
+	*/
+	exprToString(expr) {
+		switch (expr.type) {
+			case "Identifier": return expr.name;
+			case "Literal":
+				if (typeof expr.value === "string") return `"${expr.value}"`;
+				return String(expr.value);
+			case "MemberExpression":
+				if (expr.object.type === "Identifier" && expr.property.type === "Identifier") return `${expr.object.name}.${expr.property.name}`;
+				return "";
+			case "CallExpression": return `${getFnName(expr.callee)}(${expr.arguments.map((a) => this.exprToString(a)).join(", ")})`;
+			case "BinaryExpression": return `(${this.exprToString(expr.left)} ${expr.operator} ${this.exprToString(expr.right)})`;
+			case "UnaryExpression": return `${expr.operator}${this.exprToString(expr.argument)}`;
+			default: return "";
+		}
+	}
+	extractLocation(expr) {
+		if (!expr || expr.type !== "MemberExpression") return void 0;
+		if (expr.object.type !== "Identifier") return void 0;
+		if (expr.object.name !== "location") return void 0;
+		if (expr.property.type !== "Identifier") return void 0;
+		const loc = expr.property.name.toLowerCase();
+		if (loc === "abovebar") return "abovebar";
+		if (loc === "belowbar") return "belowbar";
+		if (loc === "top") return "top";
+		if (loc === "bottom") return "bottom";
+		if (loc === "absolute") return "absolute";
+	}
+	extractShape(expr) {
+		if (!expr || expr.type !== "MemberExpression") return void 0;
+		if (expr.object.type !== "Identifier") return void 0;
+		if (expr.object.name !== "shape") return void 0;
+		if (expr.property.type !== "Identifier") return void 0;
+		const style = expr.property.name.toLowerCase();
+		if (style === "circle") return "circle";
+		if (style === "cross" || style === "xcross") return "cross";
+		if (style === "diamond") return "diamond";
+		if (style === "square") return "square";
+		if (style === "triangleup") return "triangleup";
+		if (style === "triangledown") return "triangledown";
+		if (style === "flag") return "flag";
+		if (style === "labelup" || style === "labeldown") return "label";
+	}
+	/**
+	* Extract a plot() call
+	*/
+	extractPlot(expr) {
+		const args = expr.arguments;
+		const valueArg = getArg(args, 0, "series");
+		const valueExpr = valueArg ? this.exprToString(valueArg) : "";
+		const title = getStringValue(getArg(args, 1, "title")) || `Plot ${++this.plotCount}`;
+		let color = "#2962FF";
+		const colorExpr = getArg(args, 2, "color");
+		if (colorExpr) color = this.extractColor(colorExpr);
+		const linewidth = getNumberValue(getArg(args, 3, "linewidth")) || 1;
+		let type = "line";
+		const styleExpr = getArg(args, 4, "style");
+		if (styleExpr) {
+			const name = getFnName(styleExpr);
+			if (name.includes("histogram") || name.includes("columns")) type = "histogram";
+			else if (name.includes("circles")) type = "circles";
+			else if (name.includes("area")) type = "area";
+			else if (name.includes("cross")) type = "cross";
+			else if (name.includes("stepline")) type = "stepline";
+		}
+		return {
+			id: `plot_${this.plotCount - 1}`,
+			title,
+			varName: `plot_${this.plotCount - 1}`,
+			type,
+			color,
+			linewidth,
+			valueExpr
+		};
+	}
+	/**
+	* Extract a plotshape() call
+	*/
+	extractPlotShape(expr) {
+		const args = expr.arguments;
+		const valueArg = getArg(args, 0, "series");
+		const valueExpr = valueArg ? this.exprToString(valueArg) : "";
+		const title = getStringValue(getArg(args, 1, "title")) || `Shape ${++this.plotCount}`;
+		const shape = this.extractShape(getArg(args, 2, "style")) ?? "circle";
+		const location = this.extractLocation(getArg(args, 3, "location")) ?? "abovebar";
+		const color = this.extractColor(getArg(args, 4, "color") ?? args[0]);
+		return {
+			id: `plot_${this.plotCount - 1}`,
+			title,
+			varName: `plot_${this.plotCount - 1}`,
+			type: "shape",
+			color,
+			linewidth: 1,
+			valueExpr,
+			shape,
+			location
+		};
+	}
+	/**
+	* Extract a plotchar() call.
+	*
+	* Pine's plotchar signature: `plotchar(series, title, char, location,
+	* color, offset, text, textcolor, ...)`. Pine renders `char` at the
+	* price point and `text` as a label next to it. TV CustomIndicator
+	* `chars` plots only expose a single `char` style field, so when the
+	* Pine source leaves `char` empty but supplies `text` (a common
+	* pattern for day/session labels) we promote `text` into the char
+	* slot — better than rendering a generic `•`.
+	*/
+	extractPlotChar(expr) {
+		const args = expr.arguments;
+		const valueArg = getArg(args, 0, "series");
+		const valueExpr = valueArg ? this.exprToString(valueArg) : "";
+		const title = getStringValue(getArg(args, 1, "title")) || `Char ${++this.plotCount}`;
+		const charArg = this.resolveStringArg(getArg(args, 2, "char"));
+		const textArg = this.resolveStringArg(getArg(args, 6, "text"));
+		const charValue = charArg || textArg || "•";
+		const location = this.extractLocation(getArg(args, 3, "location")) ?? "abovebar";
+		const color = this.extractColor(getArg(args, 4, "color") ?? args[0]);
+		return {
+			id: `plot_${this.plotCount - 1}`,
+			title,
+			varName: `plot_${this.plotCount - 1}`,
+			type: "char",
+			color,
+			linewidth: 1,
+			valueExpr,
+			char: charValue,
+			location
+		};
+	}
+	/**
+	* Extract a plotarrow() call
+	*
+	* We model arrows as shape plots in metainfo to ensure they are
+	* counted as declared outputs in corpus parity checks.
+	*/
+	extractPlotArrow(expr) {
+		const args = expr.arguments;
+		const valueArg = getArg(args, 0, "series");
+		const valueExpr = valueArg ? this.exprToString(valueArg) : "";
+		const title = getStringValue(getArg(args, 1, "title")) || `Arrow ${++this.plotCount}`;
+		return {
+			id: `plot_${this.plotCount - 1}`,
+			title,
+			varName: `plot_${this.plotCount - 1}`,
+			type: "shape",
+			color: "#000000",
+			linewidth: 1,
+			valueExpr,
+			shape: "triangleup",
+			location: "abovebar"
+		};
+	}
+	/**
+	* Extract an hline() call
+	*/
+	extractHline(expr) {
+		const args = expr.arguments;
+		const priceArg = getArg(args, 0, "price");
+		const price = getNumberValue(priceArg);
+		const valueExpr = priceArg ? this.exprToString(priceArg) : "";
+		const title = getStringValue(getArg(args, 1, "title")) || `HLine ${++this.plotCount}`;
+		return {
+			id: `plot_${this.plotCount - 1}`,
+			title,
+			varName: `plot_${this.plotCount - 1}`,
+			type: "hline",
+			color: "#787B86",
+			linewidth: 1,
+			price: price ?? void 0,
+			valueExpr
+		};
+	}
+	/**
+	* Extract color from an expression
+	*/
+	extractColor(colorExpr) {
+		if (colorExpr.type === "Literal" && typeof colorExpr.value === "string") return colorExpr.value;
+		if (colorExpr.type === "MemberExpression" && colorExpr.object.type === "Identifier" && colorExpr.object.name === "color") {
+			if (colorExpr.property.type === "Identifier") {
+				const colorName = colorExpr.property.name;
+				if (COLOR_MAP[colorName]) return COLOR_MAP[colorName];
+			}
+		}
+		if (colorExpr.type === "Identifier" && COLOR_MAP[colorExpr.name]) return COLOR_MAP[colorExpr.name];
+		return "#2962FF";
+	}
+	/**
+	* Reset the plot counter
+	*/
+	reset() {
+		this.plotCount = 0;
+	}
+	/**
+	* Get current plot count
+	*/
+	getPlotCount() {
+		return this.plotCount;
+	}
+};
+//#endregion
+//#region src/generator/metadata-visitor.ts
+/**
+* Unsupported function categories for warning generation
+*/
+var UNSUPPORTED_FUNCTIONS = new Set([
+	"request.financial",
+	"request.quandl",
+	"request.seed",
+	"request.economic",
+	"request.dividends",
+	"request.earnings",
+	"request.splits",
+	"ticker.new",
+	"ticker.modify",
+	"alert",
+	"alertcondition",
+	"runtime.error",
+	"log.info",
+	"log.warning",
+	"log.error"
+]);
+/**
+* Partially supported functions that may have limited functionality
+*/
+var PARTIALLY_SUPPORTED_FUNCTIONS = new Set([
+	"request.security",
+	"plotshape",
+	"plotchar",
+	"plotarrow",
+	"bgcolor",
+	"fill",
+	"barcolor",
+	"box.new",
+	"line.new",
+	"label.new",
+	"table.new",
+	"table.cell"
+]);
+/**
+* Deprecated functions that should be migrated
+*/
+var DEPRECATED_FUNCTIONS = new Set(["study", "security"]);
+var MetadataVisitor = class {
+	constructor() {
+		this.inputs = [];
+		this.plots = [];
+		this.bgcolors = [];
+		this.name = "Untitled Script";
+		this.shortName = "Untitled";
+		this.overlay = false;
+		this.warnings = [];
+		this.usedSources = /* @__PURE__ */ new Set();
+		this.historicalAccess = /* @__PURE__ */ new Set();
+		this.colorVariables = /* @__PURE__ */ new Map();
+		this.stringVariables = /* @__PURE__ */ new Map();
+		this.sessionVariables = /* @__PURE__ */ new Map();
+		this.derivedSessionVariables = /* @__PURE__ */ new Map();
+		this.inputVariableMap = /* @__PURE__ */ new Map();
+		this.booleanInputMap = /* @__PURE__ */ new Map();
+		this.computedVariables = /* @__PURE__ */ new Map();
+		this.inputExtractor = new InputExtractor();
+		this.plotExtractor = new PlotExtractor();
+		this.warnedFunctions = /* @__PURE__ */ new Set();
+	}
+	visit(node) {
+		this.plotExtractor.setStringResolver((name) => this.stringVariables.get(name));
+		this.visitStatements(node.body);
+	}
+	visitStatements(stmts) {
+		for (const stmt of stmts) this.visitStatement(stmt);
+	}
+	visitStatement(stmt) {
+		if (!stmt) return;
+		switch (stmt.type) {
+			case "ExpressionStatement":
+				this.visitExpression(stmt.expression);
+				break;
+			case "VariableDeclaration":
+				if (stmt.init) {
+					this.trackColorVariable(stmt.id, stmt.init);
+					this.trackStringVariable(stmt.id, stmt.init);
+					this.trackSessionVariable(stmt.id, stmt.init);
+					this.trackDerivedSessionVariable(stmt.id, stmt.init);
+					this.trackInputVariable(stmt.id, stmt.init);
+					this.trackComputedVariable(stmt.id, stmt.init);
+					this.visitExpression(stmt.init);
+				}
+				break;
+			case "FunctionDeclaration":
+				if (stmt.body.type === "BlockStatement") this.visitStatement(stmt.body);
+				else this.visitExpression(stmt.body);
+				break;
+			case "BlockStatement":
+				this.visitStatements(stmt.body);
+				break;
+			case "IfStatement":
+				this.visitExpression(stmt.test);
+				this.visitStatement(stmt.consequent);
+				if (stmt.alternate) this.visitStatement(stmt.alternate);
+				break;
+			case "WhileStatement":
+				this.visitExpression(stmt.test);
+				this.visitStatement(stmt.body);
+				break;
+			case "ForStatement":
+				if (stmt.init.type === "VariableDeclaration") {
+					if (stmt.init.init) this.visitExpression(stmt.init.init);
+				} else this.visitExpression(stmt.init);
+				this.visitExpression(stmt.test);
+				if (stmt.update) this.visitExpression(stmt.update);
+				this.visitStatement(stmt.body);
+				break;
+			case "ReturnStatement":
+				if (stmt.argument) this.visitExpression(stmt.argument);
+				break;
+			case "SwitchStatement":
+				if (stmt.discriminant) this.visitExpression(stmt.discriminant);
+				for (const c of stmt.cases) {
+					if (c.test) this.visitExpression(c.test);
+					if (isStatement(c.consequent)) this.visitStatement(c.consequent);
+					else this.visitExpression(c.consequent);
+				}
+				break;
+		}
+	}
+	visitExpression(expr) {
+		if (!expr) return;
+		switch (expr.type) {
+			case "CallExpression":
+				this.visitCallExpression(expr);
+				for (const arg of expr.arguments) this.visitExpression(arg);
+				break;
+			case "BinaryExpression":
+				this.visitExpression(expr.left);
+				this.visitExpression(expr.right);
+				break;
+			case "UnaryExpression":
+				this.visitExpression(expr.argument);
+				break;
+			case "MemberExpression":
+				this.visitMemberExpression(expr);
+				break;
+			case "ConditionalExpression":
+				this.visitExpression(expr.test);
+				this.visitExpression(expr.consequent);
+				this.visitExpression(expr.alternate);
+				break;
+			case "AssignmentExpression":
+				if (!Array.isArray(expr.left) && expr.left.type === "MemberExpression") this.visitMemberExpression(expr.left);
+				this.visitExpression(expr.right);
+				break;
+			case "Identifier":
+				this.visitIdentifier(expr);
+				break;
+		}
+	}
+	visitIdentifier(node) {
+		const name = node.name;
+		if ([
+			"open",
+			"close",
+			"high",
+			"low",
+			"volume",
+			"hl2",
+			"hlc3",
+			"ohlc4"
+		].includes(name)) this.usedSources.add(name);
+	}
+	visitMemberExpression(node) {
+		this.visitExpression(node.object);
+		if (node.computed) {
+			if (node.object.type === "Identifier") {
+				const name = node.object.name;
+				this.historicalAccess.add(name);
+				if ([
+					"open",
+					"close",
+					"high",
+					"low",
+					"volume",
+					"hl2",
+					"hlc3",
+					"ohlc4"
+				].includes(name)) this.usedSources.add(name);
+			}
+			this.visitExpression(node.property);
+		}
+	}
+	visitCallExpression(expr) {
+		const callee = expr.callee;
+		if (callee.type !== "Identifier" && callee.type !== "MemberExpression") return;
+		const name = getFnName(callee);
+		this.checkFunctionSupport(name, expr);
+		if ([
+			"indicator",
+			"study",
+			"strategy"
+		].includes(name)) this.extractIndicatorMeta(expr);
+		else if (name.startsWith("input")) {
+			const input = this.inputExtractor.extractInput(expr, name);
+			input.id = `in_${this.inputs.length}`;
+			this.inputs.push(input);
+		} else if (name === "plot") {
+			const plot = this.plotExtractor.extractPlot(expr);
+			plot.id = `plot_${this.plots.length}`;
+			this.plots.push(plot);
+		} else if (name === "plotshape") {
+			const plot = this.plotExtractor.extractPlotShape(expr);
+			plot.id = `plot_${this.plots.length}`;
+			this.plots.push(plot);
+		} else if (name === "plotchar") {
+			const plot = this.plotExtractor.extractPlotChar(expr);
+			plot.id = `plot_${this.plots.length}`;
+			this.plots.push(plot);
+		} else if (name === "plotarrow") {
+			const plot = this.plotExtractor.extractPlotArrow(expr);
+			plot.id = `plot_${this.plots.length}`;
+			this.plots.push(plot);
+		} else if (name === "hline") {
+			const plot = this.plotExtractor.extractHline(expr);
+			plot.id = `plot_${this.plots.length}`;
+			this.plots.push(plot);
+		} else if (name === "bgcolor") this.extractBgcolor(expr);
+	}
+	/**
+	* Track color variable definitions (e.g., SydneyCol = color.new(color.teal, 88))
+	*/
+	trackColorVariable(id, init) {
+		if (Array.isArray(id) || id.type !== "Identifier") return;
+		const varName = id.name;
+		const colorInfo = this.extractColorInfoFromInit(init);
+		if (colorInfo) this.colorVariables.set(varName, colorInfo);
+	}
+	/**
+	* Track direct string-literal var assignments, e.g.
+	* `var sunday = "SUNDAY"`. Computed/concatenated string expressions
+	* are intentionally not tracked — keeping resolution narrow avoids
+	* surprising fallout in unrelated scripts.
+	*/
+	trackStringVariable(id, init) {
+		if (Array.isArray(id) || id.type !== "Identifier") return;
+		if (init.type !== "Literal" || typeof init.value !== "string") return;
+		this.stringVariables.set(id.name, init.value);
+	}
+	/**
+	* Track input variable assignments (e.g., sSydney = input.session(...))
+	* This maps variable names to their input index for later resolution
+	*/
+	trackInputVariable(id, init) {
+		if (Array.isArray(id) || id.type !== "Identifier") return;
+		const varName = id.name;
+		if (init.type === "CallExpression") {
+			const fnName = getFnName(init.callee);
+			if (fnName.startsWith("input")) {
+				const inputIndex = this.inputs.length;
+				this.inputVariableMap.set(varName, inputIndex);
+				if (fnName === "input.bool" || fnName === "input") this.booleanInputMap.set(varName, inputIndex);
+			}
+		}
+	}
+	/**
+	* Track session membership variables
+	* e.g., inSydney = not na(time(timeframe.period, sSydney, "Australia/Sydney"))
+	*/
+	trackSessionVariable(id, init) {
+		if (Array.isArray(id) || id.type !== "Identifier") return;
+		const varName = id.name;
+		if (init.type === "UnaryExpression" && init.operator === "not") {
+			const arg = init.argument;
+			if (arg.type === "CallExpression") {
+				if ((arg.callee.type === "Identifier" && arg.callee.name === "na" || arg.callee.type === "Literal" && arg.callee.kind === "na") && arg.arguments.length > 0) {
+					const naArg = arg.arguments[0];
+					if (naArg.type === "CallExpression") {
+						if (getFnName(naArg.callee) === "time" && naArg.arguments.length >= 3) {
+							const sessionArg = naArg.arguments[1];
+							const tzArg = naArg.arguments[2];
+							let sessionInputVar = "";
+							let timezone = "";
+							if (sessionArg.type === "Identifier") sessionInputVar = sessionArg.name;
+							if (tzArg.type === "Literal" && typeof tzArg.value === "string") timezone = tzArg.value;
+							if (sessionInputVar && timezone) {
+								const inputIndex = this.inputVariableMap.get(sessionInputVar);
+								this.sessionVariables.set(varName, {
+									varName,
+									sessionInputVar,
+									timezone,
+									inputIndex
+								});
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	/**
+	* Track derived session variables (overlaps)
+	* e.g., inLonNy = inLondon and inNY
+	*/
+	trackDerivedSessionVariable(id, init) {
+		if (Array.isArray(id) || id.type !== "Identifier") return;
+		const varName = id.name;
+		if (init.type === "BinaryExpression" && (init.operator === "and" || init.operator === "or")) {
+			const referencesSession = (expr) => {
+				if (expr.type === "Identifier") return this.sessionVariables.has(expr.name) || this.derivedSessionVariables.has(expr.name);
+				if (expr.type === "BinaryExpression") return referencesSession(expr.left) || referencesSession(expr.right);
+				return false;
+			};
+			if (referencesSession(init.left) || referencesSession(init.right)) {
+				const exprStr = this.stringifyCondition(init);
+				this.derivedSessionVariables.set(varName, exprStr);
+			}
+		}
+	}
+	/**
+	* Track computed variables (ta.*, arithmetic, etc.) for code generation
+	*/
+	trackComputedVariable(id, init) {
+		if (Array.isArray(id) || id.type !== "Identifier") return;
+		const varName = id.name;
+		if (this.sessionVariables.has(varName) || this.derivedSessionVariables.has(varName) || this.inputVariableMap.has(varName) || this.colorVariables.has(varName)) return;
+		if (init.type === "CallExpression") {
+			const fnName = getFnName(init.callee);
+			if (fnName.startsWith("table.") || fnName.startsWith("label.") || fnName.startsWith("box.") || fnName.startsWith("line.") || fnName.startsWith("linefill.") || fnName.startsWith("polyline.")) return;
+		}
+		const { expression, dependencies } = this.exprToNative(init);
+		if (expression) this.computedVariables.set(varName, {
+			name: varName,
+			expression,
+			dependencies
+		});
+	}
+	/**
+	* Convert a Pine Script expression to native JS code
+	*/
+	exprToNative(expr) {
+		const deps = [];
+		const convert = (e) => {
+			switch (e.type) {
+				case "Identifier":
+					deps.push(e.name);
+					return e.name;
+				case "Literal":
+					if (typeof e.value === "string") return `"${e.value}"`;
+					if (e.value === null) return "NaN";
+					return String(e.value);
+				case "BinaryExpression": {
+					const left = convert(e.left);
+					const right = convert(e.right);
+					let op = e.operator;
+					if (op === "and") op = "&&";
+					if (op === "or") op = "||";
+					return `(${left} ${op} ${right})`;
+				}
+				case "UnaryExpression": {
+					let op = e.operator;
+					if (op === "not") op = "!";
+					return `${op}${convert(e.argument)}`;
+				}
+				case "CallExpression": {
+					const fnName = getFnName(e.callee);
+					const args = e.arguments.map((a) => convert(a)).join(", ");
+					if (fnName.startsWith("ta.")) return `${fnName.replace("ta.", "Std.")}(${args}, context)`;
+					if (fnName.startsWith("math.")) return `${fnName.replace("math.", "Math.")}(${args})`;
+					return `${fnName}(${args})`;
+				}
+				case "MemberExpression":
+					if (e.object.type === "Identifier" && e.property.type === "Identifier") {
+						const objName = e.object.name;
+						const propName = e.property.name;
+						if ([
+							"open",
+							"high",
+							"low",
+							"close",
+							"volume",
+							"hl2",
+							"hlc3",
+							"ohlc4"
+						].includes(objName)) {
+							deps.push(objName);
+							return `Std.${objName}(context)`;
+						}
+						return `${objName}.${propName}`;
+					}
+					if (e.computed && e.property.type === "Literal") return `${convert(e.object)}[${e.property.value}]`;
+					return "";
+				case "ConditionalExpression": return `(${convert(e.test)} ? ${convert(e.consequent)} : ${convert(e.alternate)})`;
+				default: return "";
+			}
+		};
+		return {
+			expression: convert(expr),
+			dependencies: deps
+		};
+	}
+	/**
+	* Extract color info from an initializer expression
+	*/
+	extractColorInfoFromInit(expr) {
+		if (expr.type === "CallExpression") {
+			const fnName = getFnName(expr.callee);
+			if ((fnName === "color.new" || fnName === "_colorNew") && expr.arguments.length >= 2) {
+				const baseColor = this.extractColorFromExpr(expr.arguments[0]);
+				let transparency = 0;
+				const transpArg = expr.arguments[1];
+				if (transpArg.type === "Literal" && typeof transpArg.value === "number") transparency = transpArg.value;
+				if (baseColor) return {
+					color: baseColor,
+					transparency
+				};
+			}
+		}
+		return null;
+	}
+	/**
+	* Extract bgcolor() call information
+	*/
+	extractBgcolor(expr) {
+		const args = expr.arguments;
+		if (args.length === 0) return;
+		const colorArg = args[0];
+		let color = "#808080";
+		let transparency = 80;
+		let conditionExpr = "";
+		const extractedInfo = this.extractColorInfo(colorArg);
+		if (extractedInfo) {
+			color = extractedInfo.color;
+			transparency = extractedInfo.transparency;
+		}
+		if (colorArg.type === "ConditionalExpression") conditionExpr = this.stringifyCondition(colorArg.test);
+		this.bgcolors.push({
+			index: this.bgcolors.length,
+			condition: conditionExpr,
+			color,
+			transparency
+		});
+	}
+	/**
+	* Stringify a condition expression for code generation
+	*/
+	stringifyCondition(expr) {
+		switch (expr.type) {
+			case "Identifier": return expr.name;
+			case "Literal": return String(expr.value);
+			case "BinaryExpression": {
+				const left = this.stringifyCondition(expr.left);
+				const right = this.stringifyCondition(expr.right);
+				let op = expr.operator;
+				if (op === "and") op = "&&";
+				if (op === "or") op = "||";
+				return `(${left} ${op} ${right})`;
+			}
+			case "UnaryExpression": {
+				let op = expr.operator;
+				if (op === "not") op = "!";
+				return `${op}${this.stringifyCondition(expr.argument)}`;
+			}
+			case "MemberExpression":
+				if (expr.object.type === "Identifier" && expr.property.type === "Identifier") return `${expr.object.name}.${expr.property.name}`;
+				return "";
+			case "CallExpression": return `${getFnName(expr.callee)}(${expr.arguments.map((a) => this.stringifyCondition(a)).join(", ")})`;
+			default: return "";
+		}
+	}
+	/**
+	* Extract color and transparency from an expression
+	*/
+	extractColorInfo(expr) {
+		if (expr.type === "CallExpression") {
+			const fnName = getFnName(expr.callee);
+			if ((fnName === "color.new" || fnName === "_colorNew") && expr.arguments.length >= 2) {
+				const baseColor = this.extractColorFromExpr(expr.arguments[0]);
+				let transparency = 0;
+				const transpArg = expr.arguments[1];
+				if (transpArg.type === "Literal" && typeof transpArg.value === "number") transparency = transpArg.value;
+				if (baseColor) return {
+					color: baseColor,
+					transparency
+				};
+			}
+		}
+		if (expr.type === "ConditionalExpression") return this.extractColorInfo(expr.consequent);
+		if (expr.type === "Identifier") {
+			const tracked = this.colorVariables.get(expr.name);
+			if (tracked) return tracked;
+		}
+		const directColor = this.extractColorFromExpr(expr);
+		if (directColor) return {
+			color: directColor,
+			transparency: 0
+		};
+		return null;
+	}
+	/**
+	* Extract color from expression (color.red, #FF0000, etc.)
+	*/
+	extractColorFromExpr(expr) {
+		if (expr.type === "Literal" && typeof expr.value === "string") return expr.value;
+		if (expr.type === "MemberExpression" && expr.object.type === "Identifier" && expr.object.name === "color" && expr.property.type === "Identifier") return {
+			blue: "#2962FF",
+			red: "#FF5252",
+			green: "#4CAF50",
+			yellow: "#FFEB3B",
+			orange: "#FF9800",
+			purple: "#9C27B0",
+			white: "#FFFFFF",
+			black: "#000000",
+			gray: "#9E9E9E",
+			teal: "#009688",
+			aqua: "#00BCD4",
+			lime: "#CDDC39",
+			pink: "#E91E63",
+			navy: "#1A237E",
+			maroon: "#B71C1C"
+		}[expr.property.name] || null;
+		if (expr.type === "Identifier") return null;
+		return null;
+	}
+	/**
+	* Check if a function is supported and add appropriate warnings
+	*/
+	checkFunctionSupport(fnName, expr) {
+		if (this.warnedFunctions.has(fnName)) return;
+		if (UNSUPPORTED_FUNCTIONS.has(fnName)) {
+			this.warnedFunctions.add(fnName);
+			this.warnings.push({
+				type: "unsupported",
+				message: `Function '${fnName}' is not supported and will be ignored at runtime`,
+				functionName: fnName,
+				line: this.getExpressionLine(expr)
+			});
+		} else if (PARTIALLY_SUPPORTED_FUNCTIONS.has(fnName)) {
+			this.warnedFunctions.add(fnName);
+			this.warnings.push({
+				type: "partial",
+				message: `Function '${fnName}' has limited support - some features may not work as expected`,
+				functionName: fnName,
+				line: this.getExpressionLine(expr)
+			});
+		} else if (DEPRECATED_FUNCTIONS.has(fnName)) {
+			this.warnedFunctions.add(fnName);
+			this.warnings.push({
+				type: "deprecated",
+				message: `Function '${fnName}' is deprecated - consider using the recommended alternative`,
+				functionName: fnName,
+				line: this.getExpressionLine(expr)
+			});
+		}
+	}
+	getExpressionLine(_expr) {}
+	extractIndicatorMeta(expr) {
+		const args = expr.arguments;
+		const title = getStringValue(getArg(args, 0, "title"));
+		if (title) this.name = title;
+		const shorttitle = getStringValue(getArg(args, 1, "shorttitle"));
+		if (shorttitle) this.shortName = shorttitle;
+		else if (title) this.shortName = title;
+		const overlay = getBooleanValue(getArg(args, 2, "overlay"));
+		if (overlay !== null) this.overlay = overlay;
+	}
+};
+//#endregion
+//#region src/pipeline.ts
+/**
+* Transpilation pipeline — the canonical wiring of
+* Lexer → Parser → MetadataVisitor → ASTGenerator → buildIndicatorFactory.
+*
+* Exposed so callers (the library's own `transpileToPineJS` /
+* `transpileToStandaloneFactory`, the CLI, and any third-party
+* tooling such as an LSP or linter) compose stages from one place
+* rather than re-wiring the sequence in each entry point.
+*
+* The stages are pure functions: each takes its inputs explicitly and
+* returns a fresh value. They throw on lex/parse/generate failure;
+* the catch-and-wrap behaviour belongs to the public surface in
+* `./index.ts`, not here.
+*/
+/** Maximum input size in characters to prevent DoS attacks. */
+var MAX_INPUT_SIZE = 1e6;
+/** Throws if the source exceeds {@link MAX_INPUT_SIZE}. */
+function validateInputSize(code) {
+	if (code.length > 1e6) throw new Error(`Input too large: ${code.length} characters exceeds maximum of ${MAX_INPUT_SIZE}`);
+}
+/**
+* Parse Pine Script source into an AST.
+* Throws on lex or parse errors.
+*/
+function parse(code) {
+	validateInputSize(code);
+	return new Parser(new Lexer(code).tokenize()).parse();
+}
+/**
+* Walk an AST to extract indicator metadata — name, inputs, plots,
+* bgcolors, used sources, historical access, session variables, and
+* the computed/input maps used by the standalone factory generator.
+*
+* Returns the {@link MetadataVisitor} instance directly so callers
+* can read every field without an intermediate translation layer.
+*/
+function extractMetadata(ast) {
+	const visitor = new MetadataVisitor();
+	visitor.visit(ast);
+	return visitor;
+}
+/**
+* Generate the JS body string from an AST. Requires the
+* `historicalAccess` set so the generator emits the right context
+* lookups; that set comes from {@link extractMetadata}.
+*
+* A caller-supplied {@link HelperUsage} is mutated during generation
+* to record which preamble helpers were emitted. When omitted, an
+* internal tracker is used and discarded — useful when the caller
+* only wants the body string (e.g. the legacy `transpile()` helper).
+*/
+function generateBody(ast, historicalAccess, helperUsage) {
+	return new ASTGenerator(historicalAccess, helperUsage).generate(ast);
+}
+/**
+* Build a TradingView CustomIndicator factory from extracted metadata
+* and a generated body.
+*
+* `helperUsage` should come from the same generation pass that
+* produced `mainBody`, so the preamble carries exactly the helpers
+* the body actually references. Omitting it falls back to the
+* legacy string-scan in `analyzeRequiredHelpers`.
+*/
+function buildFactory(metadata, mainBody, options) {
+	return buildIndicatorFactory({
+		indicatorId: options.indicatorId,
+		indicatorName: options.indicatorName,
+		name: metadata.name,
+		shortName: metadata.shortName,
+		overlay: metadata.overlay,
+		plots: metadata.plots,
+		inputs: metadata.inputs,
+		bgcolors: metadata.bgcolors,
+		usedSources: metadata.usedSources,
+		historicalAccess: metadata.historicalAccess,
+		mainBody,
+		helperUsage: options.helperUsage?.toRecord(),
+		autoBgColorerForBoxes: options.autoBgColorerForBoxes ?? false,
+		...options.includeStandaloneFields ? {
+			sessionVariables: metadata.sessionVariables,
+			derivedSessionVariables: metadata.derivedSessionVariables,
+			booleanInputMap: metadata.booleanInputMap,
+			computedVariables: metadata.computedVariables,
+			inputVariableMap: metadata.inputVariableMap
+		} : {}
+	});
+}
+/**
+* Build the standalone-factory source string (the form used by
+* `transpileToStandaloneFactory`). Wraps `generateStandaloneFactory`
+* with the same metadata-plumbing convention as {@link buildFactory}.
+*/
+function buildStandaloneFactoryCode(metadata, mainBody, options) {
+	return generateStandaloneFactory({
+		indicatorId: options.indicatorId,
+		indicatorName: options.indicatorName,
+		name: metadata.name,
+		shortName: metadata.shortName,
+		overlay: metadata.overlay,
+		plots: metadata.plots,
+		inputs: metadata.inputs,
+		bgcolors: metadata.bgcolors,
+		usedSources: metadata.usedSources,
+		historicalAccess: metadata.historicalAccess,
+		mainBody,
+		autoBgColorerForBoxes: options.autoBgColorerForBoxes ?? false,
+		sessionVariables: metadata.sessionVariables,
+		derivedSessionVariables: metadata.derivedSessionVariables,
+		booleanInputMap: metadata.booleanInputMap,
+		computedVariables: metadata.computedVariables,
+		inputVariableMap: metadata.inputVariableMap
+	});
+}
+/**
+* Run the full pipeline end-to-end. Throws on any stage failure;
+* the public {@link transpileToPineJS} entry point wraps this in
+* the structured `{success, error}` contract.
+*/
+function compile(code, options) {
+	const ast = parse(code);
+	const metadata = extractMetadata(ast);
+	const helperUsage = new HelperUsage();
+	const mainBody = generateBody(ast, metadata.historicalAccess, helperUsage);
+	return {
+		ast,
+		metadata,
+		mainBody,
+		helperUsage,
+		factory: buildFactory(metadata, mainBody, {
+			...options,
+			helperUsage
+		})
+	};
+}
+//#endregion
 //#region src/index.ts
 /**
 * Pine Script to PineJS Transpiler
@@ -8522,8 +8745,6 @@ var Parser = class extends ExpressionParser {
 *
 * Reference: https://www.tradingview.com/charting-library-docs/latest/custom_studies/
 */
-/** Maximum input size in characters to prevent DoS attacks */
-var MAX_INPUT_SIZE = 1e6;
 function isUnsafeEvalCspError(error) {
 	const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
 	return message.includes("unsafe-eval") || message.includes("content security policy") || message.includes("violates the following content security policy directive") || message.includes("evaluating a string as javascript");
@@ -8534,14 +8755,12 @@ function withCspEvalHint(error) {
 	return `${base}\nCSP blocked dynamic evaluation. Use transpileToStandaloneFactory(...) and load the generated factory module instead of runtime eval/new Function.`;
 }
 /**
-* Transpile Pine Script to JavaScript string (internal helper)
+* Transpile Pine Script to JavaScript string (internal helper).
+* Stops at code generation; does not build a factory wrapper.
 */
 function transpile(code) {
-	if (code.length > MAX_INPUT_SIZE) throw new Error(`Input too large: ${code.length} characters exceeds maximum of ${MAX_INPUT_SIZE}`);
-	const ast = new Parser(new Lexer(code).tokenize()).parse();
-	const visitor = new MetadataVisitor();
-	visitor.visit(ast);
-	return new ASTGenerator(visitor.historicalAccess).generate(ast);
+	const ast = parse(code);
+	return generateBody(ast, extractMetadata(ast).historicalAccess);
 }
 /**
 * Transpile Pine Script v5/v6 code to a TradingView CustomIndicator
@@ -8553,30 +8772,14 @@ function transpile(code) {
 */
 function transpileToPineJS(code, indicatorId, indicatorName, options) {
 	try {
-		if (code.length > MAX_INPUT_SIZE) return {
-			success: false,
-			error: `Input too large: ${code.length} characters exceeds maximum of ${MAX_INPUT_SIZE}`
-		};
-		const ast = new Parser(new Lexer(code).tokenize()).parse();
-		const visitor = new MetadataVisitor();
-		visitor.visit(ast);
-		const mainBody = new ASTGenerator(visitor.historicalAccess).generate(ast);
+		const { factory } = compile(code, {
+			indicatorId,
+			indicatorName,
+			autoBgColorerForBoxes: options?.autoBgColorerForBoxes ?? false
+		});
 		return {
 			success: true,
-			indicatorFactory: buildIndicatorFactory({
-				indicatorId,
-				indicatorName,
-				name: visitor.name,
-				shortName: visitor.shortName,
-				overlay: visitor.overlay,
-				plots: visitor.plots,
-				inputs: visitor.inputs,
-				bgcolors: visitor.bgcolors,
-				usedSources: visitor.usedSources,
-				historicalAccess: visitor.historicalAccess,
-				mainBody,
-				autoBgColorerForBoxes: options?.autoBgColorerForBoxes ?? false
-			})
+			indicatorFactory: factory
 		};
 	} catch (error) {
 		return {
@@ -8594,34 +8797,14 @@ function transpileToPineJS(code, indicatorId, indicatorName, options) {
 */
 function transpileToStandaloneFactory(code, indicatorId, indicatorName, options) {
 	try {
-		if (code.length > MAX_INPUT_SIZE) return {
-			success: false,
-			error: `Input too large: ${code.length} characters exceeds maximum of ${MAX_INPUT_SIZE}`
-		};
-		const ast = new Parser(new Lexer(code).tokenize()).parse();
-		const visitor = new MetadataVisitor();
-		visitor.visit(ast);
-		const mainBody = new ASTGenerator(visitor.historicalAccess).generate(ast);
+		const ast = parse(code);
+		const metadata = extractMetadata(ast);
 		return {
 			success: true,
-			factoryCode: generateStandaloneFactory({
+			factoryCode: buildStandaloneFactoryCode(metadata, generateBody(ast, metadata.historicalAccess), {
 				indicatorId,
 				indicatorName,
-				name: visitor.name,
-				shortName: visitor.shortName,
-				overlay: visitor.overlay,
-				plots: visitor.plots,
-				inputs: visitor.inputs,
-				bgcolors: visitor.bgcolors,
-				usedSources: visitor.usedSources,
-				historicalAccess: visitor.historicalAccess,
-				mainBody,
-				autoBgColorerForBoxes: options?.autoBgColorerForBoxes ?? false,
-				sessionVariables: visitor.sessionVariables,
-				derivedSessionVariables: visitor.derivedSessionVariables,
-				booleanInputMap: visitor.booleanInputMap,
-				computedVariables: visitor.computedVariables,
-				inputVariableMap: visitor.inputVariableMap
+				autoBgColorerForBoxes: options?.autoBgColorerForBoxes ?? false
 			})
 		};
 	} catch (error) {
@@ -8693,6 +8876,137 @@ function executePineJS(code, indicatorId, indicatorName) {
 	}
 }
 //#endregion
-export { transpileToStandaloneFactory as a, PRICE_SOURCES as c, TIME_FUNCTION_MAPPINGS as d, MULTI_OUTPUT_MAPPINGS as f, transpileToPineJS as i, getAllPineFunctionNames as l, MATH_FUNCTION_MAPPINGS as m, executePineJS as n, generateStandaloneFactory as o, TA_FUNCTION_MAPPINGS as p, transpile as r, COLOR_MAP as s, canTranspilePineScript as t, getMappingStats as u };
+Object.defineProperty(exports, "COLOR_MAP", {
+	enumerable: true,
+	get: function() {
+		return COLOR_MAP;
+	}
+});
+Object.defineProperty(exports, "HelperUsage", {
+	enumerable: true,
+	get: function() {
+		return HelperUsage;
+	}
+});
+Object.defineProperty(exports, "MATH_FUNCTION_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return MATH_FUNCTION_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "MAX_INPUT_SIZE", {
+	enumerable: true,
+	get: function() {
+		return MAX_INPUT_SIZE;
+	}
+});
+Object.defineProperty(exports, "MULTI_OUTPUT_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return MULTI_OUTPUT_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "PRICE_SOURCES", {
+	enumerable: true,
+	get: function() {
+		return PRICE_SOURCES;
+	}
+});
+Object.defineProperty(exports, "TA_FUNCTION_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return TA_FUNCTION_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "TIME_FUNCTION_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return TIME_FUNCTION_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "buildFactory", {
+	enumerable: true,
+	get: function() {
+		return buildFactory;
+	}
+});
+Object.defineProperty(exports, "canTranspilePineScript", {
+	enumerable: true,
+	get: function() {
+		return canTranspilePineScript;
+	}
+});
+Object.defineProperty(exports, "compile", {
+	enumerable: true,
+	get: function() {
+		return compile;
+	}
+});
+Object.defineProperty(exports, "executePineJS", {
+	enumerable: true,
+	get: function() {
+		return executePineJS;
+	}
+});
+Object.defineProperty(exports, "extractMetadata", {
+	enumerable: true,
+	get: function() {
+		return extractMetadata;
+	}
+});
+Object.defineProperty(exports, "generateBody", {
+	enumerable: true,
+	get: function() {
+		return generateBody;
+	}
+});
+Object.defineProperty(exports, "generateStandaloneFactory", {
+	enumerable: true,
+	get: function() {
+		return generateStandaloneFactory;
+	}
+});
+Object.defineProperty(exports, "getAllPineFunctionNames", {
+	enumerable: true,
+	get: function() {
+		return getAllPineFunctionNames;
+	}
+});
+Object.defineProperty(exports, "getMappingStats", {
+	enumerable: true,
+	get: function() {
+		return getMappingStats;
+	}
+});
+Object.defineProperty(exports, "parse", {
+	enumerable: true,
+	get: function() {
+		return parse;
+	}
+});
+Object.defineProperty(exports, "transpile", {
+	enumerable: true,
+	get: function() {
+		return transpile;
+	}
+});
+Object.defineProperty(exports, "transpileToPineJS", {
+	enumerable: true,
+	get: function() {
+		return transpileToPineJS;
+	}
+});
+Object.defineProperty(exports, "transpileToStandaloneFactory", {
+	enumerable: true,
+	get: function() {
+		return transpileToStandaloneFactory;
+	}
+});
+Object.defineProperty(exports, "validateInputSize", {
+	enumerable: true,
+	get: function() {
+		return validateInputSize;
+	}
+});
 
-//# sourceMappingURL=src-AslWKdrK.js.map
+//# sourceMappingURL=src-XbcDlJbj.cjs.map

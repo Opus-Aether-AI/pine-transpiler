@@ -5,7 +5,67 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2026-05-17
+
+This release bundles two strands of work:
+
+1. The **parity and runtime-compatibility upgrade** (PR #5 by @Garou11) — see "Parity & runtime semantics" below.
+2. An **OSS-readiness pass + architectural deepening** (PR #6) — see "Pipeline, HelperUsage, and 95% coverage gate" below.
+
+### Pipeline, HelperUsage, and 95% coverage gate
+
+- **Composable transpilation pipeline** — `src/pipeline.ts` exposes
+  `parse`, `extractMetadata`, `generateBody`, `buildFactory`,
+  `buildStandaloneFactoryCode`, and `compile` as individually-callable
+  stages. `transpileToPineJS` and `transpileToStandaloneFactory` both
+  collapse to thin wrappers around the pipeline; the CLI consumes
+  the same surface. External tooling (LSPs, linters, custom backends)
+  can compose stages without re-wiring Lexer→Parser→MetadataVisitor→
+  ASTGenerator→buildIndicatorFactory inline.
+- **`HelperUsage` tracker** (`src/generator/helper-usage.ts`) — the
+  generator records which preamble helper categories (math, session,
+  StdPlus, array, map, matrix, color, string, utility, state) it
+  emits, and the factory builder reads the tracker directly via
+  `IndicatorFactoryOptions.helperUsage` instead of grepping the
+  transpiled body for marker substrings. The legacy
+  `analyzeRequiredHelpers` string-scan remains as a fallback for
+  direct external callers of `buildIndicatorFactory` /
+  `generateStandaloneFactory` that bypass the pipeline.
+- **GitHub issue templates** in `.github/ISSUE_TEMPLATE/` —
+  `bug_report.md`, `transpilation_failure.md`, and a `config.yml`
+  that disables blank issues and points to Discussions.
+- **`engines.node`** pinned to `>=18.0.0` in `package.json`.
+- **`prepublishOnly`** script — runs `typecheck`, `lint`, `test`,
+  `build` before any `npm publish`.
+- **95% coverage gate** — `bun run test:coverage` invokes
+  `scripts/check-coverage.ts`, which parses Bun's coverage table and
+  exits non-zero when aggregate line or function coverage drops below
+  95% (currently 95.81% functions / 98.62% lines).
+- New unit tests for `pipeline`, `helper-usage` (classifier + tracker
+  + emission integration including the new `matrix` and `state`
+  categories), `executePineJS`, CLI commands (real
+  `commandTranspile` / `commandValidate` / `commandInfo` invocation
+  with stubbed `process.exit`), CLI utils, mapping reflection
+  helpers, math helpers, and stub namespaces.
+- **`CODE_OF_CONDUCT.md`** enforcement contact replaced the
+  `[INSERT CONTACT METHOD]` placeholder with the GitHub Security
+  Advisory URL.
+- **`CONTRIBUTING.md`** Discussions link normalised to the canonical
+  `Opus-Aether-AI` GitHub org slug. Setup commands switched from
+  `pnpm` to `bun`.
+- **README**: documented the new pipeline API, helper-usage tracker,
+  coverage gate, and refreshed the architecture diagram to call out
+  the five stages.
+- **Repo layout**: moved hand-edited reference docs (`LIMITATIONS.md`,
+  `CORPUS-BASELINE.md`) into `docs/`. The script-generated parity
+  matrices stay in root because the scripts in `scripts/corpus/`
+  write to those paths.
+- Stale CHANGELOG entry referencing an `@opusaether/pine-transpiler/llm-prompt`
+  export that was never shipped (confirmed via `git log -S`) removed.
+- Redundant `.npmignore` deleted (the `files` whitelist in
+  `package.json` already constrains the published tarball).
+
+### Parity & runtime semantics
 
 Major parity and runtime-compatibility upgrade focused on making PineScript
 execution behavior closer to TradingView for real-world indicators.

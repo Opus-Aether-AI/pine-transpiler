@@ -7,9 +7,8 @@
  * Reference: https://www.tradingview.com/charting-library-docs/latest/custom_studies/
  */
 
-import { buildIndicatorFactory, generateStandaloneFactory } from './factory';
-import { ASTGenerator } from './generator/ast-generator';
-import { MetadataVisitor } from './generator/metadata-visitor';
+import { generateStandaloneFactory } from './factory';
+import { HelperUsage } from './generator/helper-usage';
 import {
   getAllPineFunctionNames,
   getMappingStats,
@@ -19,6 +18,16 @@ import {
   TIME_FUNCTION_MAPPINGS,
 } from './mappings';
 import { Lexer, Parser } from './parser';
+import {
+  buildStandaloneFactoryCode,
+  compile,
+  extractMetadata,
+  generateBody,
+  MAX_INPUT_SIZE as PIPELINE_MAX_INPUT_SIZE,
+  parse,
+  buildFactory as pipelineBuildFactory,
+  validateInputSize,
+} from './pipeline';
 import type {
   ComparisonFunctionMapping,
   IndicatorFactory,
@@ -58,22 +67,29 @@ export type {
 
 export {
   COLOR_MAP,
+  // Pipeline stages — exposed so external tooling (LSPs, linters,
+  // custom pipelines) can compose stages without re-wiring them.
+  compile,
+  extractMetadata,
+  generateBody,
   generateStandaloneFactory,
   getAllPineFunctionNames,
   getMappingStats,
+  HelperUsage,
   MATH_FUNCTION_MAPPINGS,
   MULTI_OUTPUT_MAPPINGS,
+  PIPELINE_MAX_INPUT_SIZE as MAX_INPUT_SIZE,
   PRICE_SOURCES,
+  parse,
+  pipelineBuildFactory as buildFactory,
   TA_FUNCTION_MAPPINGS,
   TIME_FUNCTION_MAPPINGS,
+  validateInputSize,
 };
 
 // ============================================================================
 // Main Transpiler Function
 // ============================================================================
-
-/** Maximum input size in characters to prevent DoS attacks */
-const MAX_INPUT_SIZE = 1_000_000; // 1MB
 
 function isUnsafeEvalCspError(error: unknown): boolean {
   const raw = error instanceof Error ? error.message : String(error);
@@ -95,31 +111,13 @@ function withCspEvalHint(error: unknown): string {
 }
 
 /**
- * Transpile Pine Script to JavaScript string (internal helper)
+ * Transpile Pine Script to JavaScript string (internal helper).
+ * Stops at code generation; does not build a factory wrapper.
  */
 export function transpile(code: string): string {
-  // 0. Validate input size
-  if (code.length > MAX_INPUT_SIZE) {
-    throw new Error(
-      `Input too large: ${code.length} characters exceeds maximum of ${MAX_INPUT_SIZE}`,
-    );
-  }
-
-  // 1. Tokenize
-  const lexer = new Lexer(code);
-  const tokens = lexer.tokenize();
-
-  // 2. Parse
-  const parser = new Parser(tokens);
-  const ast = parser.parse();
-
-  // 3. Extract Metadata
-  const visitor = new MetadataVisitor();
-  visitor.visit(ast);
-
-  // 4. Generate Code
-  const generator = new ASTGenerator(visitor.historicalAccess);
-  return generator.generate(ast);
+  const ast = parse(code);
+  const metadata = extractMetadata(ast);
+  return generateBody(ast, metadata.historicalAccess);
 }
 
 /**
@@ -163,50 +161,12 @@ export function transpileToPineJS(
   options?: TranspileOptions,
 ): TranspileToPineJSResult {
   try {
-    // 0. Validate input size
-    if (code.length > MAX_INPUT_SIZE) {
-      return {
-        success: false,
-        error: `Input too large: ${code.length} characters exceeds maximum of ${MAX_INPUT_SIZE}`,
-      };
-    }
-
-    // 1. Tokenize
-    const lexer = new Lexer(code);
-    const tokens = lexer.tokenize();
-
-    // 2. Parse
-    const parser = new Parser(tokens);
-    const ast = parser.parse();
-
-    // 3. Extract Metadata
-    const visitor = new MetadataVisitor();
-    visitor.visit(ast);
-
-    // 4. Generate Code
-    const generator = new ASTGenerator(visitor.historicalAccess);
-    const mainBody = generator.generate(ast);
-
-    // 5. Create Indicator Factory using the factory builder
-    const indicatorFactory = buildIndicatorFactory({
+    const { factory } = compile(code, {
       indicatorId,
       indicatorName,
-      name: visitor.name,
-      shortName: visitor.shortName,
-      overlay: visitor.overlay,
-      plots: visitor.plots,
-      inputs: visitor.inputs,
-      bgcolors: visitor.bgcolors,
-      usedSources: visitor.usedSources,
-      historicalAccess: visitor.historicalAccess,
-      mainBody,
       autoBgColorerForBoxes: options?.autoBgColorerForBoxes ?? false,
     });
-
-    return {
-      success: true,
-      indicatorFactory,
-    };
+    return { success: true, indicatorFactory: factory };
   } catch (error) {
     return {
       success: false,
@@ -229,55 +189,15 @@ export function transpileToStandaloneFactory(
   options?: TranspileOptions,
 ): TranspileToStandaloneFactoryResult {
   try {
-    // 0. Validate input size
-    if (code.length > MAX_INPUT_SIZE) {
-      return {
-        success: false,
-        error: `Input too large: ${code.length} characters exceeds maximum of ${MAX_INPUT_SIZE}`,
-      };
-    }
-
-    // 1. Tokenize
-    const lexer = new Lexer(code);
-    const tokens = lexer.tokenize();
-
-    // 2. Parse
-    const parser = new Parser(tokens);
-    const ast = parser.parse();
-
-    // 3. Extract Metadata
-    const visitor = new MetadataVisitor();
-    visitor.visit(ast);
-
-    // 4. Generate transpiled body
-    const generator = new ASTGenerator(visitor.historicalAccess);
-    const mainBody = generator.generate(ast);
-
-    // 5. Emit standalone module factory code
-    const factoryCode = generateStandaloneFactory({
+    const ast = parse(code);
+    const metadata = extractMetadata(ast);
+    const mainBody = generateBody(ast, metadata.historicalAccess);
+    const factoryCode = buildStandaloneFactoryCode(metadata, mainBody, {
       indicatorId,
       indicatorName,
-      name: visitor.name,
-      shortName: visitor.shortName,
-      overlay: visitor.overlay,
-      plots: visitor.plots,
-      inputs: visitor.inputs,
-      bgcolors: visitor.bgcolors,
-      usedSources: visitor.usedSources,
-      historicalAccess: visitor.historicalAccess,
-      mainBody,
       autoBgColorerForBoxes: options?.autoBgColorerForBoxes ?? false,
-      sessionVariables: visitor.sessionVariables,
-      derivedSessionVariables: visitor.derivedSessionVariables,
-      booleanInputMap: visitor.booleanInputMap,
-      computedVariables: visitor.computedVariables,
-      inputVariableMap: visitor.inputVariableMap,
     });
-
-    return {
-      success: true,
-      factoryCode,
-    };
+    return { success: true, factoryCode };
   } catch (error) {
     return {
       success: false,

@@ -1,0 +1,27 @@
+# Bun test configuration.
+#
+# Coverage is on for `bun test`. Threshold enforcement happens via
+# `scripts/check-coverage.ts` (invoked from the `test:coverage` npm
+# script) — Bun 1.3.x's built-in `coverageThreshold` is per-file when
+# numeric and silently no-op'd in the object form, so we parse the
+# aggregate ourselves and gate at 95% line + 95% function.
+
+[test]
+coverage = true
+coverageSkipTestFiles = true
+coveragePathIgnorePatterns = [
+  # Test helpers and corpus harness are infrastructure, not product
+  # code — exclude them so they don't dilute the src/ coverage numbers.
+  "tests/utils.ts",
+  "tests/corpus/list-fixtures.ts",
+  "tests/corpus/mock-runtime.ts",
+  "tests/corpus/runner.ts",
+  # Test-harness package is a separate sub-export with its own
+  # integration suites under tests/integration/. Counting it toward
+  # the main-library aggregate misrepresents the library coverage.
+  "src/test-harness/index.ts",
+  "src/test-harness/bars.ts",
+  "src/test-harness/descriptor.ts",
+  "src/test-harness/reducers.ts",
+  "src/test-harness/runtime.ts",
+]
