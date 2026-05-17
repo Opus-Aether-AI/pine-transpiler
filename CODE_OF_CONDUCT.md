@@ -59,8 +59,11 @@ representative at an online or offline event.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the community leaders responsible for enforcement at [INSERT CONTACT METHOD].
-All complaints will be reviewed and investigated promptly and fairly.
+reported to the maintainers by opening a private security advisory at
+https://github.com/Opus-Aether-AI/pine-transpiler/security/advisories/new
+(select "Report a vulnerability" — the same channel doubles as a private,
+maintainer-only intake for conduct reports). All complaints will be reviewed
+and investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the
 reporter of any incident.

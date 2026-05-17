@@ -7,6 +7,7 @@
 
 import type { Program, Statement } from '../parser/ast';
 import { ExpressionGenerator } from './expression-generator';
+import { HelperUsage } from './helper-usage';
 import { StatementGenerator } from './statement-generator';
 
 // Re-export for backward compatibility
@@ -19,9 +20,15 @@ export { MAX_LOOP_ITERATIONS, MAX_RECURSION_DEPTH } from './generator-utils';
 export class ASTGenerator {
   private statementGen: StatementGenerator;
   private expressionGen: ExpressionGenerator;
+  /** Accumulates which helper categories were emitted during generation. */
+  public readonly helperUsage: HelperUsage;
 
-  constructor(historicalVars: Set<string> = new Set()) {
-    this.expressionGen = new ExpressionGenerator();
+  constructor(
+    historicalVars: Set<string> = new Set(),
+    helperUsage: HelperUsage = new HelperUsage(),
+  ) {
+    this.helperUsage = helperUsage;
+    this.expressionGen = new ExpressionGenerator(this.helperUsage);
     this.statementGen = new StatementGenerator(
       historicalVars,
       this.expressionGen,

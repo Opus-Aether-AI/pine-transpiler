@@ -424,6 +424,7 @@ export class StatementGenerator implements StatementGeneratorInterface {
       const safeName = sanitizeIdentifier(stmt.id.name);
       if (isPersistent) {
         const helper = isVarip ? '_pineVarip' : '_pineVar';
+        this.expressionGen.helperUsage.markByName(helper);
         const stateKeyExpr = this.currentPersistentKeyExpr(safeName);
         code = `${indent(this.indentLevel)}${prefix}${kind} ${safeName} = ${helper}(${stateKeyExpr}, () => (${initExpr}));`;
         this.expressionGen.markPersistentIdentifier(
@@ -526,6 +527,7 @@ export class StatementGenerator implements StatementGeneratorInterface {
     const statements = block.body;
     const lines: string[] = [];
     if (scopeId && scopeKeyVar) {
+      this.expressionGen.helperUsage.markByName('_pineScopeKey');
       lines.push(
         `${indent(this.indentLevel)}const ${scopeKeyVar} = _pineScopeKey(${JSON.stringify(scopeId)});`,
       );
