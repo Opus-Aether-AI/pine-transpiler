@@ -139,7 +139,13 @@ function main(): number {
     );
   }
 
-  const outPath = join(import.meta.dir, '..', '..', 'CRITICAL_INDICATOR_MATRIX.md');
+  const outPath = join(
+    import.meta.dir,
+    '..',
+    '..',
+    'docs',
+    'CRITICAL_INDICATOR_MATRIX.md',
+  );
   writeFileSync(outPath, `${lines.join('\n')}\n`);
 
   console.log(

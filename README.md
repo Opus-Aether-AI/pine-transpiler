@@ -38,7 +38,7 @@ This tool allows you to run Pine Script indicators directly within the Charting 
 Install directly from GitHub (npm publish coming soon):
 
 ```bash
-# bun (recommended)
+# bun
 bun add github:Opus-Aether-AI/pine-transpiler#v0.2.0
 
 # npm
@@ -481,7 +481,7 @@ Coverage is enforced through multiple layers:
 
 ## Future Parity Roadmap
 
-The next accuracy/support roadmap is documented in [FUTURE_PARITY_ROADMAP.md](./FUTURE_PARITY_ROADMAP.md), including:
+The next accuracy/support roadmap is documented in [docs/FUTURE_PARITY_ROADMAP.md](docs/FUTURE_PARITY_ROADMAP.md), including:
 
 - phase-by-phase coverage tracking
 - parity KPIs and acceptance gates
@@ -571,10 +571,10 @@ Governance artifacts:
 
 Reference docs:
 
-- [CORPUS-BASELINE.md](./CORPUS-BASELINE.md)
-- [TRADINGVIEW_TOP100_MATRIX.md](./TRADINGVIEW_TOP100_MATRIX.md)
-- [TRADINGVIEW_TOP200_MATRIX.md](./TRADINGVIEW_TOP200_MATRIX.md)
-- [CRITICAL_INDICATOR_MATRIX.md](./CRITICAL_INDICATOR_MATRIX.md)
+- [docs/CORPUS-BASELINE.md](docs/CORPUS-BASELINE.md)
+- [docs/TRADINGVIEW_TOP100_MATRIX.md](docs/TRADINGVIEW_TOP100_MATRIX.md)
+- [docs/TRADINGVIEW_TOP200_MATRIX.md](docs/TRADINGVIEW_TOP200_MATRIX.md)
+- [docs/CRITICAL_INDICATOR_MATRIX.md](docs/CRITICAL_INDICATOR_MATRIX.md)
 
 ## Changelog
 

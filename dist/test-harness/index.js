@@ -1,4 +1,4 @@
-import { i as transpileToPineJS } from "../src-BHesQFJI.js";
+import { i as transpileToPineJS } from "../src-Cln_RmDJ.js";
 //#region src/test-harness/descriptor.ts
 function toMessage$1(error) {
 	if (error instanceof Error) return error.message;

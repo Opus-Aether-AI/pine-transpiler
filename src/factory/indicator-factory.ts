@@ -225,7 +225,7 @@ interface RuntimeDiagnostic {
 /**
  * Schema version for the per-bar `__visualEvents` payload. Stamped on
  * the array returned from `main()` so host renderers can detect
- * breaking changes. See HOST_RENDERING_CONTRACT.md for the
+ * breaking changes. See docs/HOST_RENDERING_CONTRACT.md for the
  * additive-vs-breaking policy.
  */
 const VISUAL_EVENTS_VERSION = 1;
