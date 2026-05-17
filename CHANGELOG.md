@@ -74,12 +74,12 @@ execution behavior closer to TradingView for real-world indicators.
 - **Strict numeric parity audit** (`bun run corpus:strict`) with deterministic
   checks for SMA, EMA, RSI, MACD, ATR, BB, KC, CCI, MFI, WPR, and ROC.
 - **67-indicator parity matrix** (`bun run corpus:matrix`) with grouped
-  coverage output in `INDICATOR_TEST_MATRIX.md`.
+  coverage output in `docs/INDICATOR_TEST_MATRIX.md`.
 - **TradingView Top-100 matrix** (`bun run corpus:tv100`) with
-  lane/authenticity/source splits in `TRADINGVIEW_TOP100_MATRIX.md`.
+  lane/authenticity/source splits in `docs/TRADINGVIEW_TOP100_MATRIX.md`.
 - **TradingView Top-200 matrix** (`bun run corpus:tv200`) covering
   top-100 plus 100 additional popular/custom fixtures in
-  `TRADINGVIEW_TOP200_MATRIX.md`.
+  `docs/TRADINGVIEW_TOP200_MATRIX.md`.
 - **Corpus manifest layer** (`tests/corpus/manifest.ts`) with per-fixture
   metadata: source, lane, authenticity, category, and inferred feature tags.
 - **Corpus stability gate** (`bun run corpus:gate`) with configurable

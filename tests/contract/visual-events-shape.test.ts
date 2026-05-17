@@ -2,7 +2,7 @@
  * Host Rendering Contract — `__visualEvents` shape lock.
  *
  * This test pins the payload contract documented in
- * HOST_RENDERING_CONTRACT.md so external consumers (the webapp
+ * docs/HOST_RENDERING_CONTRACT.md so external consumers (the webapp
  * `VisualEventsRenderer`, future renderers) don't break on
  * unintentional shape changes. Any non-additive change to the event
  * structure should fail here and force a `__visualEventsVersion`

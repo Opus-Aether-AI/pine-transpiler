@@ -330,7 +330,13 @@ function main(): number {
   });
 
   const md = render(rows);
-  const outputPath = join(import.meta.dir, '..', '..', 'INDICATOR_TEST_MATRIX.md');
+  const outputPath = join(
+    import.meta.dir,
+    '..',
+    '..',
+    'docs',
+    'INDICATOR_TEST_MATRIX.md',
+  );
   writeFileSync(outputPath, `${md}\n`);
 
   const pass = rows.filter((r) => r.status === 'PASS').length;

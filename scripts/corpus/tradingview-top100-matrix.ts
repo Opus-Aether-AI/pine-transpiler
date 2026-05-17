@@ -557,6 +557,7 @@ function main(): number {
     import.meta.dir,
     '..',
     '..',
+    'docs',
     'TRADINGVIEW_TOP100_MATRIX.md',
   );
   writeFileSync(outputPath, `${md}\n`);

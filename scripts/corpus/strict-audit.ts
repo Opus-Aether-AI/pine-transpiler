@@ -546,7 +546,7 @@ function main(): number {
   }
 
   Bun.write(
-    'DIFFERENTIAL_PARITY_REPORT.md',
+    'docs/DIFFERENTIAL_PARITY_REPORT.md',
     renderDifferentialReport(rows, barCount),
   );
 
