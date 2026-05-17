@@ -9,7 +9,7 @@ function createIndicator() { return null; }
 `;
     const result = executePineJS(script, 'csp_hint_test');
     expect(result.success).toBe(false);
-    expect(result.error).toContain('CSP blocked dynamic evaluation');
+    expect(result.error).toContain('CSP blocked dynamic compilation');
     expect(result.error).toContain('transpileToStandaloneFactory');
   });
 });

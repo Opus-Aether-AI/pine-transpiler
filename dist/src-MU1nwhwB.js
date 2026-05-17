@@ -1,4 +1,90 @@
+//#region src/csp-errors.ts
+/**
+* CSP-eval error classification.
+*
+* Both `transpileToPineJS` and the factory closure inside
+* `buildIndicatorFactory` instantiate the transpiled body via
+* `new Function(...)`. Strict Content-Security-Policy environments
+* block that and surface an error whose phrasing varies by engine.
+*
+* This module is the single source of truth for:
+*  - detecting that an unknown error came from a CSP eval block, and
+*  - appending the actionable hint that points users to
+*    `transpileToStandaloneFactory(...)` as the CSP-safe path.
+*
+* Two adapters consume it today: the public `transpileToPineJS` entry
+* (string-return form, used in `{success: false, error: string}`
+* results) and the factory builder (in-place mutation form, used when
+* re-throwing a typed `Error`).
+*/
+/**
+* Canonical hint appended to CSP-blocked errors. Mentioned here so the
+* exact phrasing lives in one place and matches what tests assert on.
+*/
+var CSP_EVAL_HINT = "CSP blocked dynamic compilation (`new Function`). Use `transpileToStandaloneFactory(...)` (or CLI `pine-transpiler transpile --format factory`) and load the generated module at build-time.";
+/**
+* Classify an arbitrary error as a CSP-eval rejection. Returns `true`
+* for the engine-specific phrasings we've seen ("unsafe-eval",
+* "Content Security Policy", "EvalError: Refused to evaluate a string
+* as JavaScript", etc.).
+*/
+function isUnsafeEvalCspError(error) {
+	const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+	return message.includes("unsafe-eval") || message.includes("content security policy") || message.includes("violates the following content security policy directive") || message.includes("evaluating a string as javascript");
+}
+/**
+* String-return form: return `error.message` enriched with the CSP
+* hint when applicable. Used by `{success: false, error: string}`
+* result shapes that don't carry the original Error instance.
+*/
+function withCspEvalHint(error) {
+	const base = error instanceof Error ? error.message : String(error);
+	if (!isUnsafeEvalCspError(error)) return base;
+	return `${base}\n${CSP_EVAL_HINT}`;
+}
+/**
+* In-place mutation form: append the CSP hint to a typed `Error`'s
+* message (idempotent — won't re-append on a second pass) and return
+* the same instance. Used by code paths that re-throw the original
+* Error rather than constructing a fresh result object.
+*/
+function appendCspHint(error) {
+	if (!isUnsafeEvalCspError(error)) return error;
+	if (!error.message.includes("CSP blocked dynamic compilation (`new Function`). Use `transpileToStandaloneFactory(...)` (or CLI `pine-transpiler transpile --format factory`) and load the generated module at build-time.")) error.message = `${error.message}\n${CSP_EVAL_HINT}`;
+	return error;
+}
+//#endregion
 //#region src/factory/factory-helpers.ts
+/**
+* Property name of the non-enumerable side-channel that every
+* `IndicatorFactory` carries — the literal transpiled JS body string.
+* Editor previews and the corpus runner read it instead of calling
+* `factory.toString()` (which only shows the outer closure).
+*
+* Centralised here so renaming or changing the descriptor shape is a
+* single-file edit. Both `buildIndicatorFactory` (Pine path) and
+* `executePineJS` (raw-JS path) attach it via {@link attachPineJsBody}.
+*/
+var PINE_JS_BODY_PROPERTY = "__pineJsBody";
+/**
+* Attach the literal transpiled JS body to a factory function as a
+* non-enumerable, read-only side-channel. Mutates and returns the
+* same factory instance so call sites can chain.
+*
+* The descriptor (`enumerable: false`, `writable: false`,
+* `configurable: true`) is the de-facto contract chart-host consumers
+* depend on — keep it in lockstep with consumers (corpus runner reads
+* via direct property access, not `Object.keys`).
+*/
+function attachPineJsBody(factory, body) {
+	Object.defineProperty(factory, PINE_JS_BODY_PROPERTY, {
+		value: body,
+		enumerable: false,
+		writable: false,
+		configurable: true
+	});
+	return factory;
+}
 /**
 * Map AST plot types to PineJS Runtime plot type constants.
 *
@@ -165,6 +251,124 @@ function buildInputsMetadata(inputs) {
 function sanitizeIndicatorId(id) {
 	return id.replace(/[^a-zA-Z0-9_]/g, "_");
 }
+//#endregion
+//#region src/generator/helper-usage.ts
+/**
+* Classify a helper identifier into its category by prefix or exact
+* name. Returns null for identifiers that don't correspond to a
+* preamble-injected helper (e.g. `Std.sma`, `Math.abs`, user-defined
+* function names).
+*
+* Names are matched against the same set as the body-scan patterns
+* in {@link BODY_SCAN_PATTERNS} — keeping the two in sync is the
+* whole point of this module.
+*/
+function classifyHelperName(name) {
+	if (name.startsWith("StdPlus.")) return "stdplus";
+	if (name === "_avg" || name === "_pineSum" || name === "_toDegrees" || name === "_toRadians" || name === "_roundToMintick") return "math";
+	if (name === "_isInSession" || name === "_isMarketSession" || name === "_isPremarket" || name === "_isPostmarket" || name === "_getTimeClose" || name === "_getTradingDayTime") return "session";
+	if (name.startsWith("_array")) return "array";
+	if (name.startsWith("_map")) return "map";
+	if (name.startsWith("_matrix")) return "matrix";
+	if (name.startsWith("_color")) return "color";
+	if (/^_str[A-Z]/.test(name)) return "string";
+	if (name === "_pineNa" || name === "_pineNz" || name === "_pineFixnan") return "utility";
+	if (name === "_pineVar" || name === "_pineVarip" || name === "_pineSetVar" || name === "_pineSetVarip" || name === "_pineScopeKey") return "state";
+	return null;
+}
+/**
+* Per-category regex patterns used by {@link HelperUsage.fromBody}
+* to detect emitted helpers in a generated JS body string. Patterns
+* mirror the prefix/name rules in {@link classifyHelperName} so the
+* two stay consistent — adding a new category requires editing both.
+*
+* The patterns deliberately use word boundaries (`\b`) or explicit
+* `(` suffixes to reduce false positives from substring matches
+* inside string literals.
+*/
+var BODY_SCAN_PATTERNS = {
+	math: /_avg\(|_pineSum\(|_toDegrees\(|_toRadians\(|_roundToMintick\(/,
+	session: /_isInSession\(|_isMarketSession\(|_isPremarket\(|_isPostmarket\(|_getTimeClose\(|_getTradingDayTime\(/,
+	stdplus: /\bStdPlus\./,
+	array: /\b_array[A-Z]/,
+	map: /\b_map[A-Z]/,
+	matrix: /\b_matrix[A-Z]/,
+	color: /\b_color[A-Z]/,
+	string: /\b_str[A-Z]/,
+	utility: /_pineNa\(|_pineNz\(|_pineFixnan\(/,
+	state: /_pineVar\(|_pineVarip\(|_pineSetVar\(|_pineSetVarip\(|_pineScopeKey\(/
+};
+/**
+* Accumulating set of helper categories used during code generation.
+* Created fresh per transpilation; mutated by the generators at every
+* helper emission; consumed by the factory builder when assembling
+* the preamble.
+*/
+var HelperUsage = class HelperUsage {
+	constructor() {
+		this.categories = /* @__PURE__ */ new Set();
+	}
+	/**
+	* Infer helper usage from an already-transpiled JS body by scanning
+	* for the per-category patterns in {@link BODY_SCAN_PATTERNS}. Used
+	* by the factory builder as a fallback when a caller invokes
+	* `buildIndicatorFactory` or `generateStandaloneFactory` directly
+	* without going through the pipeline (which always supplies a
+	* tracker populated at emission time).
+	*
+	* Less accurate than emission-site tracking (a marker substring
+	* inside a string literal would trip the pattern), but sufficient
+	* to keep direct-caller back-compat intact.
+	*/
+	static fromBody(mainBody) {
+		const usage = new HelperUsage();
+		for (const [category, pattern] of Object.entries(BODY_SCAN_PATTERNS)) if (pattern.test(mainBody)) usage.mark(category);
+		return usage;
+	}
+	/** Mark a category as used. */
+	mark(category) {
+		this.categories.add(category);
+	}
+	/**
+	* Classify an emitted helper identifier and mark its category as
+	* used. Returns true if the identifier was a helper; false for
+	* non-helper names (which is the common case — most calls are to
+	* `Std.X` or user-defined functions).
+	*/
+	markByName(name) {
+		const category = classifyHelperName(name);
+		if (category === null) return false;
+		this.categories.add(category);
+		return true;
+	}
+	has(category) {
+		return this.categories.has(category);
+	}
+	/**
+	* Project the tracked set into the record shape that
+	* `generatePreamble` consumes. Order mirrors the historical
+	* `analyzeRequiredHelpers` return value so call sites are drop-in
+	* substitutable.
+	*/
+	toRecord() {
+		return {
+			needsMath: this.categories.has("math"),
+			needsSession: this.categories.has("session"),
+			needsStdPlus: this.categories.has("stdplus"),
+			needsArray: this.categories.has("array"),
+			needsMap: this.categories.has("map"),
+			needsMatrix: this.categories.has("matrix"),
+			needsColor: this.categories.has("color"),
+			needsString: this.categories.has("string"),
+			needsUtility: this.categories.has("utility"),
+			needsState: this.categories.has("state")
+		};
+	}
+	/** Merge another tracker's categories into this one. */
+	mergeFrom(other) {
+		for (const category of other.categories) this.categories.add(category);
+	}
+};
 //#endregion
 //#region src/mappings/comparison.ts
 /**
@@ -3206,16 +3410,12 @@ var PRICE_SOURCES = [
 ];
 //#endregion
 //#region src/factory/indicator-factory.ts
-function isUnsafeEvalCspError$1(error) {
-	const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
-	return message.includes("unsafe-eval") || message.includes("content security policy") || message.includes("violates the following content security policy directive") || message.includes("evaluating a string as javascript");
-}
-function appendCspHint(error) {
-	if (!isUnsafeEvalCspError$1(error)) return error;
-	const hint = "CSP blocked dynamic compilation (`new Function`). Use `transpileToStandaloneFactory(...)` (or CLI `pine-transpiler transpile --format factory`) and load the generated module at build-time.";
-	if (!error.message.includes(hint)) error.message = `${error.message}\n${hint}`;
-	return error;
-}
+/**
+* Indicator Factory Builder
+*
+* Constructs TradingView CustomIndicator factories from parsed metadata.
+* Extracted from index.ts for better maintainability.
+*/
 /**
 * Safely read an optional field from an opaque object (typically the
 * runtime `context` or `context.symbol`). The PineJS runtime declares
@@ -3598,23 +3798,6 @@ const _pineScopeKey = (scopeId) => {
 };
 `;
 /**
-* Analyze which helpers are needed based on the transpiled code
-*/
-function analyzeRequiredHelpers(mainBody) {
-	return {
-		needsMath: mainBody.includes("_avg(") || mainBody.includes("_pineSum(") || mainBody.includes("_toDegrees(") || mainBody.includes("_toRadians(") || mainBody.includes("_roundToMintick("),
-		needsSession: mainBody.includes("_isInSession(") || mainBody.includes("_isMarketSession(") || mainBody.includes("_isPremarket(") || mainBody.includes("_isPostmarket(") || mainBody.includes("_getTimeClose(") || mainBody.includes("_getTradingDayTime("),
-		needsStdPlus: mainBody.includes("StdPlus."),
-		needsArray: mainBody.includes("_arrayNew") || mainBody.includes("_arrayFrom(") || mainBody.includes("_arrayPush(") || mainBody.includes("_arrayUnshift(") || mainBody.includes("_arrayPop(") || mainBody.includes("_arrayShift(") || mainBody.includes("_arrayRemove(") || mainBody.includes("_arrayGet(") || mainBody.includes("_arraySet(") || mainBody.includes("_arraySize(") || mainBody.includes("_arrayAvg(") || mainBody.includes("_arraySum(") || mainBody.includes("_arrayMin(") || mainBody.includes("_arrayMax(") || mainBody.includes("_arrayStdev(") || mainBody.includes("_arrayVariance(") || mainBody.includes("_arraySort(") || mainBody.includes("_arrayReverse(") || mainBody.includes("_arraySlice(") || mainBody.includes("_arrayConcat(") || mainBody.includes("_arrayCopy(") || mainBody.includes("_arrayClear(") || mainBody.includes("_arrayIncludes(") || mainBody.includes("_arrayIndexOf(") || mainBody.includes("_arrayLastIndexOf(") || mainBody.includes("_arrayJoin("),
-		needsMap: mainBody.includes("_mapNew(") || mainBody.includes("_mapPut(") || mainBody.includes("_mapPutAll(") || mainBody.includes("_mapGet(") || mainBody.includes("_mapContains(") || mainBody.includes("_mapRemove(") || mainBody.includes("_mapSize(") || mainBody.includes("_mapKeys(") || mainBody.includes("_mapValues(") || mainBody.includes("_mapClear(") || mainBody.includes("_mapCopy("),
-		needsMatrix: mainBody.includes("_matrixNew(") || mainBody.includes("_matrixRows(") || mainBody.includes("_matrixColumns(") || mainBody.includes("_matrixGet(") || mainBody.includes("_matrixSet(") || mainBody.includes("_matrixAddRow(") || mainBody.includes("_matrixRemoveRow("),
-		needsColor: mainBody.includes("_colorNew("),
-		needsString: /\b_str[A-Z]/.test(mainBody),
-		needsUtility: mainBody.includes("_pineNa(") || mainBody.includes("_pineNz(") || mainBody.includes("_pineFixnan("),
-		needsState: mainBody.includes("_pineVar(") || mainBody.includes("_pineVarip(") || mainBody.includes("_pineSetVar(") || mainBody.includes("_pineSetVarip(") || mainBody.includes("_pineScopeKey(")
-	};
-}
-/**
 * Generate preamble code for the indicator
 */
 function generatePreamble(usedSources, historicalAccess, mainBody = "", helperUsage) {
@@ -3636,7 +3819,7 @@ function generatePreamble(usedSources, historicalAccess, mainBody = "", helperUs
 			declaredHistorical.add(v);
 		}
 	}
-	const { needsMath, needsSession, needsStdPlus, needsArray, needsMap, needsMatrix, needsColor, needsString, needsUtility, needsState } = helperUsage ?? analyzeRequiredHelpers(mainBody);
+	const { needsMath, needsSession, needsStdPlus, needsArray, needsMap, needsMatrix, needsColor, needsString, needsUtility, needsState } = helperUsage ?? HelperUsage.fromBody(mainBody).toRecord();
 	if (needsMath) preamble += `${MATH_HELPER_FUNCTIONS}\n`;
 	if (needsSession) preamble += `${ALL_TIME_HELPERS}\n`;
 	if (needsStdPlus) preamble += `${STD_PLUS_LIBRARY}\n`;
@@ -4532,12 +4715,7 @@ function buildIndicatorFactory(options) {
 			}
 		};
 	};
-	Object.defineProperty(indicatorFactory, "__pineJsBody", {
-		value: body,
-		enumerable: false,
-		writable: false,
-		configurable: true
-	});
+	attachPineJsBody(indicatorFactory, body);
 	return indicatorFactory;
 }
 /**
@@ -4864,85 +5042,6 @@ function topologicalSort(vars) {
 	for (const name of vars.keys()) visit(name);
 	return result;
 }
-//#endregion
-//#region src/generator/helper-usage.ts
-/**
-* Classify a helper identifier into its category by prefix or exact
-* name. Returns null for identifiers that don't correspond to a
-* preamble-injected helper (e.g. `Std.sma`, `Math.abs`, user-defined
-* function names).
-*
-* Names are matched against the same set that
-* `src/factory/indicator-factory.ts#analyzeRequiredHelpers` checks for —
-* keeping the two in sync is the whole point of this module.
-*/
-function classifyHelperName(name) {
-	if (name.startsWith("StdPlus.")) return "stdplus";
-	if (name === "_avg" || name === "_pineSum" || name === "_toDegrees" || name === "_toRadians" || name === "_roundToMintick") return "math";
-	if (name === "_isInSession" || name === "_isMarketSession" || name === "_isPremarket" || name === "_isPostmarket" || name === "_getTimeClose" || name === "_getTradingDayTime") return "session";
-	if (name.startsWith("_array")) return "array";
-	if (name.startsWith("_map")) return "map";
-	if (name.startsWith("_matrix")) return "matrix";
-	if (name.startsWith("_color")) return "color";
-	if (/^_str[A-Z]/.test(name)) return "string";
-	if (name === "_pineNa" || name === "_pineNz" || name === "_pineFixnan") return "utility";
-	if (name === "_pineVar" || name === "_pineVarip" || name === "_pineSetVar" || name === "_pineSetVarip" || name === "_pineScopeKey") return "state";
-	return null;
-}
-/**
-* Accumulating set of helper categories used during code generation.
-* Created fresh per transpilation; mutated by the generators at every
-* helper emission; consumed by the factory builder when assembling
-* the preamble.
-*/
-var HelperUsage = class {
-	constructor() {
-		this.categories = /* @__PURE__ */ new Set();
-	}
-	/** Mark a category as used. */
-	mark(category) {
-		this.categories.add(category);
-	}
-	/**
-	* Classify an emitted helper identifier and mark its category as
-	* used. Returns true if the identifier was a helper; false for
-	* non-helper names (which is the common case — most calls are to
-	* `Std.X` or user-defined functions).
-	*/
-	markByName(name) {
-		const category = classifyHelperName(name);
-		if (category === null) return false;
-		this.categories.add(category);
-		return true;
-	}
-	has(category) {
-		return this.categories.has(category);
-	}
-	/**
-	* Project the tracked set into the record shape that
-	* `generatePreamble` consumes. Order mirrors the historical
-	* `analyzeRequiredHelpers` return value so call sites are drop-in
-	* substitutable.
-	*/
-	toRecord() {
-		return {
-			needsMath: this.categories.has("math"),
-			needsSession: this.categories.has("session"),
-			needsStdPlus: this.categories.has("stdplus"),
-			needsArray: this.categories.has("array"),
-			needsMap: this.categories.has("map"),
-			needsMatrix: this.categories.has("matrix"),
-			needsColor: this.categories.has("color"),
-			needsString: this.categories.has("string"),
-			needsUtility: this.categories.has("utility"),
-			needsState: this.categories.has("state")
-		};
-	}
-	/** Merge another tracker's categories into this one. */
-	mergeFrom(other) {
-		for (const category of other.categories) this.categories.add(category);
-	}
-};
 //#endregion
 //#region src/parser/token-types.ts
 /**
@@ -8745,15 +8844,6 @@ function compile(code, options) {
 *
 * Reference: https://www.tradingview.com/charting-library-docs/latest/custom_studies/
 */
-function isUnsafeEvalCspError(error) {
-	const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
-	return message.includes("unsafe-eval") || message.includes("content security policy") || message.includes("violates the following content security policy directive") || message.includes("evaluating a string as javascript");
-}
-function withCspEvalHint(error) {
-	const base = error instanceof Error ? error.message : String(error);
-	if (!isUnsafeEvalCspError(error)) return base;
-	return `${base}\nCSP blocked dynamic evaluation. Use transpileToStandaloneFactory(...) and load the generated factory module instead of runtime eval/new Function.`;
-}
 /**
 * Transpile Pine Script to JavaScript string (internal helper).
 * Stops at code generation; does not build a factory wrapper.
@@ -8858,12 +8948,7 @@ function executePineJS(code, indicatorId, indicatorName) {
 			}
 			return indicator;
 		};
-		Object.defineProperty(indicatorFactory, "__pineJsBody", {
-			value: processedCode,
-			enumerable: false,
-			writable: false,
-			configurable: true
-		});
+		attachPineJsBody(indicatorFactory, processedCode);
 		return {
 			success: true,
 			indicatorFactory
@@ -8876,137 +8961,6 @@ function executePineJS(code, indicatorId, indicatorName) {
 	}
 }
 //#endregion
-Object.defineProperty(exports, "COLOR_MAP", {
-	enumerable: true,
-	get: function() {
-		return COLOR_MAP;
-	}
-});
-Object.defineProperty(exports, "HelperUsage", {
-	enumerable: true,
-	get: function() {
-		return HelperUsage;
-	}
-});
-Object.defineProperty(exports, "MATH_FUNCTION_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return MATH_FUNCTION_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "MAX_INPUT_SIZE", {
-	enumerable: true,
-	get: function() {
-		return MAX_INPUT_SIZE;
-	}
-});
-Object.defineProperty(exports, "MULTI_OUTPUT_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return MULTI_OUTPUT_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "PRICE_SOURCES", {
-	enumerable: true,
-	get: function() {
-		return PRICE_SOURCES;
-	}
-});
-Object.defineProperty(exports, "TA_FUNCTION_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return TA_FUNCTION_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "TIME_FUNCTION_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return TIME_FUNCTION_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "buildFactory", {
-	enumerable: true,
-	get: function() {
-		return buildFactory;
-	}
-});
-Object.defineProperty(exports, "canTranspilePineScript", {
-	enumerable: true,
-	get: function() {
-		return canTranspilePineScript;
-	}
-});
-Object.defineProperty(exports, "compile", {
-	enumerable: true,
-	get: function() {
-		return compile;
-	}
-});
-Object.defineProperty(exports, "executePineJS", {
-	enumerable: true,
-	get: function() {
-		return executePineJS;
-	}
-});
-Object.defineProperty(exports, "extractMetadata", {
-	enumerable: true,
-	get: function() {
-		return extractMetadata;
-	}
-});
-Object.defineProperty(exports, "generateBody", {
-	enumerable: true,
-	get: function() {
-		return generateBody;
-	}
-});
-Object.defineProperty(exports, "generateStandaloneFactory", {
-	enumerable: true,
-	get: function() {
-		return generateStandaloneFactory;
-	}
-});
-Object.defineProperty(exports, "getAllPineFunctionNames", {
-	enumerable: true,
-	get: function() {
-		return getAllPineFunctionNames;
-	}
-});
-Object.defineProperty(exports, "getMappingStats", {
-	enumerable: true,
-	get: function() {
-		return getMappingStats;
-	}
-});
-Object.defineProperty(exports, "parse", {
-	enumerable: true,
-	get: function() {
-		return parse;
-	}
-});
-Object.defineProperty(exports, "transpile", {
-	enumerable: true,
-	get: function() {
-		return transpile;
-	}
-});
-Object.defineProperty(exports, "transpileToPineJS", {
-	enumerable: true,
-	get: function() {
-		return transpileToPineJS;
-	}
-});
-Object.defineProperty(exports, "transpileToStandaloneFactory", {
-	enumerable: true,
-	get: function() {
-		return transpileToStandaloneFactory;
-	}
-});
-Object.defineProperty(exports, "validateInputSize", {
-	enumerable: true,
-	get: function() {
-		return validateInputSize;
-	}
-});
+export { HelperUsage as S, getMappingStats as _, transpileToStandaloneFactory as a, TA_FUNCTION_MAPPINGS as b, compile as c, parse as d, validateInputSize as f, getAllPineFunctionNames as g, PRICE_SOURCES as h, transpileToPineJS as i, extractMetadata as l, COLOR_MAP as m, executePineJS as n, MAX_INPUT_SIZE as o, generateStandaloneFactory as p, transpile as r, buildFactory as s, canTranspilePineScript as t, generateBody as u, TIME_FUNCTION_MAPPINGS as v, MATH_FUNCTION_MAPPINGS as x, MULTI_OUTPUT_MAPPINGS as y };
 
-//# sourceMappingURL=src-Bb6FhCts.cjs.map
+//# sourceMappingURL=src-MU1nwhwB.js.map

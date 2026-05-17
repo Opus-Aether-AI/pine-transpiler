@@ -5,6 +5,59 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-05-17
+
+Internal deepening pass. No public-API breakage — every existing
+top-level export keeps its signature. Two single-purpose modules
+extracted, one duplicate retired.
+
+### Added
+- **`src/csp-errors.ts`** — single source of truth for CSP-eval error
+  detection. Exports `isUnsafeEvalCspError`, `withCspEvalHint`
+  (string-return form), `appendCspHint` (in-place mutation form), and
+  `CSP_EVAL_HINT` (the canonical actionable hint). Both
+  `transpileToPineJS`'s error path and `buildIndicatorFactory`'s
+  factory closure now import from here instead of duplicating the
+  classifier across two files.
+- **`attachPineJsBody(factory, body)` + `PINE_JS_BODY_PROPERTY`** in
+  `src/factory/factory-helpers.ts` — centralises the
+  `Object.defineProperty(factory, '__pineJsBody', …)` side-channel
+  contract that chart-host consumers depend on. Both
+  `buildIndicatorFactory` and `executePineJS` attach via this helper.
+- **`HelperUsage.fromBody(mainBody)`** static factory in
+  `src/generator/helper-usage.ts` — the body-scan fallback for callers
+  of `buildIndicatorFactory` / `generateStandaloneFactory` that don't
+  supply a tracker. Uses per-category regex patterns
+  (`BODY_SCAN_PATTERNS`) that mirror `classifyHelperName`, so adding
+  a new helper category is a single-file edit.
+
+### Removed
+- `analyzeRequiredHelpers` from `src/factory/indicator-factory.ts`
+  (~100 lines of marker-substring checks). Its responsibility moved
+  to `HelperUsage.fromBody`, co-located with `classifyHelperName` —
+  the "what counts as a helper" knowledge no longer has to be kept
+  in lockstep across two files. External callers see no behavioural
+  change; `generatePreamble` falls back to
+  `HelperUsage.fromBody(mainBody).toRecord()` when no tracker is
+  supplied.
+
+### Internal
+- CSP error duplication eliminated across `src/index.ts` and
+  `src/factory/indicator-factory.ts`.
+- `__pineJsBody` descriptor (`{enumerable: false, writable: false,
+  configurable: true}`) now defined in one place; previously two
+  copies could silently drift.
+
+### Considered and deferred
+- Sharing the metainfo assembly between `buildIndicatorFactory` (in-
+  process callable) and `generateStandaloneFactory` (source-code
+  emitter). On close reading the two paths produce semantically
+  different metainfo shapes by design (`{visible, location, char}`
+  vs `{trackPrice, transparency}`), tuned for their respective
+  downstream consumers. Extracting a shared `buildMetainfo` would
+  spread shape-adapter complexity into both call sites rather than
+  concentrate it. Deferred — would need an ADR if revisited.
+
 ## [0.3.0] - 2026-05-17
 
 This release bundles two strands of work:

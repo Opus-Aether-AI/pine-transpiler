@@ -8,6 +8,41 @@
 import type { ParsedInput, ParsedPlot, PlotStyle } from '../types';
 
 /**
+ * Property name of the non-enumerable side-channel that every
+ * `IndicatorFactory` carries — the literal transpiled JS body string.
+ * Editor previews and the corpus runner read it instead of calling
+ * `factory.toString()` (which only shows the outer closure).
+ *
+ * Centralised here so renaming or changing the descriptor shape is a
+ * single-file edit. Both `buildIndicatorFactory` (Pine path) and
+ * `executePineJS` (raw-JS path) attach it via {@link attachPineJsBody}.
+ */
+export const PINE_JS_BODY_PROPERTY = '__pineJsBody' as const;
+
+/**
+ * Attach the literal transpiled JS body to a factory function as a
+ * non-enumerable, read-only side-channel. Mutates and returns the
+ * same factory instance so call sites can chain.
+ *
+ * The descriptor (`enumerable: false`, `writable: false`,
+ * `configurable: true`) is the de-facto contract chart-host consumers
+ * depend on — keep it in lockstep with consumers (corpus runner reads
+ * via direct property access, not `Object.keys`).
+ */
+export function attachPineJsBody<F extends (...args: never[]) => unknown>(
+  factory: F,
+  body: string,
+): F {
+  Object.defineProperty(factory, PINE_JS_BODY_PROPERTY, {
+    value: body,
+    enumerable: false,
+    writable: false,
+    configurable: true,
+  });
+  return factory;
+}
+
+/**
  * Map AST plot types to PineJS Runtime plot type constants.
  *
  * @param t - The plot type string from the AST

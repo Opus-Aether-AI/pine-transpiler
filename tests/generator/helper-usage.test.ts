@@ -195,6 +195,83 @@ describe('HelperUsage', () => {
   });
 });
 
+describe('HelperUsage.fromBody', () => {
+  // The body-scan fallback used by `generatePreamble` when callers
+  // invoke `buildIndicatorFactory` / `generateStandaloneFactory`
+  // directly without supplying a tracker. Must mirror the emission-
+  // site categorization (`classifyHelperName`) exactly.
+
+  it('detects math helpers in the body', () => {
+    const usage = HelperUsage.fromBody('const x = _avg(1, 2);');
+    expect(usage.has('math')).toBe(true);
+  });
+
+  it('detects the renamed _pineSum (no longer _sum)', () => {
+    const usage = HelperUsage.fromBody('const y = _pineSum(1, 2, 3);');
+    expect(usage.has('math')).toBe(true);
+    // The old marker should NOT trigger math (defensive — guards against regression)
+    const old = HelperUsage.fromBody('const z = _sum(1, 2);');
+    expect(old.has('math')).toBe(false);
+  });
+
+  it('detects array/map/matrix/color/string helpers by prefix', () => {
+    expect(HelperUsage.fromBody('_arrayPush(arr, 1)').has('array')).toBe(true);
+    expect(HelperUsage.fromBody('_mapNew()').has('map')).toBe(true);
+    expect(HelperUsage.fromBody('_matrixNew(2, 2)').has('matrix')).toBe(true);
+    expect(HelperUsage.fromBody('_colorNew("red", 50)').has('color')).toBe(true);
+    expect(HelperUsage.fromBody('_strContains("a", "b")').has('string')).toBe(true);
+  });
+
+  it('detects StdPlus.*', () => {
+    expect(HelperUsage.fromBody('StdPlus.bb(close, 20)').has('stdplus')).toBe(true);
+  });
+
+  it('detects session helpers', () => {
+    expect(
+      HelperUsage.fromBody('_isInSession(context, "0930-1600")').has('session'),
+    ).toBe(true);
+  });
+
+  it('detects state helpers (var/varip)', () => {
+    expect(HelperUsage.fromBody('_pineVar(k, () => 0)').has('state')).toBe(true);
+    expect(HelperUsage.fromBody('_pineSetVar(k, 1)').has('state')).toBe(true);
+  });
+
+  it('detects utility helpers', () => {
+    expect(HelperUsage.fromBody('_pineNa(x)').has('utility')).toBe(true);
+  });
+
+  it('returns empty record for a body with no helpers', () => {
+    const usage = HelperUsage.fromBody('const x = Std.sma(close, 14);');
+    expect(usage.toRecord()).toEqual({
+      needsMath: false,
+      needsSession: false,
+      needsStdPlus: false,
+      needsArray: false,
+      needsMap: false,
+      needsMatrix: false,
+      needsColor: false,
+      needsString: false,
+      needsUtility: false,
+      needsState: false,
+    });
+  });
+
+  it('detects multiple categories in one body', () => {
+    const usage = HelperUsage.fromBody(
+      '_arrayPush(arr, _avg(a, b)); _colorNew("red", 50); StdPlus.hma(close, 14);',
+    );
+    expect(usage.has('array')).toBe(true);
+    expect(usage.has('math')).toBe(true);
+    expect(usage.has('color')).toBe(true);
+    expect(usage.has('stdplus')).toBe(true);
+  });
+
+  it('does not match _str followed by lowercase (consistent with classifyHelperName)', () => {
+    expect(HelperUsage.fromBody('const _strange = 1;').has('string')).toBe(false);
+  });
+});
+
 describe('HelperUsage integration with code generation', () => {
   it('marks math when transpiling a math-helper call', () => {
     // `math.avg` maps to `_avg(` in the emitted body, which is a math

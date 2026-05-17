@@ -7,7 +7,8 @@
  * Reference: https://www.tradingview.com/charting-library-docs/latest/custom_studies/
  */
 
-import { generateStandaloneFactory } from './factory';
+import { withCspEvalHint } from './csp-errors';
+import { attachPineJsBody, generateStandaloneFactory } from './factory';
 import { HelperUsage } from './generator/helper-usage';
 import {
   getAllPineFunctionNames,
@@ -90,25 +91,6 @@ export {
 // ============================================================================
 // Main Transpiler Function
 // ============================================================================
-
-function isUnsafeEvalCspError(error: unknown): boolean {
-  const raw = error instanceof Error ? error.message : String(error);
-  const message = raw.toLowerCase();
-  return (
-    message.includes('unsafe-eval') ||
-    message.includes('content security policy') ||
-    message.includes(
-      'violates the following content security policy directive',
-    ) ||
-    message.includes('evaluating a string as javascript')
-  );
-}
-
-function withCspEvalHint(error: unknown): string {
-  const base = error instanceof Error ? error.message : String(error);
-  if (!isUnsafeEvalCspError(error)) return base;
-  return `${base}\nCSP blocked dynamic evaluation. Use transpileToStandaloneFactory(...) and load the generated factory module instead of runtime eval/new Function.`;
-}
 
 /**
  * Transpile Pine Script to JavaScript string (internal helper).
@@ -275,12 +257,7 @@ export function executePineJS(
     // Mirror the `transpileToPineJS` body-exposure contract for the
     // PineJS path so a consumer can render the user's source as the
     // "compiled" preview without a special case for raw-JS scripts.
-    Object.defineProperty(indicatorFactory, '__pineJsBody', {
-      value: processedCode,
-      enumerable: false,
-      writable: false,
-      configurable: true,
-    });
+    attachPineJsBody(indicatorFactory, processedCode);
 
     return {
       success: true,
