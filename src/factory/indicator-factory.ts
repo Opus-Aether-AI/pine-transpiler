@@ -5,7 +5,8 @@
  * Extracted from index.ts for better maintainability.
  */
 
-import type { HelperUsageRecord } from '../generator/helper-usage';
+import { appendCspHint } from '../csp-errors';
+import { HelperUsage, type HelperUsageRecord } from '../generator/helper-usage';
 import type {
   ComputedVariable,
   SessionVariable,
@@ -45,6 +46,7 @@ import type {
 } from '../types';
 import { COLOR_MAP } from '../types';
 import {
+  attachPineJsBody,
   buildDefaultInputs,
   buildDefaultStyles,
   buildInputsMetadata,
@@ -79,11 +81,10 @@ export interface IndicatorFactoryOptions {
   /**
    * Helper-usage record from {@link HelperUsage.toRecord} captured by
    * the code generator. When provided, the factory builder uses this
-   * to decide which helper libraries to inject into the preamble,
-   * bypassing the legacy string-scan over `mainBody` in
-   * `analyzeRequiredHelpers`. The pipeline always supplies this; the
-   * fallback exists for any external caller invoking this builder
-   * directly without going through the pipeline.
+   * to decide which helper libraries to inject into the preamble.
+   * The pipeline always supplies this; direct callers who omit it
+   * fall back to {@link HelperUsage.fromBody}, a body-scan that
+   * mirrors the emission-site categorization in `helper-usage.ts`.
    */
   helperUsage?: HelperUsageRecord;
   // Session and input tracking for native factory generation
@@ -94,29 +95,6 @@ export interface IndicatorFactoryOptions {
   computedVariables?: Map<string, ComputedVariable>;
   // Pine variable name to input index mapping
   inputVariableMap?: Map<string, number>;
-}
-
-function isUnsafeEvalCspError(error: unknown): boolean {
-  const raw = error instanceof Error ? error.message : String(error);
-  const message = raw.toLowerCase();
-  return (
-    message.includes('unsafe-eval') ||
-    message.includes('content security policy') ||
-    message.includes(
-      'violates the following content security policy directive',
-    ) ||
-    message.includes('evaluating a string as javascript')
-  );
-}
-
-function appendCspHint(error: Error): Error {
-  if (!isUnsafeEvalCspError(error)) return error;
-  const hint =
-    'CSP blocked dynamic compilation (`new Function`). Use `transpileToStandaloneFactory(...)` (or CLI `pine-transpiler transpile --format factory`) and load the generated module at build-time.';
-  if (!error.message.includes(hint)) {
-    error.message = `${error.message}\n${hint}`;
-  }
-  return error;
 }
 
 /**
@@ -705,111 +683,6 @@ const _pineScopeKey = (scopeId) => {
 `;
 
 /**
- * Analyze which helpers are needed based on the transpiled code
- */
-function analyzeRequiredHelpers(mainBody: string): {
-  needsMath: boolean;
-  needsSession: boolean;
-  needsStdPlus: boolean;
-  needsArray: boolean;
-  needsMap: boolean;
-  needsMatrix: boolean;
-  needsColor: boolean;
-  needsString: boolean;
-  needsUtility: boolean;
-  needsState: boolean;
-} {
-  return {
-    // Math helpers: _avg, _pineSum, _toDegrees, _toRadians, _roundToMintick
-    needsMath:
-      mainBody.includes('_avg(') ||
-      mainBody.includes('_pineSum(') ||
-      mainBody.includes('_toDegrees(') ||
-      mainBody.includes('_toRadians(') ||
-      mainBody.includes('_roundToMintick('),
-    // Session/Time helpers: _isInSession, _isMarketSession, _isPremarket, _isPostmarket, _getTimeClose, _getTradingDayTime
-    needsSession:
-      mainBody.includes('_isInSession(') ||
-      mainBody.includes('_isMarketSession(') ||
-      mainBody.includes('_isPremarket(') ||
-      mainBody.includes('_isPostmarket(') ||
-      mainBody.includes('_getTimeClose(') ||
-      mainBody.includes('_getTradingDayTime('),
-    // StdPlus: StdPlus.bb, StdPlus.hma, StdPlus.macd, etc.
-    needsStdPlus: mainBody.includes('StdPlus.'),
-    // Array helpers: any of the _array<X> functions emitted by the
-    // array.* mappings need ARRAY_HELPER_FUNCTIONS injected — without
-    // it the body crashes with `_arrayPush is not defined` and the
-    // factory's catch block silently returns NaN per declared plot.
-    needsArray:
-      mainBody.includes('_arrayNew') ||
-      mainBody.includes('_arrayFrom(') ||
-      mainBody.includes('_arrayPush(') ||
-      mainBody.includes('_arrayUnshift(') ||
-      mainBody.includes('_arrayPop(') ||
-      mainBody.includes('_arrayShift(') ||
-      mainBody.includes('_arrayRemove(') ||
-      mainBody.includes('_arrayGet(') ||
-      mainBody.includes('_arraySet(') ||
-      mainBody.includes('_arraySize(') ||
-      mainBody.includes('_arrayAvg(') ||
-      mainBody.includes('_arraySum(') ||
-      mainBody.includes('_arrayMin(') ||
-      mainBody.includes('_arrayMax(') ||
-      mainBody.includes('_arrayStdev(') ||
-      mainBody.includes('_arrayVariance(') ||
-      mainBody.includes('_arraySort(') ||
-      mainBody.includes('_arrayReverse(') ||
-      mainBody.includes('_arraySlice(') ||
-      mainBody.includes('_arrayConcat(') ||
-      mainBody.includes('_arrayCopy(') ||
-      mainBody.includes('_arrayClear(') ||
-      mainBody.includes('_arrayIncludes(') ||
-      mainBody.includes('_arrayIndexOf(') ||
-      mainBody.includes('_arrayLastIndexOf(') ||
-      mainBody.includes('_arrayJoin('),
-    // Map helpers: same pattern for Pine v6 map.*
-    needsMap:
-      mainBody.includes('_mapNew(') ||
-      mainBody.includes('_mapPut(') ||
-      mainBody.includes('_mapPutAll(') ||
-      mainBody.includes('_mapGet(') ||
-      mainBody.includes('_mapContains(') ||
-      mainBody.includes('_mapRemove(') ||
-      mainBody.includes('_mapSize(') ||
-      mainBody.includes('_mapKeys(') ||
-      mainBody.includes('_mapValues(') ||
-      mainBody.includes('_mapClear(') ||
-      mainBody.includes('_mapCopy('),
-    // Matrix helpers: Pine v6 matrix.* lowered to _matrix<X>.
-    needsMatrix:
-      mainBody.includes('_matrixNew(') ||
-      mainBody.includes('_matrixRows(') ||
-      mainBody.includes('_matrixColumns(') ||
-      mainBody.includes('_matrixGet(') ||
-      mainBody.includes('_matrixSet(') ||
-      mainBody.includes('_matrixAddRow(') ||
-      mainBody.includes('_matrixRemoveRow('),
-    // Color helpers: _colorNew (the transpiled form of `color.new`)
-    needsColor: mainBody.includes('_colorNew('),
-    // String helpers: anything starting with _str
-    needsString: /\b_str[A-Z]/.test(mainBody),
-    // Catch-all utility helpers (NA, type conversion, etc.)
-    needsUtility:
-      mainBody.includes('_pineNa(') ||
-      mainBody.includes('_pineNz(') ||
-      mainBody.includes('_pineFixnan('),
-    // Persistent-variable helpers emitted for Pine `var` / `varip`.
-    needsState:
-      mainBody.includes('_pineVar(') ||
-      mainBody.includes('_pineVarip(') ||
-      mainBody.includes('_pineSetVar(') ||
-      mainBody.includes('_pineSetVarip(') ||
-      mainBody.includes('_pineScopeKey('),
-  };
-}
-
-/**
  * Generate preamble code for the indicator
  */
 export function generatePreamble(
@@ -865,7 +738,7 @@ export function generatePreamble(
     needsString,
     needsUtility,
     needsState,
-  } = helperUsage ?? analyzeRequiredHelpers(mainBody);
+  } = helperUsage ?? HelperUsage.fromBody(mainBody).toRecord();
 
   if (needsMath) {
     preamble += `${MATH_HELPER_FUNCTIONS}\n`;
@@ -2514,12 +2387,7 @@ export function buildIndicatorFactory(
   // Pine→JS output instead of `factory.toString()` (which only shows
   // the outer wrapper). Non-enumerable so spreading the factory into
   // other objects doesn't accidentally drag the body string along.
-  Object.defineProperty(indicatorFactory, '__pineJsBody', {
-    value: body,
-    enumerable: false,
-    writable: false,
-    configurable: true,
-  });
+  attachPineJsBody(indicatorFactory, body);
 
   return indicatorFactory;
 }

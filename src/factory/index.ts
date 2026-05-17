@@ -5,12 +5,14 @@
  */
 
 export {
+  attachPineJsBody,
   buildDefaultInputs,
   buildDefaultStyles,
   buildInputsMetadata,
   buildPlotsMetadata,
   buildStylesMetadata,
   mapPlotType,
+  PINE_JS_BODY_PROPERTY,
   sanitizeIndicatorId,
 } from './factory-helpers';
 
