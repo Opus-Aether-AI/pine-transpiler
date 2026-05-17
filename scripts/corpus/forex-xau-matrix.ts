@@ -103,7 +103,13 @@ function main(): number {
     );
   }
 
-  const outputPath = join(import.meta.dir, '..', '..', 'FOREX_XAU_MATRIX.md');
+  const outputPath = join(
+    import.meta.dir,
+    '..',
+    '..',
+    'docs',
+    'FOREX_XAU_MATRIX.md',
+  );
   writeFileSync(outputPath, `${lines.join('\n')}\n`);
 
   console.log(

@@ -3278,7 +3278,7 @@ function ensureArrayPrototypeCompat() {
 /**
 * Schema version for the per-bar `__visualEvents` payload. Stamped on
 * the array returned from `main()` so host renderers can detect
-* breaking changes. See HOST_RENDERING_CONTRACT.md for the
+* breaking changes. See docs/HOST_RENDERING_CONTRACT.md for the
 * additive-vs-breaking policy.
 */
 var VISUAL_EVENTS_VERSION = 1;
@@ -8876,137 +8876,6 @@ function executePineJS(code, indicatorId, indicatorName) {
 	}
 }
 //#endregion
-Object.defineProperty(exports, "COLOR_MAP", {
-	enumerable: true,
-	get: function() {
-		return COLOR_MAP;
-	}
-});
-Object.defineProperty(exports, "HelperUsage", {
-	enumerable: true,
-	get: function() {
-		return HelperUsage;
-	}
-});
-Object.defineProperty(exports, "MATH_FUNCTION_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return MATH_FUNCTION_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "MAX_INPUT_SIZE", {
-	enumerable: true,
-	get: function() {
-		return MAX_INPUT_SIZE;
-	}
-});
-Object.defineProperty(exports, "MULTI_OUTPUT_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return MULTI_OUTPUT_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "PRICE_SOURCES", {
-	enumerable: true,
-	get: function() {
-		return PRICE_SOURCES;
-	}
-});
-Object.defineProperty(exports, "TA_FUNCTION_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return TA_FUNCTION_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "TIME_FUNCTION_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return TIME_FUNCTION_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "buildFactory", {
-	enumerable: true,
-	get: function() {
-		return buildFactory;
-	}
-});
-Object.defineProperty(exports, "canTranspilePineScript", {
-	enumerable: true,
-	get: function() {
-		return canTranspilePineScript;
-	}
-});
-Object.defineProperty(exports, "compile", {
-	enumerable: true,
-	get: function() {
-		return compile;
-	}
-});
-Object.defineProperty(exports, "executePineJS", {
-	enumerable: true,
-	get: function() {
-		return executePineJS;
-	}
-});
-Object.defineProperty(exports, "extractMetadata", {
-	enumerable: true,
-	get: function() {
-		return extractMetadata;
-	}
-});
-Object.defineProperty(exports, "generateBody", {
-	enumerable: true,
-	get: function() {
-		return generateBody;
-	}
-});
-Object.defineProperty(exports, "generateStandaloneFactory", {
-	enumerable: true,
-	get: function() {
-		return generateStandaloneFactory;
-	}
-});
-Object.defineProperty(exports, "getAllPineFunctionNames", {
-	enumerable: true,
-	get: function() {
-		return getAllPineFunctionNames;
-	}
-});
-Object.defineProperty(exports, "getMappingStats", {
-	enumerable: true,
-	get: function() {
-		return getMappingStats;
-	}
-});
-Object.defineProperty(exports, "parse", {
-	enumerable: true,
-	get: function() {
-		return parse;
-	}
-});
-Object.defineProperty(exports, "transpile", {
-	enumerable: true,
-	get: function() {
-		return transpile;
-	}
-});
-Object.defineProperty(exports, "transpileToPineJS", {
-	enumerable: true,
-	get: function() {
-		return transpileToPineJS;
-	}
-});
-Object.defineProperty(exports, "transpileToStandaloneFactory", {
-	enumerable: true,
-	get: function() {
-		return transpileToStandaloneFactory;
-	}
-});
-Object.defineProperty(exports, "validateInputSize", {
-	enumerable: true,
-	get: function() {
-		return validateInputSize;
-	}
-});
+export { MATH_FUNCTION_MAPPINGS as S, getAllPineFunctionNames as _, transpileToStandaloneFactory as a, MULTI_OUTPUT_MAPPINGS as b, compile as c, parse as d, validateInputSize as f, PRICE_SOURCES as g, COLOR_MAP as h, transpileToPineJS as i, extractMetadata as l, generateStandaloneFactory as m, executePineJS as n, MAX_INPUT_SIZE as o, HelperUsage as p, transpile as r, buildFactory as s, canTranspilePineScript as t, generateBody as u, getMappingStats as v, TA_FUNCTION_MAPPINGS as x, TIME_FUNCTION_MAPPINGS as y };
 
-//# sourceMappingURL=src-XbcDlJbj.cjs.map
+//# sourceMappingURL=src-Cln_RmDJ.js.map

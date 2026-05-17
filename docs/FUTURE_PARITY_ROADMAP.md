@@ -136,8 +136,8 @@ transpiler state.
 
 Scope:
 
-- `HOST_RENDERING_CONTRACT.md` at repo root — single source of truth
-  for `__visualEvents` shape, `pineHandleId` invariants, namespace
+- `docs/HOST_RENDERING_CONTRACT.md` — single source of truth for
+  `__visualEvents` shape, `pineHandleId` invariants, namespace
   coverage, and breaking-change policy
 - `__visualEventsVersion` constant on the per-bar return value, so
   consumers can detect non-additive changes

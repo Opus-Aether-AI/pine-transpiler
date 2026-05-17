@@ -140,7 +140,7 @@ export interface TranspileOptions {
    * natively otherwise). Bands are full-column by construction;
    * `bg_colorer` has no price-range parameter.
    *
-   * See HOST_RENDERING_CONTRACT.md § "Opting out of the auto
+   * See docs/HOST_RENDERING_CONTRACT.md § "Opting out of the auto
    * bg_colorer plot".
    */
   autoBgColorerForBoxes?: boolean;
