@@ -34,6 +34,7 @@ import {
   isStatement,
   sanitizeIdentifier,
 } from './generator-utils';
+import { HelperUsage } from './helper-usage';
 
 /**
  * A Pine call argument written as `name=value` parses to an
@@ -318,6 +319,8 @@ const IMPLICIT_SERIES_BY_TA_CALL: Record<string, string> = {
  * Interface for expression generation, used for dependency injection.
  */
 export interface ExpressionGeneratorInterface {
+  /** Helper-usage tracker shared with the AST generator. */
+  readonly helperUsage: HelperUsage;
   generateExpression(expr: Expression): string;
   generateMemberExpression(expr: MemberExpression): string;
   generateAssignmentExpression(expr: AssignmentExpression): string;
@@ -365,6 +368,20 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
   private persistentScopes: Array<
     Map<string, { kind: 'var' | 'varip'; keyExpr: string }>
   > = [new Map()];
+  /**
+   * Helper-usage tracker — recorded as the generator emits mapping-driven
+   * helper identifiers (math, session, StdPlus, array, map, matrix,
+   * color, string, utility) and state helpers (_pineVar / _pineVarip
+   * / _pineSetVar / _pineSetVarip). The factory builder reads this
+   * set to decide which helper libraries to inject into the preamble,
+   * replacing the older string-grep over the generated body in
+   * `analyzeRequiredHelpers`.
+   */
+  public readonly helperUsage: HelperUsage;
+
+  constructor(helperUsage: HelperUsage = new HelperUsage()) {
+    this.helperUsage = helperUsage;
+  }
 
   public setIndentLevel(level: number): void {
     this.indentLevel = level;
@@ -489,6 +506,7 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
 
     if (mapping) {
       callee = mapping.stdName || mapping.jsName || callee;
+      this.helperUsage.markByName(callee);
       if (mapping.needsSeries && args.length > 0) {
         const implicitSeries = this.resolveImplicitSeriesArg(
           pineCallee,
@@ -754,6 +772,7 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
     if (isIdentifierLeft && persistentBinding) {
       const setter =
         persistentBinding.kind === 'varip' ? '_pineSetVarip' : '_pineSetVar';
+      this.helperUsage.markByName(setter);
       const keyExpr = persistentBinding.keyExpr;
       if (op === '=') {
         return `(${left} = ${setter}(${keyExpr}, ${right}))`;

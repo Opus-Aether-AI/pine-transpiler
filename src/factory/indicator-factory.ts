@@ -5,6 +5,7 @@
  * Extracted from index.ts for better maintainability.
  */
 
+import type { HelperUsageRecord } from '../generator/helper-usage';
 import type {
   ComputedVariable,
   SessionVariable,
@@ -75,6 +76,16 @@ export interface IndicatorFactoryOptions {
    * Wired from {@link TranspileOptions.autoBgColorerForBoxes}.
    */
   autoBgColorerForBoxes?: boolean;
+  /**
+   * Helper-usage record from {@link HelperUsage.toRecord} captured by
+   * the code generator. When provided, the factory builder uses this
+   * to decide which helper libraries to inject into the preamble,
+   * bypassing the legacy string-scan over `mainBody` in
+   * `analyzeRequiredHelpers`. The pipeline always supplies this; the
+   * fallback exists for any external caller invoking this builder
+   * directly without going through the pipeline.
+   */
+  helperUsage?: HelperUsageRecord;
   // Session and input tracking for native factory generation
   sessionVariables?: Map<string, SessionVariable>;
   derivedSessionVariables?: Map<string, string>;
@@ -805,6 +816,7 @@ export function generatePreamble(
   usedSources: Set<string>,
   historicalAccess: Set<string>,
   mainBody = '',
+  helperUsage?: HelperUsageRecord,
 ): string {
   let preamble = '';
   const declaredHistorical = new Set<string>();
@@ -836,7 +848,12 @@ export function generatePreamble(
     }
   }
 
-  // Conditionally inject helpers based on what's actually used
+  // Conditionally inject helpers based on what's actually used.
+  // Prefer the structured `helperUsage` record (tracked at the emission
+  // site by `ExpressionGenerator` / `StatementGenerator`); fall back to
+  // the legacy string-scan when no tracker is supplied (e.g. direct
+  // external callers of `buildIndicatorFactory` / `generateStandaloneFactory`
+  // that bypass the pipeline).
   const {
     needsMath,
     needsSession,
@@ -848,7 +865,7 @@ export function generatePreamble(
     needsString,
     needsUtility,
     needsState,
-  } = analyzeRequiredHelpers(mainBody);
+  } = helperUsage ?? analyzeRequiredHelpers(mainBody);
 
   if (needsMath) {
     preamble += `${MATH_HELPER_FUNCTIONS}\n`;
@@ -901,6 +918,7 @@ export function buildIndicatorFactory(
     usedSources,
     historicalAccess,
     mainBody,
+    helperUsage,
     // Default `false`: host renderers consuming `__visualEvents` draw
     // their own price-constrained rectangles from `box.new`. The
     // full-column auto bg_colorer was originally a fallback for
@@ -911,7 +929,12 @@ export function buildIndicatorFactory(
   } = options;
 
   // Generate preamble and full body (conditionally includes helpers)
-  const preamble = generatePreamble(usedSources, historicalAccess, mainBody);
+  const preamble = generatePreamble(
+    usedSources,
+    historicalAccess,
+    mainBody,
+    helperUsage,
+  );
   const body = preamble + mainBody;
 
   // Pine `box.new(..., bgcolor = ...)` has no direct equivalent in TV

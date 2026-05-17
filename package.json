@@ -1,6 +1,6 @@
 {
   "name": "@opusaether/pine-transpiler",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Transpile Pine Script v5/v6 to executable JavaScript. Zero dependencies.",
   "author": "Opus Aether AI",
   "license": "AGPL-3.0",
@@ -46,7 +46,7 @@
     "clean": "rm -rf dist",
     "test": "bun test tests/",
     "test:harness": "bun test tests/integration/tradingview-descriptor-contract.test.ts tests/integration/tradingview-reducer-survival.test.ts",
-    "test:coverage": "bun test --coverage tests/",
+    "test:coverage": "bun scripts/check-coverage.ts",
     "corpus": "bun scripts/corpus/report.ts",
     "corpus:strict": "bun scripts/corpus/strict-audit.ts",
     "corpus:matrix": "bun scripts/corpus/indicator-matrix.ts",
@@ -59,7 +59,11 @@
     "chart:safety": "bun scripts/corpus/chart-safety.ts",
     "corpus:visual": "bun scripts/corpus/visual-parity.ts",
     "corpus:snap": "UPDATE_SNAPSHOTS=1 bun test tests/corpus/ && UPDATE_VISUAL_SNAPSHOTS=1 bun run corpus:visual",
-    "prepare": "vite build"
+    "prepare": "vite build",
+    "prepublishOnly": "bun run typecheck && bun run lint && bun run test && bun run build"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "keywords": [
     "pine-script",

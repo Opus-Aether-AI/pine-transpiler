@@ -157,27 +157,65 @@ function executePineJS(
 ): TranspileToPineJSResult;
 ```
 
+### Pipeline API (advanced)
+
+`transpileToPineJS` and `transpileToStandaloneFactory` are thin wrappers around a five-stage pipeline. The stages are exported so tools (LSPs, linters, custom backends) can compose them without re-wiring the sequence.
+
+```typescript
+import {
+  parse,                  // (code) => Program (AST)
+  extractMetadata,        // (ast) => MetadataVisitor (name, inputs, plots, …)
+  generateBody,           // (ast, historicalAccess, helperUsage?) => string
+  buildFactory,           // (metadata, body, opts) => IndicatorFactory
+  compile,                // (code, opts) => {ast, metadata, mainBody, helperUsage, factory}
+  validateInputSize,      // (code) => void   throws if >1MB
+  HelperUsage,            // tracker of runtime-helper categories emitted
+  MAX_INPUT_SIZE,         // 1_000_000
+} from '@opusaether/pine-transpiler';
+
+// Stop at the AST — e.g. for an LSP that wants to inspect the parse:
+const ast = parse(source);
+
+// Or run the full pipeline and inspect intermediate stages:
+const { metadata, mainBody, helperUsage, factory } =
+  compile(source, { indicatorId: 'demo' });
+```
+
+`HelperUsage` is recorded by the generator as it emits each Pine builtin call. The factory builder reads it (via `IndicatorFactoryOptions.helperUsage`) to decide which helper libraries to inject into the preamble — replacing an earlier string-grep over the generated body. Categories tracked: `math`, `session`, `stdplus`, `array`, `map`, `matrix`, `color`, `string`, `utility`, `state`.
+
 ### Exports
 
 #### Main Entry Point
 ```typescript
-import { 
+import {
+  // Top-level
   transpileToPineJS,
   transpileToStandaloneFactory,
   transpile,
   canTranspilePineScript,
   executePineJS,
+  // Pipeline stages
+  parse,
+  extractMetadata,
+  generateBody,
+  buildFactory,
+  compile,
+  validateInputSize,
+  HelperUsage,
+  MAX_INPUT_SIZE,
+  // Standalone factory codegen
+  generateStandaloneFactory,
   // Mappings
   TA_FUNCTION_MAPPINGS,
   MULTI_OUTPUT_MAPPINGS,
   MATH_FUNCTION_MAPPINGS,
   TIME_FUNCTION_MAPPINGS,
-  // Utilities
+  // Reflection
   getMappingStats,
   getAllPineFunctionNames,
-  // Types
+  // Types / constants
   COLOR_MAP,
-  PRICE_SOURCES
+  PRICE_SOURCES,
 } from '@opusaether/pine-transpiler';
 ```
 
@@ -405,7 +443,7 @@ The package ships with dual format support:
 
 ## Limitations & Known Issues
 
-While the transpiler covers a significant portion of Pine Script, there are inherent limitations due to the differences between the Pine Script runtime and the Charting Library's JS API:
+Full known-gaps list with workarounds lives in [docs/LIMITATIONS.md](docs/LIMITATIONS.md). Real-world corpus pass rate tracked in [docs/CORPUS-BASELINE.md](docs/CORPUS-BASELINE.md). Headline items:
 
 ### Unsupported Features
 
@@ -431,6 +469,7 @@ While the transpiler covers a significant portion of Pine Script, there are inhe
 
 Coverage is enforced through multiple layers:
 
+- **`bun run test:coverage`** runs the unit/regression suite under [`scripts/check-coverage.ts`](scripts/check-coverage.ts) and **fails CI if aggregate line or function coverage drops below 95%**. Current numbers: **95.81% functions / 98.62% lines** across 1393 tests.
 - unit/regression suites: `bun test tests/`
 - TradingView-shaped harness suites: `bun run test:harness`
 - corpus execution parity: `bun run corpus`
