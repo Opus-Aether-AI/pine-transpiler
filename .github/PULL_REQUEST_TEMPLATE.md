@@ -39,7 +39,7 @@ move quickly.
 - [ ] `bun run typecheck` passes
 - [ ] `bun test` passes
 - [ ] `bun run check-coverage` still meets the 95% gate
-- [ ] (If user-facing) `CHANGELOG.md` updated under the `[Unreleased]` heading
+- [ ] Commit messages use a [Conventional Commits](https://www.conventionalcommits.org/) prefix (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `perf:`, `style:`, `test:`, `ci:`, `build:`) so `release-please` picks up user-facing changes for the CHANGELOG. See [`docs/RELEASING.md`](../docs/RELEASING.md).
 - [ ] (If behavior change) `docs/SUPPORTED_FEATURES.md` updated
 
 ## Screenshots / output (if applicable)

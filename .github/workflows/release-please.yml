@@ -1,0 +1,31 @@
+name: release-please
+
+# Opens / updates a "Release PR" whenever Conventional Commits land on main.
+# Merging that PR bumps package.json + CHANGELOG.md, creates a tag, and
+# creates a GitHub Release — which triggers .github/workflows/release.yml
+# to publish to npm + GitHub Packages.
+#
+# See docs/RELEASING.md for the full flow.
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-please-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          config-file: .github/release-please-config.json
+          manifest-file: .github/.release-please-manifest.json
