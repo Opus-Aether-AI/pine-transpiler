@@ -1,0 +1,43 @@
+version: 2
+
+updates:
+  # JavaScript/TypeScript dev dependencies (no runtime deps by design)
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    labels:
+      - dependencies
+      - automated
+    groups:
+      # Batch minor/patch bumps to reduce PR noise; majors stay individual
+      dev-dependencies:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: chore
+      include: scope
+
+  # GitHub Actions used in .github/workflows/
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
+      - automated
+    commit-message:
+      prefix: chore
+      include: scope
