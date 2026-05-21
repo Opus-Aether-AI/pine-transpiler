@@ -8,10 +8,10 @@
  * `console.error` to capture output.
  */
 
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { commandInfo } from '../../src/cli/commands/info';
 import { commandTranspile } from '../../src/cli/commands/transpile';
 import { commandValidate } from '../../src/cli/commands/validate';
@@ -23,7 +23,11 @@ class ExitSignal extends Error {
 }
 
 function captureExit(): {
-  run: (fn: () => void) => { code: number | null; logs: string[]; errors: string[] };
+  run: (fn: () => void) => {
+    code: number | null;
+    logs: string[];
+    errors: string[];
+  };
   restore: () => void;
 } {
   const exitSpy = spyOn(process, 'exit').mockImplementation(((
@@ -148,7 +152,9 @@ describe('commandTranspile', () => {
       commandTranspile(file, { format: 'nonsense' }),
     );
     expect(result.code).toBe(1);
-    expect(result.errors.some((e) => e.includes("Unknown format 'nonsense'"))).toBe(true);
+    expect(
+      result.errors.some((e) => e.includes("Unknown format 'nonsense'")),
+    ).toBe(true);
   });
 
   it('format=js reports a transpilation error on oversized source', () => {

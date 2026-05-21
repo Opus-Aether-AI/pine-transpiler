@@ -35,23 +35,53 @@ This tool allows you to run Pine Script indicators directly within the Charting 
 
 ## Installation
 
-Install directly from GitHub (npm publish coming soon):
+The package is published to **two registries**:
+
+- **Public npm** (`registry.npmjs.org`) — no auth required, fastest for most consumers
+- **GitHub Packages** (`npm.pkg.github.com`) — requires a GitHub PAT with `read:packages` scope; preferred for consumers already inside the Opus Aether AI org
+
+### From public npm (default)
 
 ```bash
-# bun
-bun add github:Opus-Aether-AI/pine-transpiler#v0.2.0
-
-# npm
-npm install github:Opus-Aether-AI/pine-transpiler#v0.2.0
-
-# pnpm
-pnpm add github:Opus-Aether-AI/pine-transpiler#v0.2.0
-
-# yarn
-yarn add github:Opus-Aether-AI/pine-transpiler#v0.2.0
+bun add @opus-aether-ai/pine-transpiler
+# or
+npm install @opus-aether-ai/pine-transpiler
 ```
 
-The package ships a pre-built `dist/` so no post-install build step is required. Pin to the tag (`#v0.2.0`) to avoid breakage from `main`.
+### From GitHub Packages
+
+Add to project root `.npmrc`:
+
+```
+@opus-aether-ai:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_PACKAGES_TOKEN}
+```
+
+Set `GITHUB_PACKAGES_TOKEN` as a shell env var (local) and a CI secret. Then:
+
+```bash
+bun add @opus-aether-ai/pine-transpiler
+```
+
+### Releasing (maintainers)
+
+The package publishes to both registries from one command:
+
+```bash
+bun run release
+```
+
+Behind the scenes:
+
+1. `publish:npm` — runs `prepublishOnly` (typecheck + lint + test + build), uploads to public npm
+2. `publish:gh` — uploads the same fresh `dist/` to GitHub Packages with `--ignore-scripts` (skips the redundant rebuild)
+
+Individual targets are available if you only want one registry:
+
+```bash
+bun run publish:npm   # public npm only (full pre-publish gate)
+bun run publish:gh    # GitHub Packages only (expects fresh dist; run `bun run prepublishOnly` first if dirty)
+```
 
 ## Quick Start
 

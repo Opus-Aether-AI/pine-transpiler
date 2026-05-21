@@ -5,8 +5,7 @@
   "author": "Opus Aether AI",
   "license": "AGPL-3.0",
   "publishConfig": {
-    "access": "public",
-    "registry": "https://npm.pkg.github.com"
+    "access": "public"
   },
   "type": "module",
   "main": "./dist/index.cjs",
@@ -61,7 +60,10 @@
     "corpus:visual": "bun scripts/corpus/visual-parity.ts",
     "corpus:snap": "UPDATE_SNAPSHOTS=1 bun test tests/corpus/ && UPDATE_VISUAL_SNAPSHOTS=1 bun run corpus:visual",
     "prepare": "vite build",
-    "prepublishOnly": "bun run typecheck && bun run lint && bun run test && bun run build"
+    "prepublishOnly": "bun run typecheck && bun run lint && bun run test && bun run build",
+    "publish:npm": "npm publish --registry=https://registry.npmjs.org",
+    "publish:gh": "npm publish --registry=https://npm.pkg.github.com --ignore-scripts",
+    "release": "bun run publish:npm && bun run publish:gh"
   },
   "engines": {
     "node": ">=18.0.0"
