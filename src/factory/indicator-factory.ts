@@ -2747,16 +2747,103 @@ function generateNativeMainBody(
 ): string {
   const lines: string[] = [];
 
+  const sanitizeJsIdentifier = (raw: string, fallback: string): string => {
+    const trimmed = raw.trim();
+    let identifier = trimmed
+      .replace(/[^a-zA-Z0-9_$]/g, '_')
+      .replace(/^_+|_+$/g, '');
+    if (!identifier) identifier = fallback;
+    if (!/^[a-zA-Z_$]/.test(identifier)) {
+      identifier = `_${identifier}`;
+    }
+    const jsReservedWords = new Set([
+      'break',
+      'case',
+      'catch',
+      'class',
+      'const',
+      'continue',
+      'debugger',
+      'default',
+      'delete',
+      'do',
+      'else',
+      'enum',
+      'export',
+      'extends',
+      'false',
+      'finally',
+      'for',
+      'function',
+      'if',
+      'import',
+      'in',
+      'instanceof',
+      'new',
+      'null',
+      'return',
+      'super',
+      'switch',
+      'this',
+      'throw',
+      'true',
+      'try',
+      'typeof',
+      'var',
+      'void',
+      'while',
+      'with',
+      'yield',
+      'let',
+      'static',
+      'await',
+      'implements',
+      'interface',
+      'package',
+      'private',
+      'protected',
+      'public',
+    ]);
+    if (jsReservedWords.has(identifier)) {
+      identifier = `${identifier}_`;
+    }
+    return identifier;
+  };
+
+  const usedVarNames = new Set<string>();
+  const uniquifyIdentifier = (preferred: string, fallback: string): string => {
+    const base = sanitizeJsIdentifier(preferred, fallback);
+    let candidate = base;
+    let suffix = 2;
+    while (usedVarNames.has(candidate)) {
+      candidate = `${base}_${suffix}`;
+      suffix += 1;
+    }
+    usedVarNames.add(candidate);
+    return candidate;
+  };
+
   // Create mapping from input index to variable name AND from Pine var name to our var name
   const inputIndexToVarName: Map<number, string> = new Map();
   const pineVarToJsVar: Map<string, string> = new Map();
 
+  // Build reverse map from input index -> Pine variable name
+  const indexToPineVar: Map<number, string> = new Map();
+  if (inputVariableMap) {
+    for (const [pineVar, inputIdx] of inputVariableMap) {
+      if (!indexToPineVar.has(inputIdx)) {
+        indexToPineVar.set(inputIdx, pineVar);
+      }
+    }
+  }
+
   // Read all inputs
   for (let i = 0; i < inputs.length; i++) {
     const input = inputs[i];
-    const varName = input.name
-      .replace(/[^a-zA-Z0-9]/g, '_')
-      .replace(/^_+|_+$/g, '');
+    const pineVarName = indexToPineVar.get(i);
+    const varName = pineVarName
+      ? uniquifyIdentifier(pineVarName, `input_${i}`)
+      : uniquifyIdentifier(input.name, `input_${i}`);
     inputIndexToVarName.set(i, varName);
 
     if (input.type === 'bool') {
@@ -2785,6 +2872,42 @@ function generateNativeMainBody(
     }
   }
 
+  // Inline `input.*(...)` calls are extracted into `inputs[]` but do not
+  // always have a Pine variable binding. Queue them in source order so
+  // computed expressions can substitute those calls with the already-read
+  // `inputCallback(i)` variables instead of re-emitting invalid call syntax.
+  const boundInputIndexes = new Set<number>();
+  if (inputVariableMap) {
+    for (const inputIdx of inputVariableMap.values()) {
+      boundInputIndexes.add(inputIdx);
+    }
+  }
+  const unboundInputVarNames: string[] = [];
+  for (let i = 0; i < inputs.length; i++) {
+    if (boundInputIndexes.has(i)) continue;
+    const jsVar = inputIndexToVarName.get(i);
+    if (jsVar) {
+      unboundInputVarNames.push(jsVar);
+    }
+  }
+  let unboundInputCursor = 0;
+  const consumeInlineInputVarName = (): string | null => {
+    if (unboundInputCursor >= unboundInputVarNames.length) return null;
+    const name = unboundInputVarNames[unboundInputCursor];
+    unboundInputCursor += 1;
+    return name;
+  };
+
+  const normalizePineLogicalOperators = (expr: string): string => {
+    let normalized = expr.replace(/\band\b/g, '&&').replace(/\bor\b/g, '||');
+    normalized = normalized.replace(/\bnot\s+(?=[A-Za-z_$(])/g, '!');
+    normalized = normalized.replace(
+      /(^|&&|\|\||\(|\?|:|,)\s*not(?=[A-Za-z_$(])/g,
+      '$1 !',
+    );
+    return normalized;
+  };
+
   lines.push('');
 
   // Check if this is a session-style indicator or general indicator
@@ -2809,6 +2932,13 @@ function generateNativeMainBody(
         const regex = new RegExp(`\\b${pineVar}\\b`, 'g');
         expr = expr.replace(regex, jsVar);
       }
+
+      expr = expr.replace(/\binput(?:\.[A-Za-z_]\w*)?\([^)]*\)/g, (match) => {
+        const inlineVarName = consumeInlineInputVarName();
+        return inlineVarName ?? match;
+      });
+
+      expr = normalizePineLogicalOperators(expr);
 
       // Replace ta.* with Std.*
       expr = expr.replace(/\bta\.(\w+)\(/g, 'Std.$1(');
@@ -2988,6 +3118,8 @@ function generateNativeMainBody(
           const regex = new RegExp(`\\b${pineVar}\\b`, 'g');
           expr = expr.replace(regex, jsVar);
         }
+
+        expr = normalizePineLogicalOperators(expr);
 
         // Replace ta.* with Std.* and add context parameter
         expr = expr.replace(/\bta\.(\w+)\(/g, 'Std.$1(');

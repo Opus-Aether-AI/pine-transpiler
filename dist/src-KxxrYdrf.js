@@ -4488,6 +4488,12 @@ function buildIndicatorFactory(options) {
 						if (unit === "Y") return num * 525600;
 						return null;
 					};
+					const hasCalendarUnit = (raw) => {
+						const tf = String(raw ?? "").trim().toUpperCase();
+						if (!tf) return false;
+						const unit = tf.match(/^(\d+)?([SMHDWMY])?$/)?.[2] ?? "";
+						return unit === "W" || unit === "M" || unit === "Y";
+					};
 					const resolveMergeMode = (extras) => {
 						let gaps = "gaps_off";
 						let lookahead = "lookahead_off";
@@ -4558,8 +4564,13 @@ function buildIndicatorFactory(options) {
 						if (!state) return expressionArg;
 						const isBucketCloseBar = Math.floor((currentBarTime + chartTimeframeMs) / bucketSizeMs) !== bucket;
 						const isLookaheadOn = merge.lookahead === "lookahead_on";
-						const eventBar = isLookaheadOn ? changedBucket : isBucketCloseBar;
-						const merged = isLookaheadOn ? state.currentValue : isBucketCloseBar ? state.currentValue : state.confirmedValue;
+						const ratio = bucketSizeMs / chartTimeframeMs;
+						const hasIntegralRatio = Number.isFinite(ratio) && Math.abs(ratio - Math.round(ratio)) < 1e-9;
+						const approximateAlignment = hasCalendarUnit(currentTfRaw) || hasCalendarUnit(timeframeArg) || !hasIntegralRatio;
+						if (!isLookaheadOn && approximateAlignment) emitRequestSecurityDiagnostic("request.security/approximate-bucket-alignment", `request.security("${String(timeframeArg)}", lookahead_off) uses approximate close-bar alignment on chart timeframe "${String(currentTfRaw)}"`, `approx-align|${String(currentTfRaw)}|${String(timeframeArg)}|${merge.gaps}|${merge.lookahead}`);
+						const effectiveBucketCloseBar = approximateAlignment ? changedBucket : isBucketCloseBar;
+						const eventBar = isLookaheadOn ? changedBucket : effectiveBucketCloseBar;
+						const merged = isLookaheadOn ? state.currentValue : effectiveBucketCloseBar ? state.currentValue : state.confirmedValue;
 						if (merge.gaps === "gaps_on" && !eventBar) return naLike(expressionArg);
 						return cloneValue(merged);
 					};
@@ -4876,11 +4887,82 @@ export { createIndicator };
 */
 function generateNativeMainBody(inputs, plots, bgcolors, sessionVariables, derivedSessionVariables, booleanInputMap, computedVariables, inputVariableMap) {
 	const lines = [];
+	const sanitizeJsIdentifier = (raw, fallback) => {
+		let identifier = raw.trim().replace(/[^a-zA-Z0-9_$]/g, "_").replace(/^_+|_+$/g, "");
+		if (!identifier) identifier = fallback;
+		if (!/^[a-zA-Z_$]/.test(identifier)) identifier = `_${identifier}`;
+		if (new Set([
+			"break",
+			"case",
+			"catch",
+			"class",
+			"const",
+			"continue",
+			"debugger",
+			"default",
+			"delete",
+			"do",
+			"else",
+			"enum",
+			"export",
+			"extends",
+			"false",
+			"finally",
+			"for",
+			"function",
+			"if",
+			"import",
+			"in",
+			"instanceof",
+			"new",
+			"null",
+			"return",
+			"super",
+			"switch",
+			"this",
+			"throw",
+			"true",
+			"try",
+			"typeof",
+			"var",
+			"void",
+			"while",
+			"with",
+			"yield",
+			"let",
+			"static",
+			"await",
+			"implements",
+			"interface",
+			"package",
+			"private",
+			"protected",
+			"public"
+		]).has(identifier)) identifier = `${identifier}_`;
+		return identifier;
+	};
+	const usedVarNames = /* @__PURE__ */ new Set();
+	const uniquifyIdentifier = (preferred, fallback) => {
+		const base = sanitizeJsIdentifier(preferred, fallback);
+		let candidate = base;
+		let suffix = 2;
+		while (usedVarNames.has(candidate)) {
+			candidate = `${base}_${suffix}`;
+			suffix += 1;
+		}
+		usedVarNames.add(candidate);
+		return candidate;
+	};
 	const inputIndexToVarName = /* @__PURE__ */ new Map();
 	const pineVarToJsVar = /* @__PURE__ */ new Map();
+	const indexToPineVar = /* @__PURE__ */ new Map();
+	if (inputVariableMap) {
+		for (const [pineVar, inputIdx] of inputVariableMap) if (!indexToPineVar.has(inputIdx)) indexToPineVar.set(inputIdx, pineVar);
+	}
 	for (let i = 0; i < inputs.length; i++) {
 		const input = inputs[i];
-		const varName = input.name.replace(/[^a-zA-Z0-9]/g, "_").replace(/^_+|_+$/g, "");
+		const pineVarName = indexToPineVar.get(i);
+		const varName = pineVarName ? uniquifyIdentifier(pineVarName, `input_${i}`) : uniquifyIdentifier(input.name, `input_${i}`);
 		inputIndexToVarName.set(i, varName);
 		if (input.type === "bool") lines.push(`        const ${varName} = Boolean(inputCallback(${i}));`);
 		else if (input.type === "integer" || input.type === "float") lines.push(`        const ${varName} = Number(inputCallback(${i}));`);
@@ -4893,6 +4975,27 @@ function generateNativeMainBody(inputs, plots, bgcolors, sessionVariables, deriv
 		const jsVar = inputIndexToVarName.get(inputIdx);
 		if (jsVar) pineVarToJsVar.set(pineVar, jsVar);
 	}
+	const boundInputIndexes = /* @__PURE__ */ new Set();
+	if (inputVariableMap) for (const inputIdx of inputVariableMap.values()) boundInputIndexes.add(inputIdx);
+	const unboundInputVarNames = [];
+	for (let i = 0; i < inputs.length; i++) {
+		if (boundInputIndexes.has(i)) continue;
+		const jsVar = inputIndexToVarName.get(i);
+		if (jsVar) unboundInputVarNames.push(jsVar);
+	}
+	let unboundInputCursor = 0;
+	const consumeInlineInputVarName = () => {
+		if (unboundInputCursor >= unboundInputVarNames.length) return null;
+		const name = unboundInputVarNames[unboundInputCursor];
+		unboundInputCursor += 1;
+		return name;
+	};
+	const normalizePineLogicalOperators = (expr) => {
+		let normalized = expr.replace(/\band\b/g, "&&").replace(/\bor\b/g, "||");
+		normalized = normalized.replace(/\bnot\s+(?=[A-Za-z_$(])/g, "!");
+		normalized = normalized.replace(/(^|&&|\|\||\(|\?|:|,)\s*not(?=[A-Za-z_$(])/g, "$1 !");
+		return normalized;
+	};
 	lines.push("");
 	const hasBgcolors = bgcolors && bgcolors.length > 0;
 	const hasPlots = plots && plots.length > 0;
@@ -4905,6 +5008,10 @@ function generateNativeMainBody(inputs, plots, bgcolors, sessionVariables, deriv
 				const regex = new RegExp(`\\b${pineVar}\\b`, "g");
 				expr = expr.replace(regex, jsVar);
 			}
+			expr = expr.replace(/\binput(?:\.[A-Za-z_]\w*)?\([^)]*\)/g, (match) => {
+				return consumeInlineInputVarName() ?? match;
+			});
+			expr = normalizePineLogicalOperators(expr);
 			expr = expr.replace(/\bta\.(\w+)\(/g, "Std.$1(");
 			expr = expr.replace(/Std\.(\w+)\(([^)]+)\)/g, (match, fn, args) => {
 				if (args.includes("context")) return match;
@@ -5012,6 +5119,7 @@ function generateNativeMainBody(inputs, plots, bgcolors, sessionVariables, deriv
 				const regex = new RegExp(`\\b${pineVar}\\b`, "g");
 				expr = expr.replace(regex, jsVar);
 			}
+			expr = normalizePineLogicalOperators(expr);
 			expr = expr.replace(/\bta\.(\w+)\(/g, "Std.$1(");
 			expr = expr.replace(/Std\.(\w+)\(([^)]+)\)/g, (match, fn, args) => {
 				if (args.includes("context")) return match;
@@ -8964,137 +9072,6 @@ function executePineJS(code, indicatorId, indicatorName) {
 	}
 }
 //#endregion
-Object.defineProperty(exports, "COLOR_MAP", {
-	enumerable: true,
-	get: function() {
-		return COLOR_MAP;
-	}
-});
-Object.defineProperty(exports, "HelperUsage", {
-	enumerable: true,
-	get: function() {
-		return HelperUsage;
-	}
-});
-Object.defineProperty(exports, "MATH_FUNCTION_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return MATH_FUNCTION_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "MAX_INPUT_SIZE", {
-	enumerable: true,
-	get: function() {
-		return MAX_INPUT_SIZE;
-	}
-});
-Object.defineProperty(exports, "MULTI_OUTPUT_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return MULTI_OUTPUT_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "PRICE_SOURCES", {
-	enumerable: true,
-	get: function() {
-		return PRICE_SOURCES;
-	}
-});
-Object.defineProperty(exports, "TA_FUNCTION_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return TA_FUNCTION_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "TIME_FUNCTION_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return TIME_FUNCTION_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "buildFactory", {
-	enumerable: true,
-	get: function() {
-		return buildFactory;
-	}
-});
-Object.defineProperty(exports, "canTranspilePineScript", {
-	enumerable: true,
-	get: function() {
-		return canTranspilePineScript;
-	}
-});
-Object.defineProperty(exports, "compile", {
-	enumerable: true,
-	get: function() {
-		return compile;
-	}
-});
-Object.defineProperty(exports, "executePineJS", {
-	enumerable: true,
-	get: function() {
-		return executePineJS;
-	}
-});
-Object.defineProperty(exports, "extractMetadata", {
-	enumerable: true,
-	get: function() {
-		return extractMetadata;
-	}
-});
-Object.defineProperty(exports, "generateBody", {
-	enumerable: true,
-	get: function() {
-		return generateBody;
-	}
-});
-Object.defineProperty(exports, "generateStandaloneFactory", {
-	enumerable: true,
-	get: function() {
-		return generateStandaloneFactory;
-	}
-});
-Object.defineProperty(exports, "getAllPineFunctionNames", {
-	enumerable: true,
-	get: function() {
-		return getAllPineFunctionNames;
-	}
-});
-Object.defineProperty(exports, "getMappingStats", {
-	enumerable: true,
-	get: function() {
-		return getMappingStats;
-	}
-});
-Object.defineProperty(exports, "parse", {
-	enumerable: true,
-	get: function() {
-		return parse;
-	}
-});
-Object.defineProperty(exports, "transpile", {
-	enumerable: true,
-	get: function() {
-		return transpile;
-	}
-});
-Object.defineProperty(exports, "transpileToPineJS", {
-	enumerable: true,
-	get: function() {
-		return transpileToPineJS;
-	}
-});
-Object.defineProperty(exports, "transpileToStandaloneFactory", {
-	enumerable: true,
-	get: function() {
-		return transpileToStandaloneFactory;
-	}
-});
-Object.defineProperty(exports, "validateInputSize", {
-	enumerable: true,
-	get: function() {
-		return validateInputSize;
-	}
-});
+export { HelperUsage as S, getMappingStats as _, transpileToStandaloneFactory as a, TA_FUNCTION_MAPPINGS as b, compile as c, parse as d, validateInputSize as f, getAllPineFunctionNames as g, PRICE_SOURCES as h, transpileToPineJS as i, extractMetadata as l, COLOR_MAP as m, executePineJS as n, MAX_INPUT_SIZE as o, generateStandaloneFactory as p, transpile as r, buildFactory as s, canTranspilePineScript as t, generateBody as u, TIME_FUNCTION_MAPPINGS as v, MATH_FUNCTION_MAPPINGS as x, MULTI_OUTPUT_MAPPINGS as y };
 
-//# sourceMappingURL=src-BZ8s23ac.cjs.map
+//# sourceMappingURL=src-KxxrYdrf.js.map
