@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { transpileToStandaloneFactory } from '../src/index.js';
 
-type ScanStage =
+export type ScanStage =
   | 'load-source'
   | 'transpile'
   | 'strict-eval'
@@ -10,7 +10,7 @@ type ScanStage =
   | 'construct'
   | 'run-bars';
 
-interface ErrorBucket {
+export interface ErrorBucket {
   name: string;
   message: string;
   count: number;
@@ -19,7 +19,7 @@ interface ErrorBucket {
   stage: ScanStage;
 }
 
-interface ScanResult {
+export interface ScanResult {
   scriptPath: string;
   barsRequested: number;
   barsCompleted: number;
@@ -89,7 +89,7 @@ class ScanContext {
   }
 }
 
-function stripEsmKeywords(factoryCode: string): string {
+export function stripEsmKeywords(factoryCode: string): string {
   return factoryCode
     .replace(/^[ \t]*import\b[^\n]*$/gm, '')
     .replace(/^[ \t]*export\s+default\b[^\n]*$/gm, '')
@@ -97,7 +97,11 @@ function stripEsmKeywords(factoryCode: string): string {
     .replace(/^[ \t]*export\s*\{[^}]*\}\s*;?\s*$/gm, '');
 }
 
-function normalizeThrowable(error: unknown): { name: string; message: string; stack?: string } {
+export function normalizeThrowable(error: unknown): {
+  name: string;
+  message: string;
+  stack?: string;
+} {
   if (error instanceof Error) {
     return {
       name: error.name || 'Error',
@@ -109,7 +113,7 @@ function normalizeThrowable(error: unknown): { name: string; message: string; st
   return { name: 'Error', message: value, stack: value };
 }
 
-function firstStackFrame(stack?: string): string {
+export function firstStackFrame(stack?: string): string {
   if (!stack) return '<no stack>';
   const lines = stack
     .split('\n')
@@ -122,7 +126,7 @@ function firstStackFrame(stack?: string): string {
   return lines[1] ?? '<no stack>';
 }
 
-function collectError(
+export function collectError(
   map: Map<string, ErrorBucket>,
   stage: ScanStage,
   barIndex: number | null,
@@ -145,7 +149,7 @@ function collectError(
   });
 }
 
-function createNoopStd(): Record<string, unknown> {
+export function createNoopStd(): Record<string, unknown> {
   const noop = () => undefined;
   return new Proxy(
     {},
@@ -158,29 +162,36 @@ function createNoopStd(): Record<string, unknown> {
   );
 }
 
-function listTargetScripts(targetPathArg?: string): string[] {
+function collectPineFiles(rootPath: string): string[] {
+  const out: string[] = [];
+  const walk = (path: string): void => {
+    if (!existsSync(path)) return;
+    const stats = statSync(path);
+    if (stats.isFile()) {
+      if (path.endsWith('.pine')) out.push(path);
+      return;
+    }
+    if (!stats.isDirectory()) return;
+    const entries = readdirSync(path).sort();
+    for (const entry of entries) {
+      walk(join(path, entry));
+    }
+  };
+  walk(rootPath);
+  return out.sort();
+}
+
+export function listTargetScripts(targetPathArg?: string): string[] {
   if (!targetPathArg) {
     const fixturesDir = resolve(import.meta.dir, '../fixtures');
-    if (!existsSync(fixturesDir)) return [];
-    return readdirSync(fixturesDir)
-      .filter((name) => name.endsWith('.pine'))
-      .sort()
-      .map((name) => join(fixturesDir, name));
+    return collectPineFiles(fixturesDir);
   }
 
   const targetPath = resolve(process.cwd(), targetPathArg);
-  if (!existsSync(targetPath)) return [];
-  const stats = statSync(targetPath);
-  if (stats.isDirectory()) {
-    return readdirSync(targetPath)
-      .filter((name) => name.endsWith('.pine'))
-      .sort()
-      .map((name) => join(targetPath, name));
-  }
-  return [targetPath];
+  return collectPineFiles(targetPath);
 }
 
-function scanScript(scriptPath: string, barsRequested: number): ScanResult {
+export function scanScript(scriptPath: string, barsRequested: number): ScanResult {
   const errors = new Map<string, ErrorBucket>();
   const result: ScanResult = {
     scriptPath,
@@ -290,7 +301,7 @@ function scanScript(scriptPath: string, barsRequested: number): ScanResult {
   return result;
 }
 
-function printResult(result: ScanResult): void {
+export function printResult(result: ScanResult): void {
   console.log(`\n=== ${result.scriptPath} ===`);
   console.log(`bars completed: ${result.barsCompleted}/${result.barsRequested}`);
   console.log(`distinct errors: ${result.errorBuckets.length}`);
@@ -308,7 +319,7 @@ function printResult(result: ScanResult): void {
   });
 }
 
-function parseArgs(): { targetPathArg?: string; bars: number } {
+export function parseArgs(): { targetPathArg?: string; bars: number } {
   const args = process.argv.slice(2);
   if (args.length === 0) return { bars: 100 };
 
@@ -327,7 +338,7 @@ function parseArgs(): { targetPathArg?: string; bars: number } {
   };
 }
 
-function main(): void {
+export function main(): void {
   const { targetPathArg, bars } = parseArgs();
   const scripts = listTargetScripts(targetPathArg);
   if (scripts.length === 0) {
@@ -355,5 +366,6 @@ function main(): void {
   process.exitCode = anyFailed ? 1 : 0;
 }
 
-main();
-
+if (import.meta.main) {
+  main();
+}

@@ -1,0 +1,8 @@
+//@version=6
+strategy("Feature Matrix - strategy", overlay=true)
+
+shouldLong = close > open
+if shouldLong
+    strategy.entry("L", strategy.long)
+
+plot(close, "Close")

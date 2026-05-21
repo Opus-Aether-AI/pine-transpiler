@@ -1,0 +1,11 @@
+//@version=6
+indicator("Feature Matrix - map + matrix", overlay=false)
+
+m = map.new<string, float>()
+map.put(m, "close", close)
+stored = map.get(m, "close")
+
+mx = matrix.new<float>(2, 2, close)
+matrix.set(mx, 0, 1, open)
+
+plot(stored + matrix.get(mx, 0, 1), "Map + Matrix")

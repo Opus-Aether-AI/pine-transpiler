@@ -1,0 +1,7 @@
+//@version=6
+indicator("Feature Matrix - varip", overlay=false)
+
+varip int ticks = 0
+ticks += 1
+
+plot(ticks, "Ticks")

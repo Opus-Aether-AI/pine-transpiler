@@ -1,0 +1,5 @@
+//@version=6
+indicator("Feature Matrix - request.security", overlay=false)
+
+htfClose = request.security(syminfo.tickerid, "60", close)
+plot(htfClose, "HTF Close")
