@@ -1,0 +1,25 @@
+# CODEOWNERS for Opus-Aether-AI/pine-transpiler
+#
+# Each line maps a file pattern to one or more owners. The last matching
+# pattern wins, so put global owners first and narrower scopes below.
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything in the repo
+*                                       @ithihasmadala
+
+# Generator + factory codepaths — invariants matter, double-check changes
+/src/generator/                         @ithihasmadala
+/src/factory/                           @ithihasmadala
+
+# Public surface and release artifacts
+/src/index.ts                           @ithihasmadala
+/package.json                           @ithihasmadala
+/CHANGELOG.md                           @ithihasmadala
+
+# CI + release infrastructure
+/.github/                               @ithihasmadala
+
+# Documentation
+/docs/                                  @ithihasmadala
+/README.md                              @ithihasmadala
+/SECURITY.md                            @ithihasmadala

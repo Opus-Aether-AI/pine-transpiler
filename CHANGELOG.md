@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+<!--
+Add notes for unreleased changes here. When cutting a release, replace the
+`Unreleased` heading with the new version number + ISO date, and start a fresh
+empty `Unreleased` section above it.
+
+Groups (in this order): Added, Changed, Deprecated, Removed, Fixed, Security.
+-->
+
+## [0.4.3] - 2026-05-22
+
+### Fixed
+- `transpileToStandaloneFactory(...)` now produces **self-contained** standalone
+  factory output — generated indicators no longer need helpers provided by the
+  host runtime to evaluate. Reduces the surface area for "missing helper" errors
+  when the generated factory is registered against a vanilla `PineJS` runtime.
+
+### Changed
+- Biome auto-format pass on the standalone-factory codegen template.
+
 ## [0.4.2] - 2026-05-22
 
 ### Fixed
@@ -26,6 +47,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and assert user-defined symbols resolve at runtime:
   - `tests/regression/ict-killzones-standalone.test.ts`
   - `tests/regression/standalone-test-utils.ts`
+
+## [0.4.1] - 2026-05-22
+
+### Fixed
+- `transpileToStandaloneFactory(...)` codegen now **sanitizes and uniquifies
+  identifiers** in the synthesized `main()` body, preventing collisions between
+  user-defined Pine symbols and computed-variable identifiers in the generated
+  JavaScript. This closes a class of `ReferenceError` / shadowing bugs in
+  standalone factory output.
+
+## [0.4.0] - 2026-05-22
+
+### Changed
+- **BREAKING:** Package renamed from `@opusaether/pine-transpiler` to
+  `@opus-aether-ai/pine-transpiler` to match the GitHub organization.
+  Consumers must update their `package.json` dependencies and re-install.
+- License + framing pass: project is now formally MIT-licensed (`LICENSE`),
+  with a new `DISCLAIMER.md` documenting independence from TradingView and
+  scope of the Pine Script™ grammar coverage.
+- README rewritten for a leaner, SEO-optimized landing experience.
+
+### Added
+- `DISCLAIMER.md` at repo root.
+- Dual-registry publish setup: package is now available on both public npm and
+  GitHub Packages.
+- Split technical documentation into dedicated `docs/` files (API, architecture,
+  development, supported features).
 
 ## [0.3.1] - 2026-05-17
 

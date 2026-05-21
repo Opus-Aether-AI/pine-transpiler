@@ -196,13 +196,14 @@ export const technicalAnalysisMappings: Record<string, string> = {
 
 ## Questions?
 
-- Open a [Discussion](https://github.com/opusaether/pine-transpiler/discussions) for questions
+- Open a [Discussion](https://github.com/Opus-Aether-AI/pine-transpiler/discussions) for questions
 - Check existing issues and discussions first
 - Be respectful and patient
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the AGPL-3.0 License.
+By contributing, you agree that your contributions will be licensed under the MIT License,
+matching the project's [LICENSE](./LICENSE).
 
 ---
 
