@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'bun:test';
+import { createMockRuntime } from '../corpus/mock-runtime';
 import { transpileToStandaloneFactory } from '../../src/index';
+import { loadCreateIndicator } from './standalone-test-utils';
 
 const DUPLICATE_INPUT_TITLE_SCRIPT = `//@version=6
 indicator("Duplicate Input Title", overlay=true)
@@ -33,12 +35,33 @@ describe('duplicate input title regression', () => {
     }
 
     const factoryCode = result.factoryCode ?? '';
-    expect(factoryCode).toContain('const dhl = Boolean(inputCallback(0));');
-    expect(factoryCode).toContain('const whl = Boolean(inputCallback(1));');
-    expect(factoryCode).toContain('const mhl = Boolean(inputCallback(2));');
+    expect(factoryCode).toContain('var dhl = input.bool(false, "High/Low", NaN, "DO");');
+    expect(factoryCode).toContain('var whl = input.bool(false, "High/Low", NaN, "WO");');
+    expect(factoryCode).toContain('var mhl = input.bool(false, "High/Low", NaN, "MO");');
+    expect(factoryCode).not.toContain('const High_Low');
+    expect(factoryCode).not.toContain('var High_Low');
 
     const parseTarget = stripModuleSyntax(factoryCode);
     expect(() => new Function(parseTarget)).not.toThrow();
+
+    const runtime = createMockRuntime({ barCount: 1, barIndexStart: 10_000 });
+    const createIndicator = loadCreateIndicator(factoryCode, {});
+    const indicator = createIndicator(runtime.pineJs) as {
+      constructor: new () => {
+        main: (ctx: unknown, cb: (index: number) => unknown) => unknown;
+      };
+    };
+    const instance = new indicator.constructor();
+    const inputCallback = (index: number) => [1, 0, 1][index] ?? 0;
+
+    runtime.resetVarPointer();
+    runtime.resetCurrentBarPlots();
+    const out = instance.main(runtime.context, inputCallback);
+    expect(Array.isArray(out)).toBe(true);
+    if (Array.isArray(out)) {
+      expect(out[0]).toBe(1);
+      expect(Number.isNaN(Number(out[1]))).toBe(true);
+      expect(out[2]).toBe(3);
+    }
   });
 });
-

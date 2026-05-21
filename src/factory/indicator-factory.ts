@@ -102,6 +102,1271 @@ export interface IndicatorFactoryOptions {
   programAst?: Program;
 }
 
+function indentCode(code: string, spaces: number): string {
+  const pad = ' '.repeat(spaces);
+  return code
+    .split('\n')
+    .map((line) => `${pad}${line}`)
+    .join('\n');
+}
+
+const STANDALONE_RUNTIME_HELPERS = `
+function __toNumber(value, fallback) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : (fallback === undefined ? Number.NaN : fallback);
+}
+
+function __toInteger(value, fallback) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.trunc(n) : (fallback === undefined ? 0 : fallback);
+}
+
+function __coercePlotValue(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : Number.NaN;
+  if (typeof value === 'boolean') return value ? 1 : 0;
+  if (value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, 'value')) {
+    return __coercePlotValue(value.value);
+  }
+  if (typeof value === 'string') {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : Number.NaN;
+  }
+  return Number.NaN;
+}
+
+function __coerceShapePlotValue(value) {
+  if (typeof value === 'boolean') return value ? 1 : Number.NaN;
+  const n = __coercePlotValue(value);
+  if (!Number.isFinite(n)) return Number.NaN;
+  return n === 0 ? Number.NaN : n;
+}
+
+function __asHandle(value) {
+  if (typeof value !== 'object' || value === null) return undefined;
+  if (typeof value.__id !== 'number') return undefined;
+  return value;
+}
+
+function __resolveHandle(value, store) {
+  const handle = __asHandle(value);
+  if (!handle) return undefined;
+  const resolved = store.get(handle.__id);
+  if (!resolved || resolved.__deleted) return undefined;
+  return resolved;
+}
+
+function __withConstantFallback(base, prefix) {
+  return new Proxy(base, {
+    get(target, prop) {
+      if (typeof prop !== 'string') return undefined;
+      if (prop in target) return target[prop];
+      return prefix + '.' + prop;
+    },
+  });
+}
+
+function __createLineNamespace() {
+  let nextId = 1;
+  const lineStore = new Map();
+  const remove = (lineObj) => {
+    const h = __resolveHandle(lineObj, lineStore);
+    if (!h) return;
+    h.__deleted = true;
+    lineStore.delete(h.__id);
+  };
+  const setX2 = (lineObj, x2) => {
+    const h = __resolveHandle(lineObj, lineStore);
+    if (!h) return;
+    h.x2 = __toNumber(x2);
+  };
+  const setXY1 = (lineObj, x1, y1) => {
+    const h = __resolveHandle(lineObj, lineStore);
+    if (!h) return;
+    h.x1 = __toNumber(x1);
+    h.y1 = __toNumber(y1);
+  };
+  const setXY2 = (lineObj, x2, y2) => {
+    const h = __resolveHandle(lineObj, lineStore);
+    if (!h) return;
+    h.x2 = __toNumber(x2);
+    h.y2 = __toNumber(y2);
+  };
+  const setColor = (lineObj, color) => {
+    const h = __resolveHandle(lineObj, lineStore);
+    if (!h) return;
+    h.color = color;
+  };
+  const getX2 = (lineObj) => {
+    const h = __resolveHandle(lineObj, lineStore);
+    return h ? __toNumber(h.x2) : Number.NaN;
+  };
+  const getY1 = (lineObj) => {
+    const h = __resolveHandle(lineObj, lineStore);
+    return h ? __toNumber(h.y1) : Number.NaN;
+  };
+  const getY2 = (lineObj) => {
+    const h = __resolveHandle(lineObj, lineStore);
+    return h ? __toNumber(h.y2) : Number.NaN;
+  };
+  const attachMethods = (h) => {
+    if (typeof h.delete !== 'function') h.delete = () => remove(h);
+    if (typeof h.set_x2 !== 'function') h.set_x2 = (x2) => setX2(h, x2);
+    if (typeof h.set_xy1 !== 'function') h.set_xy1 = (x1, y1) => setXY1(h, x1, y1);
+    if (typeof h.set_xy2 !== 'function') h.set_xy2 = (x2, y2) => setXY2(h, x2, y2);
+    if (typeof h.set_color !== 'function') h.set_color = (color) => setColor(h, color);
+    if (typeof h.get_x2 !== 'function') h.get_x2 = () => getX2(h);
+    if (typeof h.get_y1 !== 'function') h.get_y1 = () => getY1(h);
+    if (typeof h.get_y2 !== 'function') h.get_y2 = () => getY2(h);
+  };
+
+  const line = {
+    new: (...args) => {
+      const h = {
+        __id: nextId++,
+        __deleted: false,
+        x1: __toNumber(args[0]),
+        y1: __toNumber(args[1]),
+        x2: __toNumber(args[2]),
+        y2: __toNumber(args[3]),
+        xloc: args[4],
+        extend: args[5],
+        color: args[6],
+        style: args[7],
+        width: __toInteger(args[8], 1),
+      };
+      attachMethods(h);
+      lineStore.set(h.__id, h);
+      return h;
+    },
+    delete: remove,
+    set_x2: setX2,
+    set_xy1: setXY1,
+    set_xy2: setXY2,
+    set_color: setColor,
+    get_x2: getX2,
+    get_y1: getY1,
+    get_y2: getY2,
+    style_solid: 'solid',
+    style_dotted: 'dotted',
+    style_dashed: 'dashed',
+  };
+  return __withConstantFallback(line, 'line');
+}
+
+function __createBoxNamespace() {
+  let nextId = 1;
+  const boxStore = new Map();
+  let currentBarTime = Number.NaN;
+  const remove = (boxObj) => {
+    const h = __resolveHandle(boxObj, boxStore);
+    if (!h) return;
+    h.__deleted = true;
+    boxStore.delete(h.__id);
+  };
+  const setLeft = (boxObj, left) => {
+    const h = __resolveHandle(boxObj, boxStore);
+    if (!h) return;
+    h.left = __toNumber(left);
+  };
+  const setRight = (boxObj, right) => {
+    const h = __resolveHandle(boxObj, boxStore);
+    if (!h) return;
+    h.right = __toNumber(right);
+  };
+  const setTop = (boxObj, top) => {
+    const h = __resolveHandle(boxObj, boxStore);
+    if (!h) return;
+    h.top = __toNumber(top);
+  };
+  const setBottom = (boxObj, bottom) => {
+    const h = __resolveHandle(boxObj, boxStore);
+    if (!h) return;
+    h.bottom = __toNumber(bottom);
+  };
+  const setExtend = (boxObj, extend) => {
+    const h = __resolveHandle(boxObj, boxStore);
+    if (!h) return;
+    h.extend = extend;
+  };
+  const setBgcolor = (boxObj, color) => {
+    const h = __resolveHandle(boxObj, boxStore);
+    if (!h) return;
+    h.bgcolor = color;
+  };
+  const setBorderColor = (boxObj, color) => {
+    const h = __resolveHandle(boxObj, boxStore);
+    if (!h) return;
+    h.border_color = color;
+  };
+  const setBorderWidth = (boxObj, width) => {
+    const h = __resolveHandle(boxObj, boxStore);
+    if (!h) return;
+    h.border_width = __toInteger(width, 1);
+  };
+  const setTextColor = (boxObj, color) => {
+    const h = __resolveHandle(boxObj, boxStore);
+    if (!h) return;
+    h.text_color = color;
+  };
+  const getLeft = (boxObj) => {
+    const h = __resolveHandle(boxObj, boxStore);
+    return h ? __toNumber(h.left) : Number.NaN;
+  };
+  const getRight = (boxObj) => {
+    const h = __resolveHandle(boxObj, boxStore);
+    return h ? __toNumber(h.right) : Number.NaN;
+  };
+  const getTop = (boxObj) => {
+    const h = __resolveHandle(boxObj, boxStore);
+    return h ? __toNumber(h.top) : Number.NaN;
+  };
+  const getBottom = (boxObj) => {
+    const h = __resolveHandle(boxObj, boxStore);
+    return h ? __toNumber(h.bottom) : Number.NaN;
+  };
+  const attachMethods = (h) => {
+    if (typeof h.delete !== 'function') h.delete = () => remove(h);
+    if (typeof h.set_left !== 'function') h.set_left = (left) => setLeft(h, left);
+    if (typeof h.set_right !== 'function') h.set_right = (right) => setRight(h, right);
+    if (typeof h.set_top !== 'function') h.set_top = (top) => setTop(h, top);
+    if (typeof h.set_bottom !== 'function') h.set_bottom = (bottom) => setBottom(h, bottom);
+    if (typeof h.set_extend !== 'function') h.set_extend = (extend) => setExtend(h, extend);
+    if (typeof h.set_bgcolor !== 'function') h.set_bgcolor = (color) => setBgcolor(h, color);
+    if (typeof h.set_border_color !== 'function') h.set_border_color = (color) => setBorderColor(h, color);
+    if (typeof h.set_border_width !== 'function') h.set_border_width = (width) => setBorderWidth(h, width);
+    if (typeof h.set_text_color !== 'function') h.set_text_color = (color) => setTextColor(h, color);
+    if (typeof h.get_left !== 'function') h.get_left = () => getLeft(h);
+    if (typeof h.get_right !== 'function') h.get_right = () => getRight(h);
+    if (typeof h.get_top !== 'function') h.get_top = () => getTop(h);
+    if (typeof h.get_bottom !== 'function') h.get_bottom = () => getBottom(h);
+  };
+  const box = {
+    new: (...args) => {
+      const h = {
+        __id: nextId++,
+        __deleted: false,
+        left: __toNumber(args[0]),
+        top: __toNumber(args[1]),
+        right: __toNumber(args[2]),
+        bottom: __toNumber(args[3]),
+        border_color: args[4],
+        border_width: __toInteger(args[5], 1),
+        border_style: args[6],
+        extend: args[7],
+        xloc: args[8],
+        bgcolor: args[9],
+        text: args[10],
+        text_size: args[11],
+        text_color: args[12],
+      };
+      attachMethods(h);
+      boxStore.set(h.__id, h);
+      return h;
+    },
+    delete: remove,
+    set_left: setLeft,
+    set_right: setRight,
+    set_top: setTop,
+    set_bottom: setBottom,
+    set_extend: setExtend,
+    set_bgcolor: setBgcolor,
+    set_border_color: setBorderColor,
+    set_border_width: setBorderWidth,
+    set_text_color: setTextColor,
+    get_left: getLeft,
+    get_right: getRight,
+    get_top: getTop,
+    get_bottom: getBottom,
+    __setBarTime: (t) => {
+      const n = Number(t);
+      if (Number.isFinite(n)) currentBarTime = n;
+    },
+    __getActiveBgcolor: () => {
+      if (!Number.isFinite(currentBarTime)) return null;
+      let active = null;
+      for (const h of boxStore.values()) {
+        if (__toNumber(h.right) === currentBarTime) active = h;
+      }
+      if (!active) return null;
+      return active.bgcolor || active.border_color || null;
+    },
+  };
+  return __withConstantFallback(box, 'box');
+}
+
+function __createLabelNamespace() {
+  let nextId = 1;
+  const labelStore = new Map();
+  const remove = (labelObj) => {
+    const h = __resolveHandle(labelObj, labelStore);
+    if (!h) return;
+    h.__deleted = true;
+    labelStore.delete(h.__id);
+  };
+  const setText = (labelObj, text) => {
+    const h = __resolveHandle(labelObj, labelStore);
+    if (!h) return;
+    h.text = text == null ? '' : String(text);
+  };
+  const getText = (labelObj) => {
+    const h = __resolveHandle(labelObj, labelStore);
+    return h ? String(h.text == null ? '' : h.text) : '';
+  };
+  const setTooltip = (labelObj, tooltip) => {
+    const h = __resolveHandle(labelObj, labelStore);
+    if (!h) return;
+    h.tooltip = tooltip == null ? '' : String(tooltip);
+  };
+  const setTextcolor = (labelObj, color) => {
+    const h = __resolveHandle(labelObj, labelStore);
+    if (!h) return;
+    h.textcolor = color;
+  };
+  const setStyle = (labelObj, style) => {
+    const h = __resolveHandle(labelObj, labelStore);
+    if (!h) return;
+    h.style = style;
+  };
+  const setXY = (labelObj, x, y) => {
+    const h = __resolveHandle(labelObj, labelStore);
+    if (!h) return;
+    h.x = __toNumber(x);
+    h.y = __toNumber(y);
+  };
+  const setX = (labelObj, x) => {
+    const h = __resolveHandle(labelObj, labelStore);
+    if (!h) return;
+    h.x = __toNumber(x);
+  };
+  const setY = (labelObj, y) => {
+    const h = __resolveHandle(labelObj, labelStore);
+    if (!h) return;
+    h.y = __toNumber(y);
+  };
+  const getY = (labelObj) => {
+    const h = __resolveHandle(labelObj, labelStore);
+    return h ? __toNumber(h.y) : Number.NaN;
+  };
+  const attachMethods = (h) => {
+    if (typeof h.delete !== 'function') h.delete = () => remove(h);
+    if (typeof h.set_text !== 'function') h.set_text = (text) => setText(h, text);
+    if (typeof h.get_text !== 'function') h.get_text = () => getText(h);
+    if (typeof h.set_tooltip !== 'function') h.set_tooltip = (tooltip) => setTooltip(h, tooltip);
+    if (typeof h.set_textcolor !== 'function') h.set_textcolor = (color) => setTextcolor(h, color);
+    if (typeof h.set_style !== 'function') h.set_style = (style) => setStyle(h, style);
+    if (typeof h.set_xy !== 'function') h.set_xy = (x, y) => setXY(h, x, y);
+    if (typeof h.set_x !== 'function') h.set_x = (x) => setX(h, x);
+    if (typeof h.set_y !== 'function') h.set_y = (y) => setY(h, y);
+    if (typeof h.get_y !== 'function') h.get_y = () => getY(h);
+  };
+  const label = {
+    new: (...args) => {
+      const h = {
+        __id: nextId++,
+        __deleted: false,
+        x: __toNumber(args[0]),
+        y: __toNumber(args[1]),
+        text: args[2] == null ? '' : String(args[2]),
+        xloc: args[3],
+        yloc: args[4],
+        color: args[5],
+        style: args[6],
+        textcolor: args[7],
+        size: args[8],
+      };
+      attachMethods(h);
+      labelStore.set(h.__id, h);
+      return h;
+    },
+    delete: remove,
+    set_text: setText,
+    get_text: getText,
+    set_tooltip: setTooltip,
+    set_textcolor: setTextcolor,
+    set_style: setStyle,
+    set_xy: setXY,
+    set_x: setX,
+    set_y: setY,
+    get_y: getY,
+    style_label_up: 'label_up',
+    style_label_down: 'label_down',
+    style_label_left: 'label_left',
+    style_label_right: 'label_right',
+  };
+  return __withConstantFallback(label, 'label');
+}
+
+function __createTableNamespace() {
+  let nextId = 1;
+  const tableStore = new Map();
+  const keyFor = (col, row) => String(col) + ':' + String(row);
+  const cell = (...args) => {
+    const t = __resolveHandle(args[0], tableStore);
+    if (!t) return;
+    const col = __toInteger(args[1], 0);
+    const row = __toInteger(args[2], 0);
+    t.cells.set(keyFor(col, row), {
+      text: args[3],
+      textColor: args[6],
+      textSize: args[9],
+      bgcolor: args[10],
+      tooltip: args[11],
+    });
+  };
+  const clear = (...args) => {
+    const t = __resolveHandle(args[0], tableStore);
+    if (!t) return;
+    t.cells.clear();
+    t.merges = [];
+  };
+  const merge_cells = (...args) => {
+    const t = __resolveHandle(args[0], tableStore);
+    if (!t) return;
+    t.merges.push([
+      __toInteger(args[1], 0),
+      __toInteger(args[2], 0),
+      __toInteger(args[3], 0),
+      __toInteger(args[4], 0),
+    ]);
+  };
+  const table = {
+    new: (...args) => {
+      const t = {
+        __id: nextId++,
+        __deleted: false,
+        position: args[0],
+        columns: Math.max(0, __toInteger(args[1], 0)),
+        rows: Math.max(0, __toInteger(args[2], 0)),
+        cells: new Map(),
+        merges: [],
+      };
+      t.cell = (...inner) => cell(t, ...inner);
+      t.clear = (...inner) => clear(t, ...inner);
+      t.merge_cells = (...inner) => merge_cells(t, ...inner);
+      tableStore.set(t.__id, t);
+      return t;
+    },
+    cell,
+    clear,
+    merge_cells,
+  };
+  return __withConstantFallback(table, 'table');
+}
+
+function __createStrNamespace() {
+  const c = (v) => (v == null ? '' : String(v));
+  return {
+    tostring: (v) => c(v),
+    tonumber: (v) => {
+      const n = Number(c(v));
+      return Number.isFinite(n) ? n : Number.NaN;
+    },
+    length: (v) => c(v).length,
+    contains: (s, sub) => c(s).includes(c(sub)),
+    startswith: (s, prefix) => c(s).startsWith(c(prefix)),
+    endswith: (s, suffix) => c(s).endsWith(c(suffix)),
+    upper: (s) => c(s).toUpperCase(),
+    lower: (s) => c(s).toLowerCase(),
+    replace_all: (s, target, replacement) => c(s).split(c(target)).join(c(replacement)),
+    trim: (s) => c(s).trim(),
+    split: (s, sep) => c(s).split(c(sep)),
+    pos: (s, sub) => c(s).indexOf(c(sub)),
+    substring: (s, start, end) => {
+      const str = c(s);
+      const startIdx = typeof start === 'number' ? start : 0;
+      const endIdx = typeof end === 'number' ? end : str.length;
+      return str.substring(startIdx, endIdx);
+    },
+    format: (fmt, ...args) => c(fmt).replace(/{(\\d+)}/g, (m, i) => c(args[Number(i)] ?? m)),
+  };
+}
+
+function __createStubNamespaces() {
+  return {
+    box: __createBoxNamespace(),
+    line: __createLineNamespace(),
+    label: __createLabelNamespace(),
+    table: __createTableNamespace(),
+    str: __createStrNamespace(),
+  };
+}
+
+function __createInput(inputCallback, Std, context) {
+  let inputIndex = 0;
+  const coerce = (defval, raw) => {
+    if (typeof defval === 'string') return typeof raw === 'string' ? raw : defval;
+    if (typeof defval === 'boolean') {
+      if (typeof raw === 'boolean') return raw;
+      if (typeof raw === 'number') return raw !== 0;
+      if (typeof raw === 'string') {
+        const s = raw.trim().toLowerCase();
+        if (s === 'true') return true;
+        if (s === 'false') return false;
+      }
+      return defval;
+    }
+    if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+    if (typeof raw === 'string') {
+      const parsed = Number(raw);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return defval;
+  };
+  const baseInput = (defval) => {
+    const raw = inputCallback(inputIndex++);
+    return coerce(defval, raw);
+  };
+  const input = baseInput;
+  input.int = baseInput;
+  input.float = baseInput;
+  input.bool = baseInput;
+  input.string = baseInput;
+  input.time = baseInput;
+  input.symbol = baseInput;
+  input.color = baseInput;
+  input.timeframe = baseInput;
+  input.session = baseInput;
+  input.text_area = baseInput;
+  input.price = baseInput;
+  input.source = () => {
+    const val = inputCallback(inputIndex++);
+    if (val === 'close') return Std.close(context);
+    if (val === 'open') return Std.open(context);
+    if (val === 'high') return Std.high(context);
+    if (val === 'low') return Std.low(context);
+    if (val === 'volume') return Std.volume(context);
+    if (val === 'hl2') return Std.hl2(context);
+    if (val === 'hlc3') return Std.hlc3(context);
+    if (val === 'ohlc4') return Std.ohlc4(context);
+    return Std.close(context);
+  };
+  return input;
+}
+
+function __timeframeToSeconds(raw, fallbackPeriod) {
+  const source = raw === undefined || raw === null || raw === '' ? fallbackPeriod : raw;
+  const tf = String(source == null ? '' : source).trim();
+  if (!tf) return 60;
+  const upper = tf.toUpperCase();
+  const m = upper.match(/^(\\d+)?([SMHDWMY])?$/);
+  if (!m) return 60;
+  const num = Number(m[1] || 1);
+  if (!Number.isFinite(num) || num <= 0) return 60;
+  const unit = m[2] || '';
+  if (!unit) return num * 60;
+  if (unit === 'S') return num;
+  if (unit === 'H') return num * 3600;
+  if (unit === 'D') return num * 86400;
+  if (unit === 'W') return num * 604800;
+  if (unit === 'M') return num * 2592000;
+  if (unit === 'Y') return num * 31536000;
+  return 60;
+}
+
+function __parseTimezoneOffsetMinutes(raw) {
+  const normalized = String(raw || '').trim().toUpperCase();
+  if (!normalized || normalized === 'GMT' || normalized === 'UTC' || normalized === 'GMT+0' || normalized === 'GMT-0') {
+    return 0;
+  }
+  const m = normalized.match(/^(?:GMT|UTC)([+-])(\\d{1,2})(?::?(\\d{2}))?$/);
+  if (!m) return null;
+  const sign = m[1] === '-' ? -1 : 1;
+  const hours = Number(m[2]);
+  const minutes = Number(m[3] || 0);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes) || hours > 14 || minutes > 59) {
+    return null;
+  }
+  return sign * (hours * 60 + minutes);
+}
+
+function __weekdayToPine(weekday) {
+  const upper = String(weekday || '').slice(0, 3).toUpperCase();
+  if (upper === 'SUN') return 1;
+  if (upper === 'MON') return 2;
+  if (upper === 'TUE') return 3;
+  if (upper === 'WED') return 4;
+  if (upper === 'THU') return 5;
+  if (upper === 'FRI') return 6;
+  if (upper === 'SAT') return 7;
+  return null;
+}
+
+function __readClockAt(timestamp, timezone) {
+  if (typeof timezone === 'string' && timezone.trim()) {
+    const offset = __parseTimezoneOffsetMinutes(timezone);
+    if (offset !== null) {
+      const shifted = new Date(timestamp + offset * 60000);
+      return {
+        year: shifted.getUTCFullYear(),
+        month: shifted.getUTCMonth() + 1,
+        dayOfMonth: shifted.getUTCDate(),
+        hour: shifted.getUTCHours(),
+        minute: shifted.getUTCMinutes(),
+        second: shifted.getUTCSeconds(),
+        dayOfWeek: shifted.getUTCDay() + 1,
+      };
+    }
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: timezone,
+        hour12: false,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        weekday: 'short',
+      }).formatToParts(new Date(timestamp));
+      const year = Number((parts.find((p) => p.type === 'year') || {}).value);
+      const month = Number((parts.find((p) => p.type === 'month') || {}).value);
+      const dayOfMonth = Number((parts.find((p) => p.type === 'day') || {}).value);
+      const hour = Number((parts.find((p) => p.type === 'hour') || {}).value);
+      const minute = Number((parts.find((p) => p.type === 'minute') || {}).value);
+      const second = Number((parts.find((p) => p.type === 'second') || {}).value);
+      const dayOfWeek = __weekdayToPine((parts.find((p) => p.type === 'weekday') || {}).value || '');
+      if (
+        Number.isFinite(year) &&
+        Number.isFinite(month) &&
+        Number.isFinite(dayOfMonth) &&
+        Number.isFinite(hour) &&
+        Number.isFinite(minute) &&
+        Number.isFinite(second) &&
+        dayOfWeek !== null
+      ) {
+        return { year, month, dayOfMonth, hour, minute, second, dayOfWeek };
+      }
+    } catch {
+      // Fall through to UTC below.
+    }
+  }
+  const d = new Date(timestamp);
+  return {
+    year: d.getUTCFullYear(),
+    month: d.getUTCMonth() + 1,
+    dayOfMonth: d.getUTCDate(),
+    hour: d.getUTCHours(),
+    minute: d.getUTCMinutes(),
+    second: d.getUTCSeconds(),
+    dayOfWeek: d.getUTCDay() + 1,
+  };
+}
+
+function __isInSessionAt(timestamp, sessionRaw, timezone) {
+  const parts = String(sessionRaw || '').split(':');
+  const timeRangeRaw = parts[0] || '';
+  const daysRaw = parts[1] || '1234567';
+  const rangeParts = timeRangeRaw.split('-');
+  if (rangeParts.length !== 2) return false;
+  const startRaw = rangeParts[0] || '';
+  const endRaw = rangeParts[1] || '';
+  if (startRaw.length < 4 || endRaw.length < 4) return false;
+  const startHour = Number(startRaw.slice(0, 2));
+  const startMinute = Number(startRaw.slice(2, 4));
+  const endHour = Number(endRaw.slice(0, 2));
+  const endMinute = Number(endRaw.slice(2, 4));
+  if (!Number.isFinite(startHour) || !Number.isFinite(startMinute) || !Number.isFinite(endHour) || !Number.isFinite(endMinute)) {
+    return false;
+  }
+  const clock = __readClockAt(timestamp, timezone);
+  const dayToken = String(clock.dayOfWeek);
+  if (daysRaw && !String(daysRaw).includes(dayToken)) return false;
+  const current = clock.hour * 60 + clock.minute;
+  const start = startHour * 60 + startMinute;
+  const end = endHour * 60 + endMinute;
+  if (start <= end) return current >= start && current < end;
+  return current >= start || current < end;
+}
+
+function __compatTime(currentBarTime, priorProcessedBars, chartPeriod, timeframeArg, sessionArg, timezoneArg, barsBackArg) {
+  let tzArg = timezoneArg;
+  let backArg = barsBackArg;
+  if (backArg === undefined && typeof tzArg === 'number' && Number.isFinite(tzArg)) {
+    backArg = tzArg;
+    tzArg = undefined;
+  }
+  const backRaw = Number(backArg == null ? 0 : backArg);
+  const barsBack = Number.isFinite(backRaw) && backRaw > 0 ? Math.trunc(backRaw) : 0;
+  if (barsBack > priorProcessedBars) return Number.NaN;
+  const timeframeSeconds = __timeframeToSeconds(timeframeArg, chartPeriod);
+  const timestamp = currentBarTime - barsBack * timeframeSeconds * 1000;
+  if (!Number.isFinite(timestamp)) return Number.NaN;
+  const sessionStr = typeof sessionArg === 'string' ? sessionArg.trim() : '';
+  if (!sessionStr) return timestamp;
+  return __isInSessionAt(timestamp, sessionStr, tzArg) ? timestamp : Number.NaN;
+}
+
+function __compatDatePart(part, currentBarTime, args, hostFn) {
+  const first = args[0];
+  if (first !== undefined && typeof first !== 'object') {
+    const ts = __toNumber(first, currentBarTime);
+    const timezone = args[1];
+    const clock = __readClockAt(ts, timezone);
+    return clock[part];
+  }
+  try {
+    if (typeof hostFn === 'function') {
+      const raw = hostFn(...args);
+      const n = Number(raw);
+      if (Number.isFinite(n)) return n;
+    }
+  } catch {
+    // fall through
+  }
+  const timezone = args.length > 1 ? args[1] : args[0];
+  const clock = __readClockAt(currentBarTime, timezone);
+  return clock[part];
+}
+
+function __createTimeframe(Std, context) {
+  const period = typeof Std.period === 'function' ? String(Std.period(context) || '1') : '1';
+  return {
+    period,
+    isdwm: typeof Std.isdwm === 'function' ? Boolean(Std.isdwm(context)) : false,
+    isintraday: typeof Std.isintraday === 'function' ? Boolean(Std.isintraday(context)) : true,
+    isdaily: typeof Std.isdaily === 'function' ? Boolean(Std.isdaily(context)) : false,
+    isweekly: typeof Std.isweekly === 'function' ? Boolean(Std.isweekly(context)) : false,
+    ismonthly: typeof Std.ismonthly === 'function' ? Boolean(Std.ismonthly(context)) : false,
+    multiplier: typeof Std.interval === 'function' ? Number(Std.interval(context) || 1) : 1,
+    change: () => false,
+    in_seconds: (tf) => __timeframeToSeconds(tf, period),
+  };
+}
+
+function __createBarstate(context, currentTime, previousTime) {
+  const totalBars = typeof context.totalBars === 'number' ? context.totalBars : undefined;
+  const barIndex = typeof context.barIndex === 'number' ? context.barIndex : undefined;
+  const isRealtime = typeof context.isRealtime === 'boolean' ? context.isRealtime : false;
+  return {
+    get islast() {
+      if (typeof totalBars === 'number' && typeof barIndex === 'number') {
+        return barIndex === totalBars - 1;
+      }
+      return true;
+    },
+    get isfirst() {
+      return typeof barIndex === 'number' ? barIndex === 0 : false;
+    },
+    get ishistory() {
+      return !isRealtime;
+    },
+    get isrealtime() {
+      return isRealtime;
+    },
+    get isnew() {
+      return currentTime !== previousTime && Number.isFinite(currentTime);
+    },
+    get isconfirmed() {
+      return !isRealtime;
+    },
+    get islastconfirmedhistory() {
+      if (typeof totalBars === 'number' && typeof barIndex === 'number') {
+        if (isRealtime) return barIndex === totalBars - 2;
+        return barIndex === totalBars - 1;
+      }
+      return false;
+    },
+  };
+}
+
+function __createSyminfo(context) {
+  const symbol = context && typeof context === 'object' ? context.symbol || {} : {};
+  const minmov = Number(symbol.minmov);
+  const pricescale = Number(symbol.pricescale);
+  const safeMinmov = Number.isFinite(minmov) && minmov > 0 ? minmov : 1;
+  const safePricescale = Number.isFinite(pricescale) && pricescale > 0 ? pricescale : 100;
+  return {
+    ticker: typeof symbol.tickerid === 'string' ? symbol.tickerid : 'TICKER',
+    tickerid: typeof symbol.tickerid === 'string' ? symbol.tickerid : 'EXCHANGE:TICKER',
+    description: 'Description',
+    type: typeof symbol.type === 'string' ? symbol.type : 'stock',
+    pointvalue: 1,
+    mintick: safeMinmov / safePricescale,
+    root: 'TICKER',
+    session: typeof symbol.session === 'string' ? symbol.session : '0930-1600',
+    timezone: typeof symbol.timezone === 'string' ? symbol.timezone : 'America/New_York',
+  };
+}
+
+function __createMathNamespace() {
+  return Object.assign({}, Math, {
+    sum: (...args) => args.reduce((a, b) => Number(a) + Number(b), 0),
+    avg: (...args) => {
+      if (args.length === 0) return Number.NaN;
+      return args.reduce((a, b) => Number(a) + Number(b), 0) / args.length;
+    },
+    todegrees: (r) => (Number(r) * 180) / Math.PI,
+    toradians: (d) => (Number(d) * Math.PI) / 180,
+  });
+}
+
+function __callableNamespace(label) {
+  return new Proxy(function passthrough(arg) { return arg; }, {
+    get(_target, prop) {
+      if (typeof prop !== 'string') return undefined;
+      return function passthrough(arg) {
+        if (arg !== undefined) return arg;
+        return label + '.' + String(prop);
+      };
+    },
+  });
+}
+
+function __createArrayNamespace() {
+  const ensure = (arr) => {
+    if (!Array.isArray(arr)) return arr;
+    if (typeof arr.size !== 'function') Object.defineProperty(arr, 'size', { value: function() { return this.length; }, enumerable: false });
+    if (typeof arr.get !== 'function') Object.defineProperty(arr, 'get', { value: function(i) { const idx = Math.trunc(Number(i)); return Number.isFinite(idx) && idx >= 0 && idx < this.length ? this[idx] : Number.NaN; }, enumerable: false });
+    if (typeof arr.set !== 'function') Object.defineProperty(arr, 'set', { value: function(i, v) { this[Math.trunc(Number(i))] = v; return this; }, enumerable: false });
+    if (typeof arr.min !== 'function') Object.defineProperty(arr, 'min', { value: function() { const xs = this.map((v) => Number(v)).filter((n) => Number.isFinite(n)); return xs.length ? Math.min(...xs) : Number.NaN; }, enumerable: false });
+    if (typeof arr.max !== 'function') Object.defineProperty(arr, 'max', { value: function() { const xs = this.map((v) => Number(v)).filter((n) => Number.isFinite(n)); return xs.length ? Math.max(...xs) : Number.NaN; }, enumerable: false });
+    if (typeof arr.avg !== 'function') Object.defineProperty(arr, 'avg', { value: function() { const xs = this.map((v) => Number(v)).filter((n) => Number.isFinite(n)); if (!xs.length) return Number.NaN; return xs.reduce((a, b) => a + b, 0) / xs.length; }, enumerable: false });
+    return arr;
+  };
+  const make = () => ensure([]);
+  return {
+    new: make,
+    new_line: make,
+    new_box: make,
+    new_label: make,
+    new_table: make,
+    new_float: make,
+    new_int: make,
+    new_bool: make,
+    new_string: make,
+    unshift: (arr, value) => arr.unshift(value),
+    push: (arr, value) => arr.push(value),
+    pop: (arr) => arr.pop(),
+    get: (arr, i) => arr[i],
+    set: (arr, i, value) => {
+      arr[i] = value;
+      return arr;
+    },
+    size: (arr) => arr.length,
+    clear: (arr) => {
+      arr.length = 0;
+      return arr;
+    },
+  };
+}
+`;
+
+function generateStandaloneRuntimeMainBody(
+  runtimeBody: string,
+  totalPlotCount: number,
+  hasBgcolors: boolean,
+): string {
+  const compiledScriptBody = indentCode(runtimeBody, 10);
+
+  return `const _plotValues = [];
+        let _latestBgColor = null;
+        const _currentTimeRaw = Number(Std.time(context));
+        const _barTime = Number.isFinite(_currentTimeRaw) ? _currentTimeRaw : Date.now();
+        const _observedBarIndex =
+          typeof context.barIndex === 'number' && Number.isFinite(context.barIndex)
+            ? context.barIndex
+            : undefined;
+        const _resolvedBarIndex =
+          typeof _observedBarIndex === 'number' ? _observedBarIndex : (__fallbackBarIndex + 1);
+        __fallbackBarIndex = _resolvedBarIndex;
+        const _currentBarKey = Number.isFinite(_barTime)
+          ? 't:' + String(_barTime)
+          : 'i:' + String(_resolvedBarIndex);
+        const _sameProcessedBar = __processedBarKey === _currentBarKey;
+        const _priorProcessedBars = _sameProcessedBar ? Math.max(0, __processedBars - 1) : __processedBars;
+        const _markProcessedBar = () => {
+          if (__processedBarKey !== _currentBarKey) {
+            __processedBarKey = _currentBarKey;
+            __processedBars += 1;
+          }
+        };
+        const _chartPeriod = typeof Std.period === 'function' ? String(Std.period(context) || '1') : '1';
+        const _stdWithCompat = new Proxy(Std, {
+          get(target, prop, receiver) {
+            if (prop === 'plot') {
+              return (series) => {
+                _plotValues.push(__coercePlotValue(series));
+                return undefined;
+              };
+            }
+            if (prop === 'plotshape') {
+              return (series) => {
+                _plotValues.push(__coerceShapePlotValue(series));
+                return undefined;
+              };
+            }
+            if (prop === 'plotchar') {
+              return (series) => {
+                _plotValues.push(__coerceShapePlotValue(series));
+                return undefined;
+              };
+            }
+            if (prop === 'plotarrow') {
+              return (series) => {
+                _plotValues.push(__coercePlotValue(series));
+                return undefined;
+              };
+            }
+            if (prop === 'hline') {
+              return () => undefined;
+            }
+            if (prop === 'bgcolor') {
+              return (color) => {
+                _latestBgColor = color;
+                return undefined;
+              };
+            }
+            if (prop === 'fill' || prop === 'barcolor') {
+              return () => undefined;
+            }
+            if (prop === 'time') {
+              return (timeframeArg, sessionArg, timezoneArg, barsBackArg) =>
+                __compatTime(
+                  _barTime,
+                  _priorProcessedBars,
+                  _chartPeriod,
+                  timeframeArg,
+                  sessionArg,
+                  timezoneArg,
+                  barsBackArg,
+                );
+            }
+            if (prop === 'dayofweek') {
+              const hostFn = Reflect.get(target, prop, receiver);
+              return (...args) => __compatDatePart('dayOfWeek', _barTime, args, hostFn);
+            }
+            if (prop === 'hour') {
+              const hostFn = Reflect.get(target, prop, receiver);
+              return (...args) => __compatDatePart('hour', _barTime, args, hostFn);
+            }
+            if (prop === 'minute') {
+              const hostFn = Reflect.get(target, prop, receiver);
+              return (...args) => __compatDatePart('minute', _barTime, args, hostFn);
+            }
+            if (prop === 'second') {
+              const hostFn = Reflect.get(target, prop, receiver);
+              return (...args) => __compatDatePart('second', _barTime, args, hostFn);
+            }
+            if (prop === 'year') {
+              const hostFn = Reflect.get(target, prop, receiver);
+              return (...args) => __compatDatePart('year', _barTime, args, hostFn);
+            }
+            if (prop === 'month') {
+              const hostFn = Reflect.get(target, prop, receiver);
+              return (...args) => __compatDatePart('month', _barTime, args, hostFn);
+            }
+            if (prop === 'dayofmonth') {
+              const hostFn = Reflect.get(target, prop, receiver);
+              return (...args) => __compatDatePart('dayOfMonth', _barTime, args, hostFn);
+            }
+            return Reflect.get(target, prop, receiver);
+          },
+        });
+
+        const input = __createInput(inputCallback, _stdWithCompat, context);
+        const plot = (series) => {
+          _plotValues.push(__coercePlotValue(series));
+          return undefined;
+        };
+        const plotshape = (series) => {
+          _plotValues.push(__coerceShapePlotValue(series));
+          return undefined;
+        };
+        const plotchar = (series) => {
+          _plotValues.push(__coerceShapePlotValue(series));
+          return undefined;
+        };
+        const plotarrow = (series) => {
+          _plotValues.push(__coercePlotValue(series));
+          return undefined;
+        };
+        const hline = () => undefined;
+        const bgcolor = (color) => {
+          _latestBgColor = color;
+          return undefined;
+        };
+        const fill = () => undefined;
+        const barcolor = () => undefined;
+        const indicator = () => undefined;
+        const study = () => undefined;
+        const strategy = (() => undefined);
+        strategy.entry = () => undefined;
+        strategy.exit = () => undefined;
+        strategy.close = () => undefined;
+        strategy.close_all = () => undefined;
+        strategy.order = () => undefined;
+        strategy.cancel = () => undefined;
+        strategy.risk = new Proxy({}, { get: () => () => undefined });
+        strategy.long = 1;
+        strategy.short = -1;
+
+        const timeframe = __createTimeframe(_stdWithCompat, context);
+        const math = __createMathNamespace();
+        const ta = _stdWithCompat;
+        const color = __colorMap;
+        const box = __stubs.box;
+        const line = __stubs.line;
+        const label = __stubs.label;
+        const table = __stubs.table;
+        const str = __stubs.str;
+        if (box && typeof box.__setBarTime === 'function') box.__setBarTime(_barTime);
+        const syminfo = __createSyminfo(context);
+        const barstate = __createBarstate(context, _barTime, __previousBarTime);
+        const shape = {
+          triangleup: 'shape_triangle_up',
+          triangledown: 'shape_triangle_down',
+          arrowup: 'shape_arrow_up',
+          arrowdown: 'shape_arrow_down',
+          circle: 'shape_circle',
+          cross: 'shape_cross',
+          diamond: 'shape_diamond',
+          flag: 'shape_flag',
+          square: 'shape_square',
+          labelup: 'shape_label_up',
+          labeldown: 'shape_label_down',
+          xcross: 'shape_xcross',
+        };
+        const location = {
+          abovebar: 'AboveBar',
+          belowbar: 'BelowBar',
+          top: 'Top',
+          bottom: 'Bottom',
+          absolute: 'Absolute',
+        };
+        const size = {
+          auto: 'auto',
+          tiny: 'tiny',
+          small: 'small',
+          normal: 'normal',
+          large: 'large',
+          huge: 'huge',
+        };
+        const alertcondition = () => undefined;
+        const alert = () => undefined;
+        const request = {
+          security: (_symbol, _tf, expression) => expression,
+        };
+        const session = {
+          ismarket: false,
+          ispremarket: false,
+          ispostmarket: false,
+        };
+        const array = __createArrayNamespace();
+        const time = _barTime;
+        const time_close =
+          typeof _stdWithCompat.time_close === 'function'
+            ? __toNumber(_stdWithCompat.time_close(context), _barTime + 60000)
+            : _barTime + 60000;
+        const _clock = __readClockAt(_barTime, syminfo.timezone);
+        const time_tradingday = Date.UTC(_clock.year, _clock.month - 1, _clock.dayOfMonth);
+        const bar_index = _resolvedBarIndex;
+        const hour = _clock.hour;
+        const minute = _clock.minute;
+        const second = _clock.second;
+        const year = _clock.year;
+        const month = _clock.month;
+        const dayofmonth = _clock.dayOfMonth;
+        const dayofweek = _clock.dayOfWeek;
+        const timestamp = (...args) => {
+          const yearValue = __toInteger(args[0], _clock.year);
+          const monthValue = __toInteger(args[1], _clock.month) - 1;
+          const dayValue = __toInteger(args[2], _clock.dayOfMonth);
+          const hourValue = __toInteger(args[3], 0);
+          const minuteValue = __toInteger(args[4], 0);
+          const secondValue = __toInteger(args[5], 0);
+          return Date.UTC(yearValue, monthValue, dayValue, hourValue, minuteValue, secondValue);
+        };
+        const chart = __callableNamespace('chart');
+        const format = __callableNamespace('format');
+        const string = __callableNamespace('string');
+        const xloc = { bar_index: 'bar_index', bar_time: 'bar_time' };
+        const yloc = { price: 'price', abovebar: 'abovebar', belowbar: 'belowbar' };
+        const extend = { none: 'none', left: 'left', right: 'right', both: 'both' };
+        const position = new Proxy({}, { get: (_t, p) => 'position.' + String(p) });
+        const order = { ascending: 'ascending', descending: 'descending' };
+        const text = { align_left: 'left', align_center: 'center', align_right: 'right' };
+        const display = {
+          all: 'all',
+          none: 'none',
+          status_line: 'status_line',
+          price_scale: 'price_scale',
+          data_window: 'data_window',
+          pane: 'pane',
+        };
+        const ticker = {
+          new: (...args) => args.join(':'),
+          modify: (sym) => sym,
+        };
+        const barmerge = {
+          gaps_on: 'gaps_on',
+          gaps_off: 'gaps_off',
+          lookahead_on: 'lookahead_on',
+          lookahead_off: 'lookahead_off',
+        };
+        const close = __toNumber(_stdWithCompat.close(context));
+        const open = __toNumber(_stdWithCompat.open(context));
+        const high = __toNumber(_stdWithCompat.high(context));
+        const low = __toNumber(_stdWithCompat.low(context));
+        const volume = __toNumber(_stdWithCompat.volume(context));
+        const hl2 = __toNumber(_stdWithCompat.hl2(context));
+        const hlc3 = __toNumber(_stdWithCompat.hlc3(context));
+        const ohlc4 = __toNumber(_stdWithCompat.ohlc4(context));
+
+        const compiledScript = function(
+          Std,
+          context,
+          input,
+          plot,
+          indicator,
+          study,
+          strategy,
+          color,
+          ta,
+          math,
+          timeframe,
+          plotshape,
+          plotchar,
+          plotarrow,
+          hline,
+          bgcolor,
+          fill,
+          barcolor,
+          box,
+          line,
+          label,
+          table,
+          str,
+          syminfo,
+          barstate,
+          shape,
+          location,
+          size,
+          alertcondition,
+          alert,
+          request,
+          session,
+          array,
+          time,
+          time_close,
+          time_tradingday,
+          bar_index,
+          hour,
+          minute,
+          second,
+          year,
+          month,
+          dayofmonth,
+          dayofweek,
+          timestamp,
+          chart,
+          format,
+          string,
+          xloc,
+          yloc,
+          extend,
+          position,
+          order,
+          text,
+          display,
+          ticker,
+          barmerge,
+          close,
+          open,
+          high,
+          low,
+          volume,
+          hl2,
+          hlc3,
+          ohlc4,
+        ) {
+${compiledScriptBody}
+        };
+
+        compiledScript(
+          _stdWithCompat,
+          context,
+          input,
+          plot,
+          indicator,
+          study,
+          strategy,
+          color,
+          ta,
+          math,
+          timeframe,
+          plotshape,
+          plotchar,
+          plotarrow,
+          hline,
+          bgcolor,
+          fill,
+          barcolor,
+          box,
+          line,
+          label,
+          table,
+          str,
+          syminfo,
+          barstate,
+          shape,
+          location,
+          size,
+          alertcondition,
+          alert,
+          request,
+          session,
+          array,
+          time,
+          time_close,
+          time_tradingday,
+          bar_index,
+          hour,
+          minute,
+          second,
+          year,
+          month,
+          dayofmonth,
+          dayofweek,
+          timestamp,
+          chart,
+          format,
+          string,
+          xloc,
+          yloc,
+          extend,
+          position,
+          order,
+          text,
+          display,
+          ticker,
+          barmerge,
+          close,
+          open,
+          high,
+          low,
+          volume,
+          hl2,
+          hlc3,
+          ohlc4,
+        );
+
+        _markProcessedBar();
+        __previousBarTime = _barTime;
+        const _result = _plotValues.slice();
+${hasBgcolors ? `        if (_latestBgColor !== null && _latestBgColor !== undefined) {
+          if (!__bgColorToSlot.has(_latestBgColor)) {
+            __bgColorToSlot.set(_latestBgColor, (__bgColorToSlot.size % 7) + 1);
+          }
+          _result.push(__bgColorToSlot.get(_latestBgColor));
+        } else {
+          _result.push(0);
+        }
+` : ''}
+        while (_result.length < ${totalPlotCount}) _result.push(Number.NaN);
+        if (_result.length > ${totalPlotCount}) _result.length = ${totalPlotCount};
+        return _result;`;
+}
+
 /**
  * Safely read an optional field from an opaque object (typically the
  * runtime `context` or `context.symbol`). The PineJS runtime declares
@@ -2554,13 +3819,16 @@ export function generateStandaloneFactory(
     plots,
     inputs,
     bgcolors,
+    usedSources = new Set<string>(),
+    historicalAccess = new Set<string>(),
+    mainBody = '',
+    helperUsage,
     sessionVariables,
     derivedSessionVariables,
     booleanInputMap,
     computedVariables,
     inputVariableMap,
     programAst,
-    historicalAccess,
   } = options;
 
   const userDeclarationStatements =
@@ -2726,18 +3994,34 @@ export function generateStandaloneFactory(
     ...(input.options ? { options: input.options } : {}),
   }));
 
-  // Generate the this.main() body code
-  const mainBodyCode = generateNativeMainBody(
-    inputs,
-    plots,
-    bgcolors,
-    sessionVariables,
-    derivedSessionVariables,
-    booleanInputMap,
-    computedVariables,
-    inputVariableMap,
-    userDeclarationCode,
-    userDeclarationSymbolNames,
+  const hasTranspiledMainBody =
+    typeof mainBody === 'string' && mainBody.trim().length > 0;
+  const runtimePreamble = hasTranspiledMainBody
+    ? generatePreamble(usedSources, historicalAccess, mainBody, helperUsage)
+    : '';
+  const runtimeBody = hasTranspiledMainBody ? runtimePreamble + mainBody : '';
+
+  // Preferred path: execute the same transpiled body used by
+  // transpileToPineJS. Fallback path preserves low-level unit behavior
+  // when direct generateStandaloneFactory calls omit mainBody.
+  const mainBodyCode = hasTranspiledMainBody
+    ? generateStandaloneRuntimeMainBody(runtimeBody, nativePlots.length, hasBgcolors)
+    : generateNativeMainBody(
+        inputs,
+        plots,
+        bgcolors,
+        sessionVariables,
+        derivedSessionVariables,
+        booleanInputMap,
+        computedVariables,
+        inputVariableMap,
+        userDeclarationCode,
+        userDeclarationSymbolNames,
+      );
+
+  const colorMapLiteral = JSON.stringify(COLOR_MAP, null, 8).replace(
+    /\n/g,
+    '\n      ',
   );
 
   return `/**
@@ -2750,6 +4034,8 @@ export function generateStandaloneFactory(
  *   const indicator = createIndicator(PineJS);
  *   // Register with TradingView chart
  */
+
+${hasTranspiledMainBody ? STANDALONE_RUNTIME_HELPERS : ''}
 
 function createIndicator(PineJS) {
   const Std = PineJS.Std;
@@ -2790,6 +4076,14 @@ ${
     },
 
     constructor: function() {
+${hasTranspiledMainBody ? `      const __stubs = __createStubNamespaces();
+      const __colorMap = ${colorMapLiteral};
+      const __bgColorToSlot = new Map();
+      let __previousBarTime = Number.NaN;
+      let __fallbackBarIndex = -1;
+      let __processedBars = 0;
+      let __processedBarKey = null;
+` : ''}
       this.main = function(context, inputCallback) {
 ${mainBodyCode}
       };
