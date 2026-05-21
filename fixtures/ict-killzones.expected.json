@@ -20,7 +20,6 @@
   ],
   "lowerings": [
     "array_helpers",
-    "method_binding",
     "state_var",
     "std_plotchar",
     "visual_handles"
