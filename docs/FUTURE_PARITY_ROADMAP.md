@@ -221,10 +221,17 @@ Progress (2026-05-21, tranche 2):
   - `lookahead_off` bucket-close handling now uses the current bucket's
     expression value on the closing chart bar, with confirmed hold
     semantics in-between
+- runtime now emits explicit diagnostics for ambiguous
+  `lookahead_off` close-bar alignment (non-integral or calendar
+  timeframe ratios):
+  - `request.security/approximate-bucket-alignment`
 - regression coverage added in
   `tests/regression/request-security.test.ts`:
   - `aligns gaps_on + lookahead_off emissions to bucket-close bars (not
     bucket-open bars)`
+  - tuple `gaps_on + lookahead_off` close-bar alignment
+  - approximate-alignment diagnostic coverage on non-integral
+    chart/target timeframe ratios
 
 ### Phase 16: Builtin/Data-Structure + Semantic Correctness Expansion
 

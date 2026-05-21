@@ -268,4 +268,78 @@ plot(vOpen)
       expect(Number.isNaN(closeSeries[i] as number)).toBe(true);
     }
   });
+
+  it('aligns tuple gaps_on + lookahead_off emissions to bucket-close bars', () => {
+    const source = `//@version=5
+indicator("req tuple gaps/lookahead alignment")
+[aClose, bClose] = request.security(syminfo.tickerid, "15", [open, close], barmerge.gaps_on, barmerge.lookahead_off)
+[aOpen, bOpen] = request.security(syminfo.tickerid, "15", [open, close], barmerge.gaps_on, barmerge.lookahead_on)
+plot(aClose)
+plot(bClose)
+plot(aOpen)
+plot(bOpen)
+`;
+    const rows = runBars(source, 40);
+    const aClose = rows.map((r) => r[0] as number);
+    const bClose = rows.map((r) => r[1] as number);
+    const aOpen = rows.map((r) => r[2] as number);
+    const bOpen = rows.map((r) => r[3] as number);
+    const openIdx = aOpen
+      .map((v, i) => (Number.isFinite(v) ? i : -1))
+      .filter((i) => i >= 0);
+
+    expect(openIdx.length).toBeGreaterThan(0);
+    for (const i of openIdx) {
+      if (i === 0) continue;
+      expect(Number.isFinite(aClose[i - 1] as number)).toBe(true);
+      expect(Number.isFinite(bClose[i - 1] as number)).toBe(true);
+      expect(Number.isNaN(aClose[i] as number)).toBe(true);
+      expect(Number.isNaN(bClose[i] as number)).toBe(true);
+      expect(Number.isFinite(bOpen[i] as number)).toBe(true);
+    }
+  });
+
+  it('emits diagnostics when lookahead_off close-bar alignment is approximate on non-integral timeframe ratios', () => {
+    const source = `//@version=5
+indicator("req approx align diag")
+v = request.security(syminfo.tickerid, "15", close, barmerge.gaps_off, barmerge.lookahead_off)
+plot(v)
+`;
+    const result = transpileToPineJS(source, 'request_security_regression', 'Req');
+    if (!result.success || !result.indicatorFactory) {
+      throw new Error(result.error ?? 'transpile failed');
+    }
+
+    const runtime = createMockRuntime({ barCount: 5 });
+    const stdWithSevenMinuteChart = new Proxy(
+      runtime.pineJs.Std as Record<string, unknown>,
+      {
+        get(target, prop, receiver) {
+          if (prop === 'period') return () => '7';
+          return Reflect.get(target, prop, receiver);
+        },
+      },
+    );
+
+    const indicator = result.indicatorFactory({
+      Std: stdWithSevenMinuteChart,
+    } as never);
+    const ctor = indicator.constructor as new () => {
+      main: (ctx: unknown, cb: (index: number) => number) => MainOutput;
+    };
+    const instance = new ctor();
+
+    runtime.resetVarPointer();
+    runtime.resetCurrentBarPlots();
+    const out = instance.main(runtime.context, () => 14);
+    const diagnostics = Array.isArray(out.__runtimeDiagnostics)
+      ? out.__runtimeDiagnostics
+      : [];
+
+    expect(
+      diagnostics.some(
+        (d) => d.code === 'request.security/approximate-bucket-alignment',
+      ),
+    ).toBe(true);
+  });
 });

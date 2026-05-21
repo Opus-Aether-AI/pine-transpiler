@@ -195,7 +195,8 @@ interface RuntimeDiagnostic {
     | 'request.security/invalid-timeframe'
     | 'request.security/lower-timeframe-fallback'
     | 'request.security/missing-bar-time-fallback'
-    | 'request.security/external-symbol-fallback';
+    | 'request.security/external-symbol-fallback'
+    | 'request.security/approximate-bucket-alignment';
   message: string;
   barIndex: number;
 }
@@ -1868,6 +1869,15 @@ export function buildIndicatorFactory(
             if (unit === 'Y') return num * 525600;
             return null;
           };
+          const hasCalendarUnit = (raw: unknown): boolean => {
+            const tf = String(raw ?? '')
+              .trim()
+              .toUpperCase();
+            if (!tf) return false;
+            const m = tf.match(/^(\d+)?([SMHDWMY])?$/);
+            const unit = m?.[2] ?? '';
+            return unit === 'W' || unit === 'M' || unit === 'Y';
+          };
           const resolveMergeMode = (extras: unknown[]) => {
             let gaps = 'gaps_off';
             let lookahead = 'lookahead_off';
@@ -2005,10 +2015,30 @@ export function buildIndicatorFactory(
             const isBucketCloseBar = nextBucket !== bucket;
 
             const isLookaheadOn = merge.lookahead === 'lookahead_on';
-            const eventBar = isLookaheadOn ? changedBucket : isBucketCloseBar;
+            const ratio = bucketSizeMs / chartTimeframeMs;
+            const hasIntegralRatio =
+              Number.isFinite(ratio) &&
+              Math.abs(ratio - Math.round(ratio)) < 1e-9;
+            const approximateAlignment =
+              hasCalendarUnit(currentTfRaw) ||
+              hasCalendarUnit(timeframeArg) ||
+              !hasIntegralRatio;
+            if (!isLookaheadOn && approximateAlignment) {
+              emitRequestSecurityDiagnostic(
+                'request.security/approximate-bucket-alignment',
+                `request.security("${String(timeframeArg)}", lookahead_off) uses approximate close-bar alignment on chart timeframe "${String(currentTfRaw)}"`,
+                `approx-align|${String(currentTfRaw)}|${String(timeframeArg)}|${merge.gaps}|${merge.lookahead}`,
+              );
+            }
+            const effectiveBucketCloseBar = approximateAlignment
+              ? changedBucket
+              : isBucketCloseBar;
+            const eventBar = isLookaheadOn
+              ? changedBucket
+              : effectiveBucketCloseBar;
             const merged = isLookaheadOn
               ? state.currentValue
-              : isBucketCloseBar
+              : effectiveBucketCloseBar
                 ? state.currentValue
                 : state.confirmedValue;
 

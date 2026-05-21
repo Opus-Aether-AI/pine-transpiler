@@ -1,651 +1,134 @@
-# Pine Script to PineJS Transpiler
+# Pine Script Transpiler — Pine v5/v6 → JavaScript (PineJS)
 
-A developer interoperability tool that converts Pine Script v5/v6 source code into JavaScript objects implementing the public PineJS Custom Indicators API used by the TradingView Charting Library.
+[![npm version](https://img.shields.io/npm/v/@opus-aether-ai/pine-transpiler.svg)](https://www.npmjs.com/package/@opus-aether-ai/pine-transpiler)
+[![npm downloads](https://img.shields.io/npm/dm/@opus-aether-ai/pine-transpiler.svg)](https://www.npmjs.com/package/@opus-aether-ai/pine-transpiler)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue.svg)](https://www.typescriptlang.org/)
+[![Test coverage](https://img.shields.io/badge/coverage-95%25%2B-brightgreen.svg)](docs/DEVELOPMENT.md#test-coverage)
 
-This is a clean-room transpiler built from public language and API documentation. It is intended for developers who hold valid licenses for the TradingView Charting Library and want to run their own Pine Script source through their own deployments.
-
-> **Independent project — not affiliated with TradingView Inc.**
->
-> This project is an independent tool. It is not affiliated with, endorsed by, sponsored by, or associated with TradingView Inc. "TradingView" and "Pine Script" are trademarks of TradingView Inc., used here solely for nominative identification of the language and API surface this tool targets.
->
-> The transpiler operates only on source code that you legally possess. It does not retrieve, decode, or otherwise access private, encrypted, or invite-only scripts. Users are solely responsible for ensuring their use of the input source code and the generated output complies with their respective license agreements, including the TradingView Terms of Service and the TradingView Charting Library license they hold.
->
-> See [DISCLAIMER.md](DISCLAIMER.md) for the full safe-harbor framework.
-
-## Table of Contents
-
-- [Features](#features)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [API Reference](#api-reference)
-- [TradingView Harness](#tradingview-harness)
-- [Transpiled Output Example](#transpiled-output-example)
-- [Supported Features](#supported-features)
-- [Architecture](#architecture)
-- [Environment Support](#environment-support)
-- [Limitations & Known Issues](#limitations--known-issues)
-- [Future Parity Roadmap](#future-parity-roadmap)
-- [Development](#development)
-- [Changelog](#changelog)
-- [Contributing](#contributing)
-- [License](#license)
-
-## Features
-
--   **Pine Script v5/v6 Syntax Support**: Handles variable declarations (`var`, `varip`), types, control flow (`if`, `for`, `while`, `switch`), and functions.
--   **Standard Library Mapping**: Automatically maps Pine Script's `ta.*`, `math.*`, `time.*`, and `str.*` functions to their `PineJS.Std` equivalents.
--   **StdPlus + Runtime Helpers**: Includes built-in polyfills/helpers for missing or behavior-sensitive APIs (for example `bb`, `kc`, `crossover`, `hma`, map/matrix helpers, and session/time helpers).
--   **Zero Dependencies**: The core transpiler logic is dependency-free and runs in any JavaScript environment.
--   **TypeScript First**: Full TypeScript support with strict mode enabled and comprehensive type definitions.
--   **Corpus Governance Tooling**: Lane/authenticity-aware corpus reports (`bun run corpus`) and CI gate budgets (`bun run corpus:gate`) to keep parity stable as fixture count grows.
--   **Chart Host Safety Gate**: TradingView-like runtime contract checks (`bun run chart:safety`) to catch construct/plot/visual payload regressions before webapp integration.
--   **TradingView-Shaped Test Harness Export**: Reusable `./test-harness` sub-export that validates constructor contract, plot/style alignment, and reducer safety against transpiled output.
-
-## Installation
-
-The package is published to **two registries**:
-
-- **Public npm** (`registry.npmjs.org`) — no auth required, fastest for most consumers
-- **GitHub Packages** (`npm.pkg.github.com`) — requires a GitHub PAT with `read:packages` scope; preferred for consumers already inside the Opus Aether AI org
-
-### From public npm (default)
-
-```bash
-bun add @opus-aether-ai/pine-transpiler
-# or
-npm install @opus-aether-ai/pine-transpiler
-```
-
-### From GitHub Packages
-
-Add to project root `.npmrc`:
-
-```
-@opus-aether-ai:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=${GITHUB_PACKAGES_TOKEN}
-```
-
-Set `GITHUB_PACKAGES_TOKEN` as a shell env var (local) and a CI secret. Then:
-
-```bash
-bun add @opus-aether-ai/pine-transpiler
-```
-
-### Releasing (maintainers)
-
-The package publishes to both registries from one command:
-
-```bash
-bun run release
-```
-
-Behind the scenes:
-
-1. `publish:npm` — runs `prepublishOnly` (typecheck + lint + test + build), uploads to public npm
-2. `publish:gh` — uploads the same fresh `dist/` to GitHub Packages with `--ignore-scripts` (skips the redundant rebuild)
-
-Individual targets are available if you only want one registry:
-
-```bash
-bun run publish:npm   # public npm only (full pre-publish gate)
-bun run publish:gh    # GitHub Packages only (expects fresh dist; run `bun run prepublishOnly` first if dirty)
-```
-
-## Quick Start
+**Convert Pine Script v5/v6 into JavaScript that runs on the TradingView Charting Library.** A zero-dependency, TypeScript-first, clean-room transpiler that emits PineJS `CustomIndicator` factories from Pine source — so your own indicators can render on charts you embed in your own apps.
 
 ```typescript
 import { transpileToPineJS } from '@opus-aether-ai/pine-transpiler';
 
-const pineScript = `
-//@version=5
-indicator("My Custom SMA", overlay=true)
-len = input.int(14, "Length")
-out = ta.sma(close, len)
-plot(out, color=color.blue)
+const result = transpileToPineJS(pineSource, 'my-sma', 'My SMA');
+if (result.success) {
+  chart.registerCustomIndicator(result.indicatorFactory(PineJS));
+}
+```
+
+> **Independent project — not affiliated with TradingView Inc.**
+> "TradingView" and "Pine Script" are trademarks of TradingView Inc. This tool targets the publicly documented Pine language and PineJS API for interoperability purposes. You must hold a valid TradingView Charting Library license to use the output. The tool does not access private, encrypted, or invite-only scripts and never contacts TradingView servers. See [DISCLAIMER.md](DISCLAIMER.md).
+
+---
+
+## Why use this
+
+- **Drop-in PineJS factories.** Output implements the public `CustomIndicator` interface — register it the same way you'd register any custom study.
+- **Pine v5 and v6 support.** Type definitions, methods, named args, `var`/`varip`, control flow, multi-output functions, maps, matrices (subset), arrays, switch expressions.
+- **Standard library mapped.** `ta.*`, `math.*`, `time.*`, `str.*` resolved to `PineJS.Std` equivalents. StdPlus polyfills cover gaps (`bb`, `kc`, `hma`, session/time helpers, etc.).
+- **Zero runtime dependencies.** The core transpiler ships with no `node_modules` cost. Works in Node 18+, browsers, Deno, and Bun.
+- **Strict-CSP friendly.** `transpileToStandaloneFactory` emits ESM source you can build into a static module — no `unsafe-eval` required at chart-host runtime.
+- **Production-tested.** 1,400+ unit tests, 95%+ coverage gate enforced in CI, plus a corpus of real-world community Pine scripts that gates parity regressions.
+
+---
+
+## Install
+
+```bash
+bun add @opus-aether-ai/pine-transpiler
+# or: npm install @opus-aether-ai/pine-transpiler
+```
+
+Works in any JS runtime that supports ES2020. ESM and CJS both ship in the published tarball; types are included.
+
+## Quick start
+
+Transpile a Pine indicator and register it with the TradingView Charting Library:
+
+```typescript
+import { transpileToPineJS } from '@opus-aether-ai/pine-transpiler';
+
+const pineSource = `
+//@version=6
+indicator("SMA Crossover", overlay=true)
+fast = ta.sma(close, input.int(9,  "Fast"))
+slow = ta.sma(close, input.int(21, "Slow"))
+plot(fast, "Fast", color.blue)
+plot(slow, "Slow", color.orange)
 `;
 
-const result = transpileToPineJS(pineScript, 'my-sma-indicator', 'My SMA');
+const result = transpileToPineJS(
+  pineSource,
+  'sma_crossover',     // stable id
+  'SMA Crossover',     // display name
+);
 
-if (result.success) {
-  // Use with TradingView Charting Library
-  const indicator = result.indicatorFactory(PineJS);
-  // Register indicator with chart...
-} else {
-  console.error("Transpilation Failed:", result.error);
+if (!result.success) {
+  throw new Error(result.error);
 }
-```
 
-## API Reference
-
-### Core Functions
-
-#### `transpileToPineJS(code, indicatorId, indicatorName?)`
-
-Transpile Pine Script to a TradingView `CustomIndicator` factory.
-
-This path compiles indicator runtime with `new Function(...)` when the
-indicator is instantiated. Use it for local/dev or environments where
-`unsafe-eval` is allowed.
-
-```typescript
-function transpileToPineJS(
-  code: string,           // Pine Script source code
-  indicatorId: string,    // Unique identifier for the indicator
-  indicatorName?: string  // Optional display name
-): TranspileToPineJSResult;
-
-// Returns:
-interface TranspileToPineJSResult {
-  success: boolean;
-  indicatorFactory?: IndicatorFactory;  // When success=true
-  error?: string;                       // When success=false
-}
-```
-
-#### `transpileToStandaloneFactory(code, indicatorId, indicatorName?)`
-
-Transpile Pine Script to a standalone ESM module string with
-`createIndicator(PineJS)` export.
-
-Use this for strict CSP production environments where `unsafe-eval`
-is blocked.
-
-```typescript
-function transpileToStandaloneFactory(
-  code: string,
-  indicatorId: string,
-  indicatorName?: string
-): TranspileToStandaloneFactoryResult;
-
-interface TranspileToStandaloneFactoryResult {
-  success: boolean;
-  factoryCode?: string;  // Standalone ESM source when success=true
-  error?: string;
-}
-```
-
-#### `transpile(code)`
-
-Low-level function that returns raw JavaScript string (for advanced use cases).
-
-```typescript
-function transpile(code: string): string;
-```
-
-#### `canTranspilePineScript(code)`
-
-Validate if Pine Script code can be transpiled without executing.
-
-```typescript
-function canTranspilePineScript(code: string): {
-  valid: boolean;
-  reason?: string;
-};
-```
-
-#### `executePineJS(code, indicatorId, indicatorName?)`
-
-Execute native PineJS JavaScript code and return an indicator factory.
-
-```typescript
-function executePineJS(
-  code: string,
-  indicatorId: string,
-  indicatorName?: string
-): TranspileToPineJSResult;
-```
-
-### Pipeline API (advanced)
-
-`transpileToPineJS` and `transpileToStandaloneFactory` are thin wrappers around a five-stage pipeline. The stages are exported so tools (LSPs, linters, custom backends) can compose them without re-wiring the sequence.
-
-```typescript
-import {
-  parse,                  // (code) => Program (AST)
-  extractMetadata,        // (ast) => MetadataVisitor (name, inputs, plots, …)
-  generateBody,           // (ast, historicalAccess, helperUsage?) => string
-  buildFactory,           // (metadata, body, opts) => IndicatorFactory
-  compile,                // (code, opts) => {ast, metadata, mainBody, helperUsage, factory}
-  validateInputSize,      // (code) => void   throws if >1MB
-  HelperUsage,            // tracker of runtime-helper categories emitted
-  MAX_INPUT_SIZE,         // 1_000_000
-} from '@opus-aether-ai/pine-transpiler';
-
-// Stop at the AST — e.g. for an LSP that wants to inspect the parse:
-const ast = parse(source);
-
-// Or run the full pipeline and inspect intermediate stages:
-const { metadata, mainBody, helperUsage, factory } =
-  compile(source, { indicatorId: 'demo' });
-```
-
-`HelperUsage` is recorded by the generator as it emits each Pine builtin call. The factory builder reads it (via `IndicatorFactoryOptions.helperUsage`) to decide which helper libraries to inject into the preamble — replacing an earlier string-grep over the generated body. Categories tracked: `math`, `session`, `stdplus`, `array`, `map`, `matrix`, `color`, `string`, `utility`, `state`.
-
-### Exports
-
-#### Main Entry Point
-```typescript
-import {
-  // Top-level
-  transpileToPineJS,
-  transpileToStandaloneFactory,
-  transpile,
-  canTranspilePineScript,
-  executePineJS,
-  // Pipeline stages
-  parse,
-  extractMetadata,
-  generateBody,
-  buildFactory,
-  compile,
-  validateInputSize,
-  HelperUsage,
-  MAX_INPUT_SIZE,
-  // Standalone factory codegen
-  generateStandaloneFactory,
-  // Mappings
-  TA_FUNCTION_MAPPINGS,
-  MULTI_OUTPUT_MAPPINGS,
-  MATH_FUNCTION_MAPPINGS,
-  TIME_FUNCTION_MAPPINGS,
-  // Reflection
-  getMappingStats,
-  getAllPineFunctionNames,
-  // Types / constants
-  COLOR_MAP,
-  PRICE_SOURCES,
-} from '@opus-aether-ai/pine-transpiler';
-```
-
-#### Harness Sub-export
-```typescript
-import {
-  runTradingViewHarness,
-  type TradingViewHarnessOptions,
-  type TradingViewHarnessReport,
-} from '@opus-aether-ai/pine-transpiler/test-harness';
-```
-
-#### Strict CSP Integration
-```typescript
-import { transpileToStandaloneFactory } from '@opus-aether-ai/pine-transpiler';
-
-const built = transpileToStandaloneFactory(pineSource, 'ict_killzones', 'ICT Killzones');
-if (!built.success) throw new Error(built.error);
-
-// Persist `built.factoryCode` as a module at build time (example file:
-// generated/ict-killzones.factory.js), then import it in the webapp:
+// `result.indicatorFactory` is a standard PineJS CustomIndicator factory.
+// Register it through your usual `custom_indicators_getter`:
 //
-// import { createIndicator } from './generated/ict-killzones.factory.js';
-// const indicator = createIndicator(PineJS);
+// custom_indicators_getter: (PineJS) => [result.indicatorFactory(PineJS), ...]
 ```
 
-## TradingView Harness
+For strict-CSP environments where `unsafe-eval` is blocked, swap in `transpileToStandaloneFactory` to emit a buildable ESM module instead. Full example in [docs/API.md](docs/API.md).
 
-Use this harness when you want to catch chart-host breakages before app
-integration (for example non-constructable constructors, missing
-`metainfo.styles[plot.id]`, undefined plot slots, or reducer crashes).
+---
 
-```typescript
-import { runTradingViewHarness } from '@opus-aether-ai/pine-transpiler/test-harness';
+## Documentation
 
-const report = runTradingViewHarness({
-  fixtureName: 'ict-killzones.pine',
-  source: pineSource,
-  bars: 300,
-  barIndexStart: 10_000,
-});
+Everything beyond the quick start lives in `docs/`:
 
-if (!report.pass) {
-  console.error(report);
-}
-```
+| Topic | Doc |
+|---|---|
+| Full API reference (every exported function, type, and pipeline stage) | [docs/API.md](docs/API.md) |
+| Internal architecture, the four-stage pipeline, source layout | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| Supported language features, full mapping tables | [docs/SUPPORTED_FEATURES.md](docs/SUPPORTED_FEATURES.md) |
+| Known limitations and partial-support areas | [docs/LIMITATIONS.md](docs/LIMITATIONS.md) |
+| Roadmap and parity tracking | [docs/FUTURE_PARITY_ROADMAP.md](docs/FUTURE_PARITY_ROADMAP.md) |
+| Host renderer contract (`__visualEvents`, `pineHandleId`, drawing API) | [docs/HOST_RENDERING_CONTRACT.md](docs/HOST_RENDERING_CONTRACT.md) |
+| Local development, testing, and corpus tooling | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) |
+| Legal posture and safe-harbor framework | [DISCLAIMER.md](DISCLAIMER.md) |
+| Release notes | [CHANGELOG.md](CHANGELOG.md) |
 
-## Transpiled Output Example
+---
 
-Here's what the transpiler produces from a simple Pine Script:
+## Project status
 
-**Input (Pine Script):**
-```pine
-//@version=5
-indicator("Simple SMA", overlay=true)
-len = input.int(14, "Length")
-src = close
-out = ta.sma(src, len)
-plot(out, color=color.blue)
-```
+- **Stable for indicator workloads.** Strategy (`strategy.*`) is intentionally out of scope; this is an indicator transpiler.
+- **`request.security` is a subset.** Same-bar and HTF bucket-merge passthrough work; cross-symbol fetching and full `barmerge` semantics are tracked in the roadmap.
+- **Drawing APIs are tracked but host-rendered.** `box.new` / `line.new` / `label.new` / `table.new` emit visual events on each bar; chart-side rendering is the host's responsibility via the [host rendering contract](docs/HOST_RENDERING_CONTRACT.md).
+- **Coverage gate.** CI fails if line or function coverage drops below 95%. Current: 95.81% functions / 98.62% lines / 1,400+ tests.
 
-**Output (JavaScript):**
-```javascript
-// Generated preamble (historical access, helpers)
-const _series_close = context.new_var(close);
-const _getHistorical_close = (offset) => _series_close.get(offset);
+See [docs/LIMITATIONS.md](docs/LIMITATIONS.md) for the complete known-issues list.
 
-// User code transpiled
-let len = input(0);
-let src = close;
-let out = Std.sma(src, len, context);
-plot(out);
-```
-
-The transpiler:
-1. Converts `input.int()` to indexed `input()` calls
-2. Maps `ta.sma()` to `Std.sma()` with context injection
-3. Resolves `color.blue` to the hex color value
-4. Generates historical access helpers for price sources
-
-## Supported Features
-
-### Language Constructs
--   **Variables**: `x = 1`, `var x = 1`, `varip x = 1`, tuple assignments `[a, b] = f()`.
--   **Types**: `int`, `float`, `bool`, `string`, `color`, `array<T>`.
--   **Control Flow**: `if`, `for`, `for...in`, `while`, `switch` statements and expressions.
--   **User-Defined Functions**: `f(x) => x * 2`, multi-line with block syntax.
--   **Inputs**: `input()`, `input.int()`, `input.float()`, `input.bool()`, `input.string()`, `input.color()`, `input.source()`.
--   **Exports/Imports**: `export var`, `export function`, `import "lib" as Lib`.
--   **Type Definitions**: `type Point` with fields and methods.
-
-### Standard Library
-
-#### Technical Analysis (`ta.*`)
-
-| Category | Functions |
-|----------|-----------|
-| **Moving Averages** | `sma`, `ema`, `wma`, `rma`, `vwma`, `swma`, `alma`, `hma`, `linreg`, `smma` |
-| **Oscillators** | `rsi`, `stoch`, `tsi`, `cci`, `mfi`, `roc`, `mom`, `change`, `percentrank` |
-| **Volatility** | `atr`, `tr`, `stdev`, `variance`, `dev` |
-| **Bands** | `bb`, `bbw`, `kc`, `kcw`, `donchian` |
-| **Trend** | `adx`, `supertrend`, `sar`, `pivothigh`, `pivotlow` |
-| **Cross Detection** | `cross`, `crossover`, `crossunder`, `rising`, `falling` |
-| **Volume** | `obv`, `cum`, `accdist`, `vwap` |
-| **Range** | `highest`, `lowest`, `highestbars`, `lowestbars`, `median`, `mode` |
-| **Multi-output** | `macd` → `[macdLine, signalLine, histogram]`, `dmi` → `[plusDI, minusDI, dx, adx, adxr]` |
-
-#### Math (`math.*`)
-`abs`, `acos`, `asin`, `atan`, `ceil`, `cos`, `exp`, `floor`, `log`, `log10`, `max`, `min`, `pow`, `random`, `round`, `sign`, `sin`, `sqrt`, `tan`, `sum`, `avg`, `todegrees`, `toradians`
-
-#### Time
-`time`, `year`, `month`, `dayofweek`, `dayofmonth`, `hour`, `minute`, `second`, `timeframe.*`
-
-#### Arrays
-Basic `array.*` support mapped to JavaScript arrays with type preservation.
-
-#### Maps (Pine v6)
-`map.new`, `map.put`, `map.put_all`, `map.get`, `map.contains`, `map.remove`, `map.size`, `map.keys`, `map.values`, `map.clear`, `map.copy`
-
-#### Matrices (Pine v6, subset)
-`matrix.new`, `matrix.rows`, `matrix.columns`, `matrix.get`, `matrix.set`, `matrix.add_row`, `matrix.remove_row`
-
-## Architecture
-
-The transpiler follows a classic compiler pipeline with four distinct phases:
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           Pine Script Source                                 │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  1. LEXER (src/parser/lexer.ts)                                             │
-│     • Tokenizes Pine Script input                                           │
-│     • Handles significant whitespace (INDENT/DEDENT)                        │
-│     • Tab normalization (4 spaces)                                          │
-│     • 16 token types: IDENTIFIER, NUMBER, STRING, OPERATOR, etc.            │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  2. PARSER (src/parser/parser.ts)                                           │
-│     • Recursive descent parser with precedence climbing                     │
-│     • Builds Abstract Syntax Tree (30 node types)                           │
-│     • Supports named arguments, generics, destructuring                     │
-│     • Error recovery via synchronize()                                      │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  3. AST (src/parser/ast.ts)                                                 │
-│                                                                             │
-│     Program                                                                 │
-│     ├── VariableDeclaration { name, value, modifier, typeAnnotation }       │
-│     ├── FunctionDeclaration { name, params, body }                          │
-│     ├── IfStatement { condition, consequent, alternate }                    │
-│     ├── ForStatement { iterator, start, end, step, body }                   │
-│     ├── CallExpression { callee, arguments }                                │
-│     └── ... 24 more node types                                              │
-│                                                                             │
-│  Node Types:                                                                │
-│  • Statements: VariableDeclaration, FunctionDeclaration, IfStatement,       │
-│    ForStatement, WhileStatement, ReturnStatement, SwitchStatement, etc.     │
-│  • Expressions: BinaryExpression, UnaryExpression, CallExpression,          │
-│    MemberExpression, ConditionalExpression, Identifier, Literal, etc.       │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  4. GENERATOR (src/generator/)                                              │
-│     • MetadataVisitor: Extracts inputs, plots, sources, historical access   │
-│     • ASTGenerator: Converts AST to JavaScript string                       │
-│     • Function Mappings: Resolves ta.*/math.*/time.* to PineJS.Std          │
-│     • StdPlus Injection: Polyfills for missing Std functions                │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         JavaScript / PineJS Output                          │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### Source Structure
-
-```
-src/
-├── index.ts              # Main entry, transpileToPineJS, runtime mocks
-├── parser/
-│   ├── lexer.ts          # Tokenizer with indentation handling
-│   ├── parser.ts         # Recursive descent parser
-│   └── ast.ts            # AST node type definitions
-├── generator/
-│   ├── ast-generator.ts  # AST to JavaScript code generation
-│   └── metadata-visitor.ts # AST visitor for metadata extraction
-├── mappings/
-│   ├── technical-analysis.ts # ta.* function mappings (50+ functions)
-│   ├── math.ts           # math.* function mappings
-│   ├── time.ts           # time.* and timeframe.* mappings
-│   ├── comparison.ts     # Comparison operators
-│   ├── utilities.ts      # Utility functions
-│   └── price-sources.ts  # Price source mappings
-├── stdlib/
-│   └── index.ts          # StdPlus polyfill library
-└── types/
-    ├── index.ts          # Type exports
-    └── runtime.ts        # Runtime type definitions
-```
-
-## Environment Support
-
-| Environment | Support |
-|-------------|---------|
-| Node.js 18+ | ✅ Full support (ESM & CJS) |
-| Browsers | ✅ Full support (ESM) |
-| Deno | ✅ Via npm specifier |
-| Bun | ✅ Full support |
-
-### Module Formats
-
-The package ships with dual format support:
-- **ESM**: `dist/index.js` (default for `import`)
-- **CJS**: `dist/index.cjs` (for `require()`)
-- **Types**: `dist/index.d.ts`
-
-## Limitations & Known Issues
-
-Full known-gaps list with workarounds lives in [docs/LIMITATIONS.md](docs/LIMITATIONS.md). Real-world corpus pass rate tracked in [docs/CORPUS-BASELINE.md](docs/CORPUS-BASELINE.md). Headline items:
-
-### Unsupported Features
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| `strategy.*` | ❌ Not Supported | Indicators only; no backtesting |
-| `request.security` | ⚠️ Partial | Deterministic in-process subset (expression passthrough + HTF bucket merge for supported signatures); no external data fetch |
-| `request.financial`, `request.economic`, `request.earnings`, `request.dividends`, `request.splits`, `request.quandl`, `request.seed` | ❌ Not Supported | External data sources |
-| `line.*`, `label.*`, `box.*`, `table.*` | ⚠️ Partial | Stateful runtime-compatible handles with method subsets; no chart rendering output |
-| `polyline.*` | ❌ Not Supported | Not implemented |
-
-### Known Limitations
-
-1.  **`request.security` scope**: subset support exists, but full Pine MTF parity is not complete (especially around cross-symbol fetching and complete `barmerge` semantics).
-
-2.  **Drawing/Table semantics**: object lifecycle and common mutators/getters are supported for runtime compatibility, but rendering is intentionally host-owned.
-
-3.  **Matrix coverage is subset-only**: advanced matrix APIs outside `new/rows/columns/get/set/add_row/remove_row` are not implemented yet.
-
-4.  **No Source Maps**: generated JavaScript cannot be mapped back to Pine Script lines for debugging.
-
-### Test Coverage
-
-Coverage is enforced through multiple layers:
-
-- **`bun run test:coverage`** runs the unit/regression suite under [`scripts/check-coverage.ts`](scripts/check-coverage.ts) and **fails CI if aggregate line or function coverage drops below 95%**. Current numbers: **95.81% functions / 98.62% lines** across 1393 tests.
-- unit/regression suites: `bun test tests/`
-- TradingView-shaped harness suites: `bun run test:harness`
-- corpus execution parity: `bun run corpus`
-- strict numeric checks: `bun run corpus:strict`
-- curated + community indicator matrices: `bun run corpus:matrix`, `bun run corpus:critical`, `bun run corpus:tv100`, `bun run corpus:tv200`, `bun run corpus:forex-xau`
-- differential numeric parity report: `bun run corpus:differential`
-- corpus quality/stability budgets: `bun run corpus:gate`
-- chart-host safety contracts: `bun run chart:safety`
-
-## Future Parity Roadmap
-
-The next accuracy/support roadmap is documented in [docs/FUTURE_PARITY_ROADMAP.md](docs/FUTURE_PARITY_ROADMAP.md), including:
-
-- phase-by-phase coverage tracking
-- parity KPIs and acceptance gates
-- execution order for semantic, visual, and MTF parity work
-
-## Development
-
-```bash
-# Install dependencies
-bun install
-
-# Run tests
-bun test tests/
-
-# Run TradingView-shaped harness integration tests
-bun run test:harness
-
-# Run tests in watch mode
-bun test --watch tests/
-
-# Build
-bun run build
-
-# Type check
-bun run typecheck
-
-# Lint
-bun run lint
-
-# Lint with auto-fix
-bun run lint:fix
-```
-
-### Corpus & Parity Checks
-
-```bash
-# Full corpus scorecard (pass/total + top failures)
-bun run corpus
-
-# Strict numeric parity checks on core indicators
-bun run corpus:strict
-
-# 67-indicator parity matrix (PASS/FAIL/NOT_FOUND)
-bun run corpus:matrix
-
-# Critical real-world market script matrix
-# (high-impact ICT/SMC/killzones/forex/XAU fixtures)
-bun run corpus:critical
-
-# TradingView top-100 community target matrix
-# (PASS/FAIL for imported fixtures, NOT_IN_CORPUS for missing imports)
-bun run corpus:tv100
-
-# TradingView top-200 matrix
-# (top-100 targets + 100 additional popular/customized fixtures)
-bun run corpus:tv200
-
-# Stability gate (lane/authenticity budgets for CI)
-bun run corpus:gate
-
-# Chart-host safety gate (constructor/plot/visual runtime contracts)
-bun run chart:safety
-
-# Visual parity baseline (5 fixtures, snapshot-based)
-bun run corpus:visual
-
-# Refresh corpus + visual snapshots after intentional changes
-bun run corpus:snap
-```
-
-### Corpus Governance
-
-The corpus is now classified using `tests/corpus/manifest.ts`:
-
-- lanes: `curated_core`, `upstream_authentic`, `synthetic_custom`, `quarantine`
-- authenticity classes: `authentic`, `proxy`, `synthetic`
-- categories and feature tags inferred from fixture source
-
-Governance artifacts:
-
-- `bun run test:harness` runs fixture-level descriptor + reducer-survival checks in a TradingView-shaped runtime harness.
-- `bun run corpus` prints pass rate by source, lane, authenticity, category, and top feature coverage.
-- `bun run corpus:critical` tracks regression-critical real-world scripts (ICT/SMC/killzones/XAU) that must remain runtime-stable.
-- `bun run corpus:tv100` / `bun run corpus:tv200` generate matrix artifacts for popular/community suites.
-- `bun run corpus:gate` enforces stability budgets in CI (overall pass, parse-clean, unimplemented std calls, per-lane pass, per-authenticity pass).
-- `bun run chart:safety` enforces TradingView-like host contracts (`new constructor()`, per-bar plot shape, visual-event payload integrity) and writes failure artifacts to `.tmp/chart-safety/`.
-
-Reference docs:
-
-- [docs/CORPUS-BASELINE.md](docs/CORPUS-BASELINE.md)
-- [docs/TRADINGVIEW_TOP100_MATRIX.md](docs/TRADINGVIEW_TOP100_MATRIX.md)
-- [docs/TRADINGVIEW_TOP200_MATRIX.md](docs/TRADINGVIEW_TOP200_MATRIX.md)
-- [docs/CRITICAL_INDICATOR_MATRIX.md](docs/CRITICAL_INDICATOR_MATRIX.md)
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for a detailed history of changes, new features, and bug fixes.
+---
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Issues and PRs welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md) for the dev workflow, then [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the test/corpus commands.
 
-Key areas for contribution:
-- Adding missing `ta.*` function implementations to StdPlus
-- Improving test coverage for edge cases
-- Adding source map generation
-- Documentation improvements
+Good first-issue areas: missing `ta.*` polyfills in StdPlus, edge-case test coverage, source map generation, doc improvements.
+
+---
 
 ## License
 
-MIT © Opus Aether AI — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). Use, modify, distribute, sublicense, sell. Just keep the copyright notice and license text in copies or substantial portions. No warranty.
 
-The MIT license is permissive: you may use, copy, modify, merge, publish, distribute, sublicense, and sell copies of this software, subject only to inclusion of the copyright notice and the license text in copies or substantial portions. The software is provided "as is" without warranty of any kind.
-
-## Acknowledgments
-
-This transpiler targets the publicly documented Pine Script v5/v6 language and the public PineJS Custom Indicators API of the TradingView Charting Library. It is a clean-room implementation built from public documentation. No proprietary TradingView code is bundled, redistributed, or otherwise included in this project.
+---
 
 ## Disclaimer
 
-This project is an independent, open-source developer interoperability tool. It is **not** affiliated with, endorsed by, sponsored by, or associated with TradingView Inc.
+This is an independent, open-source developer interoperability tool. It is **not** affiliated with, endorsed by, sponsored by, or associated with TradingView Inc.
 
-- "TradingView" and "Pine Script" are trademarks of TradingView Inc., used here solely for nominative identification of the language and API surface this tool targets.
-- This transpiler operates only on Pine Script source code that the user legally possesses. It does **not** retrieve, decode, decrypt, or otherwise access private, encrypted, or invite-only scripts from any TradingView property.
+- "TradingView" and "Pine Script" are trademarks of TradingView Inc., used solely for nominative identification of the language and API surface this tool targets.
+- The transpiler accepts plaintext `.pine` source only. It does **not** retrieve, decode, decrypt, or access private, encrypted, Protected, or Invite-Only scripts.
 - It does **not** scrape, automate, or interact with `tradingview.com` or any TradingView-hosted service.
-- Users are solely responsible for ensuring their use of the input source code and the generated JavaScript output complies with their respective license agreements, including the TradingView Terms of Service and the TradingView Charting Library license they hold.
-- This software is provided as a developer interoperability tool. The authors assume no responsibility for trading decisions, license-compliance breaches, or financial losses resulting from the use of this software.
+- Users are solely responsible for ensuring their use of the input source code and the generated JavaScript output complies with the TradingView Terms of Service and any Charting Library license agreement they hold.
+- Provided as-is. The authors assume no responsibility for trading decisions, license-compliance breaches, or financial losses resulting from use of this software.
 
-See [DISCLAIMER.md](DISCLAIMER.md) for the full safe-harbor framework.
+For the full safe-harbor framework, see [DISCLAIMER.md](DISCLAIMER.md).
