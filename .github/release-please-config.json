@@ -1,0 +1,28 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "packages": {
+    ".": {
+      "package-name": "@opus-aether-ai/pine-transpiler",
+      "release-type": "node",
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": true,
+      "draft": false,
+      "prerelease": false,
+      "include-component-in-tag": false,
+      "include-v-in-tag": true,
+      "changelog-sections": [
+        { "type": "feat", "section": "Added" },
+        { "type": "fix", "section": "Fixed" },
+        { "type": "perf", "section": "Performance" },
+        { "type": "refactor", "section": "Changed" },
+        { "type": "docs", "section": "Documentation" },
+        { "type": "revert", "section": "Reverts" },
+        { "type": "chore", "hidden": true },
+        { "type": "style", "hidden": true },
+        { "type": "test", "hidden": true },
+        { "type": "ci", "hidden": true },
+        { "type": "build", "hidden": true }
+      ]
+    }
+  }
+}

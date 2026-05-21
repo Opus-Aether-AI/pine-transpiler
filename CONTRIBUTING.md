@@ -158,7 +158,7 @@ docs(readme): update installation instructions
 
 1. **Update documentation** - If you change APIs, update README.md
 2. **Add tests** - Include tests for new features (when test suite is available)
-3. **Update CHANGELOG.md** - Add entry under "Unreleased" section
+3. **Use [Conventional Commits](https://www.conventionalcommits.org/)** - `feat:` / `fix:` / `chore:` / `docs:` / etc. drive automated versioning + CHANGELOG entries via `release-please`. See [docs/RELEASING.md](./docs/RELEASING.md). Do **not** hand-edit released CHANGELOG sections.
 4. **Ensure CI passes** - All checks must pass
 5. **Request review** - Wait for maintainer review
 6. **Address feedback** - Make requested changes
@@ -171,7 +171,7 @@ docs(readme): update installation instructions
 - [ ] Comments added for complex code
 - [ ] Documentation updated
 - [ ] No new warnings introduced
-- [ ] CHANGELOG.md updated
+- [ ] Commit messages use Conventional Commits prefixes (`feat:`, `fix:`, `chore:`, ...)
 - [ ] All CI checks passing
 
 ## Adding New Pine Script Functions

@@ -5,14 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
 <!--
-Add notes for unreleased changes here. When cutting a release, replace the
-`Unreleased` heading with the new version number + ISO date, and start a fresh
-empty `Unreleased` section above it.
-
-Groups (in this order): Added, Changed, Deprecated, Removed, Fixed, Security.
+This CHANGELOG is auto-maintained by `release-please` from Conventional
+Commit messages on `main`. Do not edit released sections by hand — see
+docs/RELEASING.md for the flow and `.github/release-please-config.json`
+for the commit-type → section mapping.
 -->
 
 ## [0.4.3] - 2026-05-22
