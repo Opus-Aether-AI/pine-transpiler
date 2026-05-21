@@ -5,13 +5,15 @@
 `pine-transpiler` is pre-1.0 and ships from a single supported line. Security
 fixes land in the latest published version on the `main` branch.
 
-| Version  | Supported |
-|----------|-----------|
-| latest (0.4.x) | ✅ |
-| < 0.4.0  | ❌ — please upgrade |
+| Package + version | Supported |
+|---|---|
+| `@opus-aether-ai/pine-transpiler` — latest (0.4.x) | ✅ |
+| `@opus-aether-ai/pine-transpiler` — < 0.4.0 | ❌ — please upgrade |
+| `@opusaether/pine-transpiler` (any version) | ❌ — **deprecated scope, package renamed in 0.4.0**; migrate to `@opus-aether-ai/pine-transpiler` |
 
-We do not backport security fixes to older minor lines. Bumping to the latest
-release is the supported path.
+We do not backport security fixes to older minor lines, and the legacy
+`@opusaether/` scope is unmaintained. Bumping to the latest release on the
+new scope is the supported path.
 
 ## Reporting a Vulnerability
 
@@ -28,8 +30,10 @@ Please use GitHub's [private vulnerability reporting][gh-private]:
 GitHub's private vulnerability reporting is the **only** intake channel.
 If you cannot access the form (account restrictions, network issues, etc.),
 open a public GitHub Issue titled `Security: request for private contact`
-with no further detail, and a maintainer will reach out via GitHub DM to
-collect the report privately.
+with **no further detail**. A maintainer will create a private GitHub
+Security Advisory and add you as a collaborator so the full report can
+be exchanged there, or — if your GitHub profile lists a contact email —
+reach out to that address directly.
 
 ## What to include
 

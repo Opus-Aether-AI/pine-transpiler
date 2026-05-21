@@ -25,7 +25,8 @@ updates:
       prefix: chore
       include: scope
 
-  # GitHub Actions used in .github/workflows/
+  # GitHub Actions used in .github/workflows/ (only ~2 actions today;
+  # limit kept low to match the actual surface)
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -33,7 +34,7 @@ updates:
       day: monday
       time: "06:00"
       timezone: Asia/Kolkata
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
     labels:
       - dependencies
       - github-actions
