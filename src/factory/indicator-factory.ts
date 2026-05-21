@@ -1353,7 +1353,9 @@ ${compiledScriptBody}
         _markProcessedBar();
         __previousBarTime = _barTime;
         const _result = _plotValues.slice();
-${hasBgcolors ? `        if (_latestBgColor !== null && _latestBgColor !== undefined) {
+${
+  hasBgcolors
+    ? `        if (_latestBgColor !== null && _latestBgColor !== undefined) {
           if (!__bgColorToSlot.has(_latestBgColor)) {
             __bgColorToSlot.set(_latestBgColor, (__bgColorToSlot.size % 7) + 1);
           }
@@ -1361,7 +1363,9 @@ ${hasBgcolors ? `        if (_latestBgColor !== null && _latestBgColor !== undef
         } else {
           _result.push(0);
         }
-` : ''}
+`
+    : ''
+}
         while (_result.length < ${totalPlotCount}) _result.push(Number.NaN);
         if (_result.length > ${totalPlotCount}) _result.length = ${totalPlotCount};
         return _result;`;
@@ -4005,7 +4009,11 @@ export function generateStandaloneFactory(
   // transpileToPineJS. Fallback path preserves low-level unit behavior
   // when direct generateStandaloneFactory calls omit mainBody.
   const mainBodyCode = hasTranspiledMainBody
-    ? generateStandaloneRuntimeMainBody(runtimeBody, nativePlots.length, hasBgcolors)
+    ? generateStandaloneRuntimeMainBody(
+        runtimeBody,
+        nativePlots.length,
+        hasBgcolors,
+      )
     : generateNativeMainBody(
         inputs,
         plots,
@@ -4076,14 +4084,18 @@ ${
     },
 
     constructor: function() {
-${hasTranspiledMainBody ? `      const __stubs = __createStubNamespaces();
+${
+  hasTranspiledMainBody
+    ? `      const __stubs = __createStubNamespaces();
       const __colorMap = ${colorMapLiteral};
       const __bgColorToSlot = new Map();
       let __previousBarTime = Number.NaN;
       let __fallbackBarIndex = -1;
       let __processedBars = 0;
       let __processedBarKey = null;
-` : ''}
+`
+    : ''
+}
       this.main = function(context, inputCallback) {
 ${mainBodyCode}
       };
