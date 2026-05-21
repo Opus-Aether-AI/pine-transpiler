@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { _ as getMappingStats, a as transpileToStandaloneFactory, i as transpileToPineJS, r as transpile, t as canTranspilePineScript } from "../src-MU1nwhwB.js";
+import { _ as getMappingStats, a as transpileToStandaloneFactory, i as transpileToPineJS, r as transpile, t as canTranspilePineScript } from "../src-D-l5uhwI.js";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -199,7 +199,7 @@ function generatePineJSFactoryCode(pineCode, indicatorId, indicatorName) {
  *   const indicator = createIndicator(PineJS);
  */
 
-import { transpileToPineJS } from '@opusaether/pine-transpiler';
+import { transpileToPineJS } from '@opus-aether-ai/pine-transpiler';
 
 const pineCode = ${escapedCode};
 const indicatorId = ${JSON.stringify(indicatorId)};

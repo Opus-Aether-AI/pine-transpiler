@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const require_src = require("../src-D5EXF0pU.cjs");
+const require_src = require("../src-Cpzzrxqx.cjs");
 let node_fs = require("node:fs");
 let node_path = require("node:path");
 let node_url = require("node:url");
@@ -199,7 +199,7 @@ function generatePineJSFactoryCode(pineCode, indicatorId, indicatorName) {
  *   const indicator = createIndicator(PineJS);
  */
 
-import { transpileToPineJS } from '@opusaether/pine-transpiler';
+import { transpileToPineJS } from '@opus-aether-ai/pine-transpiler';
 
 const pineCode = ${escapedCode};
 const indicatorId = ${JSON.stringify(indicatorId)};

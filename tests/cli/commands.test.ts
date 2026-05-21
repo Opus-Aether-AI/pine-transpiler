@@ -126,7 +126,7 @@ describe('commandTranspile', () => {
     expect(result.code).toBeNull();
     const written = readFileSync(out, 'utf-8');
     expect(written).toContain('createIndicator');
-    expect(written).toContain('@opusaether/pine-transpiler');
+    expect(written).toContain('@opus-aether-ai/pine-transpiler');
     expect(written).toContain('sma_basic');
   });
 

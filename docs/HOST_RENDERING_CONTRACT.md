@@ -318,7 +318,7 @@ Callers without a host renderer (or running in a context where the
 renderer hasn't been wired yet) can opt in to the fallback bands:
 
 ```ts
-import { transpileToPineJS } from '@opusaether/pine-transpiler';
+import { transpileToPineJS } from '@opus-aether-ai/pine-transpiler';
 
 const result = transpileToPineJS(source, id, name, {
   autoBgColorerForBoxes: true,

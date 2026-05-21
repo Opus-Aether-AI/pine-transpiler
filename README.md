@@ -56,7 +56,7 @@ The package ships a pre-built `dist/` so no post-install build step is required.
 ## Quick Start
 
 ```typescript
-import { transpileToPineJS } from '@opusaether/pine-transpiler';
+import { transpileToPineJS } from '@opus-aether-ai/pine-transpiler';
 
 const pineScript = `
 //@version=5
@@ -171,7 +171,7 @@ import {
   validateInputSize,      // (code) => void   throws if >1MB
   HelperUsage,            // tracker of runtime-helper categories emitted
   MAX_INPUT_SIZE,         // 1_000_000
-} from '@opusaether/pine-transpiler';
+} from '@opus-aether-ai/pine-transpiler';
 
 // Stop at the AST — e.g. for an LSP that wants to inspect the parse:
 const ast = parse(source);
@@ -216,7 +216,7 @@ import {
   // Types / constants
   COLOR_MAP,
   PRICE_SOURCES,
-} from '@opusaether/pine-transpiler';
+} from '@opus-aether-ai/pine-transpiler';
 ```
 
 #### Harness Sub-export
@@ -225,12 +225,12 @@ import {
   runTradingViewHarness,
   type TradingViewHarnessOptions,
   type TradingViewHarnessReport,
-} from '@opusaether/pine-transpiler/test-harness';
+} from '@opus-aether-ai/pine-transpiler/test-harness';
 ```
 
 #### Strict CSP Integration
 ```typescript
-import { transpileToStandaloneFactory } from '@opusaether/pine-transpiler';
+import { transpileToStandaloneFactory } from '@opus-aether-ai/pine-transpiler';
 
 const built = transpileToStandaloneFactory(pineSource, 'ict_killzones', 'ICT Killzones');
 if (!built.success) throw new Error(built.error);
@@ -249,7 +249,7 @@ integration (for example non-constructable constructors, missing
 `metainfo.styles[plot.id]`, undefined plot slots, or reducer crashes).
 
 ```typescript
-import { runTradingViewHarness } from '@opusaether/pine-transpiler/test-harness';
+import { runTradingViewHarness } from '@opus-aether-ai/pine-transpiler/test-harness';
 
 const report = runTradingViewHarness({
   fixtureName: 'ict-killzones.pine',

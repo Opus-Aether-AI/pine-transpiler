@@ -32,7 +32,7 @@ function generatePineJSFactoryCode(
  *   const indicator = createIndicator(PineJS);
  */
 
-import { transpileToPineJS } from '@opusaether/pine-transpiler';
+import { transpileToPineJS } from '@opus-aether-ai/pine-transpiler';
 
 const pineCode = ${escapedCode};
 const indicatorId = ${JSON.stringify(indicatorId)};

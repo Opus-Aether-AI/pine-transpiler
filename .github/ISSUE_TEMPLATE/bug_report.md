@@ -24,7 +24,7 @@ Minimal steps to reproduce:
 
 ## Environment
 
-- `@opusaether/pine-transpiler` version:
+- `@opus-aether-ai/pine-transpiler` version:
 - Node / Bun version:
 - OS:
 

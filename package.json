@@ -1,11 +1,12 @@
 {
-  "name": "@opusaether/pine-transpiler",
+  "name": "@opus-aether-ai/pine-transpiler",
   "version": "0.3.1",
   "description": "Transpile Pine Script v5/v6 to executable JavaScript. Zero dependencies.",
   "author": "Opus Aether AI",
   "license": "AGPL-3.0",
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "registry": "https://npm.pkg.github.com"
   },
   "type": "module",
   "main": "./dist/index.cjs",

@@ -113,7 +113,7 @@ This release bundles two strands of work:
   `CORPUS-BASELINE.md`) into `docs/`. The script-generated parity
   matrices stay in root because the scripts in `scripts/corpus/`
   write to those paths.
-- Stale CHANGELOG entry referencing an `@opusaether/pine-transpiler/llm-prompt`
+- Stale CHANGELOG entry referencing an `@opus-aether-ai/pine-transpiler/llm-prompt`
   export that was never shipped (confirmed via `git log -S`) removed.
 - Redundant `.npmignore` deleted (the `files` whitelist in
   `package.json` already constrains the published tarball).
@@ -158,7 +158,7 @@ execution behavior closer to TradingView for real-world indicators.
 - **Expanded visual baseline fixtures** for phase-14.2 coverage:
   `41-visual-drawing-lifecycle.pine`,
   `42-visual-table-scanner.pine`, and `ict-killzones.pine`.
-- **TradingView-shaped harness package export** (`@opusaether/pine-transpiler/test-harness`)
+- **TradingView-shaped harness package export** (`@opus-aether-ai/pine-transpiler/test-harness`)
   with focused descriptor + reducer-survival runtime checks.
 - **Harness fixture lane** for startup/runtime regression guards:
   `fixtures/trivial-sma.pine`, `fixtures/ict-killzones.pine`, plus
@@ -405,7 +405,7 @@ are now bound:
 - Method declarations (`method m(x) => ...`)
 - Import statements (`import "user/lib/1" as Lib`)
 - Generic type parsing (`array<int>`, `matrix<float>`)
-- LLM prompt module export (`@opusaether/pine-transpiler/llm-prompt`)
+- LLM prompt module export (`@opus-aether-ai/pine-transpiler/llm-prompt`)
 - `canTranspilePineScript()` validation function
 - `executePineJS()` for running native PineJS code
 - Improved error recovery in parser with `synchronize()` method

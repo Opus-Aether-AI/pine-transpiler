@@ -25,7 +25,7 @@ Either:
 
 ## Environment
 
-- `@opusaether/pine-transpiler` version:
+- `@opus-aether-ai/pine-transpiler` version:
 - Node / Bun version:
 - Is the script in `tests/corpus/community/`? If so, which file?
 
