@@ -25,8 +25,11 @@ Please use GitHub's [private vulnerability reporting][gh-private]:
 
 [gh-private]: https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability
 
-If GitHub's form is unavailable, you can email the maintainer team at the
-address listed in `CODE_OF_CONDUCT.md` for enforcement contact.
+GitHub's private vulnerability reporting is the **only** intake channel.
+If you cannot access the form (account restrictions, network issues, etc.),
+open a public GitHub Issue titled `Security: request for private contact`
+with no further detail, and a maintainer will reach out via GitHub DM to
+collect the report privately.
 
 ## What to include
 
@@ -73,8 +76,13 @@ is the transpiler's own code. The generator emits identifiers through a
 `sanitizeIdentifier` allowlist (blocks `__proto__`, `constructor`, `prototype`,
 `eval`, `Function`, reserved words) and all user-controlled string literals are
 passed through `JSON.stringify` before interpolation. We use `new Function(...)`
-in two places, both with sanitized + uniquified inputs (see
-`src/index.ts:231` and `src/factory/indicator-factory.ts:986`). Regression
-tests cover both paths.
+in two places, both with sanitized + uniquified inputs:
+
+- `executePineJS()` in `src/index.ts` — runs only the already-emitted JS
+  produced by the transpiler
+- the compile step inside `buildIndicatorFactory()` in
+  `src/factory/indicator-factory.ts` — invoked once during factory init
+
+Regression tests cover both paths.
 
 We welcome reports that go deeper than this surface.
