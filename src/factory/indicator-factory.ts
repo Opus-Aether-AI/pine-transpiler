@@ -1990,12 +1990,29 @@ export function buildIndicatorFactory(
             const state = _requestSecurityState.get(key);
             if (!state) return expressionArg;
 
-            const merged =
-              merge.lookahead === 'lookahead_on'
+            // Approximate Pine MTF merge timing:
+            // - lookahead_on: expose current HTF bucket value from its first
+            //   chart bar (future-leaking behavior by design).
+            // - lookahead_off: expose current HTF bucket only on that bucket's
+            //   *closing* chart bar; otherwise hold last confirmed bucket.
+            //
+            // For gaps_on, only emit on the active event bar:
+            // - lookahead_on -> bucket-open bar
+            // - lookahead_off -> bucket-close bar
+            const nextBucket = Math.floor(
+              (currentBarTime + chartTimeframeMs) / bucketSizeMs,
+            );
+            const isBucketCloseBar = nextBucket !== bucket;
+
+            const isLookaheadOn = merge.lookahead === 'lookahead_on';
+            const eventBar = isLookaheadOn ? changedBucket : isBucketCloseBar;
+            const merged = isLookaheadOn
+              ? state.currentValue
+              : isBucketCloseBar
                 ? state.currentValue
                 : state.confirmedValue;
 
-            if (merge.gaps === 'gaps_on' && !changedBucket) {
+            if (merge.gaps === 'gaps_on' && !eventBar) {
               return naLike(expressionArg);
             }
             return cloneValue(merged);

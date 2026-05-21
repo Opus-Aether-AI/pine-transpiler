@@ -245,4 +245,27 @@ plot(b)
     expect(Number.isFinite(rows[0]?.[0] as number)).toBe(true);
     expect(Number.isFinite(rows[0]?.[1] as number)).toBe(true);
   });
+
+  it('aligns gaps_on + lookahead_off emissions to bucket-close bars (not bucket-open bars)', () => {
+    const source = `//@version=5
+indicator("req gaps/lookahead alignment")
+vClose = request.security(syminfo.tickerid, "15", close, barmerge.gaps_on, barmerge.lookahead_off)
+vOpen = request.security(syminfo.tickerid, "15", close, barmerge.gaps_on, barmerge.lookahead_on)
+plot(vClose)
+plot(vOpen)
+`;
+    const rows = runBars(source, 40);
+    const closeSeries = rows.map((r) => r[0] as number);
+    const openSeries = rows.map((r) => r[1] as number);
+    const openIdx = openSeries
+      .map((v, i) => (Number.isFinite(v) ? i : -1))
+      .filter((i) => i >= 0);
+
+    expect(openIdx.length).toBeGreaterThan(0);
+    for (const i of openIdx) {
+      if (i === 0) continue;
+      expect(Number.isFinite(closeSeries[i - 1] as number)).toBe(true);
+      expect(Number.isNaN(closeSeries[i] as number)).toBe(true);
+    }
+  });
 });

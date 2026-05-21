@@ -4556,8 +4556,11 @@ function buildIndicatorFactory(options) {
 						} else existing.currentValue = cloneValue(expressionArg);
 						const state = _requestSecurityState.get(key);
 						if (!state) return expressionArg;
-						const merged = merge.lookahead === "lookahead_on" ? state.currentValue : state.confirmedValue;
-						if (merge.gaps === "gaps_on" && !changedBucket) return naLike(expressionArg);
+						const isBucketCloseBar = Math.floor((currentBarTime + chartTimeframeMs) / bucketSizeMs) !== bucket;
+						const isLookaheadOn = merge.lookahead === "lookahead_on";
+						const eventBar = isLookaheadOn ? changedBucket : isBucketCloseBar;
+						const merged = isLookaheadOn ? state.currentValue : isBucketCloseBar ? state.currentValue : state.confirmedValue;
+						if (merge.gaps === "gaps_on" && !eventBar) return naLike(expressionArg);
 						return cloneValue(merged);
 					};
 					const request = new Proxy({ security: requestSecurity }, { get: (target, prop) => {
@@ -8963,4 +8966,4 @@ function executePineJS(code, indicatorId, indicatorName) {
 //#endregion
 export { HelperUsage as S, getMappingStats as _, transpileToStandaloneFactory as a, TA_FUNCTION_MAPPINGS as b, compile as c, parse as d, validateInputSize as f, getAllPineFunctionNames as g, PRICE_SOURCES as h, transpileToPineJS as i, extractMetadata as l, COLOR_MAP as m, executePineJS as n, MAX_INPUT_SIZE as o, generateStandaloneFactory as p, transpile as r, buildFactory as s, canTranspilePineScript as t, generateBody as u, TIME_FUNCTION_MAPPINGS as v, MATH_FUNCTION_MAPPINGS as x, MULTI_OUTPUT_MAPPINGS as y };
 
-//# sourceMappingURL=src-D-l5uhwI.js.map
+//# sourceMappingURL=src-z2eSTNOc.js.map

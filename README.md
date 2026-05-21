@@ -1,8 +1,16 @@
 # Pine Script to PineJS Transpiler
 
-A robust transpiler that converts TradingView **Pine Script (v5/v6)** into JavaScript code compatible with the **TradingView Charting Library's Custom Indicators (`PineJS`)** API.
+A developer interoperability tool that converts Pine Script v5/v6 source code into JavaScript objects implementing the public PineJS Custom Indicators API used by the TradingView Charting Library.
 
-This tool allows you to run Pine Script indicators directly within the Charting Library by transpiling them into standard JavaScript objects that implement the `PineJS` interface.
+This is a clean-room transpiler built from public language and API documentation. It is intended for developers who hold valid licenses for the TradingView Charting Library and want to run their own Pine Script source through their own deployments.
+
+> **Independent project — not affiliated with TradingView Inc.**
+>
+> This project is an independent tool. It is not affiliated with, endorsed by, sponsored by, or associated with TradingView Inc. "TradingView" and "Pine Script" are trademarks of TradingView Inc., used here solely for nominative identification of the language and API surface this tool targets.
+>
+> The transpiler operates only on source code that you legally possess. It does not retrieve, decode, or otherwise access private, encrypted, or invite-only scripts. Users are solely responsible for ensuring their use of the input source code and the generated output complies with their respective license agreements, including the TradingView Terms of Service and the TradingView Charting Library license they hold.
+>
+> See [DISCLAIMER.md](DISCLAIMER.md) for the full safe-harbor framework.
 
 ## Table of Contents
 
@@ -622,23 +630,22 @@ Key areas for contribution:
 
 ## License
 
-AGPL-3.0 © Opus Aether
+MIT © Opus Aether AI — see [LICENSE](LICENSE).
 
-This project is licensed under the GNU Affero General Public License v3.0. This means:
-- ✅ You can use, modify, and distribute this software
-- ✅ If you run a modified version on a network server, you must make the source code available to users
-- ✅ Any modifications must also be licensed under AGPL-3.0
-- ✅ See [LICENSE](LICENSE) for full details
+The MIT license is permissive: you may use, copy, modify, merge, publish, distribute, sublicense, and sell copies of this software, subject only to inclusion of the copyright notice and the license text in copies or substantial portions. The software is provided "as is" without warranty of any kind.
 
 ## Acknowledgments
 
-- Inspired by TradingView's Pine Script language
-- Compatible with TradingView Charting Library
+This transpiler targets the publicly documented Pine Script v5/v6 language and the public PineJS Custom Indicators API of the TradingView Charting Library. It is a clean-room implementation built from public documentation. No proprietary TradingView code is bundled, redistributed, or otherwise included in this project.
 
 ## Disclaimer
 
-This project is an independent, open-source initiative and is **not** affiliated with, endorsed by, or connected to TradingView Inc.
+This project is an independent, open-source developer interoperability tool. It is **not** affiliated with, endorsed by, sponsored by, or associated with TradingView Inc.
 
-- **TradingView** and **Pine Script** are trademarks of TradingView Inc.
-- This transpiler is a clean-room implementation based on public documentation and behavior observation. It does not use or contain any proprietary code from TradingView.
-- Use this tool at your own risk. The authors assume no responsibility for trading decisions or financial losses resulting from the use of this software.
+- "TradingView" and "Pine Script" are trademarks of TradingView Inc., used here solely for nominative identification of the language and API surface this tool targets.
+- This transpiler operates only on Pine Script source code that the user legally possesses. It does **not** retrieve, decode, decrypt, or otherwise access private, encrypted, or invite-only scripts from any TradingView property.
+- It does **not** scrape, automate, or interact with `tradingview.com` or any TradingView-hosted service.
+- Users are solely responsible for ensuring their use of the input source code and the generated JavaScript output complies with their respective license agreements, including the TradingView Terms of Service and the TradingView Charting Library license they hold.
+- This software is provided as a developer interoperability tool. The authors assume no responsibility for trading decisions, license-compliance breaches, or financial losses resulting from the use of this software.
+
+See [DISCLAIMER.md](DISCLAIMER.md) for the full safe-harbor framework.

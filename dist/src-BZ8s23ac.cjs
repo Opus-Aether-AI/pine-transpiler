@@ -4556,8 +4556,11 @@ function buildIndicatorFactory(options) {
 						} else existing.currentValue = cloneValue(expressionArg);
 						const state = _requestSecurityState.get(key);
 						if (!state) return expressionArg;
-						const merged = merge.lookahead === "lookahead_on" ? state.currentValue : state.confirmedValue;
-						if (merge.gaps === "gaps_on" && !changedBucket) return naLike(expressionArg);
+						const isBucketCloseBar = Math.floor((currentBarTime + chartTimeframeMs) / bucketSizeMs) !== bucket;
+						const isLookaheadOn = merge.lookahead === "lookahead_on";
+						const eventBar = isLookaheadOn ? changedBucket : isBucketCloseBar;
+						const merged = isLookaheadOn ? state.currentValue : isBucketCloseBar ? state.currentValue : state.confirmedValue;
+						if (merge.gaps === "gaps_on" && !eventBar) return naLike(expressionArg);
 						return cloneValue(merged);
 					};
 					const request = new Proxy({ security: requestSecurity }, { get: (target, prop) => {
@@ -9094,4 +9097,4 @@ Object.defineProperty(exports, "validateInputSize", {
 	}
 });
 
-//# sourceMappingURL=src-Cpzzrxqx.cjs.map
+//# sourceMappingURL=src-BZ8s23ac.cjs.map

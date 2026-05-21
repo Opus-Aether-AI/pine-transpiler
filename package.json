@@ -3,7 +3,7 @@
   "version": "0.3.1",
   "description": "Transpile Pine Script v5/v6 to executable JavaScript. Zero dependencies.",
   "author": "Opus Aether AI",
-  "license": "AGPL-3.0",
+  "license": "MIT",
   "publishConfig": {
     "access": "public"
   },
@@ -34,7 +34,8 @@
     "dist",
     "fixtures",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "DISCLAIMER.md"
   ],
   "scripts": {
     "build": "vite build",

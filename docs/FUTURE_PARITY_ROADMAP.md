@@ -213,6 +213,19 @@ Progress (2026-05-12, tranche 1):
   - unsupported-mode diagnostics
   - tuple lookahead-on finite behavior on first higher-timeframe bucket
 
+Progress (2026-05-21, tranche 2):
+
+- `request.security` merge timing tightened for higher-timeframe merges:
+  - `gaps_on + lookahead_off` now emits on bucket-close bars instead of
+    bucket-open bars
+  - `lookahead_off` bucket-close handling now uses the current bucket's
+    expression value on the closing chart bar, with confirmed hold
+    semantics in-between
+- regression coverage added in
+  `tests/regression/request-security.test.ts`:
+  - `aligns gaps_on + lookahead_off emissions to bucket-close bars (not
+    bucket-open bars)`
+
 ### Phase 16: Builtin/Data-Structure + Semantic Correctness Expansion
 
 Goal: reduce unsupported surface area blocking real-world scripts and

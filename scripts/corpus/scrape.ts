@@ -55,12 +55,6 @@ const SOURCES: SourceConfig[] = [
     cap: 60,
   },
   {
-    slug: 'harryguiacorn/TradingView-Proprietary-Indicators',
-    dir: '/tmp/pine-corpus-sources/TradingView-Proprietary-Indicators',
-    label: 'harryguiacorn',
-    cap: 20,
-  },
-  {
     slug: 'pinecoders/pine-utils',
     dir: '/tmp/pine-corpus-sources/pine-utils',
     label: 'pinecoders',
