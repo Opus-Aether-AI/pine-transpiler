@@ -10,6 +10,7 @@
       "prerelease": false,
       "include-component-in-tag": false,
       "include-v-in-tag": true,
+      "bootstrap-sha": "2269f9760bd4755081013ed76710fd5c772af578",
       "changelog-sections": [
         { "type": "feat", "section": "Added" },
         { "type": "fix", "section": "Fixed" },
