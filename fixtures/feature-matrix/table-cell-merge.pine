@@ -1,0 +1,10 @@
+//@version=6
+indicator("Feature Matrix - table merge", overlay=true)
+
+var t = table.new(position.top_right, 2, 2)
+if barstate.islast
+    table.cell(t, 0, 0, "A")
+    table.cell(t, 1, 0, "B")
+    table.merge_cells(t, 0, 0, 1, 0)
+
+plot(close, "Close")

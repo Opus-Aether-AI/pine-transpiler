@@ -1,0 +1,5 @@
+//@version=6
+import user/lib/1 as Lib
+
+indicator("Feature Matrix - library import", overlay=false)
+plot(close, "Close")

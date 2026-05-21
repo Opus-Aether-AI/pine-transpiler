@@ -591,6 +591,113 @@ function __createStubNamespaces() {
   };
 }
 
+function __extractHandleId(value) {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const id = value.__id;
+  return typeof id === 'number' ? id : undefined;
+}
+
+function __wrapVisualHandle(namespace, handle, ctx) {
+  if (typeof handle !== 'object' || handle === null) return handle;
+  const handleId = __extractHandleId(handle);
+  return new Proxy(handle, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver);
+      if (typeof prop !== 'string') return value;
+      if (typeof value !== 'function') return value;
+      return (...args) => {
+        if (handleId !== undefined) {
+          ctx.pushEvent({
+            call: namespace + '.' + prop,
+            args,
+            barIndex: ctx.barIndex,
+            pineHandleId: handleId,
+          });
+        }
+        return value.apply(target, args);
+      };
+    },
+  });
+}
+
+function __createVisualNamespaceProxy(namespace, ns, ctx) {
+  return new Proxy(ns, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver);
+      if (typeof prop !== 'string') return value;
+      if (typeof value !== 'function') return value;
+      return (...args) => {
+        const result = value.apply(target, args);
+        const handleId =
+          prop === 'new' ? __extractHandleId(result) : __extractHandleId(args[0]);
+        if (handleId !== undefined) {
+          ctx.pushEvent({
+            call: namespace + '.' + prop,
+            args,
+            barIndex: ctx.barIndex,
+            pineHandleId: handleId,
+          });
+        }
+        if (prop === 'new') {
+          return __wrapVisualHandle(namespace, result, ctx);
+        }
+        return result;
+      };
+    },
+  });
+}
+
+function __createVisualStubs(raw, ctx) {
+  return {
+    ...raw,
+    line: __createVisualNamespaceProxy('line', raw.line, ctx),
+    box: __createVisualNamespaceProxy('box', raw.box, ctx),
+    label: __createVisualNamespaceProxy('label', raw.label, ctx),
+    table: __createVisualNamespaceProxy('table', raw.table, ctx),
+  };
+}
+
+const __visualStdCalls = new Set([
+  'plot',
+  'plotshape',
+  'plotchar',
+  'plotarrow',
+  'hline',
+  'bgcolor',
+  'fill',
+  'barcolor',
+]);
+
+function __createVisualStdProxy(std, ctx, options) {
+  return new Proxy(std, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver);
+      if (typeof prop !== 'string') return value;
+      if (!__visualStdCalls.has(prop)) return value;
+      return (...args) => {
+        ctx.pushEvent({
+          call: 'Std.' + prop,
+          args,
+          barIndex: ctx.barIndex,
+        });
+        if (options && typeof options.pushPlotValue === 'function') {
+          if (prop === 'plot' || prop === 'plotarrow') {
+            options.pushPlotValue(__coercePlotValue(args[0]));
+          } else if (prop === 'plotshape' || prop === 'plotchar') {
+            options.pushPlotValue(__coerceShapePlotValue(args[0]));
+          } else if (prop === 'hline') {
+            options.pushPlotValue(Number.NaN);
+          }
+        }
+        if (typeof value === 'function') {
+          return value.apply(target, args);
+        }
+        return undefined;
+      };
+    },
+  });
+}
+
 function __createInput(inputCallback, Std, context) {
   let inputIndex = 0;
   const coerce = (defval, raw) => {
@@ -959,6 +1066,7 @@ function generateStandaloneRuntimeMainBody(
   const compiledScriptBody = indentCode(runtimeBody, 10);
 
   return `const _plotValues = [];
+        const _visualEvents = [];
         let _latestBgColor = null;
         const _currentTimeRaw = Number(Std.time(context));
         const _barTime = Number.isFinite(_currentTimeRaw) ? _currentTimeRaw : Date.now();
@@ -980,45 +1088,14 @@ function generateStandaloneRuntimeMainBody(
             __processedBars += 1;
           }
         };
+        const _pushVisualEvent = (event) => {
+          _visualEvents.push(event);
+        };
+        __visualCtx.pushEvent = _pushVisualEvent;
+        __visualCtx.barIndex = _resolvedBarIndex;
         const _chartPeriod = typeof Std.period === 'function' ? String(Std.period(context) || '1') : '1';
-        const _stdWithCompat = new Proxy(Std, {
+        const _stdCompatBase = new Proxy(Std, {
           get(target, prop, receiver) {
-            if (prop === 'plot') {
-              return (series) => {
-                _plotValues.push(__coercePlotValue(series));
-                return undefined;
-              };
-            }
-            if (prop === 'plotshape') {
-              return (series) => {
-                _plotValues.push(__coerceShapePlotValue(series));
-                return undefined;
-              };
-            }
-            if (prop === 'plotchar') {
-              return (series) => {
-                _plotValues.push(__coerceShapePlotValue(series));
-                return undefined;
-              };
-            }
-            if (prop === 'plotarrow') {
-              return (series) => {
-                _plotValues.push(__coercePlotValue(series));
-                return undefined;
-              };
-            }
-            if (prop === 'hline') {
-              return () => undefined;
-            }
-            if (prop === 'bgcolor') {
-              return (color) => {
-                _latestBgColor = color;
-                return undefined;
-              };
-            }
-            if (prop === 'fill' || prop === 'barcolor') {
-              return () => undefined;
-            }
             if (prop === 'time') {
               return (timeframeArg, sessionArg, timezoneArg, barsBackArg) =>
                 __compatTime(
@@ -1062,31 +1139,78 @@ function generateStandaloneRuntimeMainBody(
             return Reflect.get(target, prop, receiver);
           },
         });
+        const _stdWithCompat = __createVisualStdProxy(_stdCompatBase, __visualCtx, {
+          pushPlotValue: (value) => {
+            _plotValues.push(value);
+          },
+        });
 
         const input = __createInput(inputCallback, _stdWithCompat, context);
         const plot = (series) => {
           _plotValues.push(__coercePlotValue(series));
           return undefined;
         };
-        const plotshape = (series) => {
-          _plotValues.push(__coerceShapePlotValue(series));
+        const plotshape = (...args) => {
+          _pushVisualEvent({
+            call: 'plotshape',
+            args,
+            barIndex: _resolvedBarIndex,
+          });
+          _plotValues.push(Number.NaN);
           return undefined;
         };
-        const plotchar = (series) => {
-          _plotValues.push(__coerceShapePlotValue(series));
+        const plotchar = (...args) => {
+          _pushVisualEvent({
+            call: 'plotchar',
+            args,
+            barIndex: _resolvedBarIndex,
+          });
+          _plotValues.push(Number.NaN);
           return undefined;
         };
-        const plotarrow = (series) => {
-          _plotValues.push(__coercePlotValue(series));
+        const plotarrow = (...args) => {
+          _pushVisualEvent({
+            call: 'plotarrow',
+            args,
+            barIndex: _resolvedBarIndex,
+          });
+          _plotValues.push(Number.NaN);
           return undefined;
         };
-        const hline = () => undefined;
+        const hline = (...args) => {
+          _pushVisualEvent({
+            call: 'hline',
+            args,
+            barIndex: _resolvedBarIndex,
+          });
+          _plotValues.push(Number.NaN);
+          return undefined;
+        };
         const bgcolor = (color) => {
+          _pushVisualEvent({
+            call: 'bgcolor',
+            args: [color],
+            barIndex: _resolvedBarIndex,
+          });
           _latestBgColor = color;
           return undefined;
         };
-        const fill = () => undefined;
-        const barcolor = () => undefined;
+        const fill = (...args) => {
+          _pushVisualEvent({
+            call: 'fill',
+            args,
+            barIndex: _resolvedBarIndex,
+          });
+          return undefined;
+        };
+        const barcolor = (...args) => {
+          _pushVisualEvent({
+            call: 'barcolor',
+            args,
+            barIndex: _resolvedBarIndex,
+          });
+          return undefined;
+        };
         const indicator = () => undefined;
         const study = () => undefined;
         const strategy = (() => undefined);
@@ -1109,7 +1233,10 @@ function generateStandaloneRuntimeMainBody(
         const label = __stubs.label;
         const table = __stubs.table;
         const str = __stubs.str;
-        if (box && typeof box.__setBarTime === 'function') box.__setBarTime(_barTime);
+        const _rawBox = __stubsRaw.box;
+        if (_rawBox && typeof _rawBox.__setBarTime === 'function') {
+          _rawBox.__setBarTime(_barTime);
+        }
         const syminfo = __createSyminfo(context);
         const barstate = __createBarstate(context, _barTime, __previousBarTime);
         const shape = {
@@ -1368,6 +1495,18 @@ ${
 }
         while (_result.length < ${totalPlotCount}) _result.push(Number.NaN);
         if (_result.length > ${totalPlotCount}) _result.length = ${totalPlotCount};
+        Object.defineProperty(_result, '__visualEvents', {
+          value: _visualEvents,
+          enumerable: false,
+          writable: false,
+          configurable: true,
+        });
+        Object.defineProperty(_result, '__visualEventsVersion', {
+          value: 1,
+          enumerable: false,
+          writable: false,
+          configurable: true,
+        });
         return _result;`;
 }
 
@@ -4086,7 +4225,9 @@ ${
     constructor: function() {
 ${
   hasTranspiledMainBody
-    ? `      const __stubs = __createStubNamespaces();
+    ? `      const __stubsRaw = __createStubNamespaces();
+      const __visualCtx = { pushEvent: () => undefined, barIndex: -1 };
+      const __stubs = __createVisualStubs(__stubsRaw, __visualCtx);
       const __colorMap = ${colorMapLiteral};
       const __bgColorToSlot = new Map();
       let __previousBarTime = Number.NaN;

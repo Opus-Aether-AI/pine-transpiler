@@ -1,0 +1,8 @@
+//@version=6
+indicator("Feature Matrix - method on builtin", overlay=true, max_lines_count=500)
+
+ln = line.new(bar_index, high, bar_index + 1, low)
+ln.set_x2(bar_index + 2)
+ln.set_color(color.orange)
+
+plot(close, "Close")

@@ -1,0 +1,12 @@
+//@version=6
+indicator("Feature Matrix - method on user type", overlay=false)
+
+type point
+    float x
+    float y
+
+method dist(point this) =>
+    math.sqrt(this.x * this.x + this.y * this.y)
+
+p = point.new(3.0, 4.0)
+plot(p.dist(), "Distance")

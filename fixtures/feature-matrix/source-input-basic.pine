@@ -1,0 +1,5 @@
+//@version=6
+indicator("Feature Matrix - source input", overlay=false)
+
+src = input.source(close, "Source")
+plot(ta.sma(src, 5), "SMA(src)")

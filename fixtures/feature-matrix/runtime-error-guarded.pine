@@ -1,0 +1,7 @@
+//@version=6
+indicator("Feature Matrix - runtime.error guarded", overlay=false)
+
+if bar_index < 0
+    runtime.error("unreachable guard")
+
+plot(close, "Close")
