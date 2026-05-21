@@ -829,8 +829,9 @@ function vline(_pine_this) {
     }
   }
 }
-if (ts_helper?.prototype && typeof ts_helper.prototype.vline !== 'function') {
-  ts_helper.prototype.vline = function() { return vline(this); };
+const _pineMethodProto_13 = (typeof ts_helper === 'function' && ts_helper.prototype) ? ts_helper.prototype : null;
+if (_pineMethodProto_13 && typeof _pineMethodProto_13.vline !== 'function') {
+  _pineMethodProto_13.vline = function() { return vline(this); };
 }
 function vlines() {
   if (tf_limit_is_equal_or_more_chart_tf) {
@@ -865,8 +866,9 @@ function hz_line(_pine_this) {
     }
   }
 }
-if (lines_helper?.prototype && typeof lines_helper.prototype.hz_line !== 'function') {
-  lines_helper.prototype.hz_line = function() { return hz_line(this); };
+const _pineMethodProto_15 = (typeof lines_helper === 'function' && lines_helper.prototype) ? lines_helper.prototype : null;
+if (_pineMethodProto_15 && typeof _pineMethodProto_15.hz_line !== 'function') {
+  _pineMethodProto_15.hz_line = function() { return hz_line(this); };
 }
 function hz_lines() {
   if (tf_limit_is_equal_or_more_chart_tf) {
@@ -1058,8 +1060,9 @@ function manage_kz(_pine_this) {
     adjust_out_kz(kz, t, t_prev);
   }
 }
-if (kz_helper?.prototype && typeof kz_helper.prototype.manage_kz !== 'function') {
-  kz_helper.prototype.manage_kz = function() { return manage_kz(this); };
+const _pineMethodProto_21 = (typeof kz_helper === 'function' && kz_helper.prototype) ? kz_helper.prototype : null;
+if (_pineMethodProto_21 && typeof _pineMethodProto_21.manage_kz !== 'function') {
+  _pineMethodProto_21.manage_kz = function() { return manage_kz(this); };
 }
 for (const [_, value] of _kz.entries()) {
   manage_kz(value);
@@ -1101,8 +1104,9 @@ function set_table(tbl, kz, row, txt, t, col) {
     table.cell(tbl, 2, row, String(kz._range_store.avg()), NaN, NaN, txt_color, NaN, NaN, range_size);
   }
 }
-if (table?.prototype && typeof table.prototype.set_table !== 'function') {
-  table.prototype.set_table = function(kz, row, txt, t, col) { return set_table(this, kz, row, txt, t, col); };
+const _pineMethodProto_23 = (typeof table === 'function' && table.prototype) ? table.prototype : null;
+if (_pineMethodProto_23 && typeof _pineMethodProto_23.set_table !== 'function') {
+  _pineMethodProto_23.set_table = function(kz, row, txt, t, col) { return set_table(this, kz, row, txt, t, col); };
 }
 if ((show_range && barstate.islast)) {
   var tbl = _pineVar("tbl", () => (table.new(range_pos, 10, 10, chart.bg_color, chart.fg_color, 2, chart.fg_color, 1)));

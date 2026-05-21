@@ -500,11 +500,13 @@ export class StatementGenerator implements StatementGeneratorInterface {
           .map((p) => sanitizeIdentifier(p.name));
         const methodParamsDecl = methodParams.join(', ');
         const callArgs = methodParams.length > 0 ? `, ${methodParamsDecl}` : '';
-        out += `\n${indent(this.indentLevel)}if (${receiverName}?.prototype && typeof ${receiverName}.prototype.${name} !== 'function') {\n${indent(this.indentLevel, 1)}${receiverName}.prototype.${name} = function(${methodParamsDecl}) { return ${name}(this${callArgs}); };\n${indent(this.indentLevel)}}`;
+        const receiverProtoVar = `_pineMethodProto_${scopeOrdinal}`;
+        out += `\n${indent(this.indentLevel)}const ${receiverProtoVar} = (typeof ${receiverName} === 'function' && ${receiverName}.prototype) ? ${receiverName}.prototype : null;`;
+        out += `\n${indent(this.indentLevel)}if (${receiverProtoVar} && typeof ${receiverProtoVar}.${name} !== 'function') {\n${indent(this.indentLevel, 1)}${receiverProtoVar}.${name} = function(${methodParamsDecl}) { return ${name}(this${callArgs}); };\n${indent(this.indentLevel)}}`;
         if (originalName !== name) {
           // Preserve source-level method names (e.g. `delete`) when
           // sanitization rewrites the function identifier.
-          out += `\n${indent(this.indentLevel)}if (${receiverName}?.prototype && typeof ${receiverName}.prototype[${JSON.stringify(originalName)}] !== 'function') {\n${indent(this.indentLevel, 1)}${receiverName}.prototype[${JSON.stringify(originalName)}] = function(${methodParamsDecl}) { return ${name}(this${callArgs}); };\n${indent(this.indentLevel)}}`;
+          out += `\n${indent(this.indentLevel)}if (${receiverProtoVar} && typeof ${receiverProtoVar}[${JSON.stringify(originalName)}] !== 'function') {\n${indent(this.indentLevel, 1)}${receiverProtoVar}[${JSON.stringify(originalName)}] = function(${methodParamsDecl}) { return ${name}(this${callArgs}); };\n${indent(this.indentLevel)}}`;
         }
       }
     }
