@@ -12,6 +12,23 @@ docs/RELEASING.md for the flow and `.github/release-please-config.json`
 for the commit-type → section mapping.
 -->
 
+## [0.4.5](https://github.com/Opus-Aether-AI/pine-transpiler/compare/v0.4.4...v0.4.5) (2026-05-21)
+
+
+### Added
+
+* **ci:** automate releases with release-please + OIDC npm publish ([#18](https://github.com/Opus-Aether-AI/pine-transpiler/issues/18)) ([1ecd42d](https://github.com/Opus-Aether-AI/pine-transpiler/commit/1ecd42d4071a55ff2b38b3d5a175dc020b95a0da))
+
+
+### Fixed
+
+* **ci:** add release-please bootstrap-sha so first run scopes commits correctly ([#21](https://github.com/Opus-Aether-AI/pine-transpiler/issues/21)) ([9886502](https://github.com/Opus-Aether-AI/pine-transpiler/commit/988650248c108db7dee7f5d5ed3de27439f44550))
+
+
+### Documentation
+
+* backfill CHANGELOG entries for 0.1.5 / 0.4.4 / 0.4.5 + bump bootstrap-sha ([#22](https://github.com/Opus-Aether-AI/pine-transpiler/issues/22)) ([947d4ff](https://github.com/Opus-Aether-AI/pine-transpiler/commit/947d4ff22ddda833670e80492319d9daec5132fd))
+
 ## [0.4.5] - 2026-05-22
 
 ### Added
