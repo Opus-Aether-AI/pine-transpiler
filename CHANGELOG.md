@@ -12,6 +12,40 @@ docs/RELEASING.md for the flow and `.github/release-please-config.json`
 for the commit-type → section mapping.
 -->
 
+## [0.4.5] - 2026-05-22
+
+### Added
+- **feat(factory):** standalone factory output now emits `__visualEvents`
+  matching the live factory. Wraps `line` / `box` / `label` / `table` stubs
+  and visual `Std.*` calls in proxies that push canonical events into a
+  shared `VisualEmissionContext`, then attaches `__visualEvents` +
+  `__visualEventsVersion` to the result array. ([#20](https://github.com/Opus-Aether-AI/pine-transpiler/pull/20))
+- **feat(ci):** end-to-end release automation via `release-please` +
+  OIDC-published npm releases with provenance attestation. See
+  [`docs/RELEASING.md`](./docs/RELEASING.md). ([#18](https://github.com/Opus-Aether-AI/pine-transpiler/pull/18))
+- New `bun run scan` script — recursively walks `.pine` fixtures, runs them
+  through `transpileToStandaloneFactory`, and reports per-bar runtime errors
+  bucketed by stack / message. Used by the new feature-matrix regression
+  suite. ([#20](https://github.com/Opus-Aether-AI/pine-transpiler/pull/20))
+- Five new regression test files locking standalone output parity,
+  visual-events parity, CSP safety, and a 10-fixture feature matrix
+  (varip, table merges, method binding, `request.security`, etc.). 1507/1507
+  tests passing. ([#20](https://github.com/Opus-Aether-AI/pine-transpiler/pull/20))
+
+### Fixed
+- **fix(generator):** method prototype lookup now scopes to a per-scope local
+  (`_pineMethodProto_*`) so subsequent reassignments to the receiver
+  identifier don't break the method-binding emit. Resolves
+  `Cannot read properties of undefined (reading 'set_right')`-style breaks
+  on user types whose names are reused as locals. ([#20](https://github.com/Opus-Aether-AI/pine-transpiler/pull/20))
+
+## [0.4.4] - 2026-05-22
+
+### Fixed
+- **fix(generator):** scope method prototype lookup to avoid receiver
+  shadowing. Initial pass at the method-binding fix that was completed in
+  v0.4.5. ([#11](https://github.com/Opus-Aether-AI/pine-transpiler/pull/11))
+
 ## [0.4.3] - 2026-05-22
 
 ### Fixed
@@ -416,6 +450,27 @@ are now bound:
   `github:Opus-Aether-AI/pine-transpiler#v0.2.0`) auto-builds the
   `dist/` on the consumer side.
 - TypeScript bumped to ^6.0.3, Vite to ^8.0.10, Biome to ^2.4.13.
+
+## [0.1.5] - 2025-12-02
+
+### Added
+- `input.session` type with default-value support in `InputExtractor`.
+- `bgcolor` extraction + processing in `PlotExtractor` / `MetadataVisitor`,
+  including session-based color logic.
+- `generateStandaloneFactory()` — produces standalone PineJS factory code
+  with proper plots and palettes (first cut; the standalone code path was
+  rewritten in the v0.4.x line).
+- Comprehensive test suite for factory generator covering varied
+  configurations.
+- `factory` output format on the `transpile` CLI command. ([#3](https://github.com/Opus-Aether-AI/pine-transpiler/pull/3))
+
+### Changed
+- `IndicatorFactoryOptions` now carries `bgcolors` and session-variable
+  mappings. `MetadataVisitor` tracks session variables, derived session
+  variables, and computed variables. `ParsedPlot` / `ParsedBgcolor`
+  interfaces extended accordingly.
+- `generatePreamble` and `buildIndicatorFactory` now conditionally include
+  helper functions based on the main-body usage analysis.
 
 ## [0.1.4] - 2025-12-02
 
