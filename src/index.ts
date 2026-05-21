@@ -178,6 +178,7 @@ export function transpileToStandaloneFactory(
       indicatorId,
       indicatorName,
       autoBgColorerForBoxes: options?.autoBgColorerForBoxes ?? false,
+      ast,
     });
     return { success: true, factoryCode };
   } catch (error) {

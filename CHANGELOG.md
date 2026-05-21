@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2026-05-22
+
+### Fixed
+- `transpileToStandaloneFactory(...)` now emits user-defined Pine declarations
+  (`type`, functions, methods) in synthesized `main()` output before computed
+  variables. Procedural scripts that referenced symbols like `get_size(...)`
+  or custom type methods no longer fail at runtime with `ReferenceError`.
+- Standalone generation now reserves emitted user symbols and uniquifies
+  generated computed-variable identifiers, preventing accidental collisions in
+  generated JavaScript.
+- Metadata extraction no longer promotes function-local variable declarations
+  into top-level computed-variable metadata for standalone synthesis.
+
+### Added
+- Regression tests for standalone user-defined function and method emission:
+  - `tests/regression/user-defined-functions-standalone.test.ts`
+  - `tests/regression/user-defined-methods-standalone.test.ts`
+- Expanded ICT killzones standalone regression to execute generated `main()`
+  and assert user-defined symbols resolve at runtime:
+  - `tests/regression/ict-killzones-standalone.test.ts`
+  - `tests/regression/standalone-test-utils.ts`
+
 ## [0.3.1] - 2026-05-17
 
 Internal deepening pass. No public-API breakage — every existing

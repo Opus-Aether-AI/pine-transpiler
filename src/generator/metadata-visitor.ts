@@ -152,6 +152,7 @@ export class MetadataVisitor {
 
   // Track warned functions to avoid duplicates
   private warnedFunctions: Set<string> = new Set();
+  private functionDepth = 0;
 
   public visit(node: Program): void {
     // Make string-literal var definitions resolvable from inside the
@@ -180,20 +181,27 @@ export class MetadataVisitor {
       case 'VariableDeclaration':
         // Track color variable definitions
         if (stmt.init) {
-          this.trackColorVariable(stmt.id, stmt.init);
-          this.trackStringVariable(stmt.id, stmt.init);
-          this.trackSessionVariable(stmt.id, stmt.init);
-          this.trackDerivedSessionVariable(stmt.id, stmt.init);
-          this.trackInputVariable(stmt.id, stmt.init);
-          this.trackComputedVariable(stmt.id, stmt.init);
+          if (this.functionDepth === 0) {
+            this.trackColorVariable(stmt.id, stmt.init);
+            this.trackStringVariable(stmt.id, stmt.init);
+            this.trackSessionVariable(stmt.id, stmt.init);
+            this.trackDerivedSessionVariable(stmt.id, stmt.init);
+            this.trackInputVariable(stmt.id, stmt.init);
+            this.trackComputedVariable(stmt.id, stmt.init);
+          }
           this.visitExpression(stmt.init);
         }
         break;
       case 'FunctionDeclaration':
-        if (stmt.body.type === 'BlockStatement') {
-          this.visitStatement(stmt.body);
-        } else {
-          this.visitExpression(stmt.body as unknown as Expression);
+        this.functionDepth += 1;
+        try {
+          if (stmt.body.type === 'BlockStatement') {
+            this.visitStatement(stmt.body);
+          } else {
+            this.visitExpression(stmt.body as unknown as Expression);
+          }
+        } finally {
+          this.functionDepth -= 1;
         }
         break;
       case 'BlockStatement':

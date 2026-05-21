@@ -134,6 +134,7 @@ export function buildStandaloneFactoryCode(
     indicatorId: string;
     indicatorName?: string;
     autoBgColorerForBoxes?: boolean;
+    ast?: Program;
   },
 ): string {
   return generateStandaloneFactory({
@@ -154,6 +155,7 @@ export function buildStandaloneFactoryCode(
     booleanInputMap: metadata.booleanInputMap,
     computedVariables: metadata.computedVariables,
     inputVariableMap: metadata.inputVariableMap,
+    programAst: options.ast,
   });
 }
 

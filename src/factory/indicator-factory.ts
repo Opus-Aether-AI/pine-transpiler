@@ -6,6 +6,8 @@
  */
 
 import { appendCspHint } from '../csp-errors';
+import { ASTGenerator } from '../generator/ast-generator';
+import { sanitizeIdentifier } from '../generator/generator-utils';
 import { HelperUsage, type HelperUsageRecord } from '../generator/helper-usage';
 import type {
   ComputedVariable,
@@ -21,6 +23,7 @@ import {
   STRING_HELPER_FUNCTIONS,
   UTILITY_HELPER_FUNCTIONS,
 } from '../mappings';
+import type { Program, Statement } from '../parser/ast';
 import {
   createBarstate,
   createInputMock,
@@ -95,6 +98,8 @@ export interface IndicatorFactoryOptions {
   computedVariables?: Map<string, ComputedVariable>;
   // Pine variable name to input index mapping
   inputVariableMap?: Map<string, number>;
+  // Original parsed AST (used by standalone factory for user declarations)
+  programAst?: Program;
 }
 
 /**
@@ -2483,6 +2488,56 @@ function buildValToIndex(bgcolors: ParsedBgcolor[]): Record<number, number> {
   return mapping;
 }
 
+function collectStandaloneDeclarationStatements(
+  programAst?: Program,
+): Statement[] {
+  if (!programAst) return [];
+  return programAst.body.filter(
+    (stmt) =>
+      stmt.type === 'TypeDefinition' || stmt.type === 'FunctionDeclaration',
+  );
+}
+
+function collectStandaloneDeclarationSymbolNames(
+  declarations: Statement[],
+): Set<string> {
+  const names = new Set<string>();
+  for (const stmt of declarations) {
+    if (stmt.type === 'TypeDefinition') {
+      const typeName = sanitizeIdentifier(stmt.name);
+      names.add(typeName);
+      names.add(`__type_${typeName}`);
+      continue;
+    }
+    if (stmt.type === 'FunctionDeclaration') {
+      const fnName = sanitizeIdentifier(stmt.id.name);
+      names.add(fnName);
+      if (stmt.isMethod && stmt.params.length > 0) {
+        const receiverType = stmt.params[0]?.typeAnnotation?.name;
+        if (receiverType) {
+          names.add(sanitizeIdentifier(receiverType));
+        }
+      }
+    }
+  }
+  return names;
+}
+
+function generateStandaloneDeclarationCode(
+  declarations: Statement[],
+  historicalAccess?: Set<string>,
+  version = 6,
+): string {
+  if (declarations.length === 0) return '';
+  const generator = new ASTGenerator(historicalAccess ?? new Set());
+  const declarationProgram: Program = {
+    type: 'Program',
+    body: declarations,
+    version,
+  };
+  return generator.generate(declarationProgram);
+}
+
 /**
  * Generate a standalone PineJS factory code string
  * This produces native PineJS indicator code with proper plots, palettes, and direct Std.* calls
@@ -2504,7 +2559,20 @@ export function generateStandaloneFactory(
     booleanInputMap,
     computedVariables,
     inputVariableMap,
+    programAst,
+    historicalAccess,
   } = options;
+
+  const userDeclarationStatements =
+    collectStandaloneDeclarationStatements(programAst);
+  const userDeclarationSymbolNames = collectStandaloneDeclarationSymbolNames(
+    userDeclarationStatements,
+  );
+  const userDeclarationCode = generateStandaloneDeclarationCode(
+    userDeclarationStatements,
+    historicalAccess,
+    programAst?.version ?? 6,
+  );
 
   const safeId = sanitizeIndicatorId(indicatorId);
 
@@ -2668,6 +2736,8 @@ export function generateStandaloneFactory(
     booleanInputMap,
     computedVariables,
     inputVariableMap,
+    userDeclarationCode,
+    userDeclarationSymbolNames,
   );
 
   return `/**
@@ -2744,6 +2814,8 @@ function generateNativeMainBody(
   booleanInputMap?: Map<string, number>,
   computedVariables?: Map<string, ComputedVariable>,
   inputVariableMap?: Map<string, number>,
+  userDeclarationCode?: string,
+  userDeclarationSymbolNames?: Set<string>,
 ): string {
   const lines: string[] = [];
 
@@ -2811,6 +2883,11 @@ function generateNativeMainBody(
   };
 
   const usedVarNames = new Set<string>();
+  if (userDeclarationSymbolNames) {
+    for (const symbol of userDeclarationSymbolNames) {
+      if (symbol) usedVarNames.add(symbol);
+    }
+  }
   const uniquifyIdentifier = (preferred: string, fallback: string): string => {
     const base = sanitizeJsIdentifier(preferred, fallback);
     let candidate = base;
@@ -2910,10 +2987,19 @@ function generateNativeMainBody(
 
   lines.push('');
 
+  if (userDeclarationCode && userDeclarationCode.trim().length > 0) {
+    lines.push('        // User-defined type/function/method declarations');
+    for (const declarationLine of userDeclarationCode.split('\n')) {
+      lines.push(`        ${declarationLine}`);
+    }
+    lines.push('');
+  }
+
   // Check if this is a session-style indicator or general indicator
   const hasBgcolors = bgcolors && bgcolors.length > 0;
   const hasPlots = plots && plots.length > 0;
   const hasComputedVars = computedVariables && computedVariables.size > 0;
+  const computedVarToJsVar: Map<string, string> = new Map();
 
   // Generate computed variables if we have them (for general indicators)
   if (hasComputedVars && computedVariables) {
@@ -2921,6 +3007,12 @@ function generateNativeMainBody(
 
     // Sort by dependencies (simple topological sort - assumes no circular deps)
     const sorted = topologicalSort(computedVariables);
+
+    for (let i = 0; i < sorted.length; i++) {
+      const cv = sorted[i];
+      const jsName = uniquifyIdentifier(cv.name, `computed_${i}`);
+      computedVarToJsVar.set(cv.name, jsName);
+    }
 
     for (const cv of sorted) {
       // Replace input variable references in expression using pineVarToJsVar
@@ -2930,6 +3022,11 @@ function generateNativeMainBody(
       for (const [pineVar, jsVar] of pineVarToJsVar) {
         // Only replace whole-word matches
         const regex = new RegExp(`\\b${pineVar}\\b`, 'g');
+        expr = expr.replace(regex, jsVar);
+      }
+
+      for (const [computedName, jsVar] of computedVarToJsVar) {
+        const regex = new RegExp(`\\b${computedName}\\b`, 'g');
         expr = expr.replace(regex, jsVar);
       }
 
@@ -2951,7 +3048,8 @@ function generateNativeMainBody(
         return `Std.${fn}(${args}, context)`;
       });
 
-      lines.push(`        const ${cv.name} = ${expr};`);
+      const jsVarName = computedVarToJsVar.get(cv.name) ?? cv.name;
+      lines.push(`        const ${jsVarName} = ${expr};`);
     }
     lines.push('');
   }
@@ -3116,6 +3214,11 @@ function generateNativeMainBody(
         // Replace Pine variable names with JS variable names
         for (const [pineVar, jsVar] of pineVarToJsVar) {
           const regex = new RegExp(`\\b${pineVar}\\b`, 'g');
+          expr = expr.replace(regex, jsVar);
+        }
+
+        for (const [computedName, jsVar] of computedVarToJsVar) {
+          const regex = new RegExp(`\\b${computedName}\\b`, 'g');
           expr = expr.replace(regex, jsVar);
         }
 
