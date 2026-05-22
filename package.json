@@ -1,6 +1,6 @@
 {
   "name": "@opus-aether-ai/pine-transpiler",
-  "version": "0.4.7",
+  "version": "0.4.8",
   "description": "Transpile Pine Script v5/v6 to executable JavaScript. Zero dependencies.",
   "author": "Opus Aether AI",
   "license": "MIT",
