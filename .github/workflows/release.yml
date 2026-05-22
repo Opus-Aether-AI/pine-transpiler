@@ -1,23 +1,31 @@
-name: release (manual fallback)
+name: release
 
-# Workflow_dispatch-only fallback for manually publishing a specific tag.
+# Unified release pipeline. Two entry points feeding the same publish job:
 #
-# Normal releases flow through release-please.yml on push to main:
-# release-please opens a Release PR, you merge it, and the same workflow
-# run continues into publish steps. This workflow exists for edge cases
-# where you need to re-run publish from an existing tag — e.g. a publish
-# failed mid-flight (one registry up, one down), or you need to republish
-# after fixing infrastructure.
+#  • push to main → `release-please` job opens / updates the Release PR
+#    (and flags it for auto-merge). If the just-merged commit IS the
+#    Release PR, release-please creates the tag + GitHub Release and the
+#    `publish` job continues in the same workflow run.
 #
-# Usage:
-#   gh workflow run release.yml \
-#     --repo Opus-Aether-AI/pine-transpiler \
-#     --ref main \
-#     --field ref=v0.5.0
+#  • workflow_dispatch (`gh workflow run release.yml --field ref=v0.5.0`)
+#    → skips `release-please` and runs `publish` directly against the
+#    given tag/SHA. Use this when an auto-publish failed mid-flight and
+#    needs to be re-run.
 #
-# See docs/RELEASING.md.
+# Both paths publish to npm (OIDC Trusted Publisher) + GitHub Packages
+# from this single workflow file so npm only needs one Trusted Publisher
+# rule (workflow filename: release.yml, environment: release).
+#
+# Why both jobs in one workflow: GitHub does NOT fire `push: tags:`
+# events for tags created by GITHUB_TOKEN, so a separate publish workflow
+# triggered by tag-push would never run for release-please tags.
+#
+# See docs/RELEASING.md for the full flow.
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       ref:
@@ -26,17 +34,66 @@ on:
         type: string
 
 permissions:
-  contents: read
-  id-token: write     # OIDC token for npm provenance
-  packages: write     # publish to GitHub Packages
+  contents: write       # release-please creates tags + releases
+  pull-requests: write  # release-please updates the Release PR + auto-merge flag
+  id-token: write       # OIDC token for npm provenance
+  packages: write       # publish to GitHub Packages
 
 concurrency:
-  group: release-manual-${{ inputs.ref }}
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
+  release-please:
+    name: Detect release
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          config-file: .github/release-please-config.json
+          manifest-file: .github/.release-please-manifest.json
+
+      # Flag every Release PR opened by release-please for GitHub-native
+      # auto-merge so it lands the moment branch-protection checks pass.
+      # The step's `if:` guards on the raw output string; JSON parsing
+      # happens in shell to avoid the GHA expression engine trying to
+      # `fromJSON('')` on runs where no PR was created.
+      - name: Enable auto-merge on Release PR
+        if: ${{ steps.release.outputs.pr }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_JSON: ${{ steps.release.outputs.pr }}
+          REPO: ${{ github.repository }}
+        run: |
+          PR_NUMBER=$(printf '%s' "$PR_JSON" | jq -r '.number')
+          if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "null" ]; then
+            echo "::error::Could not extract PR number from release-please output"
+            exit 1
+          fi
+          echo "Enabling auto-merge on Release PR #${PR_NUMBER}"
+          gh pr merge "${PR_NUMBER}" --repo "${REPO}" --auto --squash
+
   publish:
     name: Build, verify, publish
+    needs: [release-please]
+    # Run when:
+    #   • triggered manually via workflow_dispatch (release-please is skipped), OR
+    #   • triggered by push AND release-please created a tag in the same run.
+    # `always()` is required so this job evaluates even when release-please
+    # was skipped (skipped → status "skipped", which short-circuits `needs`
+    # without it).
+    if: |
+      always() && (
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'push' && needs.release-please.outputs.release_created == 'true')
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
@@ -46,7 +103,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || needs.release-please.outputs.tag_name }}
           fetch-depth: 0
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -56,16 +113,23 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Verify ref matches package.json version
+      - name: Verify checkout matches package.json version
+        env:
+          DISPATCH_REF: ${{ inputs.ref }}
+          RELEASE_VERSION: ${{ needs.release-please.outputs.version }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          INPUT_REF="${{ inputs.ref }}"
-          INPUT_VERSION="${INPUT_REF#v}"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            EXPECTED_VERSION="${DISPATCH_REF#v}"
+          else
+            EXPECTED_VERSION="$RELEASE_VERSION"
+          fi
           PKG_VERSION=$(node -p "require('./package.json').version")
-          if [ "$INPUT_VERSION" != "$PKG_VERSION" ]; then
-            echo "::error::Ref ${INPUT_REF} does not match package.json version ${PKG_VERSION}"
+          if [ "$EXPECTED_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Expected version $EXPECTED_VERSION does not match package.json version $PKG_VERSION"
             exit 1
           fi
-          echo "Publishing version ${PKG_VERSION} from ref ${INPUT_REF}"
+          echo "Publishing version $PKG_VERSION"
 
       - name: Typecheck
         run: bun run typecheck
@@ -75,6 +139,12 @@ jobs:
 
       - name: Test
         run: bun test tests/
+
+      - name: Differential parity
+        run: bun run corpus:differential
+
+      - name: Visual parity
+        run: bun run corpus:visual
 
       - name: Corpus gate
         run: bun run corpus:gate
