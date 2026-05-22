@@ -1,4 +1,5 @@
 //@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
 indicator("ICT Breaker Blocks", overlay=true)
 
 len = input.int(10, "Pivot Length", minval=2)

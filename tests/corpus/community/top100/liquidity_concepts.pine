@@ -1,0 +1,13 @@
+//@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
+indicator("Liquidity Concepts", overlay=true)
+
+buyLiq = ta.highest(high, 25)
+sellLiq = ta.lowest(low, 25)
+tookBuyLiq = high > buyLiq[1]
+tookSellLiq = low < sellLiq[1]
+
+plot(buyLiq, "Buy-side", color=color.new(color.red, 0))
+plot(sellLiq, "Sell-side", color=color.new(color.green, 0))
+plotshape(tookBuyLiq, title="Buy Sweep", style=shape.triangledown, location=location.abovebar, color=color.red, size=size.tiny)
+plotshape(tookSellLiq, title="Sell Sweep", style=shape.triangleup, location=location.belowbar, color=color.lime, size=size.tiny)

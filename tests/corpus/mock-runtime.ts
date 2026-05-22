@@ -1,5 +1,5 @@
 /**
- * Corpus runtime mock — a minimal, deterministic stand-in for TradingView's
+ * Corpus runtime mock — a minimal, deterministic stand-in for Chart Host's
  * PineJS runtime so we can drive transpiled indicators across many synthetic
  * bars and detect crashes / unimplemented Std calls / missing destructure
  * targets without booting a real chart.

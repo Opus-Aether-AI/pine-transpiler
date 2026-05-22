@@ -1,4 +1,5 @@
 //@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
 indicator("ICT Rejection Blocks", overlay=true)
 
 body = math.abs(close - open)

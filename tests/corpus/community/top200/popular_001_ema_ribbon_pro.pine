@@ -1,4 +1,5 @@
 //@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
 indicator("Popular 001 EMA Ribbon Pro", overlay=true)
 
 f = ta.ema(close, 9)

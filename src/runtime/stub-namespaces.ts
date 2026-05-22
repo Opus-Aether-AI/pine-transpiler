@@ -112,6 +112,11 @@ export interface StrStub {
   pos: (s: unknown, sub: unknown) => number;
   substring: (s: unknown, start: unknown, end?: unknown) => string;
   format: (fmt: unknown, ...args: unknown[]) => string;
+  format_time: (
+    timestamp: unknown,
+    format: unknown,
+    timezone?: unknown,
+  ) => string;
 }
 
 /** Namespace for bar state information */
@@ -799,6 +804,99 @@ export function createStubNamespaces(): StubNamespaces {
       // function returned NaN). Real PineJS coerces; mirror that so a
       // missing input doesn't take down the whole indicator.
       const c = (v: unknown): string => (v == null ? '' : String(v));
+      const two = (n: number): string => String(Math.trunc(n)).padStart(2, '0');
+      const readClockAt = (
+        timestamp: number,
+        timezone?: unknown,
+      ): {
+        year: number;
+        month: number;
+        day: number;
+        hour: number;
+        minute: number;
+        second: number;
+      } => {
+        if (typeof timezone === 'string' && timezone.trim()) {
+          try {
+            const parts = new Intl.DateTimeFormat('en-US', {
+              timeZone: timezone,
+              hour12: false,
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            }).formatToParts(new Date(timestamp));
+            const year = Number(
+              parts.find((p) => p.type === 'year')?.value ?? Number.NaN,
+            );
+            const month = Number(
+              parts.find((p) => p.type === 'month')?.value ?? Number.NaN,
+            );
+            const day = Number(
+              parts.find((p) => p.type === 'day')?.value ?? Number.NaN,
+            );
+            const hour = Number(
+              parts.find((p) => p.type === 'hour')?.value ?? Number.NaN,
+            );
+            const minute = Number(
+              parts.find((p) => p.type === 'minute')?.value ?? Number.NaN,
+            );
+            const second = Number(
+              parts.find((p) => p.type === 'second')?.value ?? Number.NaN,
+            );
+            if (
+              Number.isFinite(year) &&
+              Number.isFinite(month) &&
+              Number.isFinite(day) &&
+              Number.isFinite(hour) &&
+              Number.isFinite(minute) &&
+              Number.isFinite(second)
+            ) {
+              return {
+                year,
+                month,
+                day,
+                hour,
+                minute,
+                second,
+              };
+            }
+          } catch {
+            // Fall through to UTC below.
+          }
+        }
+        const d = new Date(timestamp);
+        return {
+          year: d.getUTCFullYear(),
+          month: d.getUTCMonth() + 1,
+          day: d.getUTCDate(),
+          hour: d.getUTCHours(),
+          minute: d.getUTCMinutes(),
+          second: d.getUTCSeconds(),
+        };
+      };
+      const formatTime = (
+        timestamp: unknown,
+        fmt: unknown,
+        timezone?: unknown,
+      ): string => {
+        const tsNum = Number(timestamp);
+        if (!Number.isFinite(tsNum)) return '';
+        const formatStr = c(fmt) || 'yyyy-MM-dd HH:mm:ss';
+        const clock = readClockAt(tsNum, timezone);
+        const twelveHour = ((clock.hour + 11) % 12) + 1;
+        return formatStr
+          .replace(/yyyy/g, String(clock.year))
+          .replace(/yy/g, String(clock.year % 100).padStart(2, '0'))
+          .replace(/MM/g, two(clock.month))
+          .replace(/dd/g, two(clock.day))
+          .replace(/HH/g, two(clock.hour))
+          .replace(/hh/g, two(twelveHour))
+          .replace(/mm/g, two(clock.minute))
+          .replace(/ss/g, two(clock.second));
+      };
       return {
         tostring: (v) => c(v),
         tonumber: (v) => {
@@ -824,6 +922,8 @@ export function createStubNamespaces(): StubNamespaces {
         },
         format: (fmt, ...args) =>
           c(fmt).replace(/{(\d+)}/g, (m, i) => c(args[Number(i)] ?? m)),
+        format_time: (timestamp, format, timezone) =>
+          formatTime(timestamp, format, timezone),
       };
     })(),
     barstate: createBarstate(),

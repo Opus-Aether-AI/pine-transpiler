@@ -68,49 +68,14 @@ const TARGETS: MatrixTarget[] = [
     indicator: 'Unit Testing Framework',
     fixture: 'everget/unit_testing_framework.pine',
   },
-  { indicator: 'Volume Accumulation', fixture: 'everget/volume_accumulation.pine' },
-  { indicator: 'Range Volume Change', fixture: 'f13end/range_volume_change.pine' },
-  { indicator: 'ADX Hist', fixture: 'harryguiacorn/adx-hist.pine' },
-  { indicator: 'BBForce', fixture: 'harryguiacorn/bbforce.pine' },
   {
-    indicator: 'BodyMassIndicator',
-    fixture: 'harryguiacorn/bodymassindicator.pine',
+    indicator: 'Volume Accumulation',
+    fixture: 'everget/volume_accumulation.pine',
   },
   {
-    indicator: 'Candlestick Engulfing',
-    fixture: 'harryguiacorn/candlestickengulfing.pine',
+    indicator: 'Range Volume Change',
+    fixture: 'f13end/range_volume_change.pine',
   },
-  {
-    indicator: 'Candlestick Inside Bar',
-    fixture: 'harryguiacorn/candlestickinsidebar.pine',
-  },
-  {
-    indicator: 'Candlestick Kicker',
-    fixture: 'harryguiacorn/candlestickkicker.pine',
-  },
-  {
-    indicator: 'Candlestick Patterns',
-    fixture: 'harryguiacorn/candlestickpatterns.pine',
-  },
-  {
-    indicator: 'Candlestick Patterns HOLP-LOHP',
-    fixture: 'harryguiacorn/candlestickpatterns-holp-lohp.pine',
-  },
-  { indicator: 'Cloud', fixture: 'harryguiacorn/cloud.pine' },
-  { indicator: 'Flip Flop', fixture: 'harryguiacorn/flip_flop.pine' },
-  { indicator: 'MACD-V', fixture: 'harryguiacorn/macd-v.pine' },
-  { indicator: 'STRG BBForce', fixture: 'harryguiacorn/strg-bbforce.pine' },
-  { indicator: 'STRG HOLP', fixture: 'harryguiacorn/strg-holp.pine' },
-  {
-    indicator: 'STRG KijunArrow',
-    fixture: 'harryguiacorn/strg-kijunarrow.pine',
-  },
-  {
-    indicator: 'STRG One Bar Pursuit',
-    fixture: 'harryguiacorn/strg_one_bar_pursuit.pine',
-  },
-  { indicator: 'Swoosh Indicator', fixture: 'harryguiacorn/swoosh_indicator.pine' },
-  { indicator: 'WickPowerShift', fixture: 'harryguiacorn/wickpowershift.pine' },
   {
     indicator: 'ICT Equal Highs and Lows Indicator',
     fixture: 'arunkbhaskar/ict_equal_highs_and_lows_indicator.pine',
@@ -165,7 +130,8 @@ const TARGETS: MatrixTarget[] = [
   },
   {
     indicator: 'Indicator Momentum Setup RSI Directional Momentum',
-    fixture: 'arunkbhaskar/indicator_momentum_setup_-_rsi_directional_momentum.pine',
+    fixture:
+      'arunkbhaskar/indicator_momentum_setup_-_rsi_directional_momentum.pine',
   },
   {
     indicator: 'Momentum Setup Ankush Bajaj Momentum Investing Setup',
@@ -173,7 +139,8 @@ const TARGETS: MatrixTarget[] = [
       'arunkbhaskar/momentum_setup_-_ankush_bajaj_momentum_investing_setup.pine',
   },
   {
-    indicator: 'Momentum Setup Ankush Bajaj Momentum Investing Setup with Scanner',
+    indicator:
+      'Momentum Setup Ankush Bajaj Momentum Investing Setup with Scanner',
     fixture:
       'arunkbhaskar/momentum_setup_-_ankush_bajaj_momentum_investing_setup_with_scanner.pine',
   },
@@ -183,7 +150,8 @@ const TARGETS: MatrixTarget[] = [
       'arunkbhaskar/momentum_setup_-_vijay_thakare_option_buying_scalping_setup.pine',
   },
   {
-    indicator: 'Momentum Setup Vijay Thakare Option Buying Scalping Setup with Scanner',
+    indicator:
+      'Momentum Setup Vijay Thakare Option Buying Scalping Setup with Scanner',
     fixture:
       'arunkbhaskar/momentum_setup_-_vijay_thakare_option_buying_scalping_setup_with_scanner.pine',
   },
@@ -214,7 +182,8 @@ const TARGETS: MatrixTarget[] = [
   },
   {
     indicator: 'Scanner Momentum Setup RSI Directional Momentum',
-    fixture: 'arunkbhaskar/scanner_momentum_setup_-_rsi_directional_momentum.pine',
+    fixture:
+      'arunkbhaskar/scanner_momentum_setup_-_rsi_directional_momentum.pine',
   },
   {
     indicator: 'Screener ICT Retracement to Order Block',
@@ -259,7 +228,7 @@ function render(rows: MatrixRow[]): string {
     groupBuckets.set(group, bucket);
   }
 
-  const groupOrder = ['curated', 'everget', 'f13end', 'harryguiacorn', 'arunkbhaskar'];
+  const groupOrder = ['curated', 'everget', 'f13end', 'arunkbhaskar'];
   lines.push(`## Grouped Coverage (Requested ${rows.length})`);
   lines.push('');
   lines.push('| Group | Pass | Total | Rate |');
@@ -267,11 +236,15 @@ function render(rows: MatrixRow[]): string {
   for (const group of groupOrder) {
     const b = groupBuckets.get(group);
     if (!b) continue;
-    lines.push(`| ${group} | ${b.pass} | ${b.total} | ${pct(b.pass, b.total)} |`);
+    lines.push(
+      `| ${group} | ${b.pass} | ${b.total} | ${pct(b.pass, b.total)} |`,
+    );
   }
   for (const [group, b] of Array.from(groupBuckets.entries()).sort()) {
     if (groupOrder.includes(group)) continue;
-    lines.push(`| ${group} | ${b.pass} | ${b.total} | ${pct(b.pass, b.total)} |`);
+    lines.push(
+      `| ${group} | ${b.pass} | ${b.total} | ${pct(b.pass, b.total)} |`,
+    );
   }
   lines.push('');
 

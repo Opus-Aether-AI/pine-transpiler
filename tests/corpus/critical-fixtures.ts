@@ -60,33 +60,33 @@ export const CRITICAL_FIXTURES: CriticalFixtureTarget[] = [
     theme: 'ict_smc',
   },
   {
-    indicator: 'LuxAlgo Smart Money Concepts',
-    fixture: 'top100/luxalgo_smart_money_concepts.pine',
+    indicator: 'Smart Money Concepts',
+    fixture: 'top100/smart_money_concepts.pine',
     theme: 'ict_smc',
   },
   {
-    indicator: 'LuxAlgo Price Action Concepts',
-    fixture: 'top100/luxalgo_price_action_concepts.pine',
+    indicator: 'Price Action Concepts',
+    fixture: 'top100/price_action_concepts.pine',
     theme: 'ict_smc',
   },
   {
-    indicator: 'LuxAlgo Liquidity Concepts',
-    fixture: 'top100/luxalgo_liquidity_concepts.pine',
+    indicator: 'Liquidity Concepts',
+    fixture: 'top100/liquidity_concepts.pine',
     theme: 'ict_smc',
   },
   {
-    indicator: 'LuxAlgo Order Block Detector',
-    fixture: 'top100/luxalgo_order_block_detector.pine',
+    indicator: 'Order Block Detector',
+    fixture: 'top100/order_block_detector.pine',
     theme: 'ict_smc',
   },
   {
     indicator: 'Market Structure + Liquidity Alerts',
-    fixture: 'top100/market_structure_liquidity_smart_alerts_algonit.pine',
+    fixture: 'top100/market_structure_liquidity_smart_alerts.pine',
     theme: 'ict_smc',
   },
   {
     indicator: 'XAUUSD Vector SMC',
-    fixture: 'top100/xauusd_vector_smc_matsukazealgo.pine',
+    fixture: 'top100/xauusd_vector_smc.pine',
     theme: 'forex_xau',
   },
   {

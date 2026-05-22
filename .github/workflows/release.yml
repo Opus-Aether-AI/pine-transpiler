@@ -69,6 +69,12 @@ jobs:
       - name: Test
         run: bun test tests/
 
+      - name: Differential parity
+        run: bun run corpus:differential
+
+      - name: Visual parity
+        run: bun run corpus:visual
+
       - name: Corpus gate
         run: bun run corpus:gate
 

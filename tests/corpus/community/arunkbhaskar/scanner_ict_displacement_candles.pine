@@ -313,7 +313,7 @@ barcolor(i_scn_show_short and i_scn_choose == 'Retracement' and bearRet ? i_neg_
 // Acknowledgement & Reference
 // Trader: 'allanster'
 // Indicator Title: 'How To Input CSV List Of Symbol Data Used For Screener'
-// Indicator Link: 'https://www.tradingview.com/script/KfqHqHUH-How-To-Input-CSV-List-Of-Symbol-Data-Used-For-Screener/'
+// Indicator Link: 'https://example.com/script/KfqHqHUH-How-To-Input-CSV-List-Of-Symbol-Data-Used-For-Screener/'
 
 // Feed Function
 feed(input_string) =>
@@ -387,7 +387,7 @@ t_40 = array.size(new_sym_arr) > 39 ? array.get(new_sym_arr, 39) : na
 // Acknowledgement & Reference
 // Trader: 'MUQWISHI'
 // Indicator Title: 'Candlestick Patterns Screener [By MUQWISHI]'
-// Indicator Link: 'https://www.tradingview.com/script/xiWQuGOq-Candlestick-Patterns-Screener-By-MUQWISHI/'
+// Indicator Link: 'https://example.com/script/xiWQuGOq-Candlestick-Patterns-Screener-By-MUQWISHI/'
 
 // Scanner Conditions
 bool short_cond =  
@@ -520,6 +520,6 @@ if barstate.islast and i_scn_show_table
 //
 // Note: Read tooltips for more clarity.
 // 
-// Questions?: Message the author on TradingView: https://www.tradingview.com/u/Arun_K_Bhaskar/
+// Questions?: Message the author on Chart Host: https://example.com/u/Arun_K_Bhaskar/
 // 
-// More Indicators: Free TradingView indicators and source code on GitHub: https://github.com/ArunKBhaskar/PineScript
+// More Indicators: Free Chart Host indicators and source code on GitHub: https://github.com/ArunKBhaskar/PineScript

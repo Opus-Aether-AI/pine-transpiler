@@ -1,4 +1,5 @@
 //@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
 indicator("Relative Rotation Graph (RRG-style)", overlay=false)
 
 rsLen = input.int(50, "RS Base Length", minval=2)

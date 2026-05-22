@@ -142,12 +142,12 @@ This replaced an earlier string-grep over the generated body. If you build your 
 
 ```typescript
 import {
-  runTradingViewHarness,
-  type TradingViewHarnessOptions,
-  type TradingViewHarnessReport,
+  runChartRuntimeHarness,
+  type ChartRuntimeHarnessOptions,
+  type ChartRuntimeHarnessReport,
 } from '@opus-aether-ai/pine-transpiler/test-harness';
 
-const report = runTradingViewHarness({
+const report = runChartRuntimeHarness({
   fixtureName: 'ict-killzones.pine',
   source: pineSource,
   bars: 300,

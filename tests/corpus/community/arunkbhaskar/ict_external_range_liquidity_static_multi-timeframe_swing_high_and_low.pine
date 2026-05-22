@@ -71,7 +71,7 @@ int i_phl_eq_transp = input.int(defval=25, minval=0, title='Transparency', group
 // Acknowledgement & Reference
 // Trader: "lmatl"
 // Indicator Title: "Pivot mtf semaphore support&resistance [LM]"
-// Indicator Link: "https://www.tradingview.com/script/OZDSeSQd-Pivot-mtf-semaphore-support-resistance-LM/"
+// Indicator Link: "https://example.com/script/OZDSeSQd-Pivot-mtf-semaphore-support-resistance-LM/"
 
 f_offsetToP(_src, _pivotPrice, _maxBack) =>
     int _offset = na

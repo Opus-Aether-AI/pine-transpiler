@@ -2,7 +2,7 @@
  * Pine Script Transpiler Runtime Type Definitions
  *
  * These types define the runtime interface for transpiled indicators.
- * They are compatible with TradingView's PineJS API but completely standalone.
+ * They are compatible with Chart Host's PineJS API but completely standalone.
  *
  * @packageDocumentation
  */
@@ -463,7 +463,7 @@ export interface PlotStyle {
  * Study metainfo - Complete indicator description
  */
 export interface StudyMetaInfo {
-  /** Unique indicator ID (format: "name@tv-basicstudies-1") */
+  /** Unique indicator ID (format: "name@basicstudies-1") */
   id: string;
 
   /** Full indicator name/description */
@@ -547,7 +547,7 @@ export interface IndicatorConstructor {
 /**
  * Indicator instance factory attached to `CustomIndicator.constructor`.
  *
- * TradingView instantiates this with `new indicator.constructor()`. Our
+ * Chart Host instantiates this with `new indicator.constructor()`. Our
  * internal tooling may still call it as a plain function, so keep both call
  * signatures legal.
  */

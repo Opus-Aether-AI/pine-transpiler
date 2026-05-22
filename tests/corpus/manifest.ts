@@ -44,25 +44,19 @@ const GROUP_DEFAULTS: Record<string, GroupDefaults> = {
     category: 'core_ta',
   },
   arunkbhaskar: {
-    source: 'tradingview-community:arunkbhaskar',
+    source: 'community:arunkbhaskar',
     lane: 'upstream_authentic',
     authenticity: 'authentic',
     category: 'smc_ict',
   },
   everget: {
-    source: 'tradingview-community:everget',
+    source: 'community:everget',
     lane: 'upstream_authentic',
     authenticity: 'authentic',
     category: 'core_ta',
   },
   f13end: {
-    source: 'tradingview-community:f13end',
-    lane: 'upstream_authentic',
-    authenticity: 'authentic',
-    category: 'core_ta',
-  },
-  harryguiacorn: {
-    source: 'tradingview-community:harryguiacorn',
+    source: 'community:f13end',
     lane: 'upstream_authentic',
     authenticity: 'authentic',
     category: 'core_ta',
@@ -114,7 +108,10 @@ const FIXTURE_OVERRIDES: Record<string, ManifestOverride> = {
 
 const FEATURE_PATTERNS: Array<{ feature: string; re: RegExp }> = [
   { feature: 'request.security', re: /\brequest\.security\b/ },
-  { feature: 'request.external', re: /\brequest\.(financial|economic|earnings|dividends|splits|quandl|seed)\b/ },
+  {
+    feature: 'request.external',
+    re: /\brequest\.(financial|economic|earnings|dividends|splits|quandl|seed)\b/,
+  },
   { feature: 'mtf.timeframe', re: /\btimeframe\.|\binput\.timeframe\b/ },
   { feature: 'drawing.line', re: /\bline\./ },
   { feature: 'drawing.label', re: /\blabel\./ },
@@ -136,7 +133,10 @@ const FEATURE_PATTERNS: Array<{ feature: string; re: RegExp }> = [
   { feature: 'barstate', re: /\bbarstate\./ },
   { feature: 'alert', re: /\balertcondition\b|\balert\(/ },
   { feature: 'strategy', re: /\bstrategy\./ },
-  { feature: 'smc_ict_terms', re: /\b(BOS|CHoCH|CHOCH|FVG|ICT|MSS|liquidity|order block|breaker|mitigation)\b/i },
+  {
+    feature: 'smc_ict_terms',
+    re: /\b(BOS|CHoCH|CHOCH|FVG|ICT|MSS|liquidity|order block|breaker|mitigation)\b/i,
+  },
 ];
 
 export function extractFeaturesFromSource(source: string): string[] {
@@ -185,7 +185,11 @@ function inferCategory(
   if (has('session') || has('time') || has('barstate')) {
     return 'session_time';
   }
-  if (/\b(ema|sma|rsi|macd|atr|stoch|vwap|wpr|mfi|cci|roc|qqe|supertrend)\b/.test(id)) {
+  if (
+    /\b(ema|sma|rsi|macd|atr|stoch|vwap|wpr|mfi|cci|roc|qqe|supertrend)\b/.test(
+      id,
+    )
+  ) {
     return 'core_ta';
   }
   return fallback;

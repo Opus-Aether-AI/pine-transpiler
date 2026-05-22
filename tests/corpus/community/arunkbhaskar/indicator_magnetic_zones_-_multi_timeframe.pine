@@ -560,7 +560,7 @@ show_last_boxes(mz_3_s_2_bx_arr, i_mz_3_showlast)
 
 // Acknowledgement & Reference:
 // Indicator Name: "Multi Timeframe Moving Average [xdecow]" By "xdecow"
-// Indicator Link: https://www.tradingview.com/script/IzmSs7Ma-Multi-Timeframe-Moving-Average-xdecow/
+// Indicator Link: https://example.com/script/IzmSs7Ma-Multi-Timeframe-Moving-Average-xdecow/
 
 // Functions
 // Resolution to String

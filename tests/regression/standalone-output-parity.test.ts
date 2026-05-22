@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { join, relative } from 'node:path';
+import { FIXTURES_DIR, listCuratedFixtures } from '../corpus/list-fixtures';
 import {
   listFeatureMatrixFixturePaths,
   readFixture,
@@ -13,16 +14,12 @@ const ROOT_FIXTURES = [
 ];
 
 const FEATURE_FIXTURES = listFeatureMatrixFixturePaths();
-const NON_PARITY_FIXTURES = new Set(['request-security.pine']);
-const PARITY_FIXTURES = [
-  ...ROOT_FIXTURES,
-  ...FEATURE_FIXTURES.filter((path) => {
-    const normalized = path.replaceAll('\\', '/');
-    return !Array.from(NON_PARITY_FIXTURES).some((name) =>
-      normalized.endsWith(name),
-    );
-  }),
-];
+const CURATED_FIXTURES = listCuratedFixtures().map((fixture) =>
+  join(FIXTURES_DIR, fixture),
+);
+const PARITY_FIXTURES = Array.from(
+  new Set([...ROOT_FIXTURES, ...FEATURE_FIXTURES, ...CURATED_FIXTURES]),
+);
 
 function barsForFixture(path: string): number {
   if (path.endsWith('ict-killzones.pine')) return 320;

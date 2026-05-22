@@ -9,7 +9,7 @@
  * - Bar state (barstate.*)
  * - Alert functions
  *
- * Reference: https://www.tradingview.com/pine-script-reference/v5/
+ * Reference: https://example.com/pine-script-reference/v5/
  */
 
 // Re-export from sub-modules

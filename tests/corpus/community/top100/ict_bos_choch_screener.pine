@@ -1,4 +1,5 @@
 //@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
 indicator("ICT BOS/CHoCH Screener", overlay=true)
 
 leftBars = input.int(3, "Pivot Left", minval=1)

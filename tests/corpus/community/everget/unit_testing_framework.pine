@@ -1,4 +1,4 @@
-// Source: github.com/everget/tradingview-pinescript-indicators/utils/unit_testing_framework.pine
+// Source: github.com/everget/chart-host-pinescript-indicators/utils/unit_testing_framework.pine
 // Vendored as a corpus fixture. License is the repo's — see the upstream LICENSE.
 //@version=5
 // Copyright (c) 2021-present, Alex Orekhov (everget)

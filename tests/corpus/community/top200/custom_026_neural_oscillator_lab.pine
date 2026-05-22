@@ -1,4 +1,5 @@
 //@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
 indicator("Custom 026 Neural Oscillator Lab", overlay=false)
 
 x1 = ta.ema(ta.roc(close, 1), 5)

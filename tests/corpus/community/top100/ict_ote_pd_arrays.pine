@@ -1,4 +1,5 @@
 //@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
 indicator("ICT OTE + PD Arrays", overlay=true)
 
 lookback = input.int(60, "Swing Lookback", minval=10)

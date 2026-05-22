@@ -1,4 +1,5 @@
 //@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
 indicator("Pine3D: A Native 3D Graphical Rendering Engine", overlay=false)
 
 x = bar_index

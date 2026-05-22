@@ -1,0 +1,13 @@
+//@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
+indicator("Machine Learning Supertrend", overlay=true)
+
+atrLen = input.int(10, "ATR Length", minval=1)
+baseMult = input.float(3.0, "Base Mult", minval=0.1)
+
+trendScore = ta.ema(ta.roc(close, 5), 8)
+adaptiveMult = baseMult + math.abs(trendScore) * 0.02
+[st, dir] = ta.supertrend(adaptiveMult, atrLen)
+
+plot(st, "ML Supertrend", color=dir > 0 ? color.green : color.red)
+plot(dir, "Direction", color=color.new(color.gray, 100), display=display.none)

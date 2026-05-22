@@ -1,4 +1,4 @@
-// Source: github.com/everget/tradingview-pinescript-indicators/trailing_stops/nrtr_nick_rypock_trailing_reverse.pine
+// Source: github.com/everget/chart-host-pinescript-indicators/trailing_stops/nrtr_nick_rypock_trailing_reverse.pine
 // Vendored as a corpus fixture. License is the repo's — see the upstream LICENSE.
 //@version=6
 // Copyright (c) 2021-present, Alex Orekhov (everget)

@@ -189,7 +189,7 @@ barcolor(color=short_cont ? i_neg_light_col : long_cont ? i_pos_light_col : na, 
 // Acknowledgement & Reference
 // Trader: 'dgtrd'
 // Indicator Title: 'Technical Analyst by DGT'
-// Indicator Link: 'https://www.tradingview.com/script/r2kuEi0l-Technical-Analyst-by-DGT/'
+// Indicator Link: 'https://example.com/script/r2kuEi0l-Technical-Analyst-by-DGT/'
 
 // Functions  ----------------------------------------------------------------------------------- //
 
@@ -339,7 +339,7 @@ if barstate.islast
 // Acknowledgement & Reference
 // Trader: 'allanster'
 // Indicator Title: 'How To Input CSV List Of Symbol Data Used For Screener'
-// Indicator Link: 'https://www.tradingview.com/script/KfqHqHUH-How-To-Input-CSV-List-Of-Symbol-Data-Used-For-Screener/'
+// Indicator Link: 'https://example.com/script/KfqHqHUH-How-To-Input-CSV-List-Of-Symbol-Data-Used-For-Screener/'
 
 feed(back) =>                                             // extract tickerid and decrement list of ticker IDs
     loop  = back                                          // declare string variable to hold content list
@@ -371,7 +371,7 @@ feed(back) =>                                             // extract tickerid an
 // Acknowledgement & Reference
 // Trader: 'MUQWISHI'
 // Indicator Title: 'Candlestick Patterns Screener [By MUQWISHI]'
-// Indicator Link: 'https://www.tradingview.com/script/xiWQuGOq-Candlestick-Patterns-Screener-By-MUQWISHI/'
+// Indicator Link: 'https://example.com/script/xiWQuGOq-Candlestick-Patterns-Screener-By-MUQWISHI/'
 
 // Screener Conditions
 bearish_cond = short_cont

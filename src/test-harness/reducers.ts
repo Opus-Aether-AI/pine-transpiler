@@ -12,7 +12,7 @@ interface AutoscaleInfo {
 
 function resolveLocationValue(style: StyleRecord | undefined): unknown {
   if (!style || style.location === undefined || style.location === null) {
-    // Mirror the production crash signature seen in TradingView reducers.
+    // Mirror the production crash signature seen in Chart Host reducers.
     throw new TypeError(
       "Cannot read properties of undefined (reading 'value')",
     );
@@ -62,7 +62,7 @@ function resolveVisualCharValue(plot: StudyPlotInfo): unknown {
 }
 
 /**
- * TradingView-shaped autoscale reducer fragment.
+ * Chart Host-shaped autoscale reducer fragment.
  *
  * Only models the contract surface that tends to crash transpiled indicators:
  * visual plot style lookup (`styles[plot.id]`) and location access for
@@ -89,7 +89,7 @@ export function applyPlotToPrecalculatedAutoscaleInfo(
 }
 
 /**
- * TradingView-shaped dependency reducer fragment used by view updates.
+ * Chart Host-shaped dependency reducer fragment used by view updates.
  */
 export function dependsOnSeriesData(
   plot: StudyPlotInfo,

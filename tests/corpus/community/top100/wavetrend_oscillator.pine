@@ -1,0 +1,21 @@
+//@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
+indicator("WaveTrend Oscillator", overlay=false)
+
+n1 = input.int(10, "Channel Length", minval=1)
+n2 = input.int(21, "Average Length", minval=1)
+ob = input.float(60.0, "Overbought")
+os = input.float(-60.0, "Oversold")
+
+ap = hlc3
+esa = ta.ema(ap, n1)
+d = ta.ema(math.abs(ap - esa), n1)
+ci = d == 0.0 ? 0.0 : (ap - esa) / (0.015 * d)
+wt1 = ta.ema(ci, n2)
+wt2 = ta.sma(wt1, 4)
+
+plot(wt1, "WT1", color=color.aqua)
+plot(wt2, "WT2", color=color.orange)
+hline(ob, "OB", color=color.red)
+hline(os, "OS", color=color.green)
+plot(wt1 - wt2, "Delta", color=color.new(color.blue, 70), style=plot.style_histogram)

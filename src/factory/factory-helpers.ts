@@ -302,7 +302,7 @@ export function buildInputsMetadata(inputs: ParsedInput[]): Array<{
     defval: i.defval,
     min: i.min,
     max: i.max,
-    // TradingView settings UI assumes iterable options in several
+    // Chart Host settings UI assumes iterable options in several
     // code-paths. Normalize to [] to avoid undefined.map crashes.
     options: Array.isArray(i.options) ? i.options : [],
   }));

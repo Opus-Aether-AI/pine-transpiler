@@ -1,4 +1,5 @@
 //@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
 indicator("Custom 003 Divergence Workbench", overlay=true)
 
 r = ta.rsi(close, 14)

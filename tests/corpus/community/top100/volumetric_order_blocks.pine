@@ -1,0 +1,12 @@
+//@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
+indicator("Volumetric Order Blocks", overlay=true)
+
+volAvg = ta.sma(volume, 20)
+hiVol = volume > volAvg * 1.8
+bullBlock = hiVol and close > open and close > ta.highest(close[1], 10)
+bearBlock = hiVol and close < open and close < ta.lowest(close[1], 10)
+
+plotshape(bullBlock, title="Bull VOB", style=shape.square, location=location.belowbar, color=color.new(color.green, 0), size=size.tiny)
+plotshape(bearBlock, title="Bear VOB", style=shape.square, location=location.abovebar, color=color.new(color.red, 0), size=size.tiny)
+plot(volume / math.max(volAvg, 1), "Volume Ratio", color=color.new(color.blue, 90), display=display.none)

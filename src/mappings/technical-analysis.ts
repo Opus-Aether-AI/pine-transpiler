@@ -10,7 +10,7 @@
  * - Volume (OBV, Cum, AD)
  * - Cross Detection (Cross, Crossover, Crossunder, Rising, Falling)
  *
- * Reference: https://www.tradingview.com/pine-script-reference/v5/#ta
+ * Reference: https://example.com/pine-script-reference/v5/#ta
  */
 
 import type { MultiOutputFunctionMapping, TAFunctionMapping } from '../types';

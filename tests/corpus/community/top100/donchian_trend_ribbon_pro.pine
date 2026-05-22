@@ -1,4 +1,5 @@
 //@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
 indicator("Donchian Trend Ribbon Pro", overlay=true)
 
 len = input.int(20, "Length", minval=1)

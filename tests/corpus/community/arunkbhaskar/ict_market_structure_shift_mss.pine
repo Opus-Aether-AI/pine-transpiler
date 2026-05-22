@@ -53,7 +53,7 @@ float i_zz_percentage = input.float(defval=0.7, minval=0, step=0.1, title='Perce
 // Acknowledgement & Reference
 // Trader: 'RozaniGhani-RG'
 // Indicator Title: 'Zig Zag Ratio Simplified'
-// Indicator Link: 'https://www.tradingview.com/script/CIk186OY-Zig-Zag-Ratio-Simplified/'
+// Indicator Link: 'https://example.com/script/CIk186OY-Zig-Zag-Ratio-Simplified/'
 
 //_____________________________ Get Source
 

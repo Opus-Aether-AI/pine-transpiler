@@ -1,4 +1,5 @@
 //@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
 indicator("Popular 022 Supertrend Momentum", overlay=true)
 
 [st, dir] = ta.supertrend(2.3, 12)

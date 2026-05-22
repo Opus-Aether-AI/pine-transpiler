@@ -1,4 +1,5 @@
 //@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
 indicator("Popular 028 QQE Trend Pulse", overlay=false)
 
 r = ta.rsi(close, 14)

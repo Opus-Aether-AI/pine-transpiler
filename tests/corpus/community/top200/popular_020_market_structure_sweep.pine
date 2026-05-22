@@ -1,4 +1,5 @@
 //@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
 indicator("Popular 020 Market Structure Sweep", overlay=true)
 
 buyLiq = ta.highest(high, 25)

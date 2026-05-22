@@ -1,4 +1,5 @@
 //@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
 indicator("Custom 016 Liquidity Map with Drawings", overlay=true)
 
 buyLiq = ta.highest(high, 20)

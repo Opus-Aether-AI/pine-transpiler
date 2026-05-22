@@ -1,6 +1,6 @@
 # Critical Indicator Matrix
 
-Generated: 2026-05-17T00:35:59.695Z
+Generated: 2026-05-22T02:16:35.109Z
 
 Summary: PASS 30 / FAIL 0 / NOT_FOUND 0 (Total 30)
 
@@ -36,12 +36,12 @@ Summary: PASS 30 / FAIL 0 / NOT_FOUND 0 (Total 30)
 | ICT OTE + PD Arrays | top100/ict_ote_pd_arrays.pine | ict_smc | PASS | complete |  | quarantine | proxy | smc_ict |
 | ICT Rejection Blocks | top100/ict_rejection_blocks.pine | ict_smc | PASS | complete |  | quarantine | proxy | smc_ict |
 | ICT Unicorn Model Detector | top100/ict_unicorn_model_detector.pine | ict_smc | PASS | complete |  | quarantine | proxy | smc_ict |
-| LuxAlgo Smart Money Concepts | top100/luxalgo_smart_money_concepts.pine | ict_smc | PASS | complete |  | quarantine | proxy | smc_ict |
-| LuxAlgo Price Action Concepts | top100/luxalgo_price_action_concepts.pine | ict_smc | PASS | complete |  | quarantine | proxy | visual |
-| LuxAlgo Liquidity Concepts | top100/luxalgo_liquidity_concepts.pine | ict_smc | PASS | complete |  | quarantine | proxy | smc_ict |
-| LuxAlgo Order Block Detector | top100/luxalgo_order_block_detector.pine | ict_smc | PASS | complete |  | quarantine | proxy | smc_ict |
-| Market Structure + Liquidity Alerts | top100/market_structure_liquidity_smart_alerts_algonit.pine | ict_smc | PASS | complete |  | quarantine | proxy | smc_ict |
-| XAUUSD Vector SMC | top100/xauusd_vector_smc_matsukazealgo.pine | forex_xau | PASS | complete |  | quarantine | proxy | visual |
+| Smart Money Concepts | top100/smart_money_concepts.pine | ict_smc | PASS | complete |  | quarantine | proxy | smc_ict |
+| Price Action Concepts | top100/price_action_concepts.pine | ict_smc | PASS | complete |  | quarantine | proxy | visual |
+| Liquidity Concepts | top100/liquidity_concepts.pine | ict_smc | PASS | complete |  | quarantine | proxy | smc_ict |
+| Order Block Detector | top100/order_block_detector.pine | ict_smc | PASS | complete |  | quarantine | proxy | smc_ict |
+| Market Structure + Liquidity Alerts | top100/market_structure_liquidity_smart_alerts.pine | ict_smc | PASS | complete |  | quarantine | proxy | smc_ict |
+| XAUUSD Vector SMC | top100/xauusd_vector_smc.pine | forex_xau | PASS | complete |  | quarantine | proxy | visual |
 | MFT VWAP Master Pro | top100/multi_timeframe_vwap_master_pro.pine | trend_volatility | PASS | complete |  | quarantine | proxy | mtf |
 | Forex BOS/CHOCH Lite | forex_xau/forex_bos_choch_lite.pine | forex_xau | PASS | complete |  | synthetic_custom | synthetic | smc_ict |
 | Liquidity Sweep Lite | forex_xau/liquidity_sweep_lite.pine | forex_xau | PASS | complete |  | synthetic_custom | synthetic | smc_ict |

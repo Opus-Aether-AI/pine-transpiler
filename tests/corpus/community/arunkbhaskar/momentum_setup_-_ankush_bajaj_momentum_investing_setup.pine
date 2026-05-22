@@ -165,7 +165,7 @@ barcolor(color=short_cont ? i_neg_light_col : long_cont ? i_pos_light_col : na, 
 // Acknowledgement & Reference
 // Trader: 'dgtrd'
 // Indicator Title: 'Technical Analyst by DGT'
-// Indicator Link: 'https://www.tradingview.com/script/r2kuEi0l-Technical-Analyst-by-DGT/'
+// Indicator Link: 'https://example.com/script/r2kuEi0l-Technical-Analyst-by-DGT/'
 
 // Functions  ----------------------------------------------------------------------------------- //
 

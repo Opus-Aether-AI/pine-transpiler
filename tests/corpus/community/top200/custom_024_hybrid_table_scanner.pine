@@ -1,4 +1,5 @@
 //@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
 indicator("Custom 024 Hybrid Table Scanner", overlay=false)
 
 trend = ta.ema(close, 21) > ta.ema(close, 50)

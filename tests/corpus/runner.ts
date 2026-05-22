@@ -223,7 +223,7 @@ export function runFixture(
   baseResult.stageReached = 'construct';
   baseResult.declaredPlotCount = declaredPlotCount(indicator);
 
-  // Stage 3 — instantiate constructor with `new` (matches TradingView)
+  // Stage 3 — instantiate constructor with `new` (matches Chart Host)
   let constructed: { main: (ctx: unknown, cb: unknown) => unknown };
   try {
     const ctor = indicator.constructor as new () => {

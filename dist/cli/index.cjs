@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const require_src = require("../src-FI_T73Iq.cjs");
+const require_src = require("../src-DYBV471Y.cjs");
 let node_fs = require("node:fs");
 let node_path = require("node:path");
 let node_url = require("node:url");
