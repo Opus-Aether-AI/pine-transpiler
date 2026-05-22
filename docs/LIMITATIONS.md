@@ -57,7 +57,7 @@ Not yet supported:
 
 ### Drawing APIs (runtime-compatible handles, partial direct rendering)
 
-Drawing namespaces are stateful, persist across bars (Pine `var` semantics), and support common method subsets so scripts execute. Direct visual rendering inside the transpiler is intentionally limited — TradingView CustomIndicator outputs (plots, palette-backed bg_colorers) cannot draw arbitrary shapes. Anything beyond bg_colorer goes through the host renderer (see [HOST_RENDERING_CONTRACT.md](HOST_RENDERING_CONTRACT.md)).
+Drawing namespaces are stateful, persist across bars (Pine `var` semantics), and support common method subsets so scripts execute. Direct visual rendering inside the transpiler is intentionally limited — chart-host `CustomIndicator` outputs (plots, palette-backed bg_colorers) cannot draw arbitrary shapes. Anything beyond bg_colorer goes through the host renderer (see [HOST_RENDERING_CONTRACT.md](HOST_RENDERING_CONTRACT.md)).
 
 Direct rendering inside the transpiler:
 
@@ -80,7 +80,7 @@ Supported method subsets:
 ### Plot/Visual Functions
 
 - `plot`, `plotshape`, `plotchar`, `plotarrow`, `bgcolor`, `fill`, `barcolor`, `hline` are runtime-compatible.
-- `plot` / `plotshape` / `plotchar` / `plotarrow` / `hline` render directly through TradingView's CustomIndicator plot output.
+- `plot` / `plotshape` / `plotchar` / `plotarrow` / `hline` render directly through chart-host `CustomIndicator` plot output.
 - `plotchar(text = identifier)` resolves through tracked string-literal var definitions and is promoted to the `char` glyph when `char` is empty.
 - `bgcolor`, `fill`, `barcolor` are tracked in visual-event artifacts; rendering of those that don't lower to a `bg_colorer` plot remains host responsibility.
 
@@ -94,7 +94,7 @@ Function-local persistent state is now runtime-backed and call-site scoped:
 
 ### Alerts
 
-- `alert()` and `alertcondition()` are runtime no-ops. The transpiler swallows the call without errors or routing. If alerting is required, prefetch the alert condition values via plot outputs and let the host wire its own notification surface. Long-term resolution tracked in Phase 18.
+- `alert()` and `alertcondition()` are runtime no-ops. The transpiler swallows the call without errors or routing. If alerting is required, prefetch the alert condition values via plot outputs and let the host wire its own notification surface.
 
 ### Session/Time Semantics
 

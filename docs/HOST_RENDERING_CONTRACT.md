@@ -111,7 +111,7 @@ bar window.
 | `xloc` arg | `string` | Pine `xloc.bar_time` or `xloc.bar_index` member name |
 | `NaN` in any slot | numeric `NaN` | Pine `na` — slot was unsupplied or explicitly `na`. Renderers should treat as "use default / skip rendering this property" |
 
-Host renderers must convert epoch milliseconds to TradingView's
+Host renderers must convert epoch milliseconds to chart-host runtime's
 expected time unit (seconds) when forwarding to widget APIs that
 expect TV time.
 
@@ -353,7 +353,7 @@ Compatibility policy:
 ## What's intentionally not in this contract
 
 - **Per-bar plot values** — the numeric array elements of the
-  `main()` return value follow TradingView's own CustomIndicator
+  `main()` return value follow chart-host `CustomIndicator`
   output contract, not this one. See `plots` and `palettes` on
   `metainfo`.
 - **Pine `var` persistence inside function bodies** — currently

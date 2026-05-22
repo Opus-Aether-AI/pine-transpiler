@@ -1094,12 +1094,26 @@ function __isInSessionAt(timestamp, sessionRaw, timezone) {
   }
   const clock = __readClockAt(timestamp, timezone);
   const dayToken = String(clock.dayOfWeek);
-  if (daysRaw && !String(daysRaw).includes(dayToken)) return false;
   const current = clock.hour * 60 + clock.minute;
   const start = startHour * 60 + startMinute;
   const end = endHour * 60 + endMinute;
-  if (start <= end) return current >= start && current < end;
-  return current >= start || current < end;
+  const normalizedDays = String(daysRaw || '1234567');
+  if (start <= end) {
+    if (normalizedDays && !normalizedDays.includes(dayToken)) return false;
+    return current >= start && current < end;
+  }
+  // Overnight sessions are anchored to the day the session starts.
+  // Example: "2200-0200:2" includes Monday 23:00 and Tuesday 01:00.
+  if (current >= start) {
+    if (normalizedDays && !normalizedDays.includes(dayToken)) return false;
+    return true;
+  }
+  if (current < end) {
+    const prevDayToken = String(clock.dayOfWeek === 1 ? 7 : clock.dayOfWeek - 1);
+    if (normalizedDays && !normalizedDays.includes(prevDayToken)) return false;
+    return true;
+  }
+  return false;
 }
 
 function __compatTime(currentBarTime, priorProcessedBars, chartPeriod, timeframeArg, sessionArg, timezoneArg, barsBackArg) {
@@ -1532,6 +1546,46 @@ function generateStandaloneRuntimeMainBody(
           if (Array.isArray(value)) return value.map((item) => _naLike(item));
           return Number.NaN;
         };
+        const _hasCalendarUnit = (raw) => {
+          const tf = String(raw == null ? '' : raw).trim().toUpperCase();
+          if (!tf) return false;
+          const m = tf.match(/^(\\d+)?([SMHDWMY])?$/);
+          const unit = (m && m[2]) || '';
+          return unit === 'W' || unit === 'M' || unit === 'Y';
+        };
+        const _parseTimeframeSpec = (raw) => {
+          const tf = String(raw == null ? '' : raw).trim().toUpperCase();
+          if (!tf) return null;
+          const m = tf.match(/^(\\d+)?([SMHDWMY])?$/);
+          if (!m) return null;
+          const amount = Number(m[1] || 1);
+          if (!Number.isFinite(amount) || amount <= 0) return null;
+          return { amount, unit: m[2] || '' };
+        };
+        const _requestBucketKey = (timestamp, timeframeArg, bucketSizeMs, timezone) => {
+          const spec = _parseTimeframeSpec(timeframeArg);
+          if (!spec) return 'ms:' + String(Math.floor(timestamp / bucketSizeMs));
+          if (spec.unit === 'W') {
+            const clock = __readClockAt(timestamp, timezone);
+            const dayStartUtc = Date.UTC(clock.year, clock.month - 1, clock.dayOfMonth);
+            const mondayIndex = clock.dayOfWeek === 1 ? 6 : clock.dayOfWeek - 2;
+            const weekStartUtc = dayStartUtc - mondayIndex * 86400000;
+            const bucket = Math.floor(weekStartUtc / (spec.amount * 7 * 86400000));
+            return 'w:' + String(spec.amount) + ':' + String(bucket);
+          }
+          if (spec.unit === 'M') {
+            const clock = __readClockAt(timestamp, timezone);
+            const monthIndex = clock.year * 12 + (clock.month - 1);
+            const bucket = Math.floor(monthIndex / spec.amount);
+            return 'm:' + String(spec.amount) + ':' + String(bucket);
+          }
+          if (spec.unit === 'Y') {
+            const clock = __readClockAt(timestamp, timezone);
+            const bucket = Math.floor(clock.year / spec.amount);
+            return 'y:' + String(spec.amount) + ':' + String(bucket);
+          }
+          return 'ms:' + String(Math.floor(timestamp / bucketSizeMs));
+        };
         const _requestSecurity = (symbolArg, timeframeArg, expressionArg, ...extraArgs) => {
           const currentTicker = String((syminfo && syminfo.tickerid) || '');
           const requestedTicker =
@@ -1562,35 +1616,49 @@ function generateStandaloneRuntimeMainBody(
             merge.gaps,
             merge.lookahead,
           ].join('|');
-          const bucket = Math.floor(_barTime / bucketSizeMs);
+          const bucketKey = _requestBucketKey(
+            _barTime,
+            timeframeArg,
+            bucketSizeMs,
+            syminfo && syminfo.timezone ? syminfo.timezone : undefined,
+          );
 
           let state = __requestSecurityState.get(key);
           let changedBucket = false;
           if (!state) {
             state = {
-              lastBucket: bucket,
+              lastBucket: bucketKey,
               currentValue: _cloneRequestValue(expressionArg),
               confirmedValue: _naLike(expressionArg),
             };
             __requestSecurityState.set(key, state);
             changedBucket = true;
-          } else if (state.lastBucket !== bucket) {
+          } else if (state.lastBucket !== bucketKey) {
             state.confirmedValue = _cloneRequestValue(state.currentValue);
             state.currentValue = _cloneRequestValue(expressionArg);
-            state.lastBucket = bucket;
+            state.lastBucket = bucketKey;
             changedBucket = true;
           } else {
             state.currentValue = _cloneRequestValue(expressionArg);
           }
 
           const nextBucket = Math.floor((_barTime + chartTfMs) / bucketSizeMs);
-          const isBucketCloseBar = nextBucket !== bucket;
+          const currentBucket = Math.floor(_barTime / bucketSizeMs);
+          const isBucketCloseBar = nextBucket !== currentBucket;
           const isLookaheadOn = merge.lookahead === 'lookahead_on';
-          const eventBar = isLookaheadOn ? changedBucket : isBucketCloseBar;
+          const approximateAlignment =
+            _hasCalendarUnit(_chartPeriod) ||
+            _hasCalendarUnit(timeframeArg);
+          const effectiveBucketCloseBar = approximateAlignment
+            ? changedBucket
+            : isBucketCloseBar;
+          const eventBar = isLookaheadOn ? changedBucket : effectiveBucketCloseBar;
           const merged = isLookaheadOn
             ? state.currentValue
-            : isBucketCloseBar
-              ? state.currentValue
+            : effectiveBucketCloseBar
+              ? approximateAlignment
+                ? state.confirmedValue
+                : state.currentValue
               : state.confirmedValue;
 
           if (merge.gaps === 'gaps_on' && !eventBar) {
@@ -1601,19 +1669,34 @@ function generateStandaloneRuntimeMainBody(
         const request = {
           security: _requestSecurity,
         };
-        const session = {
-          ismarket: false,
-          ispremarket: false,
-          ispostmarket: false,
-        };
         const array = __createArrayNamespace();
         const time = _barTime;
+        const _chartTfMs = __timeframeToSeconds(_chartPeriod, _chartPeriod) * 1000;
+        const _sessionTimezone = syminfo && syminfo.timezone ? syminfo.timezone : undefined;
+        const _symbol = context && typeof context === 'object' && context.symbol ? context.symbol : {};
+        const _isInSession = (raw, fallback) => {
+          const sessionRaw = typeof raw === 'string' && raw.trim() ? raw : fallback;
+          return __isInSessionAt(_barTime, sessionRaw, _sessionTimezone);
+        };
+        const session = {
+          get ismarket() {
+            return _isInSession(_symbol.session_regular, '0930-1600');
+          },
+          get ispremarket() {
+            return _isInSession(_symbol.session_premarket, '0400-0930');
+          },
+          get ispostmarket() {
+            return _isInSession(_symbol.session_postmarket, '1600-2000');
+          },
+        };
         const time_close =
           typeof _stdWithCompat.time_close === 'function'
-            ? __toNumber(_stdWithCompat.time_close(context), _barTime + 60000)
-            : _barTime + 60000;
+            ? __toNumber(_stdWithCompat.time_close(context), _barTime + _chartTfMs)
+            : _barTime + _chartTfMs;
         const _clock = __readClockAt(_barTime, syminfo.timezone);
-        const time_tradingday = Date.UTC(_clock.year, _clock.month - 1, _clock.dayOfMonth);
+        const _elapsedMs =
+          (_clock.hour * 3600 + _clock.minute * 60 + _clock.second) * 1000;
+        const time_tradingday = _barTime - _elapsedMs;
         const bar_index = _resolvedBarIndex;
         const hour = _clock.hour;
         const minute = _clock.minute;
@@ -2717,7 +2800,7 @@ export function buildIndicatorFactory(
         const _requestSecurityState = new Map<
           string,
           {
-            lastBucket: number;
+            lastBucket: string;
             currentValue: unknown;
             confirmedValue: unknown;
           }
@@ -3141,13 +3224,23 @@ export function buildIndicatorFactory(
               timezone,
             );
             const days = (daysRaw ?? '1234567').trim();
-            if (days && !days.includes(String(dayOfWeek))) return false;
-
             const current = hour * 60 + minute;
             const start = startHour * 60 + startMinute;
             const end = endHour * 60 + endMinute;
-            if (start <= end) return current >= start && current < end;
-            return current >= start || current < end;
+            if (start <= end) {
+              if (days && !days.includes(String(dayOfWeek))) return false;
+              return current >= start && current < end;
+            }
+            if (current >= start) {
+              if (days && !days.includes(String(dayOfWeek))) return false;
+              return true;
+            }
+            if (current < end) {
+              const prevDay = dayOfWeek === 1 ? 7 : dayOfWeek - 1;
+              if (days && !days.includes(String(prevDay))) return false;
+              return true;
+            }
+            return false;
           };
           const chartTimeframeMs =
             parseTimeframeToMs(timeframe.period) ?? 60_000;
@@ -3614,12 +3707,24 @@ export function buildIndicatorFactory(
             const unit = m[2] ?? '';
             if (!unit) return num;
             if (unit === 'S') return num / 60;
-            if (unit === 'M') return num * 43800;
+            if (unit === 'M') return num * 43200;
             if (unit === 'H') return num * 60;
             if (unit === 'D') return num * 1440;
             if (unit === 'W') return num * 10080;
             if (unit === 'Y') return num * 525600;
             return null;
+          };
+          const parseTimeframeSpec = (
+            raw: unknown,
+          ): { amount: number; unit: string } | null => {
+            const tf = String(raw ?? '').trim();
+            if (!tf) return null;
+            const upper = tf.toUpperCase();
+            const m = upper.match(/^(\d+)?([SMHDWMY])?$/);
+            if (!m) return null;
+            const amount = Number(m[1] ?? 1);
+            if (!Number.isFinite(amount) || amount <= 0) return null;
+            return { amount, unit: m[2] ?? '' };
           };
           const hasCalendarUnit = (raw: unknown): boolean => {
             const tf = String(raw ?? '')
@@ -3629,6 +3734,43 @@ export function buildIndicatorFactory(
             const m = tf.match(/^(\d+)?([SMHDWMY])?$/);
             const unit = m?.[2] ?? '';
             return unit === 'W' || unit === 'M' || unit === 'Y';
+          };
+          const buildRequestBucketKey = (
+            timestamp: number,
+            timeframeArg: unknown,
+            timezone: string,
+            bucketSizeMs: number,
+          ): string => {
+            const spec = parseTimeframeSpec(timeframeArg);
+            if (!spec) return `ms:${Math.floor(timestamp / bucketSizeMs)}`;
+            if (spec.unit === 'W') {
+              const clock = readClockAt(timestamp, timezone);
+              const dayStartUtc = Date.UTC(
+                clock.year,
+                clock.month - 1,
+                clock.dayOfMonth,
+              );
+              // Monday-anchored week start in exchange timezone.
+              const mondayIndex =
+                clock.dayOfWeek === 1 ? 6 : clock.dayOfWeek - 2;
+              const weekStartUtc = dayStartUtc - mondayIndex * 86_400_000;
+              const bucket = Math.floor(
+                weekStartUtc / (spec.amount * 7 * 86_400_000),
+              );
+              return `w:${spec.amount}:${bucket}`;
+            }
+            if (spec.unit === 'M') {
+              const clock = readClockAt(timestamp, timezone);
+              const monthIndex = clock.year * 12 + (clock.month - 1);
+              const bucket = Math.floor(monthIndex / spec.amount);
+              return `m:${spec.amount}:${bucket}`;
+            }
+            if (spec.unit === 'Y') {
+              const clock = readClockAt(timestamp, timezone);
+              const bucket = Math.floor(clock.year / spec.amount);
+              return `y:${spec.amount}:${bucket}`;
+            }
+            return `ms:${Math.floor(timestamp / bucketSizeMs)}`;
           };
           const resolveMergeMode = (extras: unknown[]) => {
             let gaps = 'gaps_off';
@@ -3728,22 +3870,29 @@ export function buildIndicatorFactory(
             }
 
             const callSite = inferRequestSecurityCallSite();
-            const bucket = Math.floor(currentBarTime / bucketSizeMs);
+            const timezone =
+              readStringField(ctx.symbol, 'timezone') ?? 'America/New_York';
+            const bucketKey = buildRequestBucketKey(
+              currentBarTime,
+              timeframeArg,
+              timezone,
+              bucketSizeMs,
+            );
             const key = `${callSite}|${String(symbolArg)}|${String(timeframeArg)}|${merge.gaps}|${merge.lookahead}`;
 
             const existing = _requestSecurityState.get(key);
             let changedBucket = false;
             if (!existing) {
               _requestSecurityState.set(key, {
-                lastBucket: bucket,
+                lastBucket: bucketKey,
                 currentValue: cloneValue(expressionArg),
                 confirmedValue: naLike(expressionArg),
               });
               changedBucket = true;
-            } else if (existing.lastBucket !== bucket) {
+            } else if (existing.lastBucket !== bucketKey) {
               existing.confirmedValue = cloneValue(existing.currentValue);
               existing.currentValue = cloneValue(expressionArg);
-              existing.lastBucket = bucket;
+              existing.lastBucket = bucketKey;
               changedBucket = true;
             } else {
               existing.currentValue = cloneValue(expressionArg);
@@ -3764,17 +3913,12 @@ export function buildIndicatorFactory(
             const nextBucket = Math.floor(
               (currentBarTime + chartTimeframeMs) / bucketSizeMs,
             );
-            const isBucketCloseBar = nextBucket !== bucket;
+            const currentBucket = Math.floor(currentBarTime / bucketSizeMs);
+            const isBucketCloseBar = nextBucket !== currentBucket;
 
             const isLookaheadOn = merge.lookahead === 'lookahead_on';
-            const ratio = bucketSizeMs / chartTimeframeMs;
-            const hasIntegralRatio =
-              Number.isFinite(ratio) &&
-              Math.abs(ratio - Math.round(ratio)) < 1e-9;
             const approximateAlignment =
-              hasCalendarUnit(currentTfRaw) ||
-              hasCalendarUnit(timeframeArg) ||
-              !hasIntegralRatio;
+              hasCalendarUnit(currentTfRaw) || hasCalendarUnit(timeframeArg);
             if (!isLookaheadOn && approximateAlignment) {
               emitRequestSecurityDiagnostic(
                 'request.security/approximate-bucket-alignment',
@@ -3791,7 +3935,9 @@ export function buildIndicatorFactory(
             const merged = isLookaheadOn
               ? state.currentValue
               : effectiveBucketCloseBar
-                ? state.currentValue
+                ? approximateAlignment
+                  ? state.confirmedValue
+                  : state.currentValue
                 : state.confirmedValue;
 
             if (merge.gaps === 'gaps_on' && !eventBar) {
@@ -3848,6 +3994,8 @@ export function buildIndicatorFactory(
                 )
               : 0;
           const stdTimeCloseFn = (stdLib as Record<string, unknown>).time_close;
+          const symbolTimezone =
+            readStringField(ctx.symbol, 'timezone') ?? 'America/New_York';
           const time_close =
             typeof stdTimeCloseFn === 'function'
               ? Number(
@@ -3855,17 +4003,19 @@ export function buildIndicatorFactory(
                     ctx,
                   ),
                 )
-              : time + 60_000;
-          const _td = new Date(time);
-          _td.setUTCHours(0, 0, 0, 0);
-          const time_tradingday = _td.getTime();
+              : time + chartTimeframeMs;
+          const _tdClock = readClockAt(time, symbolTimezone);
+          const time_tradingday =
+            time -
+            (_tdClock.hour * 3600 + _tdClock.minute * 60 + _tdClock.second) *
+              1000;
           const bar_index = resolvedBarIndex;
           const readClock = () => {
             const stdHourFn = (stdLib as Record<string, unknown>).hour;
             const stdMinuteFn = (stdLib as Record<string, unknown>).minute;
             const stdDayOfWeekFn = (stdLib as Record<string, unknown>)
               .dayofweek;
-            const fallbackDate = new Date(time);
+            const fallbackClock = readClockAt(time, symbolTimezone);
             const hourVal =
               typeof stdHourFn === 'function'
                 ? Number(
@@ -3874,9 +4024,9 @@ export function buildIndicatorFactory(
                         c: RuntimeContextInternal,
                         tz?: string,
                       ) => unknown
-                    )(ctx),
+                    )(ctx, symbolTimezone),
                   )
-                : fallbackDate.getUTCHours();
+                : fallbackClock.hour;
             const minuteVal =
               typeof stdMinuteFn === 'function'
                 ? Number(
@@ -3885,9 +4035,9 @@ export function buildIndicatorFactory(
                         c: RuntimeContextInternal,
                         tz?: string,
                       ) => unknown
-                    )(ctx),
+                    )(ctx, symbolTimezone),
                   )
-                : fallbackDate.getUTCMinutes();
+                : fallbackClock.minute;
             const dayOfWeekVal =
               typeof stdDayOfWeekFn === 'function'
                 ? Number(
@@ -3896,19 +4046,17 @@ export function buildIndicatorFactory(
                         c: RuntimeContextInternal,
                         tz?: string,
                       ) => unknown
-                    )(ctx),
+                    )(ctx, symbolTimezone),
                   )
-                : fallbackDate.getUTCDay() + 1;
+                : fallbackClock.dayOfWeek;
             return {
-              hour: Number.isFinite(hourVal)
-                ? hourVal
-                : fallbackDate.getUTCHours(),
+              hour: Number.isFinite(hourVal) ? hourVal : fallbackClock.hour,
               minute: Number.isFinite(minuteVal)
                 ? minuteVal
-                : fallbackDate.getUTCMinutes(),
+                : fallbackClock.minute,
               dayOfWeek: Number.isFinite(dayOfWeekVal)
                 ? dayOfWeekVal
-                : fallbackDate.getUTCDay() + 1,
+                : fallbackClock.dayOfWeek,
             };
           };
 
@@ -3932,19 +4080,30 @@ export function buildIndicatorFactory(
               return false;
             }
 
-            const days = daysRaw ?? '1234567';
             const {
               hour: currentHour,
               minute: currentMinute,
               dayOfWeek,
             } = readClock();
-            if (!days.includes(String(dayOfWeek))) return false;
+            const days = (daysRaw ?? '1234567').trim();
 
             const current = currentHour * 60 + currentMinute;
             const start = startHour * 60 + startMinute;
             const end = endHour * 60 + endMinute;
-            if (start <= end) return current >= start && current < end;
-            return current >= start || current < end;
+            if (start <= end) {
+              if (days && !days.includes(String(dayOfWeek))) return false;
+              return current >= start && current < end;
+            }
+            if (current >= start) {
+              if (days && !days.includes(String(dayOfWeek))) return false;
+              return true;
+            }
+            if (current < end) {
+              const prevDay = dayOfWeek === 1 ? 7 : dayOfWeek - 1;
+              if (days && !days.includes(String(prevDay))) return false;
+              return true;
+            }
+            return false;
           };
 
           const session = {

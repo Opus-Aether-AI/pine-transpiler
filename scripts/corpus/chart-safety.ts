@@ -8,22 +8,28 @@
  * Contracts:
  *  1) Constructor contract: `new indicator.constructor()` succeeds and yields
  *     a callable `main(context, inputCallback)`.
- *  2) Metainfo schema contract:
+ *  2) Metainfo plot schema contract:
  *     - every `metainfo.plots[]` id has matching `styles` + `defaults.styles`
  *     - chars plots carry non-empty glyph metadata (`style.char`)
  *     - shapes plots carry plottype metadata (`style.plottype`)
  *     - bg_colorer plots reference an existing palette in both
  *       `metainfo.palettes` and `defaults.palettes`.
- *  3) Plot contract (per bar):
+ *  3) Input descriptor contract:
+ *     - each `metainfo.inputs[]` entry has `id`, `name`, `defval`, `type`,
+ *       `options`
+ *     - `group` / `inline` are strings when present
+ *     - each input id exists in `metainfo.defaults.inputs` with matching
+ *       default value.
+ *  4) Plot contract (per bar):
  *     - `main()` returns an array
  *     - output length equals `metainfo.plots.length`
  *     - no `undefined` slots
  *     - every slot is a number (finite or NaN)
- *  4) Visual payload contract (per bar):
+ *  5) Visual payload contract (per bar):
  *     - `__visualEvents` (if present) is an array of valid event objects
  *     - style payload fields are normalized and shape-safe
  *     - `__visualEventsVersion` is a finite integer >= 1.
- *  5) Handle lifecycle contract (cross-bar):
+ *  6) Handle lifecycle contract (cross-bar):
  *     - drawing events carry `pineHandleId`
  *     - no `<ns>.set_*` / `<ns>.delete` against unseen ids
  *     - no mutations after delete.
@@ -54,6 +60,7 @@ type FailureStage =
   | 'instantiate'
   | 'construct'
   | 'metainfo-schema'
+  | 'input-contract'
   | 'run-bars'
   | 'plot-contract'
   | 'visual-contract'
@@ -81,6 +88,16 @@ interface MetainfoPlotLike {
   palette?: unknown;
   plottype?: unknown;
   char?: unknown;
+}
+
+interface MetainfoInputLike {
+  id?: unknown;
+  name?: unknown;
+  defval?: unknown;
+  type?: unknown;
+  options?: unknown;
+  group?: unknown;
+  inline?: unknown;
 }
 
 interface HandleLifecycleState {
@@ -269,6 +286,99 @@ function validateMetainfoSchema(
       if (plottypeValue === undefined || plottypeValue === null) {
         return `${fixture}: shapes plot "${plotId}" is missing style.plottype`;
       }
+    }
+  }
+
+  return null;
+}
+
+function valuesEquivalent(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  if (
+    typeof left === 'number' &&
+    typeof right === 'number' &&
+    Number.isNaN(left) &&
+    Number.isNaN(right)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function validateInputDescriptorContract(
+  fixture: string,
+  indicator: CustomIndicator,
+): string | null {
+  const inputsRaw = indicator.metainfo?.inputs;
+  if (!Array.isArray(inputsRaw)) {
+    return `${fixture}: metainfo.inputs must be an array`;
+  }
+
+  const defaultsInputsRaw = indicator.metainfo?.defaults?.inputs;
+  if (!isPlainObject(defaultsInputsRaw)) {
+    return `${fixture}: metainfo.defaults.inputs must be an object`;
+  }
+  const defaultsInputs = defaultsInputsRaw as Record<string, unknown>;
+  const seenIds = new Set<string>();
+
+  for (let i = 0; i < inputsRaw.length; i++) {
+    const inputRaw = inputsRaw[i];
+    if (!isPlainObject(inputRaw)) {
+      return `${fixture}: metainfo.inputs[${i}] must be an object`;
+    }
+    const input = inputRaw as MetainfoInputLike;
+    const id = String(input.id ?? '').trim();
+    if (!id) {
+      return `${fixture}: metainfo.inputs[${i}] has empty id`;
+    }
+    if (seenIds.has(id)) {
+      return `${fixture}: duplicate input id "${id}"`;
+    }
+    seenIds.add(id);
+
+    const name = String(input.name ?? '').trim();
+    if (!name) {
+      return `${fixture}: metainfo.inputs[${i}] (${id}) has empty name`;
+    }
+
+    const type = String(input.type ?? '').trim();
+    if (!type) {
+      return `${fixture}: metainfo.inputs[${i}] (${id}) has empty type`;
+    }
+
+    if (!Object.hasOwn(input, 'defval')) {
+      return `${fixture}: metainfo.inputs[${i}] (${id}) is missing defval`;
+    }
+
+    if (!Array.isArray(input.options)) {
+      return `${fixture}: metainfo.inputs[${i}] (${id}) options must be an array`;
+    }
+
+    if (
+      Object.hasOwn(input, 'group') &&
+      input.group !== undefined &&
+      input.group !== null &&
+      typeof input.group !== 'string'
+    ) {
+      return `${fixture}: metainfo.inputs[${i}] (${id}) group must be string when present`;
+    }
+
+    if (
+      Object.hasOwn(input, 'inline') &&
+      input.inline !== undefined &&
+      input.inline !== null &&
+      typeof input.inline !== 'string'
+    ) {
+      return `${fixture}: metainfo.inputs[${i}] (${id}) inline must be string when present`;
+    }
+
+    if (!Object.hasOwn(defaultsInputs, id)) {
+      return `${fixture}: metainfo.defaults.inputs is missing key for input "${id}"`;
+    }
+
+    const defaultValue = defaultsInputs[id];
+    if (!valuesEquivalent(defaultValue, input.defval)) {
+      return `${fixture}: defaults.inputs["${id}"] does not match input defval`;
     }
   }
 
@@ -520,6 +630,24 @@ function runFixtureSafety(
         fixture: id,
         stage: 'metainfo-schema',
         message: metainfoError,
+        declaredPlotCount,
+        transpiledBody,
+      },
+    };
+  }
+
+  const inputContractError = validateInputDescriptorContract(id, indicator);
+  if (inputContractError) {
+    return {
+      fixture: id,
+      pass: false,
+      stage: 'input-contract',
+      declaredPlotCount,
+      barsValidated: 0,
+      failure: {
+        fixture: id,
+        stage: 'input-contract',
+        message: inputContractError,
         declaredPlotCount,
         transpiledBody,
       },
@@ -854,6 +982,9 @@ function printSummary(
   const metainfoSchemaFailures = failures.filter(
     (f) => f.stage === 'metainfo-schema',
   ).length;
+  const inputContractFailures = failures.filter(
+    (f) => f.stage === 'input-contract',
+  ).length;
   const plotFailures = failures.filter(
     (f) => f.stage === 'plot-contract' || f.stage === 'run-bars',
   ).length;
@@ -873,6 +1004,7 @@ function printSummary(
   console.log(`Pass: ${pass}/${total} (${passPct.toFixed(2)}%)`);
   console.log(`Constructor contract failures: ${constructorFailures}`);
   console.log(`Metainfo schema failures: ${metainfoSchemaFailures}`);
+  console.log(`Input descriptor contract failures: ${inputContractFailures}`);
   console.log(`Plot contract failures: ${plotFailures}`);
   console.log(`Visual contract failures: ${visualFailures}`);
   console.log(`Handle lifecycle failures: ${handleLifecycleFailures}`);

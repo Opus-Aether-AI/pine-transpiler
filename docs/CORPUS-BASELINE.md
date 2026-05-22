@@ -2,24 +2,29 @@
 
 This is the primary parity scorecard for transpiler stability. Re-run with `bun run corpus`.
 
-## Current Snapshot (2026-05-02)
+## Current Snapshot (2026-05-22)
 
 ```text
-Total fixtures:        234
-Transpile success:     234  (100%)
-+ Parse-clean:         234  (100%)
-+ Instantiate:         234  (100%)
-+ Construct:           234  (100%)
-+ Full pass (no err):  234  (100%)
+Total fixtures:        233
+Transpile success:     233  (100%)
++ Parse-clean:         233  (100%)
++ Instantiate:         233  (100%)
++ Construct:           233  (100%)
++ Full pass (no err):  233  (100%)
 ```
 
 Additional parity checks:
 
 - `bun run corpus:strict`: **11/11** strict numeric checks passed
-- `bun run corpus:matrix`: **67/67** targeted indicator checks passed
-- `bun run corpus:tv100`: **100/100** pass
-- `bun run corpus:tv200`: **200/200** pass
+- `bun run corpus:matrix`: **50/50** targeted indicator checks passed
+- `bun run corpus:critical`: **30/30** critical indicators passed
+- `bun run corpus:forex-xau`: **13/13** forex-XAU checks passed
+- `bun run corpus:top100`: **100/100** pass
+- `bun run corpus:top200`: **200/200** pass
+- `bun run corpus:visual`: **8/8** visual parity checks passed
 - `bun run corpus:gate`: **PASS** (all lane/authenticity budgets)
+- `bun run chart:safety`: **233/233** pass, no schema/lifecycle failures
+- `bun run scan tests/corpus`: **233/233** pass, zero runtime errors
 
 ## Corpus Composition
 
@@ -27,11 +32,11 @@ Additional parity checks:
 
 | Group | Pass | Total | Rate |
 |---|---:|---:|---:|
-| curated | 40 | 40 | 100% |
+| curated | 43 | 43 | 100% |
 | arunkbhaskar | 26 | 26 | 100% |
 | everget | 8 | 8 | 100% |
 | f13end | 1 | 1 | 100% |
-| harryguiacorn | 17 | 17 | 100% |
+| forex_xau | 13 | 13 | 100% |
 | top100 | 42 | 42 | 100% |
 | top200 | 100 | 100 | 100% |
 
@@ -39,30 +44,30 @@ Additional parity checks:
 
 | Lane | Pass | Total | Rate |
 |---|---:|---:|---:|
-| curated_core | 40 | 40 | 100% |
-| upstream_authentic | 52 | 52 | 100% |
-| synthetic_custom | 100 | 100 | 100% |
+| curated_core | 43 | 43 | 100% |
+| upstream_authentic | 35 | 35 | 100% |
+| synthetic_custom | 113 | 113 | 100% |
 | quarantine | 42 | 42 | 100% |
 
 ### By authenticity
 
 | Authenticity | Pass | Total | Rate |
 |---|---:|---:|---:|
-| authentic | 52 | 52 | 100% |
+| authentic | 35 | 35 | 100% |
 | proxy | 42 | 42 | 100% |
-| synthetic | 140 | 140 | 100% |
+| synthetic | 156 | 156 | 100% |
 
 ### By category
 
 | Category | Pass | Total | Rate |
 |---|---:|---:|---:|
-| core_ta | 35 | 35 | 100% |
+| core_ta | 31 | 31 | 100% |
 | datastruct | 5 | 5 | 100% |
-| mtf | 25 | 25 | 100% |
+| mtf | 22 | 22 | 100% |
 | other | 37 | 37 | 100% |
-| session_time | 2 | 2 | 100% |
-| smc_ict | 50 | 50 | 100% |
-| visual | 80 | 80 | 100% |
+| session_time | 3 | 3 | 100% |
+| smc_ict | 56 | 56 | 100% |
+| visual | 79 | 79 | 100% |
 
 ## Score History (Milestones)
 
@@ -72,6 +77,7 @@ Additional parity checks:
 | 2026-04-25 (phase completion) | 40/40 = **100%** | Curated parity achieved |
 | 2026-05-01 (community rollout complete) | 92/92 = **100%** | Curated + upstream community corpus |
 | 2026-05-02 (top100/top200 + governance) | 234/234 = **100%** | Manifest lanes/authenticity + CI gate budgets |
+| 2026-05-22 (cleanup + validation refresh) | 233/233 = **100%** | Harness parity + scanner + safety gates all green |
 
 ## KPI Meanings
 
@@ -87,11 +93,15 @@ Additional parity checks:
 ```bash
 bun run corpus            # full scorecard + lane/authenticity/category/features
 bun run corpus:strict     # strict numeric parity checks (11 fixtures)
-bun run corpus:matrix     # 67-indicator pass/fail matrix
-bun run corpus:tv100      # top-100 matrix artifact
-bun run corpus:tv200      # top-200 matrix artifact
+bun run corpus:matrix     # indicator pass/fail matrix
+bun run corpus:critical   # critical indicator matrix
+bun run corpus:forex-xau  # forex/XAU indicator matrix
+bun run corpus:top100     # top-100 matrix artifact
+bun run corpus:top200     # top-200 matrix artifact
 bun run corpus:gate       # CI-style quality/stability budgets
+bun run chart:safety      # host-runtime safety contract gate
 bun run corpus:visual     # visual event snapshot parity harness
+bun run scan tests/corpus # strict standalone runtime scanner
 bun run corpus:snap       # refresh corpus + visual snapshots intentionally
 ```
 
@@ -114,4 +124,4 @@ Defaults are strict (all 100% except unimplemented calls max 0). Override via en
 
 - A corpus pass means transpilation + runtime execution succeeded under the project runtime model.
 - This is a strong compatibility signal, but not absolute PineScript parity for all unsupported APIs.
-- Full parity work continues in the roadmap (`FUTURE_PARITY_ROADMAP.md`), especially around deeper MTF and visual semantics.
+- Full parity work continues in the roadmap (`FUTURE_PARITY_ROADMAP.md`), especially around deeper MTF, time/session correctness, and visual semantics.

@@ -38,14 +38,14 @@ Coverage is enforced through multiple layers. The aggregate gate runs in CI and 
 bun run test:coverage
 ```
 
-Current numbers: **95.81% functions / 98.62% lines** across 1,400+ tests.
+Latest local full-run numbers: **95.24% functions / 97.63% lines** across **1,589 tests**.
 
 Per-layer test commands:
 
 | Layer | Command | What it checks |
 |---|---|---|
 | Unit / regression | `bun test tests/` | Lexer, parser, generator, mappings, factory wrappers, runtime helpers |
-| TradingView-shaped harness | `bun run test:harness` | Constructor contract, plot/style alignment, reducer safety against transpiled output |
+| Runtime-shaped harness | `bun run test:harness` | Constructor contract, plot/style alignment, reducer safety against transpiled output |
 | Visual-event payload contract | included in `bun test tests/contract/` | `__visualEvents` shape, `pineHandleId` lifecycle, canonical arg order |
 
 ## Corpus tooling
@@ -55,7 +55,7 @@ The transpiler is gated against a corpus of real-world Pine scripts. Two sources
 - **Curated** — hand-crafted fixtures under `tests/corpus/fixtures/` covering specific language features
 - **Community** — public-GitHub Pine scripts vendored into `tests/corpus/community/<source>/` via the corpus-ingest script (each file carries an attribution header pointing at the upstream repo)
 
-The ingest script reads from local clones at `/tmp/pine-corpus-sources/<repo>/` — it does **not** make network requests to TradingView or any other service. To refresh community fixtures, clone the configured source repos locally and re-run the ingest:
+The ingest script reads from local clones at `/tmp/pine-corpus-sources/<repo>/` and does not perform remote fetches on its own. To refresh community fixtures, clone the configured source repos locally and re-run ingest:
 
 ```bash
 bun scripts/corpus/scrape.ts
@@ -70,17 +70,20 @@ bun run corpus
 # Strict numeric parity checks on core indicators
 bun run corpus:strict
 
-# 67-indicator parity matrix (PASS / FAIL / NOT_FOUND)
+# Indicator parity matrix
 bun run corpus:matrix
 
 # Critical real-world market scripts (ICT / SMC / killzones / forex / XAU)
 bun run corpus:critical
 
-# TradingView top-100 community target matrix
-bun run corpus:tv100
+# Forex/XAU-focused matrix
+bun run corpus:forex-xau
 
-# TradingView top-200 (top-100 + 100 additional popular/customized)
-bun run corpus:tv200
+# Top-100 community target matrix
+bun run corpus:top100
+
+# Top-200 target matrix (top-100 + 100 additional popular/customized)
+bun run corpus:top200
 
 # Differential numeric parity report
 bun run corpus:differential
@@ -90,6 +93,9 @@ bun run corpus:visual
 
 # Refresh corpus + visual snapshots after intentional changes
 bun run corpus:snap
+
+# Strict standalone scanner over corpus/runtime
+bun run scan tests/corpus
 ```
 
 ### Stability gates
@@ -98,7 +104,7 @@ bun run corpus:snap
 # Stability gate — lane / authenticity / category budgets enforced in CI
 bun run corpus:gate
 
-# Chart-host safety gate — TradingView-like runtime contracts
+# Host-runtime safety gate
 #   (constructor, per-bar plot shape, visual-event payload integrity)
 bun run chart:safety
 ```
@@ -113,13 +119,13 @@ Fixtures are classified by `tests/corpus/manifest.ts`:
 - **Authenticity** — `authentic`, `proxy`, `synthetic`
 - **Categories and features** — inferred from fixture source
 
-`bun run corpus:gate` enforces per-lane and per-authenticity pass-rate budgets. Override via env vars (`CORPUS_GATE_MIN_PASS=0.97`, etc.) if you're intentionally accepting a regression while diagnosing.
+`bun run corpus:gate` enforces per-lane and per-authenticity pass-rate budgets. Override via env vars (`CORPUS_GATE_MIN_PASS=0.97`, etc.) if you are intentionally accepting a regression while diagnosing.
 
 Reference docs for corpus baselines and matrices:
 
 - [docs/CORPUS-BASELINE.md](CORPUS-BASELINE.md)
-- [docs/TRADINGVIEW_TOP100_MATRIX.md](TRADINGVIEW_TOP100_MATRIX.md)
-- [docs/TRADINGVIEW_TOP200_MATRIX.md](TRADINGVIEW_TOP200_MATRIX.md)
+- [docs/TOP100_MATRIX.md](TOP100_MATRIX.md)
+- [docs/TOP200_MATRIX.md](TOP200_MATRIX.md)
 - [docs/CRITICAL_INDICATOR_MATRIX.md](CRITICAL_INDICATOR_MATRIX.md)
 
 ## Release workflow
@@ -128,7 +134,7 @@ The package publishes to **both** public npm and GitHub Packages from one comman
 
 ```bash
 # Bump version (commits + tags)
-npm version patch     # 0.x.y → 0.x.(y+1)  — or `minor` / `major`
+npm version patch     # 0.x.y -> 0.x.(y+1)  — or `minor` / `major`
 
 # Push the version commit and tag
 git push --follow-tags
@@ -159,7 +165,7 @@ GitHub Packages requires a Personal Access Token with `write:packages` + `read:p
 //npm.pkg.github.com/:_authToken=ghp_yourToken
 ```
 
-Don't add `@opus-aether-ai:registry=https://npm.pkg.github.com` to your local `~/.npmrc` — it overrides the explicit `--registry=` flags in the publish scripts and routes `publish:npm` to GitHub Packages by accident.
+Do not add `@opus-aether-ai:registry=https://npm.pkg.github.com` to your local `~/.npmrc` — it overrides the explicit `--registry=` flags in the publish scripts and routes `publish:npm` to GitHub Packages by accident.
 
 ## Project layout pointers
 
