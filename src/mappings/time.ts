@@ -7,7 +7,7 @@
  * - Resolution/timeframe functions (ismonthly, isdwm, isintraday, etc.)
  * - Session functions
  *
- * Reference: https://www.tradingview.com/pine-script-reference/v5/#fun_time
+ * Reference: https://example.com/pine-script-reference/v5/#fun_time
  */
 
 import type { TimeFunctionMapping } from '../types';

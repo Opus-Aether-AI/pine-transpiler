@@ -1,4 +1,5 @@
 //@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
 indicator("Popular 009 MTF Bias Panel", overlay=false)
 
 c1 = request.security(syminfo.tickerid, "15", close, barmerge.gaps_off, barmerge.lookahead_on)

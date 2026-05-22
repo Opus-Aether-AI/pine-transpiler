@@ -1,4 +1,5 @@
 //@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
 indicator("Popular 007 Donchian Breakout Suite", overlay=true)
 
 hh = ta.highest(high, 25)

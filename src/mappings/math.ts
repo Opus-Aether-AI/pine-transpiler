@@ -4,7 +4,7 @@
  * Maps Pine Script math.* functions to JavaScript Math.* and PineJS.Std equivalents.
  * Includes basic math, trigonometry, statistical functions, and utility functions.
  *
- * Reference: https://www.tradingview.com/pine-script-reference/v5/#fun_math
+ * Reference: https://example.com/pine-script-reference/v5/#fun_math
  */
 
 // Re-export helper functions from runtime module

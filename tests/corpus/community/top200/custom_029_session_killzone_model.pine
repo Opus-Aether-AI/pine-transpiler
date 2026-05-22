@@ -1,4 +1,5 @@
 //@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
 indicator("Custom 029 Session Killzone Model", overlay=true)
 
 isPre = session.ispremarket

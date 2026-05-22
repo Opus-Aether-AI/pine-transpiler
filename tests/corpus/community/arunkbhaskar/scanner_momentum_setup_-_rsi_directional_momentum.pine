@@ -231,7 +231,7 @@ date_filter = not i_date_filter or year == i_year and month == i_month and dayof
 //___________________________ RSI Start
 
 // Acknowledgement & Reference
-// Trader: 'TradingView'
+// Trader: 'Chart Host'
 // Indicator Title: Built-in Relative Strength Index, RSI Divergence Indicator
 
 color no_color = #00000000
@@ -318,7 +318,7 @@ plot(i_scn_choose == 'Hidden Divergence' and phFound ? highLBR : na, offset = -i
 // Acknowledgement & Reference
 // Trader: 'vitvlkv'
 // Indicator Title: 'HOWTO: cond1 + cond2 = alert once'
-// Indicator Link: 'https://www.tradingview.com/script/UHkEyCV3-HOWTO-cond1-cond2-alert-once/'
+// Indicator Link: 'https://example.com/script/UHkEyCV3-HOWTO-cond1-cond2-alert-once/'
 
 // State Machine for Continuous Signals
 var int state = 0
@@ -490,7 +490,7 @@ if long_cont_ret
 // Acknowledgement & Reference
 // Trader: 'vitvlkv'
 // Indicator Title: 'HOWTO: Skip consecutive signals'
-// Indicator Link: 'https://www.tradingview.com/script/2M9I2sgP-HOWTO-Skip-consecutive-signals/'
+// Indicator Link: 'https://example.com/script/2M9I2sgP-HOWTO-Skip-consecutive-signals/'
 
 exrem(bool cond1, bool cond2) =>
     var int signal = 0
@@ -569,7 +569,7 @@ bgcolor(i_scn_show_short and choice_flip_ret and short_flip_ret ? color.new(i_ne
 // Acknowledgement & Reference
 // Trader: 'allanster'
 // Indicator Title: 'How To Input CSV List Of Symbol Data Used For Screener'
-// Indicator Link: 'https://www.tradingview.com/script/KfqHqHUH-How-To-Input-CSV-List-Of-Symbol-Data-Used-For-Screener/'
+// Indicator Link: 'https://example.com/script/KfqHqHUH-How-To-Input-CSV-List-Of-Symbol-Data-Used-For-Screener/'
 
 // Feed Function
 feed(input_string) =>
@@ -643,7 +643,7 @@ t_40 = array.size(new_sym_arr) > 39 ? array.get(new_sym_arr, 39) : na
 // Acknowledgement & Reference
 // Trader: 'MUQWISHI'
 // Indicator Title: 'Candlestick Patterns Screener [By MUQWISHI]'
-// Indicator Link: 'https://www.tradingview.com/script/xiWQuGOq-Candlestick-Patterns-Screener-By-MUQWISHI/'
+// Indicator Link: 'https://example.com/script/xiWQuGOq-Candlestick-Patterns-Screener-By-MUQWISHI/'
 
 // Scanner Conditions
 bool short_cond =  
@@ -779,6 +779,6 @@ if barstate.islast and i_scn_show_table
 //  
 // Note: Read tooltips for more clarity.
 // 
-// Questions?: Message the author on TradingView: https://www.tradingview.com/u/Arun_K_Bhaskar/
+// Questions?: Message the author on Chart Host: https://example.com/u/Arun_K_Bhaskar/
 // 
-// More Indicators: Free TradingView indicators and source code on GitHub: https://github.com/ArunKBhaskar/PineScript
+// More Indicators: Free Chart Host indicators and source code on GitHub: https://github.com/ArunKBhaskar/PineScript

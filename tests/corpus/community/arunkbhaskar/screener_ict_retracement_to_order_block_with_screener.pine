@@ -248,7 +248,7 @@ plotshape(
 // Acknowledgement & Reference
 // Trader: "apozdnyakov"
 // Indicator Title: "Three horizontal lines on condition"
-// Indicator Link: "https://in.tradingview.com/script/hxogJn3E-Three-horizontal-lines-on-condition/"
+// Indicator Link: "https://example.com/script/hxogJn3E-Three-horizontal-lines-on-condition/"
 
 var line alert_break_line = na
 
@@ -270,7 +270,7 @@ else if primary_short_signal
 // Acknowledgement & Reference
 // Trader: 'allanster'
 // Indicator Title: 'How To Input CSV List Of Symbol Data Used For Screener'
-// Indicator Link: 'https://www.tradingview.com/script/KfqHqHUH-How-To-Input-CSV-List-Of-Symbol-Data-Used-For-Screener/'
+// Indicator Link: 'https://example.com/script/KfqHqHUH-How-To-Input-CSV-List-Of-Symbol-Data-Used-For-Screener/'
 
 feed(back) =>                                             // extract tickerid and decrement list of ticker IDs
     loop  = back                                          // declare string variable to hold content list
@@ -300,7 +300,7 @@ feed(back) =>                                             // extract tickerid an
 // Acknowledgement & Reference
 // Trader: 'MUQWISHI'
 // Indicator Title: 'Candlestick Patterns Screener [By MUQWISHI]'
-// Indicator Link: 'https://www.tradingview.com/script/xiWQuGOq-Candlestick-Patterns-Screener-By-MUQWISHI/'
+// Indicator Link: 'https://example.com/script/xiWQuGOq-Candlestick-Patterns-Screener-By-MUQWISHI/'
 
 // Screener Conditions
 bullish_cond = teritiary_long_signal

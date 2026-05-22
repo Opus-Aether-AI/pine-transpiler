@@ -52,6 +52,12 @@ jobs:
       - name: Run Corpus Strict Audit
         run: bun run corpus:strict
 
+      - name: Run Differential Parity
+        run: bun run corpus:differential
+
+      - name: Run Visual Parity
+        run: bun run corpus:visual
+
       - name: Run Indicator Matrix
         run: bun run corpus:matrix
 

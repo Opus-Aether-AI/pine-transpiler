@@ -79,7 +79,7 @@ float i_zz_percentage = input.float(defval=0.7, minval=0, step=0.1, title='Perce
 // Acknowledgement & Reference
 // Trader: 'RozaniGhani-RG'
 // Indicator Title: 'Zig Zag Ratio Simplified'
-// Indicator Link: 'https://www.tradingview.com/script/CIk186OY-Zig-Zag-Ratio-Simplified/'
+// Indicator Link: 'https://example.com/script/CIk186OY-Zig-Zag-Ratio-Simplified/'
 
 //_____________________________ Get Source
 
@@ -294,7 +294,7 @@ if i_zz_bull_show and i_zz_bull_ret_show and bullish_retracement_trigger
 // Acknowledgement & Reference
 // Trader: 'allanster'
 // Indicator Title: 'How To Input CSV List Of Symbol Data Used For Screener'
-// Indicator Link: 'https://www.tradingview.com/script/KfqHqHUH-How-To-Input-CSV-List-Of-Symbol-Data-Used-For-Screener/'
+// Indicator Link: 'https://example.com/script/KfqHqHUH-How-To-Input-CSV-List-Of-Symbol-Data-Used-For-Screener/'
 
 feed(back) =>                                             // extract tickerid and decrement list of ticker IDs
     loop  = back                                          // declare string variable to hold content list
@@ -326,7 +326,7 @@ feed(back) =>                                             // extract tickerid an
 // Acknowledgement & Reference
 // Trader: 'MUQWISHI'
 // Indicator Title: 'Candlestick Patterns Screener [By MUQWISHI]'
-// Indicator Link: 'https://www.tradingview.com/script/xiWQuGOq-Candlestick-Patterns-Screener-By-MUQWISHI/'
+// Indicator Link: 'https://example.com/script/xiWQuGOq-Candlestick-Patterns-Screener-By-MUQWISHI/'
 
 // Choose Screening Method
 bear_method =

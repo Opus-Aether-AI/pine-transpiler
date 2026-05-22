@@ -322,6 +322,6 @@ barcolor(i_scn_show_short and i_scn_choose == 'Retracement' and bearRet ? i_neg_
 //
 // Note: Read tooltips for more clarity.
 // 
-// Questions?: Message the author on TradingView: https://www.tradingview.com/u/Arun_K_Bhaskar/
+// Questions?: Message the author on Chart Host: https://example.com/u/Arun_K_Bhaskar/
 // 
-// More Indicators: Free TradingView indicators and source code on GitHub: https://github.com/ArunKBhaskar/PineScript
+// More Indicators: Free Chart Host indicators and source code on GitHub: https://github.com/ArunKBhaskar/PineScript

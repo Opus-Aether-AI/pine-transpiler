@@ -7,7 +7,7 @@
  * - Simple comparison functions returning 0/1 (ge, le, eq, gt, lt)
  * - Equality comparison with precision (equal, compare)
  *
- * Reference: https://www.tradingview.com/charting-library-docs/latest/custom_studies/
+ * Reference: https://example.com/charting-library-docs/latest/custom_studies/
  */
 
 import type { ComparisonFunctionMapping } from '../types';

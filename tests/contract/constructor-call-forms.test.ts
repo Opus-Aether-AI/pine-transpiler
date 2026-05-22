@@ -4,7 +4,7 @@
  * The transpiled indicator's `constructor` must behave correctly under
  * all three call forms downstream consumers use:
  *
- *   1. `new Ctor()`        — TradingView's CustomIndicator framework
+ *   1. `new Ctor()`        — Chart Host's CustomIndicator framework
  *   2. `Ctor.call(target)` — wrappers that decorate `main` to
  *                            intercept per-bar output (e.g. the
  *                            webapp's VisualEventsRenderer hook)

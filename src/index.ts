@@ -1,10 +1,10 @@
 /**
  * Pine Script to PineJS Transpiler
  *
- * Converts Pine Script v5/v6 code to TradingView's PineJS CustomIndicator format.
- * This allows user-written Pine Script indicators to be rendered on the TradingView chart.
+ * Converts Pine Script v5/v6 code to Chart Host's PineJS CustomIndicator format.
+ * This allows user-written Pine Script indicators to be rendered on the Chart Host chart.
  *
- * Reference: https://www.tradingview.com/charting-library-docs/latest/custom_studies/
+ * Reference: https://example.com/charting-library-docs/latest/custom_studies/
  */
 
 import { withCspEvalHint } from './csp-errors';
@@ -118,7 +118,7 @@ export interface TranspileOptions {
    *
    * Set to `true` when there is no host renderer and you want the
    * fallback session-highlight bands rendered directly by the
-   * transpiler (the TradingView CustomIndicator can't draw boxes
+   * transpiler (the Chart Host CustomIndicator can't draw boxes
    * natively otherwise). Bands are full-column by construction;
    * `bg_colorer` has no price-range parameter.
    *
@@ -129,7 +129,7 @@ export interface TranspileOptions {
 }
 
 /**
- * Transpile Pine Script v5/v6 code to a TradingView CustomIndicator
+ * Transpile Pine Script v5/v6 code to a Chart Host CustomIndicator
  *
  * @param code - Pine Script source code
  * @param indicatorId - Unique identifier
@@ -249,7 +249,7 @@ export function executePineJS(
         }
       }
       if (indicator.metainfo) {
-        const rawId = `${indicatorId}@tv-basicstudies-1`;
+        const rawId = `${indicatorId}@basicstudies-1`;
         indicator.metainfo.id = rawId;
       }
       return indicator;

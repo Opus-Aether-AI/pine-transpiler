@@ -12,7 +12,7 @@ indicator(title="ICT External and Internal Range Liquidity Multi-timeframe", sho
 // Acknowledgement & Reference
 // Trader: "fadizeidan"
 // Indicator Title: "ICT HTF FVGs (fadi)"
-// Indicator Link: "https://www.tradingview.com/script/Cti9P1Ww-ICT-HTF-FVGs-fadi/"
+// Indicator Link: "https://example.com/script/Cti9P1Ww-ICT-HTF-FVGs-fadi/"
 
 //____________________________ Types
 
@@ -404,7 +404,7 @@ int i_phl_eq_transp = input.int(defval=25, minval=0, title='Transparency', group
 // Acknowledgement & Reference
 // Trader: "lmatl"
 // Indicator Title: "Pivot mtf semaphore support&resistance [LM]"
-// Indicator Link: "https://www.tradingview.com/script/OZDSeSQd-Pivot-mtf-semaphore-support-resistance-LM/"
+// Indicator Link: "https://example.com/script/OZDSeSQd-Pivot-mtf-semaphore-support-resistance-LM/"
 
 f_offsetToP(_src, _pivotPrice, _maxBack) =>
     int _offset = na

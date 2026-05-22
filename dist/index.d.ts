@@ -1,3 +1,25 @@
+export declare interface ChartRuntimeHarnessOptions {
+    source: string;
+    fixtureName?: string;
+    indicatorId?: string;
+    indicatorName?: string;
+    bars?: number;
+    barIndexStart?: number;
+}
+
+export declare interface ChartRuntimeHarnessReport {
+    fixtureName?: string;
+    indicatorId: string;
+    barsRequested: number;
+    barsProcessed: number;
+    transpileError?: string;
+    descriptor: DescriptorContractReport;
+    runtimeErrors: HarnessIssue[];
+    reducer: ReducerContractReport;
+    unimplementedStdCalls: string[];
+    pass: boolean;
+}
+
 export declare interface DescriptorContractReport {
     constructorIsFunction: boolean;
     constructorIsConstructable: boolean;
@@ -26,7 +48,7 @@ export declare interface ReducerContractReport {
     reducersExecuted: number;
 }
 
-export declare function runTradingViewHarness(options: TradingViewHarnessOptions): TradingViewHarnessReport;
+export declare function runChartRuntimeHarness(options: ChartRuntimeHarnessOptions): ChartRuntimeHarnessReport;
 
 /**
  * Study/Indicator plot definition
@@ -56,28 +78,6 @@ export declare interface SyntheticBar {
     low: number;
     close: number;
     volume: number;
-}
-
-export declare interface TradingViewHarnessOptions {
-    source: string;
-    fixtureName?: string;
-    indicatorId?: string;
-    indicatorName?: string;
-    bars?: number;
-    barIndexStart?: number;
-}
-
-export declare interface TradingViewHarnessReport {
-    fixtureName?: string;
-    indicatorId: string;
-    barsRequested: number;
-    barsProcessed: number;
-    transpileError?: string;
-    descriptor: DescriptorContractReport;
-    runtimeErrors: HarnessIssue[];
-    reducer: ReducerContractReport;
-    unimplementedStdCalls: string[];
-    pass: boolean;
 }
 
 export { }

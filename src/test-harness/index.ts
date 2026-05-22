@@ -13,19 +13,19 @@ import {
 } from './reducers';
 import { createHarnessRuntime } from './runtime';
 import type {
+  ChartRuntimeHarnessOptions,
+  ChartRuntimeHarnessReport,
   HarnessIssue,
-  TradingViewHarnessOptions,
-  TradingViewHarnessReport,
 } from './types';
 
 export type {
+  ChartRuntimeHarnessOptions,
+  ChartRuntimeHarnessReport,
   DescriptorContractReport,
   HarnessIssue,
   PlotExecutionFrame,
   ReducerContractReport,
   SyntheticBar,
-  TradingViewHarnessOptions,
-  TradingViewHarnessReport,
 } from './types';
 
 const DEFAULT_BAR_COUNT = 300;
@@ -99,9 +99,9 @@ function runReducers(
   }
 }
 
-export function runTradingViewHarness(
-  options: TradingViewHarnessOptions,
-): TradingViewHarnessReport {
+export function runChartRuntimeHarness(
+  options: ChartRuntimeHarnessOptions,
+): ChartRuntimeHarnessReport {
   const bars = Math.max(1, Math.trunc(options.bars ?? DEFAULT_BAR_COUNT));
   const barIndexStart = Number.isFinite(options.barIndexStart)
     ? Math.trunc(options.barIndexStart as number)

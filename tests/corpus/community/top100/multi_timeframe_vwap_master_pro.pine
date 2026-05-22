@@ -1,4 +1,5 @@
 //@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
 indicator("Multi-Timeframe VWAP Master Pro", overlay=true)
 
 src = input.source(hlc3, "Source")

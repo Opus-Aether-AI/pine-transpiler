@@ -32,16 +32,36 @@ export interface ExecutionTrace {
   errors: string[];
 }
 
+function normalizeEventArg(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((item) => normalizeEventArg(item));
+  if (typeof value === 'object' && value !== null) {
+    const handleId = (value as { __id?: unknown }).__id;
+    if (typeof handleId === 'number') {
+      return { __handleId: handleId };
+    }
+    const out: Record<string, unknown> = {};
+    for (const [key, inner] of Object.entries(value as Record<string, unknown>)) {
+      out[key] = normalizeEventArg(inner);
+    }
+    return out;
+  }
+  return value;
+}
+
 function canonicalizeVisualEvent(event: unknown): unknown {
   if (typeof event !== 'object' || event === null) {
     return normalizeComparable(event);
   }
   const src = event as Record<string, unknown>;
+  const normalizedArgs = Array.isArray(src.args)
+    ? src.args.map((arg) => normalizeEventArg(arg))
+    : [];
   return {
     call: normalizeComparable(src.call),
-    args: normalizeComparable(Array.isArray(src.args) ? src.args : []),
+    args: normalizeComparable(normalizedArgs),
     barIndex: normalizeComparable(src.barIndex),
     pineHandleId: normalizeComparable(src.pineHandleId),
+    style: normalizeComparable(src.style),
   };
 }
 
@@ -84,9 +104,9 @@ function loadCreateIndicatorStrict(
 
 function runDescriptor(
   descriptor: IndicatorDescriptor,
+  runtime: ReturnType<typeof createMockRuntime>,
   barCount: number,
 ): ExecutionTrace {
-  const runtime = createMockRuntime({ barCount, barIndexStart: 10_000 });
   const instance = new descriptor.constructor();
   const inputCallback = buildInputCallback(descriptor);
   const trace: ExecutionTrace = { plotsByBar: [], visualEventsByBar: [], errors: [] };
@@ -145,7 +165,7 @@ export function runRuntimePath(
 
   const runtime = createMockRuntime({ barCount, barIndexStart: 10_000 });
   const descriptor = transpiled.indicatorFactory(runtime.pineJs) as IndicatorDescriptor;
-  return runDescriptor(descriptor, barCount);
+  return runDescriptor(descriptor, runtime, barCount);
 }
 
 export function runStandalonePath(
@@ -168,7 +188,7 @@ export function runStandalonePath(
   const createIndicator = loadCreateIndicatorStrict(transpiled.factoryCode);
   const runtime = createMockRuntime({ barCount, barIndexStart: 10_000 });
   const descriptor = createIndicator(runtime.pineJs);
-  return runDescriptor(descriptor, barCount);
+  return runDescriptor(descriptor, runtime, barCount);
 }
 
 function walkPineFiles(path: string): string[] {

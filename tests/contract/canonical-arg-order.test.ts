@@ -109,7 +109,7 @@ plot(close)
     expect(args[5]).toBe('#112233'); // color
     expect(args[6]).toBeNaN(); // style (padded)
     expect(args[7]).toBe('#FFFFFF'); // textcolor
-    expect(typeof args[8]).toBe('string'); // size resolved to TV size constant
+    expect(typeof args[8]).toBe('string'); // size resolved to chart size constant
   });
 
   it('positional-only calls pass through unchanged', () => {

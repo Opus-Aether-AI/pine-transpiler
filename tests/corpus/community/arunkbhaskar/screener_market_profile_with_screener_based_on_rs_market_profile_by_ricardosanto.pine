@@ -6,7 +6,7 @@
 // Acknowledgement & Reference
 // Trader: 'RicardoSantos'
 // Indicator Title: '[RS]Market Profile'
-// Indicator Link: 'https://www.tradingview.com/script/uoysXxWM-RS-Market-Profile/'
+// Indicator Link: 'https://example.com/script/uoysXxWM-RS-Market-Profile/'
 
 //@version=5
 indicator(title='Market Profile with Screener (Based on [RS]Market Profile by RicardoSantos)', shorttitle='Market Profile Screener', overlay=true, max_lines_count=300, max_boxes_count=300)
@@ -208,7 +208,7 @@ poc_percent = ((close - poc_pivot) / poc_pivot) * 100
 //_____________________________ Screener Start
 
 // Note:
-// - TradingView allows up to 40 requests per indicator, so keep the number of symbols below 40.
+// - Chart Host allows up to 40 requests per indicator, so keep the number of symbols below 40.
 // - Too many requests and complex calculations may slow down the indicator.
 // - You can combine multiple indicators in one script, like Close crossing above EMA 20, RSI crossing 60, etc.
 
@@ -244,7 +244,7 @@ color i_tbl_neu_col = input.color(defval=#B2B5BE, title='Color', group=g_tb)
 // Acknowledgement & Reference
 // Trader: 'allanster'
 // Indicator Title: 'How To Input CSV List Of Symbol Data Used For Screener'
-// Indicator Link: 'https://www.tradingview.com/script/KfqHqHUH-How-To-Input-CSV-List-Of-Symbol-Data-Used-For-Screener/'
+// Indicator Link: 'https://example.com/script/KfqHqHUH-How-To-Input-CSV-List-Of-Symbol-Data-Used-For-Screener/'
 
 feed(back) =>                                             // extract tickerid and decrement list of ticker IDs
     loop  = back                                          // declare string variable to hold content list
@@ -276,7 +276,7 @@ feed(back) =>                                             // extract tickerid an
 // Acknowledgement & Reference
 // Trader: 'MUQWISHI'
 // Indicator Title: 'Candlestick Patterns Screener [By MUQWISHI]'
-// Indicator Link: 'https://www.tradingview.com/script/xiWQuGOq-Candlestick-Patterns-Screener-By-MUQWISHI/'
+// Indicator Link: 'https://example.com/script/xiWQuGOq-Candlestick-Patterns-Screener-By-MUQWISHI/'
 
 // Function for Screener Indicator Calculation
 

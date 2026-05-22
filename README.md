@@ -6,7 +6,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue.svg)](https://www.typescriptlang.org/)
 [![Test coverage](https://img.shields.io/badge/coverage-95%25%2B-brightgreen.svg)](docs/DEVELOPMENT.md#test-coverage)
 
-**Convert Pine Script v5/v6 into JavaScript that runs on the TradingView Charting Library.** A zero-dependency, TypeScript-first, clean-room transpiler that emits PineJS `CustomIndicator` factories from Pine source — so your own indicators can render on charts you embed in your own apps.
+**Convert Pine Script v5/v6 into JavaScript that runs on the TradingView Charting Library.** A zero-dependency, TypeScript-first, clean-room Pine Script compiler that emits PineJS `CustomIndicator` factories from Pine source — so your own indicators can render on charts you embed in your own webapp, dashboard, or trading terminal. Works in Node.js, Bun, Deno, and modern browsers.
 
 ```typescript
 import { transpileToPineJS } from '@opus-aether-ai/pine-transpiler';
@@ -78,6 +78,28 @@ For strict-CSP environments where `unsafe-eval` is blocked, swap in `transpileTo
 
 ---
 
+## Use cases
+
+### TradingView Charting Library integration
+Drop Pine indicators into any chart that embeds the TradingView Charting Library. The transpiler outputs standard PineJS `CustomIndicator` factories — register them through your `custom_indicators_getter` and they render alongside the library's built-in studies.
+
+### White-label dashboards and SaaS chart hosts
+Add Pine v5/v6 support to your own webapp without re-implementing the language. The output works in any chart host you control: embedded dashboards, broker terminals, white-label analytics products, internal research tools.
+
+### ICT / SMC indicator workflows
+Killzones, BOS / CHoCH, FVG, breaker blocks, order blocks, liquidity sweeps, and session-aware indicators all transpile end-to-end. Drawing primitives (`box.new`, `line.new`, `label.new`, `table.new`) are tracked through the host rendering contract.
+
+### Strict-CSP environments without `unsafe-eval`
+`transpileToStandaloneFactory` emits a buildable ESM module that runs without `new Function(...)`. Use it when your chart host enforces a strict Content Security Policy.
+
+### Server-side Pine evaluation
+Run the same Pine source on Node 18+ for alerting, screening, or pre-computing indicator values. The output is plain JavaScript — no browser, chart library, or DOM required.
+
+### Pine Script tooling — linters, formatters, language servers
+The pipeline (`parse → extractMetadata → generateBody → buildFactory`) is exported as individual stages, so you can build a Pine linter, formatter, language-server, or static analyzer without re-wiring the parser.
+
+---
+
 ## Documentation
 
 Everything beyond the quick start lives in `docs/`:
@@ -96,6 +118,20 @@ Everything beyond the quick start lives in `docs/`:
 
 ---
 
+## Compatibility
+
+| Surface | Support |
+|---|---|
+| Pine Script versions | v5, v6 |
+| Target runtime | PineJS (TradingView Charting Library Custom Studies API) |
+| Output formats | ESM, CommonJS, and a buildable standalone ESM module for strict-CSP |
+| JavaScript runtimes | Node 18+, Bun, Deno, modern browsers (ES2020) |
+| TypeScript | Full type definitions bundled |
+| Package managers | npm, pnpm, yarn, bun |
+| Charting Library | Any version that exposes `custom_indicators_getter` (the documented Custom Studies API) |
+
+---
+
 ## Project status
 
 - **Stable for indicator workloads.** Strategy (`strategy.*`) is intentionally out of scope; this is an indicator transpiler.
@@ -104,6 +140,70 @@ Everything beyond the quick start lives in `docs/`:
 - **Coverage gate.** CI fails if line or function coverage drops below 95%. Current: 95.81% functions / 98.62% lines / 1,400+ tests.
 
 See [docs/LIMITATIONS.md](docs/LIMITATIONS.md) for the complete known-issues list.
+
+---
+
+## FAQ
+
+<details>
+<summary>How do I add Pine Script support to the TradingView Charting Library?</summary>
+
+Transpile your Pine source with `transpileToPineJS`, then pass the resulting factory to `custom_indicators_getter` when you construct the widget. The factory implements the standard `CustomIndicator` interface — no chart-library patches needed. See the [quick start](#quick-start) and [docs/API.md](docs/API.md) for the full example.
+</details>
+
+<details>
+<summary>What's the difference between PineJS and Pine Script?</summary>
+
+Pine Script is the language traders write indicators in. PineJS is the JavaScript binding the TradingView Charting Library uses to execute custom indicators at runtime. This tool converts the former into the latter — you write Pine, it emits PineJS.
+</details>
+
+<details>
+<summary>Can I run Pine Script in a browser or in Node.js without TradingView?</summary>
+
+Yes. The transpiler emits plain JavaScript. You still need to provide a `PineJS.Std` runtime — implementations of standard-library functions like `ta.sma`, `ta.ema`, `ta.rsi`, and friends. The library ships a `StdPlus` polyfill that covers many of these. See [docs/SUPPORTED_FEATURES.md](docs/SUPPORTED_FEATURES.md).
+</details>
+
+<details>
+<summary>Does this support Pine Script v6?</summary>
+
+Yes. User-defined types, methods, named arguments, generic type parameters (`array<T>`, `matrix<T>`, `map<K,V>`), `varip`, `switch` expressions, and v6 `request.security` semantics are all implemented. Feature table in [docs/SUPPORTED_FEATURES.md](docs/SUPPORTED_FEATURES.md).
+</details>
+
+<details>
+<summary>How is this different from running Pine on TradingView directly?</summary>
+
+TradingView runs Pine inside its own hosted environment. This tool transpiles Pine into JavaScript that your own application runs. Use it when you need Pine indicators inside a chart host you control — a custom webapp, embedded dashboard, broker terminal, or strict-CSP SaaS product.
+</details>
+
+<details>
+<summary>What about <code>strategy.*</code> and backtesting?</summary>
+
+Out of scope. This is an indicator transpiler. `strategy.entry`, `strategy.exit`, `strategy.close`, and the rest of the order-execution surface are intentionally unimplemented. Use a dedicated backtester for that workflow.
+</details>
+
+<details>
+<summary>Can I use this in a strict-CSP environment without <code>unsafe-eval</code>?</summary>
+
+Yes — use `transpileToStandaloneFactory` instead of `transpileToPineJS`. It emits a buildable ESM module that does not call `new Function(...)`. Bundle it through Vite, esbuild, Rollup, or webpack and the output runs under a strict Content Security Policy.
+</details>
+
+<details>
+<summary>How do drawing primitives (box, line, label, table) work?</summary>
+
+The transpiler tracks them as stateful handles and emits a `__visualEvents` stream each bar. The host chart renderer consumes that stream and decides how to draw boxes, lines, labels, and tables. See [docs/HOST_RENDERING_CONTRACT.md](docs/HOST_RENDERING_CONTRACT.md) for event shape and lifecycle invariants.
+</details>
+
+<details>
+<summary>Is there a CLI?</summary>
+
+Yes. `bunx pine-transpiler input.pine --format pinejs > out.js` produces a `CustomIndicator` factory module. Run `pine-transpiler --help` for the full flag list, or see [docs/API.md](docs/API.md).
+</details>
+
+<details>
+<summary>What's the runtime overhead?</summary>
+
+Zero `node_modules` — the published package has no `dependencies`, only `devDependencies`. The transpiler is tree-shakeable; modern bundlers strip what you don't import. Most consumers see roughly 30–80 kB minified + gzipped.
+</details>
 
 ---
 

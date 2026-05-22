@@ -235,7 +235,7 @@ plot(k.b.size())
       barIndexStart: 10_000,
     });
     // Scripts that use `box.new(` get an auto-generated bg_colorer plot
-    // appended (used to render Pine drawing-API boxes as TV background
+    // appended (used to render Pine drawing-API boxes as chart background
     // color palette slots). The explicit `plot(k.b.size())` is index 0.
     expect(plots.length).toBeGreaterThanOrEqual(1);
     expect(plots[0]).toBe(1);

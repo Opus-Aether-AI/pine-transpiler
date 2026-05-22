@@ -1,7 +1,7 @@
 /**
  * Indicator Factory Builder
  *
- * Constructs TradingView CustomIndicator factories from parsed metadata.
+ * Constructs Chart Host CustomIndicator factories from parsed metadata.
  * Extracted from index.ts for better maintainability.
  */
 
@@ -555,6 +555,29 @@ function __createTableNamespace() {
 
 function __createStrNamespace() {
   const c = (v) => (v == null ? '' : String(v));
+  const two = (n) => String(Math.trunc(Number(n))).padStart(2, '0');
+  const formatTime = (timestamp, fmt, timezone) => {
+    const tsNum = Number(timestamp);
+    if (!Number.isFinite(tsNum)) return '';
+    const formatStr = c(fmt) || 'yyyy-MM-dd HH:mm:ss';
+    const clock = __readClockAt(tsNum, timezone);
+    const year = Number(clock.year);
+    const month = Number(clock.month);
+    const day = Number(clock.dayOfMonth);
+    const hour = Number(clock.hour);
+    const minute = Number(clock.minute);
+    const second = Number(clock.second);
+    const twelveHour = ((hour + 11) % 12) + 1;
+    return formatStr
+      .replace(/yyyy/g, String(year))
+      .replace(/yy/g, String(year % 100).padStart(2, '0'))
+      .replace(/MM/g, two(month))
+      .replace(/dd/g, two(day))
+      .replace(/HH/g, two(hour))
+      .replace(/hh/g, two(twelveHour))
+      .replace(/mm/g, two(minute))
+      .replace(/ss/g, two(second));
+  };
   return {
     tostring: (v) => c(v),
     tonumber: (v) => {
@@ -578,6 +601,7 @@ function __createStrNamespace() {
       return str.substring(startIdx, endIdx);
     },
     format: (fmt, ...args) => c(fmt).replace(/{(\\d+)}/g, (m, i) => c(args[Number(i)] ?? m)),
+    format_time: (timestamp, fmt, timezone) => formatTime(timestamp, fmt, timezone),
   };
 }
 
@@ -595,6 +619,199 @@ function __extractHandleId(value) {
   if (typeof value !== 'object' || value === null) return undefined;
   const id = value.__id;
   return typeof id === 'number' ? id : undefined;
+}
+
+function __unwrapVisualValue(value) {
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    Object.prototype.hasOwnProperty.call(value, 'value')
+  ) {
+    return __unwrapVisualValue(value.value);
+  }
+  return value;
+}
+
+function __readVisualNumber(value) {
+  const raw = __unwrapVisualValue(value);
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
+  if (typeof raw === 'string') {
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function __readVisualDisplay(value) {
+  const raw = __unwrapVisualValue(value);
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    return trimmed ? trimmed : null;
+  }
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
+  return null;
+}
+
+function __readVisualColor(value) {
+  const raw = __unwrapVisualValue(value);
+  if (typeof raw !== 'string') return null;
+  const token = raw.trim();
+  if (!token) return null;
+  if (/^#[0-9a-fA-F]{3,8}$/.test(token)) return token;
+  if (/^(?:rgb|hsl)a?\\(/i.test(token)) return token.replace(/\\s+/g, ' ');
+  if (/^color[.]/.test(token)) return token;
+  return null;
+}
+
+function __readTranspFromColor(color) {
+  if (!color) return null;
+  const rgba = color.match(/^rgba\\(([^)]+)\\)$/i);
+  if (!rgba) return null;
+  const parts = rgba[1]
+    .split(',')
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+  if (parts.length < 4) return null;
+  const alpha = Number(parts[3]);
+  if (!Number.isFinite(alpha)) return null;
+  const clamped = Math.min(1, Math.max(0, alpha));
+  return Math.round((1 - clamped) * 100);
+}
+
+function __normalizeVisualStyle(call, args) {
+  const colors = [];
+  for (const arg of args) {
+    const c = __readVisualColor(arg);
+    if (c) colors.push(c);
+  }
+
+  const colorAt = (index) => {
+    const c = __readVisualColor(args[index]);
+    if (c) colors.push(c);
+  };
+  const numberAt = (index) => __readVisualNumber(args[index]);
+  const displayAt = (index) => __readVisualDisplay(args[index]);
+
+  let transp = null;
+  let linewidth = null;
+  let offset = null;
+  let display = null;
+
+  const normalizedCall =
+    typeof call === 'string' && call.startsWith('Std.')
+      ? call.slice(4)
+      : String(call || '');
+
+  switch (normalizedCall) {
+    case 'plot':
+      colorAt(2);
+      linewidth = numberAt(3);
+      transp = numberAt(4) ?? numberAt(6);
+      offset = numberAt(5) ?? numberAt(7);
+      display = displayAt(6) ?? displayAt(9) ?? displayAt(8);
+      break;
+    case 'plotshape':
+      colorAt(4);
+      transp = numberAt(6) ?? numberAt(7);
+      offset = numberAt(7) ?? numberAt(8);
+      display = displayAt(8) ?? displayAt(11) ?? displayAt(10) ?? displayAt(9);
+      break;
+    case 'plotchar':
+      colorAt(4);
+      transp = numberAt(5) ?? numberAt(6);
+      offset = numberAt(6) ?? numberAt(7);
+      display = displayAt(7) ?? displayAt(10) ?? displayAt(9) ?? displayAt(8);
+      break;
+    case 'plotarrow':
+      colorAt(1);
+      transp = numberAt(3);
+      offset = numberAt(4);
+      display = displayAt(7) ?? displayAt(6);
+      break;
+    case 'hline':
+      colorAt(2);
+      linewidth = numberAt(4);
+      display = displayAt(6) ?? displayAt(5);
+      break;
+    case 'bgcolor':
+      colorAt(0);
+      transp = numberAt(1);
+      display = displayAt(2) ?? displayAt(4) ?? displayAt(3);
+      break;
+    case 'fill':
+      colorAt(2);
+      transp = numberAt(3);
+      display = displayAt(6) ?? displayAt(5);
+      break;
+    case 'barcolor':
+      colorAt(0);
+      transp = numberAt(1);
+      display = displayAt(2) ?? displayAt(4) ?? displayAt(3);
+      break;
+    default:
+      if (
+        normalizedCall.endsWith('.set_width') ||
+        normalizedCall.endsWith('.set_border_width')
+      ) {
+        linewidth = numberAt(1);
+      }
+      if (
+        normalizedCall.endsWith('.set_color') ||
+        normalizedCall.endsWith('.set_textcolor') ||
+        normalizedCall.endsWith('.set_bgcolor') ||
+        normalizedCall.endsWith('.set_border_color')
+      ) {
+        colorAt(1);
+      }
+      if (normalizedCall === 'line.new') {
+        colorAt(6);
+        linewidth = numberAt(8);
+      } else if (normalizedCall === 'box.new') {
+        colorAt(4);
+        colorAt(9);
+        linewidth = numberAt(5);
+      } else if (normalizedCall === 'label.new') {
+        colorAt(5);
+        colorAt(7);
+      } else if (normalizedCall === 'table.cell') {
+        colorAt(4);
+        colorAt(5);
+        colorAt(7);
+      }
+      break;
+  }
+
+  const normalizedColors = [...new Set(colors)].sort((a, b) =>
+    String(a).localeCompare(String(b)),
+  );
+
+  if (transp === null) {
+    for (const color of normalizedColors) {
+      const derived = __readTranspFromColor(color);
+      if (derived !== null) {
+        transp = derived;
+        break;
+      }
+    }
+  }
+
+  if (
+    normalizedColors.length === 0 &&
+    transp === null &&
+    linewidth === null &&
+    offset === null &&
+    display === null
+  ) {
+    return null;
+  }
+
+  return {
+    colors: normalizedColors,
+    transp,
+    linewidth,
+    offset,
+    display,
+  };
 }
 
 function __wrapVisualHandle(namespace, handle, ctx) {
@@ -1067,6 +1284,7 @@ function generateStandaloneRuntimeMainBody(
 
   return `const _plotValues = [];
         const _visualEvents = [];
+        __requestSecurityCallCounter = 0;
         let _latestBgColor = null;
         const _currentTimeRaw = Number(Std.time(context));
         const _barTime = Number.isFinite(_currentTimeRaw) ? _currentTimeRaw : Date.now();
@@ -1089,7 +1307,10 @@ function generateStandaloneRuntimeMainBody(
           }
         };
         const _pushVisualEvent = (event) => {
-          _visualEvents.push(event);
+          _visualEvents.push({
+            ...event,
+            style: __normalizeVisualStyle(event.call, event.args),
+          });
         };
         __visualCtx.pushEvent = _pushVisualEvent;
         __visualCtx.barIndex = _resolvedBarIndex;
@@ -1270,8 +1491,115 @@ function generateStandaloneRuntimeMainBody(
         };
         const alertcondition = () => undefined;
         const alert = () => undefined;
+        const _parseMergeMode = (args) => {
+          let gaps = 'gaps_off';
+          let lookahead = 'lookahead_off';
+          if (args.length > 0 && typeof args[0] === 'object' && args[0] !== null) {
+            const options = args[0];
+            if (typeof options.gaps === 'string') {
+              const token = String(options.gaps).toLowerCase();
+              if (token.endsWith('gaps_on')) gaps = 'gaps_on';
+              if (token.endsWith('gaps_off')) gaps = 'gaps_off';
+            }
+            if (typeof options.lookahead === 'string') {
+              const token = String(options.lookahead).toLowerCase();
+              if (token.endsWith('lookahead_on')) lookahead = 'lookahead_on';
+              if (token.endsWith('lookahead_off')) lookahead = 'lookahead_off';
+            }
+          }
+          for (const arg of args) {
+            if (typeof arg !== 'string') continue;
+            const token = arg.trim().toLowerCase();
+            if (token.endsWith('gaps_on')) gaps = 'gaps_on';
+            if (token.endsWith('gaps_off')) gaps = 'gaps_off';
+            if (token.endsWith('lookahead_on')) lookahead = 'lookahead_on';
+            if (token.endsWith('lookahead_off')) lookahead = 'lookahead_off';
+          }
+          return { gaps, lookahead };
+        };
+        const _cloneRequestValue = (value) => {
+          if (Array.isArray(value)) return value.map((item) => _cloneRequestValue(item));
+          if (typeof value === 'object' && value !== null) {
+            const out = {};
+            for (const [key, inner] of Object.entries(value)) {
+              out[key] = _cloneRequestValue(inner);
+            }
+            return out;
+          }
+          return value;
+        };
+        const _naLike = (value) => {
+          if (Array.isArray(value)) return value.map((item) => _naLike(item));
+          return Number.NaN;
+        };
+        const _requestSecurity = (symbolArg, timeframeArg, expressionArg, ...extraArgs) => {
+          const currentTicker = String((syminfo && syminfo.tickerid) || '');
+          const requestedTicker =
+            typeof symbolArg === 'string'
+              ? symbolArg
+              : String(symbolArg == null ? '' : symbolArg).trim();
+          if (requestedTicker && currentTicker && requestedTicker !== currentTicker) {
+            return expressionArg;
+          }
+
+          const merge = _parseMergeMode(extraArgs);
+          const currentTfSecs = __timeframeToSeconds(_chartPeriod, _chartPeriod);
+          const targetTfSecs = __timeframeToSeconds(timeframeArg, _chartPeriod);
+          if (!Number.isFinite(currentTfSecs) || !Number.isFinite(targetTfSecs)) {
+            return expressionArg;
+          }
+          if (targetTfSecs === currentTfSecs) return expressionArg;
+          if (targetTfSecs < currentTfSecs) return expressionArg;
+          if (!Number.isFinite(_barTime) || _barTime < 0) return expressionArg;
+
+          const bucketSizeMs = targetTfSecs * 1000;
+          const chartTfMs = Math.max(1000, currentTfSecs * 1000);
+          const callSite = __requestSecurityCallCounter++;
+          const key = [
+            callSite,
+            requestedTicker || currentTicker,
+            String(timeframeArg),
+            merge.gaps,
+            merge.lookahead,
+          ].join('|');
+          const bucket = Math.floor(_barTime / bucketSizeMs);
+
+          let state = __requestSecurityState.get(key);
+          let changedBucket = false;
+          if (!state) {
+            state = {
+              lastBucket: bucket,
+              currentValue: _cloneRequestValue(expressionArg),
+              confirmedValue: _naLike(expressionArg),
+            };
+            __requestSecurityState.set(key, state);
+            changedBucket = true;
+          } else if (state.lastBucket !== bucket) {
+            state.confirmedValue = _cloneRequestValue(state.currentValue);
+            state.currentValue = _cloneRequestValue(expressionArg);
+            state.lastBucket = bucket;
+            changedBucket = true;
+          } else {
+            state.currentValue = _cloneRequestValue(expressionArg);
+          }
+
+          const nextBucket = Math.floor((_barTime + chartTfMs) / bucketSizeMs);
+          const isBucketCloseBar = nextBucket !== bucket;
+          const isLookaheadOn = merge.lookahead === 'lookahead_on';
+          const eventBar = isLookaheadOn ? changedBucket : isBucketCloseBar;
+          const merged = isLookaheadOn
+            ? state.currentValue
+            : isBucketCloseBar
+              ? state.currentValue
+              : state.confirmedValue;
+
+          if (merge.gaps === 'gaps_on' && !eventBar) {
+            return _naLike(expressionArg);
+          }
+          return _cloneRequestValue(merged);
+        };
         const request = {
-          security: (_symbol, _tf, expression) => expression,
+          security: _requestSecurity,
         };
         const session = {
           ismarket: false,
@@ -1306,20 +1634,23 @@ function generateStandaloneRuntimeMainBody(
         const chart = __callableNamespace('chart');
         const format = __callableNamespace('format');
         const string = __callableNamespace('string');
+        const log = new Proxy({}, { get: () => () => undefined });
         const xloc = { bar_index: 'bar_index', bar_time: 'bar_time' };
         const yloc = { price: 'price', abovebar: 'abovebar', belowbar: 'belowbar' };
         const extend = { none: 'none', left: 'left', right: 'right', both: 'both' };
         const position = new Proxy({}, { get: (_t, p) => 'position.' + String(p) });
-        const order = { ascending: 'ascending', descending: 'descending' };
-        const text = { align_left: 'left', align_center: 'center', align_right: 'right' };
-        const display = {
-          all: 'all',
-          none: 'none',
-          status_line: 'status_line',
-          price_scale: 'price_scale',
-          data_window: 'data_window',
-          pane: 'pane',
+        const order = { ascending: true, descending: false };
+        const text = {
+          align_left: 'left',
+          align_center: 'center',
+          align_right: 'right',
+          align_top: 'top',
+          align_bottom: 'bottom',
         };
+        const display = new Proxy(
+          {},
+          { get: (_t, p) => 'display.' + String(p) },
+        );
         const ticker = {
           new: (...args) => args.join(':'),
           modify: (sym) => sym,
@@ -1405,6 +1736,7 @@ function generateStandaloneRuntimeMainBody(
           hl2,
           hlc3,
           ohlc4,
+          log,
         ) {
 ${compiledScriptBody}
         };
@@ -1475,6 +1807,7 @@ ${compiledScriptBody}
           hl2,
           hlc3,
           ohlc4,
+          log,
         );
 
         _markProcessedBar();
@@ -2224,7 +2557,8 @@ export function buildIndicatorFactory(
   );
   const body = preamble + mainBody;
 
-  // Pine `box.new(..., bgcolor = ...)` has no direct equivalent in TV
+  // Pine `box.new(..., bgcolor = ...)` has no direct equivalent in the
+  // host chart runtime
   // Custom Indicators (no per-bar runtime drawing API), but session-
   // highlighting boxes can be expressed as a `bg_colorer` plot driven
   // by an 8-slot palette. We detect the box.new usage statically and
@@ -2249,14 +2583,14 @@ export function buildIndicatorFactory(
     7: { name: 'Session 7' },
   };
   // Palette defaults intentionally tuned to be a faint hint, not a
-  // full fill. The bg_colorer plot is fundamentally full-column (TV
+  // full fill. The bg_colorer plot is fundamentally full-column (host
   // API limitation — `bg_colorer` colors the whole vertical strip per
   // bar). When the host VisualEventsRenderer is wired, it draws
   // proper price-constrained rectangles from `box.new` events; the
   // bands underneath must not visually fight those rectangles.
   //
   // Users who want louder bands can crank transparency down from the
-  // TV indicator Style panel; users who don't have a renderer yet
+  // chart indicator Style panel; users who don't have a renderer yet
   // still get a soft session hint.
   const AUTO_BG_PALETTE_DEFAULTS: Record<
     number,
@@ -2334,7 +2668,7 @@ export function buildIndicatorFactory(
     return {
       name: `User_${safeId}`,
       metainfo: {
-        id: `User_${safeId}@tv-basicstudies-1`,
+        id: `User_${safeId}@basicstudies-1`,
         description: indicatorName || name,
         shortDescription: shortName,
         is_price_study: overlay,
@@ -2445,6 +2779,7 @@ export function buildIndicatorFactory(
             'chart',
             'format',
             'string',
+            'log',
             'xloc',
             'yloc',
             'extend',
@@ -3147,6 +3482,10 @@ export function buildIndicatorFactory(
           const chart = callableProxy('chart') as Record<string, string>;
           const format = callableProxy('format') as Record<string, string>;
           const string = callableProxy('string') as Record<string, string>;
+          const log = new Proxy({}, { get: () => () => undefined }) as Record<
+            string,
+            (...args: unknown[]) => void
+          >;
           const xloc = {
             bar_index: 'bar_index',
             bar_time: 'bar_time',
@@ -3674,6 +4013,7 @@ export function buildIndicatorFactory(
               chart,
               format,
               string,
+              log,
               xloc,
               yloc,
               extend,
@@ -3814,7 +4154,7 @@ export function buildIndicatorFactory(
           }
         };
 
-        // Dual-mode constructor: callable as `new Ctor()` (TradingView's
+        // Dual-mode constructor: callable as `new Ctor()` (Chart Host's
         // CustomIndicator framework) AND as `Ctor.call(target)` /
         // `Ctor()` (test harnesses, downstream wrappers that hook
         // `main` to intercept per-bar output).
@@ -3986,9 +4326,14 @@ export function generateStandaloneFactory(
   );
 
   const safeId = sanitizeIndicatorId(indicatorId);
+  const hasTranspiledMainBody =
+    typeof mainBody === 'string' && mainBody.trim().length > 0;
 
-  // Determine if we have bgcolors (session-style indicator)
+  // The transpiled-main standalone path intentionally mirrors the
+  // runtime path and does NOT synthesize a legacy `sessionBg`
+  // bg_colorer slot from explicit `bgcolor(...)` calls.
   const hasBgcolors = bgcolors && bgcolors.length > 0;
+  const useSessionBgMetadata = hasBgcolors && !hasTranspiledMainBody;
 
   // Build plots array - include bg_colorer if we have bgcolors
   const nativePlots: Array<{ id: string; type: string; palette?: string }> = [];
@@ -4002,7 +4347,7 @@ export function generateStandaloneFactory(
   }
 
   // Add bg_colorer for bgcolor support
-  if (hasBgcolors) {
+  if (useSessionBgMetadata) {
     nativePlots.push({
       id: 'sessionBg',
       type: 'bg_colorer',
@@ -4011,7 +4356,7 @@ export function generateStandaloneFactory(
   }
 
   // Build palettes
-  const palettes = hasBgcolors
+  const palettes = useSessionBgMetadata
     ? {
         bgPalette: {
           colors: buildPaletteColors(bgcolors),
@@ -4021,7 +4366,7 @@ export function generateStandaloneFactory(
     : {};
 
   // Build palette defaults
-  const paletteDefaults = hasBgcolors
+  const paletteDefaults = useSessionBgMetadata
     ? {
         bgPalette: {
           colors: buildPaletteDefaults(bgcolors),
@@ -4031,7 +4376,7 @@ export function generateStandaloneFactory(
 
   // Build style defaults
   const styleDefaults: Record<string, Record<string, unknown>> = {};
-  if (hasBgcolors) {
+  if (useSessionBgMetadata) {
     // Use average transparency from bgcolors
     const avgTransparency =
       bgcolors.reduce((sum, bg) => sum + bg.transparency, 0) / bgcolors.length;
@@ -4090,7 +4435,7 @@ export function generateStandaloneFactory(
       location?: 'AboveBar' | 'BelowBar' | 'Top' | 'Bottom' | 'Absolute';
     }
   > = {};
-  if (hasBgcolors) {
+  if (useSessionBgMetadata) {
     stylesMetadata.sessionBg = { title: 'Session Background' };
   }
 
@@ -4137,8 +4482,6 @@ export function generateStandaloneFactory(
     ...(input.options ? { options: input.options } : {}),
   }));
 
-  const hasTranspiledMainBody =
-    typeof mainBody === 'string' && mainBody.trim().length > 0;
   const runtimePreamble = hasTranspiledMainBody
     ? generatePreamble(usedSources, historicalAccess, mainBody, helperUsage)
     : '';
@@ -4151,7 +4494,7 @@ export function generateStandaloneFactory(
     ? generateStandaloneRuntimeMainBody(
         runtimeBody,
         nativePlots.length,
-        hasBgcolors,
+        useSessionBgMetadata,
       )
     : generateNativeMainBody(
         inputs,
@@ -4179,7 +4522,7 @@ export function generateStandaloneFactory(
  *
  * Usage:
  *   const indicator = createIndicator(PineJS);
- *   // Register with TradingView chart
+ *   // Register with Chart Host chart
  */
 
 ${hasTranspiledMainBody ? STANDALONE_RUNTIME_HELPERS : ''}
@@ -4191,7 +4534,7 @@ function createIndicator(PineJS) {
     name: 'User_${safeId}',
     metainfo: {
       _metainfoVersion: 53,
-      id: 'User_${safeId}@tv-basicstudies-1',
+      id: 'User_${safeId}@basicstudies-1',
       description: ${JSON.stringify(indicatorName || name)},
       shortDescription: ${JSON.stringify(shortName)},
       is_hidden_study: false,
@@ -4201,7 +4544,7 @@ function createIndicator(PineJS) {
 
       plots: ${JSON.stringify(nativePlots, null, 8).replace(/\n/g, '\n      ')},
 ${
-  hasBgcolors
+  useSessionBgMetadata
     ? `
       palettes: ${JSON.stringify(palettes, null, 8).replace(/\n/g, '\n      ')},
 `
@@ -4209,7 +4552,7 @@ ${
 }
       defaults: {
 ${
-  hasBgcolors
+  useSessionBgMetadata
     ? `        palettes: ${JSON.stringify(paletteDefaults, null, 10).replace(/\n/g, '\n        ')},
 `
     : ''
@@ -4229,11 +4572,12 @@ ${
       const __visualCtx = { pushEvent: () => undefined, barIndex: -1 };
       const __stubs = __createVisualStubs(__stubsRaw, __visualCtx);
       const __colorMap = ${colorMapLiteral};
-      const __bgColorToSlot = new Map();
       let __previousBarTime = Number.NaN;
       let __fallbackBarIndex = -1;
       let __processedBars = 0;
       let __processedBarKey = null;
+      const __requestSecurityState = new Map();
+      let __requestSecurityCallCounter = 0;
 `
     : ''
 }

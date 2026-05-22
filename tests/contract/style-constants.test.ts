@@ -2,7 +2,7 @@
  * Pine style constant emission contract.
  *
  * Host renderers need to switch on Pine `line.style_*` and
- * `label.style_*` constants to map them to TV linestyle / shape
+ * `label.style_*` constants to map them to host linestyle / shape
  * properties. Until 2026-05-12, these were emitted as the
  * fully-prefixed strings `'line.style_solid'`, `'label.style_label_up'`
  * etc., which forced every renderer to either string-match the full

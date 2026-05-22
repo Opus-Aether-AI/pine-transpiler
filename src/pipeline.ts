@@ -77,7 +77,7 @@ export function generateBody(
 }
 
 /**
- * Build a TradingView CustomIndicator factory from extracted metadata
+ * Build a Chart Host CustomIndicator factory from extracted metadata
  * and a generated body.
  *
  * `helperUsage` should come from the same generation pass that

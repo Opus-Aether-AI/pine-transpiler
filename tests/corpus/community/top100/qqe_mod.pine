@@ -1,4 +1,5 @@
 //@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
 indicator("QQE MOD", overlay=false)
 
 rsiLen = input.int(14, "RSI Length", minval=1)

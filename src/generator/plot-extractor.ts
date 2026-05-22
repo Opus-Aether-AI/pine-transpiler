@@ -192,7 +192,7 @@ export class PlotExtractor {
    *
    * Pine's plotchar signature: `plotchar(series, title, char, location,
    * color, offset, text, textcolor, ...)`. Pine renders `char` at the
-   * price point and `text` as a label next to it. TV CustomIndicator
+   * price point and `text` as a label next to it. Host CustomIndicator
    * `chars` plots only expose a single `char` style field, so when the
    * Pine source leaves `char` empty but supplies `text` (a common
    * pattern for day/session labels) we promote `text` into the char

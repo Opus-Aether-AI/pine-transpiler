@@ -3,7 +3,7 @@
  * Chart safety gate.
  *
  * Goal: catch host-level regressions before webapp integration by enforcing
- * TradingView-like runtime contracts on transpiled indicators.
+ * Chart Host-like runtime contracts on transpiled indicators.
  *
  * Contracts:
  *  1) Constructor contract: `new indicator.constructor()` succeeds and yields
@@ -39,12 +39,7 @@
  *   bun scripts/corpus/chart-safety.ts --fixture=curated/ict-killzones.pine
  */
 
-import {
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { transpileToPineJS } from '../../src/index';
 import type { CustomIndicator } from '../../src/types';
@@ -133,8 +128,8 @@ const CANARY_FIXTURE_IDS = [
   'top100/ict_bos_choch_screener.pine',
   'top100/ict_fvg_inversion_fvg.pine',
   'top100/ict_breaker_blocks.pine',
-  'top100/luxalgo_smart_money_concepts.pine',
-  'top100/market_structure_liquidity_smart_alerts_algonit.pine',
+  'top100/smart_money_concepts.pine',
+  'top100/market_structure_liquidity_smart_alerts.pine',
   'arunkbhaskar/scanner_-_ict_fair_value_gap_fvg_scanner.pine',
   'arunkbhaskar/scanner_-_ict_liquidity_sweep_pattern_scanner.pine',
   'arunkbhaskar/ict_market_structure_shift_mss.pine',
@@ -175,7 +170,9 @@ function buildInputCallback(): (index: number) => number {
 }
 
 function isFiniteOrNaNNumber(value: unknown): value is number {
-  return typeof value === 'number' && (Number.isFinite(value) || Number.isNaN(value));
+  return (
+    typeof value === 'number' && (Number.isFinite(value) || Number.isNaN(value))
+  );
 }
 
 function readBody(factory: unknown): string | null {
@@ -215,7 +212,9 @@ function validateMetainfoSchema(
   const defaultStylesRaw = indicator.metainfo?.defaults?.styles;
   const defaultStyles = isPlainObject(defaultStylesRaw) ? defaultStylesRaw : {};
   const metainfoAny = indicator.metainfo as unknown as Record<string, unknown>;
-  const palettes = isPlainObject(metainfoAny?.palettes) ? metainfoAny.palettes : {};
+  const palettes = isPlainObject(metainfoAny?.palettes)
+    ? metainfoAny.palettes
+    : {};
   const defaultsAny = indicator.metainfo?.defaults as unknown as
     | Record<string, unknown>
     | undefined;
@@ -250,9 +249,7 @@ function validateMetainfoSchema(
         return `${fixture}: bg_colorer plot "${plotId}" references missing metainfo.palettes["${paletteId}"]`;
       }
       if (
-        !isPlainObject(
-          (defaultPalettes as Record<string, unknown>)[paletteId],
-        )
+        !isPlainObject((defaultPalettes as Record<string, unknown>)[paletteId])
       ) {
         return `${fixture}: bg_colorer plot "${plotId}" references missing defaults.palettes["${paletteId}"]`;
       }
@@ -295,14 +292,20 @@ function validateHandleLifecycle(
     const [namespace, op] = event.call.split('.');
     if (!DRAWING_NAMESPACES.has(namespace)) continue;
 
-    if (typeof event.pineHandleId !== 'number' || !Number.isFinite(event.pineHandleId)) {
+    if (
+      typeof event.pineHandleId !== 'number' ||
+      !Number.isFinite(event.pineHandleId)
+    ) {
       return `${fixture}: bar ${barIndex} event ${i} (${event.call}) missing numeric pineHandleId`;
     }
 
     const handleKey = toHandleKey(namespace, event.pineHandleId);
 
     if (op === 'new') {
-      if (lifecycle.created.has(handleKey) && !lifecycle.deleted.has(handleKey)) {
+      if (
+        lifecycle.created.has(handleKey) &&
+        !lifecycle.deleted.has(handleKey)
+      ) {
         return `${fixture}: bar ${barIndex} event ${i} duplicates ${handleKey}.new before delete`;
       }
       lifecycle.created.add(handleKey);
@@ -358,7 +361,9 @@ function validateVisualStyle(
   if (
     s.linewidth !== null &&
     s.linewidth !== undefined &&
-    (typeof s.linewidth !== 'number' || !Number.isFinite(s.linewidth) || s.linewidth < 0)
+    (typeof s.linewidth !== 'number' ||
+      !Number.isFinite(s.linewidth) ||
+      s.linewidth < 0)
   ) {
     return `${fixture}: bar ${barIndex} event ${eventIndex} style.linewidth must be null or >= 0`;
   }
@@ -438,7 +443,11 @@ function writeFailureArtifacts(
   if (typeof transpiledBody === 'string') {
     writeFileSync(`${base}.transpiled.js`, transpiledBody, 'utf8');
   }
-  writeFileSync(`${base}.failure.json`, JSON.stringify(failure, null, 2), 'utf8');
+  writeFileSync(
+    `${base}.failure.json`,
+    JSON.stringify(failure, null, 2),
+    'utf8',
+  );
 
   return base;
 }
@@ -597,8 +606,9 @@ function runFixtureSafety(
       };
     }
 
-    const caughtError = (result as { __caughtError?: unknown } | null | undefined)
-      ?.__caughtError;
+    const caughtError = (
+      result as { __caughtError?: unknown } | null | undefined
+    )?.__caughtError;
     if (caughtError !== undefined && caughtError !== null) {
       return {
         fixture: id,
@@ -838,14 +848,18 @@ function printSummary(
   const pass = outcomes.filter((o) => o.pass).length;
   const passPct = total === 0 ? 0 : (pass / total) * 100;
 
-  const constructorFailures = failures.filter((f) => f.stage === 'construct').length;
+  const constructorFailures = failures.filter(
+    (f) => f.stage === 'construct',
+  ).length;
   const metainfoSchemaFailures = failures.filter(
     (f) => f.stage === 'metainfo-schema',
   ).length;
   const plotFailures = failures.filter(
     (f) => f.stage === 'plot-contract' || f.stage === 'run-bars',
   ).length;
-  const visualFailures = failures.filter((f) => f.stage === 'visual-contract').length;
+  const visualFailures = failures.filter(
+    (f) => f.stage === 'visual-contract',
+  ).length;
   const handleLifecycleFailures = failures.filter(
     (f) => f.stage === 'handle-lifecycle',
   ).length;
@@ -883,7 +897,10 @@ function printSummary(
 }
 
 function main(): number {
-  const barCount = Math.max(1, Math.trunc(numEnv('CHART_SAFETY_BAR_COUNT', DEFAULT_BAR_COUNT)));
+  const barCount = Math.max(
+    1,
+    Math.trunc(numEnv('CHART_SAFETY_BAR_COUNT', DEFAULT_BAR_COUNT)),
+  );
   const barIndexStart = Math.trunc(
     numEnv('CHART_SAFETY_BAR_INDEX_START', 10_000),
   );

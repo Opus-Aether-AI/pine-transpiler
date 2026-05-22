@@ -21,7 +21,7 @@ const TRIVIAL_PINEJS = `function createIndicator(PineJS) {
     return {
         name: 'TrivialJS',
         metainfo: {
-            id: 'trivial@tv-basicstudies-1',
+            id: 'trivial@basicstudies-1',
             description: 'Trivial JS',
             shortDescription: 'TJS',
             isCustomIndicator: true,

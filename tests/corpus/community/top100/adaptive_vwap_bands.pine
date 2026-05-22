@@ -1,0 +1,16 @@
+//@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
+indicator("Adaptive VWAP Bands", overlay=true)
+
+len = input.int(20, "ATR Length", minval=1)
+mult = input.float(1.5, "Band Multiplier", minval=0.1)
+
+v = ta.vwap(hlc3)
+a = ta.atr(len)
+upper = v + a * mult
+lower = v - a * mult
+
+pU = plot(upper, "Upper", color=color.new(color.green, 0))
+pL = plot(lower, "Lower", color=color.new(color.red, 0))
+plot(v, "VWAP", color=color.yellow)
+fill(pU, pL, color=color.new(color.blue, 88))

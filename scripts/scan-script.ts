@@ -1,6 +1,9 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
-import { transpileToStandaloneFactory } from '../src/index.js';
+import {
+  MULTI_OUTPUT_MAPPINGS,
+  transpileToStandaloneFactory,
+} from '../src/index.js';
 
 export type ScanStage =
   | 'load-source'
@@ -26,6 +29,16 @@ export interface ScanResult {
   barsErrored: number;
   errorBuckets: ErrorBucket[];
 }
+
+const MULTI_OUTPUT_STD_ARITIES = new Map<string, number>(
+  Object.values(MULTI_OUTPUT_MAPPINGS)
+    .filter((mapping) => mapping.stdName.startsWith('Std.'))
+    .map((mapping) => [mapping.stdName.slice('Std.'.length), mapping.outputCount]),
+);
+// Some Std calls are lowered as tuple-like in generated code but are
+// not listed in MULTI_OUTPUT_MAPPINGS because their canonical mapping
+// can be single-output in other contexts.
+MULTI_OUTPUT_STD_ARITIES.set('stoch', 2);
 
 class SimpleSeries {
   private history: number[] = [];
@@ -156,6 +169,12 @@ export function createNoopStd(): Record<string, unknown> {
     {
       get(_target, prop) {
         if (prop === Symbol.toStringTag) return 'StdProxy';
+        if (typeof prop === 'string') {
+          const tupleArity = MULTI_OUTPUT_STD_ARITIES.get(prop);
+          if (typeof tupleArity === 'number' && tupleArity > 0) {
+            return () => Array.from({ length: tupleArity }, () => 0);
+          }
+        }
         return noop;
       },
     },

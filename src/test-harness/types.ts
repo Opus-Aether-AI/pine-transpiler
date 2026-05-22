@@ -32,7 +32,7 @@ export interface ReducerContractReport {
   reducersExecuted: number;
 }
 
-export interface TradingViewHarnessReport {
+export interface ChartRuntimeHarnessReport {
   fixtureName?: string;
   indicatorId: string;
   barsRequested: number;
@@ -45,7 +45,7 @@ export interface TradingViewHarnessReport {
   pass: boolean;
 }
 
-export interface TradingViewHarnessOptions {
+export interface ChartRuntimeHarnessOptions {
   source: string;
   fixtureName?: string;
   indicatorId?: string;

@@ -1,4 +1,5 @@
 //@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
 indicator("Session Volume Profile", overlay=false)
 
 marketVol = session.ismarket ? volume : 0.0

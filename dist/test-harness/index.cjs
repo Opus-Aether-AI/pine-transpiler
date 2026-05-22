@@ -1,5 +1,5 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-const require_src = require("../src-FI_T73Iq.cjs");
+const require_src = require("../src-DYBV471Y.cjs");
 //#region src/test-harness/descriptor.ts
 function toMessage$1(error) {
 	if (error instanceof Error) return error.message;
@@ -96,7 +96,7 @@ function resolveVisualCharValue(plot) {
 	return visualChar;
 }
 /**
-* TradingView-shaped autoscale reducer fragment.
+* Chart Host-shaped autoscale reducer fragment.
 *
 * Only models the contract surface that tends to crash transpiled indicators:
 * visual plot style lookup (`styles[plot.id]`) and location access for
@@ -116,7 +116,7 @@ function applyPlotToPrecalculatedAutoscaleInfo(plot, style, point, autoscale) {
 	autoscale.max = Math.max(autoscale.max, n);
 }
 /**
-* TradingView-shaped dependency reducer fragment used by view updates.
+* Chart Host-shaped dependency reducer fragment used by view updates.
 */
 function dependsOnSeriesData(plot, style) {
 	if (plot.type === "shapes") {
@@ -437,7 +437,7 @@ function runReducers(plots, styles, values, barIndex, reducerIssues) {
 		}
 	}
 }
-function runTradingViewHarness(options) {
+function runChartRuntimeHarness(options) {
 	const bars = Math.max(1, Math.trunc(options.bars ?? DEFAULT_BAR_COUNT));
 	const barIndexStart = Number.isFinite(options.barIndexStart) ? Math.trunc(options.barIndexStart) : DEFAULT_BAR_INDEX_START;
 	const indicatorId = options.indicatorId ?? `harness_${(options.fixtureName ?? "fixture").replace(/[^a-zA-Z0-9]/g, "_")}`;
@@ -602,6 +602,6 @@ function runTradingViewHarness(options) {
 	};
 }
 //#endregion
-exports.runTradingViewHarness = runTradingViewHarness;
+exports.runChartRuntimeHarness = runChartRuntimeHarness;
 
 //# sourceMappingURL=index.cjs.map

@@ -1,4 +1,4 @@
-// Source: github.com/f13end/tradingview-custom-indicators/indicators/Range%20Volume%20Change/Range%20Volume%20Change.pine
+// Source: github.com/f13end/chart-host-custom-indicators/indicators/Range%20Volume%20Change/Range%20Volume%20Change.pine
 // Vendored as a corpus fixture. License is the repo's — see the upstream LICENSE.
 // This work is licensed under a Creative Commons Attribution-ShareAlike 4.0 International License https://creativecommons.org/licenses/by-sa/4.0/
 // © dman103
@@ -10,7 +10,7 @@
 // Can be used for various things, like checking premarket volume compare to the previous day or checking specific time range of your interest to see if volume is increasing or decreasing compare to the previous day.
 // Also, RVC visualizes the incremental of the volume using increasing size columns giving you a better view of how the volume changes compared to the past.
 // in addition, RVC is also designed to work on real-time data.
-// Follow for more top indicators/strategies: https://www.tradingview.com/u/dman103/#published-scripts
+// Follow for more top indicators/strategies: https://example.com/u/dman103/#published-scripts
 
 indicator('Range Volume Change', 'RVC', overlay=false)
 time_range_input = input.session('0400-0930', 'Time Range',tooltip="The time range to show the volume percentage of change between current day time range and previous day for the same time range.")

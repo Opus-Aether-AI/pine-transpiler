@@ -31,7 +31,7 @@ import {
 import { basename, join, relative } from 'node:path';
 
 interface SourceConfig {
-  /** Repo slug, e.g. "everget/tradingview-pinescript-indicators". */
+  /** Repo slug, e.g. "everget/chart-host-pinescript-indicators". */
   slug: string;
   /** Local clone path under /tmp/pine-corpus-sources/. */
   dir: string;
@@ -43,14 +43,14 @@ interface SourceConfig {
 
 const SOURCES: SourceConfig[] = [
   {
-    slug: 'everget/tradingview-pinescript-indicators',
-    dir: '/tmp/pine-corpus-sources/tradingview-pinescript-indicators',
+    slug: 'everget/chart-host-pinescript-indicators',
+    dir: '/tmp/pine-corpus-sources/chart-host-pinescript-indicators',
     label: 'everget',
     cap: 80,
   },
   {
-    slug: 'f13end/tradingview-custom-indicators',
-    dir: '/tmp/pine-corpus-sources/tradingview-custom-indicators',
+    slug: 'f13end/chart-host-custom-indicators',
+    dir: '/tmp/pine-corpus-sources/chart-host-custom-indicators',
     label: 'f13end',
     cap: 60,
   },

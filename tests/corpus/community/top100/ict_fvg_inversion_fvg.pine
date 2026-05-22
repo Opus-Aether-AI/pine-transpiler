@@ -1,4 +1,5 @@
 //@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
 indicator("ICT FVG + Inversion FVG", overlay=true)
 
 bullFvg = low > high[2]

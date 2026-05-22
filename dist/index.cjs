@@ -1,5 +1,5 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-const require_src = require("./src-FI_T73Iq.cjs");
+const require_src = require("./src-DYBV471Y.cjs");
 exports.COLOR_MAP = require_src.COLOR_MAP;
 exports.HelperUsage = require_src.HelperUsage;
 exports.MATH_FUNCTION_MAPPINGS = require_src.MATH_FUNCTION_MAPPINGS;

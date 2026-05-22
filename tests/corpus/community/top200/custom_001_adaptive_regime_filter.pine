@@ -1,4 +1,5 @@
 //@version=5
+// Synthetic proxy fixture — not a copy of any author-published script.
 indicator("Custom 001 Adaptive Regime Filter", overlay=false)
 
 vol = ta.atr(14)
