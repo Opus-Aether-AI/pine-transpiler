@@ -69,9 +69,14 @@ jobs:
         if: ${{ steps.release.outputs.pr }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ fromJSON(steps.release.outputs.pr).number }}
+          PR_JSON: ${{ steps.release.outputs.pr }}
           REPO: ${{ github.repository }}
         run: |
+          PR_NUMBER=$(printf '%s' "$PR_JSON" | jq -r '.number')
+          if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "null" ]; then
+            echo "::error::Could not extract PR number from release-please output"
+            exit 1
+          fi
           echo "Enabling auto-merge on Release PR #${PR_NUMBER}"
           gh pr merge "${PR_NUMBER}" --repo "${REPO}" --auto --squash
 
