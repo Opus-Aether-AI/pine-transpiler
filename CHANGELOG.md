@@ -12,6 +12,11 @@ docs/RELEASING.md for the flow and `.github/release-please-config.json`
 for the commit-type → section mapping.
 -->
 
+## [0.4.7](https://github.com/Opus-Aether-AI/pine-transpiler/compare/v0.4.6...v0.4.7) (2026-05-22)
+
+
+* finalize corpus + harness polish, top100/200 matrices, and validation gates ([#25](https://github.com/Opus-Aether-AI/pine-transpiler/issues/25)) ([6506237](https://github.com/Opus-Aether-AI/pine-transpiler/commit/6506237f3a34c8082851e8f8d7da69062f0f4f3b))
+
 ## [0.4.6](https://github.com/Opus-Aether-AI/pine-transpiler/compare/v0.4.5...v0.4.6) (2026-05-21)
 
 
