@@ -199,6 +199,142 @@ function buildStd(
   currentBarPlots: number[],
 ): StdLibraryInternal {
   const currentBar = (): SyntheticBar | undefined => bars[pointer.current];
+  let std: Record<string, unknown>;
+  const parseOffsetMinutes = (raw: string): number | null => {
+    const normalized = raw.trim().toUpperCase();
+    if (
+      normalized === 'GMT' ||
+      normalized === 'UTC' ||
+      normalized === 'GMT+0' ||
+      normalized === 'GMT-0'
+    ) {
+      return 0;
+    }
+    const m = normalized.match(/^(?:GMT|UTC)([+-])(\d{1,2})(?::?(\d{2}))?$/);
+    if (!m) return null;
+    const sign = m[1] === '-' ? -1 : 1;
+    const hours = Number(m[2]);
+    const minutes = Number(m[3] ?? 0);
+    if (
+      !Number.isFinite(hours) ||
+      !Number.isFinite(minutes) ||
+      hours > 14 ||
+      minutes > 59
+    ) {
+      return null;
+    }
+    return sign * (hours * 60 + minutes);
+  };
+  const readClockAt = (
+    timestamp: number,
+    timezone: unknown,
+  ): {
+    year: number;
+    month: number;
+    dayOfMonth: number;
+    hour: number;
+    minute: number;
+    second: number;
+    dayOfWeek: number;
+  } => {
+    if (typeof timezone === 'string' && timezone.trim()) {
+      const offset = parseOffsetMinutes(timezone);
+      if (offset !== null) {
+        const shifted = new Date(timestamp + offset * 60_000);
+        return {
+          year: shifted.getUTCFullYear(),
+          month: shifted.getUTCMonth() + 1,
+          dayOfMonth: shifted.getUTCDate(),
+          hour: shifted.getUTCHours(),
+          minute: shifted.getUTCMinutes(),
+          second: shifted.getUTCSeconds(),
+          dayOfWeek: shifted.getUTCDay() + 1,
+        };
+      }
+      try {
+        const parts = new Intl.DateTimeFormat('en-US', {
+          timeZone: timezone,
+          hour12: false,
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          weekday: 'short',
+        }).formatToParts(new Date(timestamp));
+        const year = Number(
+          parts.find((p) => p.type === 'year')?.value ?? Number.NaN,
+        );
+        const month = Number(
+          parts.find((p) => p.type === 'month')?.value ?? Number.NaN,
+        );
+        const dayOfMonth = Number(
+          parts.find((p) => p.type === 'day')?.value ?? Number.NaN,
+        );
+        const hour = Number(
+          parts.find((p) => p.type === 'hour')?.value ?? Number.NaN,
+        );
+        const minute = Number(
+          parts.find((p) => p.type === 'minute')?.value ?? Number.NaN,
+        );
+        const second = Number(
+          parts.find((p) => p.type === 'second')?.value ?? Number.NaN,
+        );
+        const weekday = (
+          parts.find((p) => p.type === 'weekday')?.value ?? ''
+        ).slice(0, 3);
+        const weekdayUpper = weekday.toUpperCase();
+        const dayOfWeek =
+          weekdayUpper === 'SUN'
+            ? 1
+            : weekdayUpper === 'MON'
+              ? 2
+              : weekdayUpper === 'TUE'
+                ? 3
+                : weekdayUpper === 'WED'
+                  ? 4
+                  : weekdayUpper === 'THU'
+                    ? 5
+                    : weekdayUpper === 'FRI'
+                      ? 6
+                      : weekdayUpper === 'SAT'
+                        ? 7
+                        : Number.NaN;
+        if (
+          Number.isFinite(year) &&
+          Number.isFinite(month) &&
+          Number.isFinite(dayOfMonth) &&
+          Number.isFinite(hour) &&
+          Number.isFinite(minute) &&
+          Number.isFinite(second) &&
+          Number.isFinite(dayOfWeek)
+        ) {
+          return {
+            year,
+            month,
+            dayOfMonth,
+            hour,
+            minute,
+            second,
+            dayOfWeek,
+          };
+        }
+      } catch {
+        // Fall through to UTC.
+      }
+    }
+    const d = new Date(timestamp);
+    return {
+      year: d.getUTCFullYear(),
+      month: d.getUTCMonth() + 1,
+      dayOfMonth: d.getUTCDate(),
+      hour: d.getUTCHours(),
+      minute: d.getUTCMinutes(),
+      second: d.getUTCSeconds(),
+      dayOfWeek: d.getUTCDay() + 1,
+    };
+  };
   const resolveTimestampArg = (...args: unknown[]): number => {
     for (const arg of args) {
       if (typeof arg === 'number' && Number.isFinite(arg)) return arg;
@@ -206,11 +342,140 @@ function buildStd(
         const v = arg.get?.(0);
         if (typeof v === 'number' && Number.isFinite(v)) return v;
       }
+      if (
+        typeof arg === 'object' &&
+        arg !== null &&
+        'new_var' in (arg as Record<string, unknown>)
+      ) {
+        const timeFn = std?.time;
+        if (typeof timeFn === 'function') {
+          const v = (timeFn as (ctx: unknown) => unknown)(arg);
+          if (typeof v === 'number' && Number.isFinite(v)) return v;
+        }
+      }
     }
     return currentBar()?.time ?? 0;
   };
+  const resolveTimezoneArg = (...args: unknown[]): string | undefined => {
+    for (const arg of args) {
+      if (typeof arg === 'string' && arg.trim()) return arg;
+    }
+    return undefined;
+  };
+  const computeRmaSeries = (values: number[], lengthRaw: unknown): number[] => {
+    const length = Math.max(1, Math.trunc(readSeriesValue(lengthRaw)));
+    const out = Array<number>(values.length).fill(Number.NaN);
+    if (values.length < length) return out;
+    let seed = 0;
+    for (let i = 0; i < length; i++) {
+      const v = values[i];
+      if (!Number.isFinite(v)) return out;
+      seed += v;
+    }
+    out[length - 1] = seed / length;
+    const alpha = 1 / length;
+    for (let i = length; i < values.length; i++) {
+      const cur = values[i];
+      if (!Number.isFinite(cur) || !Number.isFinite(out[i - 1])) {
+        out[i] = Number.NaN;
+        continue;
+      }
+      out[i] = alpha * cur + (1 - alpha) * out[i - 1];
+    }
+    return out;
+  };
+  const computeDmiAtCurrent = (
+    diLengthRaw: unknown,
+    adxSmoothingRaw: unknown,
+  ): [number, number, number, number, number] => {
+    const diLength = Math.max(1, Math.trunc(readSeriesValue(diLengthRaw)));
+    const adxSmoothing = Math.max(
+      1,
+      Math.trunc(readSeriesValue(adxSmoothingRaw)),
+    );
+    const n = pointer.current + 1;
+    if (n <= 0) {
+      return [Number.NaN, Number.NaN, Number.NaN, Number.NaN, Number.NaN];
+    }
 
-  const std: Record<string, unknown> = {
+    const plusDm = Array<number>(n).fill(0);
+    const minusDm = Array<number>(n).fill(0);
+    const tr = Array<number>(n).fill(Number.NaN);
+
+    for (let i = 0; i < n; i++) {
+      const cur = bars[i];
+      if (!cur) continue;
+      const prev = bars[i - 1];
+      const prevClose = prev?.close ?? cur.high;
+      tr[i] = Math.max(
+        cur.high - cur.low,
+        Math.abs(cur.high - prevClose),
+        Math.abs(cur.low - prevClose),
+      );
+      if (!prev) continue;
+
+      const upMove = cur.high - prev.high;
+      const downMove = prev.low - cur.low;
+      plusDm[i] = upMove > downMove && upMove > 0 ? upMove : 0;
+      minusDm[i] = downMove > upMove && downMove > 0 ? downMove : 0;
+    }
+
+    const trRma = computeRmaSeries(
+      tr.map((v) => (Number.isFinite(v) ? v : 0)),
+      diLength,
+    );
+    const plusRma = computeRmaSeries(plusDm, diLength);
+    const minusRma = computeRmaSeries(minusDm, diLength);
+    const plusDi = Array<number>(n).fill(Number.NaN);
+    const minusDi = Array<number>(n).fill(Number.NaN);
+    const dx = Array<number>(n).fill(Number.NaN);
+
+    for (let i = 0; i < n; i++) {
+      const atrV = trRma[i];
+      const p = plusRma[i];
+      const m = minusRma[i];
+      if (
+        !Number.isFinite(atrV) ||
+        atrV <= 0 ||
+        !Number.isFinite(p) ||
+        !Number.isFinite(m)
+      ) {
+        continue;
+      }
+      plusDi[i] = (100 * p) / atrV;
+      minusDi[i] = (100 * m) / atrV;
+      const denom = plusDi[i] + minusDi[i];
+      dx[i] = denom > 0 ? (100 * Math.abs(plusDi[i] - minusDi[i])) / denom : 0;
+    }
+
+    const adx = computeRmaSeries(
+      dx.map((v) => (Number.isFinite(v) ? v : 0)),
+      adxSmoothing,
+    );
+    const current = n - 1;
+    const adxCurrent = adx[current];
+    return [
+      plusDi[current],
+      minusDi[current],
+      dx[current],
+      adxCurrent,
+      adxCurrent,
+    ];
+  };
+  const computeObvAtCurrent = (): number => {
+    if (pointer.current <= 0) return 0;
+    let total = 0;
+    for (let i = 1; i <= pointer.current; i++) {
+      const cur = bars[i];
+      const prev = bars[i - 1];
+      if (!cur || !prev) return Number.NaN;
+      if (cur.close > prev.close) total += cur.volume;
+      else if (cur.close < prev.close) total -= cur.volume;
+    }
+    return total;
+  };
+
+  std = {
     // Plot family — the transpiler maps `plot()` → `Std.plot()` (see
     // src/mappings/utilities.ts:190), so the runtime's Std must
     // implement these to capture indicator output. The wrapper's
@@ -266,19 +531,26 @@ function buildStd(
     time: () => currentBar()?.time ?? 0,
     time_close: () => (currentBar()?.time ?? 0) + 60_000,
     hour: (...args: unknown[]) =>
-      new Date(resolveTimestampArg(...args)).getUTCHours(),
+      readClockAt(resolveTimestampArg(...args), resolveTimezoneArg(...args))
+        .hour,
     minute: (...args: unknown[]) =>
-      new Date(resolveTimestampArg(...args)).getUTCMinutes(),
+      readClockAt(resolveTimestampArg(...args), resolveTimezoneArg(...args))
+        .minute,
     second: (...args: unknown[]) =>
-      new Date(resolveTimestampArg(...args)).getUTCSeconds(),
+      readClockAt(resolveTimestampArg(...args), resolveTimezoneArg(...args))
+        .second,
     year: (...args: unknown[]) =>
-      new Date(resolveTimestampArg(...args)).getUTCFullYear(),
+      readClockAt(resolveTimestampArg(...args), resolveTimezoneArg(...args))
+        .year,
     month: (...args: unknown[]) =>
-      new Date(resolveTimestampArg(...args)).getUTCMonth() + 1,
+      readClockAt(resolveTimestampArg(...args), resolveTimezoneArg(...args))
+        .month,
     dayofmonth: (...args: unknown[]) =>
-      new Date(resolveTimestampArg(...args)).getUTCDate(),
+      readClockAt(resolveTimestampArg(...args), resolveTimezoneArg(...args))
+        .dayOfMonth,
     dayofweek: (...args: unknown[]) =>
-      new Date(resolveTimestampArg(...args)).getUTCDay() + 1,
+      readClockAt(resolveTimestampArg(...args), resolveTimezoneArg(...args))
+        .dayOfWeek,
 
     // Symbol / interval shims
     period: () => '1',
@@ -426,7 +698,10 @@ function buildStd(
       source: unknown,
       occurrenceRaw: unknown,
     ) => {
-      const occurrence = Math.max(0, Math.trunc(readSeriesValue(occurrenceRaw)));
+      const occurrence = Math.max(
+        0,
+        Math.trunc(readSeriesValue(occurrenceRaw)),
+      );
       if (!Number.isFinite(occurrence)) return Number.NaN;
 
       // Scalar condition can only match the current bar.
@@ -660,11 +935,20 @@ function buildStd(
       return [close, 1];
     },
 
+    // ADX / DMI — deterministic approximations aligned with strict-audit
+    // reference math so parity checks can catch transpiler regressions.
+    adx: (_ctx: unknown, diLength: unknown, adxSmoothing: unknown) => {
+      return computeDmiAtCurrent(diLength, adxSmoothing)[3];
+    },
+    dmi: (_ctx: unknown, diLength: unknown, adxSmoothing: unknown) => {
+      return computeDmiAtCurrent(diLength, adxSmoothing);
+    },
+
     // VWAP — simplified, no rollover tracking
     vwap: (_ctx: unknown, source: unknown) => readSeriesValue(source, 0),
 
-    // OBV — simplified
-    obv: (_ctx: unknown) => 0,
+    // OBV — cumulative directional volume
+    obv: (_ctx: unknown) => computeObvAtCurrent(),
 
     // Pivot detection — mock returns NaN (real Pine returns the pivot
     // value when one is detected; we don't replicate that logic).

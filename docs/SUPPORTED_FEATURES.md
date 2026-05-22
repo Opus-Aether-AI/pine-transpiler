@@ -92,7 +92,7 @@ Same-bar / higher-timeframe bucket-merge passthrough is supported, plus tuple-ex
 
 ## Plot / visual functions
 
-`plot`, `plotshape`, `plotchar`, `plotarrow`, `hline`, `bgcolor`, `fill`, `barcolor` are all runtime-compatible. The first five render directly through TradingView's CustomIndicator plot output. `bgcolor`, `fill`, `barcolor` are tracked in visual-event artifacts; rendering of anything that doesn't lower to a `bg_colorer` plot is the host's responsibility.
+`plot`, `plotshape`, `plotchar`, `plotarrow`, `hline`, `bgcolor`, `fill`, `barcolor` are all runtime-compatible. The first five render directly through chart-host `CustomIndicator` plot output. `bgcolor`, `fill`, `barcolor` are tracked in visual-event artifacts; rendering of anything that doesn't lower to a `bg_colorer` plot is the host's responsibility.
 
 ## What's intentionally out of scope
 

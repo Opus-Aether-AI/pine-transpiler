@@ -1,6 +1,6 @@
 # Forex / XAUUSD Indicator Matrix
 
-Generated: 2026-05-12T18:28:44.554Z
+Generated: 2026-05-22T13:05:58.737Z
 
 Summary: PASS 13 / FAIL 0 (Total 13)
 

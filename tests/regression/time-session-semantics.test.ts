@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
-import { transpileToPineJS } from '../../src/index';
+import { transpileToPineJS, transpileToStandaloneFactory } from '../../src/index';
 import { createMockRuntime } from '../corpus/mock-runtime';
+import { buildInputCallback, stripModuleSyntax } from './standalone-test-utils';
 
 interface RuntimeOverrides {
   hour?: number;
@@ -8,9 +9,12 @@ interface RuntimeOverrides {
   dayOfWeek?: number;
   time?: number;
   barIndexStart?: number;
+  period?: string;
+  removeTimeClose?: boolean;
   symbolRegular?: string;
   symbolPremarket?: string;
   symbolPostmarket?: string;
+  symbolTimezone?: string;
 }
 
 function runOneBar(source: string, overrides: RuntimeOverrides = {}): number[] {
@@ -40,6 +44,12 @@ function runOneBar(source: string, overrides: RuntimeOverrides = {}): number[] {
   if (typeof overrides.dayOfWeek === 'number') {
     std.dayofweek = () => overrides.dayOfWeek as number;
   }
+  if (typeof overrides.period === 'string') {
+    std.period = () => overrides.period as string;
+  }
+  if (overrides.removeTimeClose) {
+    std.time_close = undefined;
+  }
 
   const symbol = runtime.context.symbol as Record<string, unknown>;
   if (typeof overrides.symbolRegular === 'string') {
@@ -51,6 +61,9 @@ function runOneBar(source: string, overrides: RuntimeOverrides = {}): number[] {
   if (typeof overrides.symbolPostmarket === 'string') {
     symbol.session_postmarket = overrides.symbolPostmarket;
   }
+  if (typeof overrides.symbolTimezone === 'string') {
+    symbol.timezone = overrides.symbolTimezone;
+  }
 
   const indicator = result.indicatorFactory(runtime.pineJs);
   const ctor = indicator.constructor as new () => {
@@ -61,6 +74,108 @@ function runOneBar(source: string, overrides: RuntimeOverrides = {}): number[] {
   runtime.resetVarPointer();
   runtime.resetCurrentBarPlots();
   const returned = instance.main(runtime.context, () => 14) as
+    | (unknown[] & { __caughtError?: unknown })
+    | unknown;
+  const caughtError = (
+    returned as { __caughtError?: unknown } | null | undefined
+  )?.__caughtError;
+  if (caughtError !== undefined && caughtError !== null) {
+    throw caughtError instanceof Error
+      ? caughtError
+      : new Error(String(caughtError));
+  }
+  if (returned !== undefined && !Array.isArray(returned)) {
+    throw new Error(
+      `main() returned non-array: ${typeof returned === 'object' ? 'object' : typeof returned}`,
+    );
+  }
+  const factoryPlots = Array.isArray(returned) ? returned : [];
+  const output =
+    factoryPlots.length > 0
+      ? factoryPlots
+      : [...runtime.currentBarPlots, ...factoryPlots];
+  const undefinedSlot = output.findIndex((v) => typeof v === 'undefined');
+  if (undefinedSlot >= 0) {
+    throw new Error(`undefined plot slot at index ${undefinedSlot}`);
+  }
+  return output;
+}
+
+function runOneBarStandalone(
+  source: string,
+  overrides: RuntimeOverrides = {},
+): number[] {
+  const result = transpileToStandaloneFactory(
+    source,
+    'time_session_regression_standalone',
+    'TimeSessionStandalone',
+    { autoBgColorerForBoxes: false },
+  );
+  if (!result.success || !result.factoryCode) {
+    throw new Error(result.error ?? 'standalone transpile failed');
+  }
+
+  const strictModule = `"use strict";\n${stripModuleSyntax(result.factoryCode)}\nreturn createIndicator;`;
+  const createIndicator = new Function(strictModule)() as (
+    pineJs: unknown,
+  ) => {
+    constructor: new () => {
+      main: (ctx: unknown, cb: (index: number) => unknown) => unknown;
+    };
+    metainfo?: {
+      defaults?: { inputs?: Record<string, unknown> };
+      inputs?: Array<{ id: string; defval?: unknown }>;
+    };
+  };
+
+  const runtime = createMockRuntime({
+    barCount: 1,
+    barIndexStart: overrides.barIndexStart,
+  });
+  const std = runtime.pineJs.Std as Record<string, unknown>;
+  if (typeof overrides.time === 'number') {
+    std.time = () => overrides.time as number;
+  }
+  if (typeof overrides.hour === 'number') {
+    std.hour = () => overrides.hour as number;
+  }
+  if (typeof overrides.minute === 'number') {
+    std.minute = () => overrides.minute as number;
+  }
+  if (typeof overrides.dayOfWeek === 'number') {
+    std.dayofweek = () => overrides.dayOfWeek as number;
+  }
+  if (typeof overrides.period === 'string') {
+    std.period = () => overrides.period as string;
+  }
+  if (overrides.removeTimeClose) {
+    std.time_close = undefined;
+  }
+
+  const symbol = runtime.context.symbol as Record<string, unknown>;
+  if (typeof overrides.symbolRegular === 'string') {
+    symbol.session_regular = overrides.symbolRegular;
+  }
+  if (typeof overrides.symbolPremarket === 'string') {
+    symbol.session_premarket = overrides.symbolPremarket;
+  }
+  if (typeof overrides.symbolPostmarket === 'string') {
+    symbol.session_postmarket = overrides.symbolPostmarket;
+  }
+  if (typeof overrides.symbolTimezone === 'string') {
+    symbol.timezone = overrides.symbolTimezone;
+  }
+
+  const indicator = createIndicator(runtime.pineJs);
+  const ctor = indicator.constructor as new () => {
+    main: (ctx: unknown, cb: (index: number) => unknown) => unknown;
+  };
+  const instance = new ctor();
+  const inputCallback = buildInputCallback(indicator);
+
+  runtime.resetVarPointer();
+  runtime.resetCurrentBarPlots();
+  const returned = instance.main(runtime.context, inputCallback) as
     | (unknown[] & { __caughtError?: unknown })
     | unknown;
   const caughtError = (
@@ -168,6 +283,36 @@ plot(session.ismarket ? 1 : 0)
     expect(outSessionDay[0]).toBe(0);
   });
 
+  it('anchors overnight day filters to the session start day', () => {
+    const source = `//@version=5
+indicator("session-overnight-day-anchor")
+plot(session.ismarket ? 1 : 0)
+`;
+
+    const mondayLate = runOneBar(source, {
+      hour: 23,
+      minute: 0,
+      dayOfWeek: 2, // Monday
+      symbolRegular: '2200-0200:2',
+    });
+    const tuesdayEarly = runOneBar(source, {
+      hour: 1,
+      minute: 30,
+      dayOfWeek: 3, // Tuesday, still Monday overnight session
+      symbolRegular: '2200-0200:2',
+    });
+    const tuesdayLate = runOneBar(source, {
+      hour: 23,
+      minute: 0,
+      dayOfWeek: 3, // Tuesday start, not in Monday-only session
+      symbolRegular: '2200-0200:2',
+    });
+
+    expect(mondayLate[0]).toBe(1);
+    expect(tuesdayEarly[0]).toBe(1);
+    expect(tuesdayLate[0]).toBe(0);
+  });
+
   it('binds `time`, `time_close`, and `time_tradingday` coherently', () => {
     const source = `//@version=5
 indicator("time-bindings")
@@ -180,6 +325,37 @@ plot(time_tradingday > time ? 1 : 0)
     expect(plots[0]).toBe(60_000);
     expect(plots[1]).toBe(1);
     expect(plots[2]).toBe(0);
+  });
+
+  it('uses chart timeframe as `time_close` fallback when host `Std.time_close` is absent', () => {
+    const source = `//@version=5
+indicator("time-close-fallback")
+plot(time_close - time)
+`;
+    const plots = runOneBar(source, {
+      time: Date.UTC(2024, 0, 2, 10, 0, 0),
+      period: '5',
+      removeTimeClose: true,
+    });
+    expect(plots[0]).toBe(300_000);
+  });
+
+  it('anchors `time_tradingday` to exchange-timezone midnight across DST offsets', () => {
+    const source = `//@version=5
+indicator("time-tradingday-dst")
+plot(time_tradingday)
+`;
+    const winter = runOneBar(source, {
+      time: Date.UTC(2024, 0, 2, 15, 0, 0), // 10:00 New York (EST)
+      symbolTimezone: 'America/New_York',
+    });
+    const summer = runOneBar(source, {
+      time: Date.UTC(2024, 6, 2, 14, 0, 0), // 10:00 New York (EDT)
+      symbolTimezone: 'America/New_York',
+    });
+
+    expect(winter[0]).toBe(Date.UTC(2024, 0, 2, 5, 0, 0)); // midnight EST
+    expect(summer[0]).toBe(Date.UTC(2024, 6, 2, 4, 0, 0)); // midnight EDT
   });
 
   it('treats `time(..., bars_back=1)` as `na` on the first bar', () => {
@@ -211,6 +387,31 @@ plot(na(time("", "0930-1000:1234567", "GMT+0")) ? 0 : 1)
 
     expect(inSession[0]).toBe(1);
     expect(outSession[0]).toBe(0);
+  });
+
+  it('keeps timezone-window matching stable across DST season offsets', () => {
+    const source = `//@version=6
+indicator("time-session-dst-window")
+plot(na(time("", "0930-1000:1234567", "America/New_York")) ? 0 : 1)
+`;
+
+    const winterIn = runOneBar(source, {
+      time: Date.UTC(2024, 0, 2, 14, 45, 0), // 09:45 EST
+    });
+    const winterOut = runOneBar(source, {
+      time: Date.UTC(2024, 0, 2, 14, 15, 0), // 09:15 EST
+    });
+    const summerIn = runOneBar(source, {
+      time: Date.UTC(2024, 6, 2, 13, 45, 0), // 09:45 EDT
+    });
+    const summerOut = runOneBar(source, {
+      time: Date.UTC(2024, 6, 2, 13, 15, 0), // 09:15 EDT
+    });
+
+    expect(winterIn[0]).toBe(1);
+    expect(winterOut[0]).toBe(0);
+    expect(summerIn[0]).toBe(1);
+    expect(summerOut[0]).toBe(0);
   });
 
   it('treats bars_back history as unavailable on first processed bar even with high absolute bar_index', () => {
@@ -316,5 +517,29 @@ plot(session.ismarket and not session.ispostmarket ? 1 : 0)
     expect(plots.length).toBe(2);
     expect(plots[0]).toBe(1);
     expect(plots[1]).toBe(1);
+  });
+
+  it('keeps runtime and standalone aligned for timezone-aware session/time outputs', () => {
+    const source = `//@version=6
+indicator("session-time-standalone-parity")
+plot(session.ismarket ? 1 : 0)
+plot(na(time("", "0930-1000:1234567", "America/New_York")) ? 0 : 1)
+plot(time - time_tradingday)
+`;
+    const winterOverrides: RuntimeOverrides = {
+      time: Date.UTC(2024, 0, 2, 14, 45, 0), // 09:45 EST
+      symbolTimezone: 'America/New_York',
+    };
+    const summerOverrides: RuntimeOverrides = {
+      time: Date.UTC(2024, 6, 2, 13, 45, 0), // 09:45 EDT
+      symbolTimezone: 'America/New_York',
+    };
+
+    expect(runOneBarStandalone(source, winterOverrides)).toEqual(
+      runOneBar(source, winterOverrides),
+    );
+    expect(runOneBarStandalone(source, summerOverrides)).toEqual(
+      runOneBar(source, summerOverrides),
+    );
   });
 });

@@ -22,7 +22,7 @@ All exports from `@opus-aether-ai/pine-transpiler`. For a high-level walkthrough
 
 ### `transpileToPineJS`
 
-Transpile Pine Script to a TradingView `CustomIndicator` factory. The indicator runtime is compiled with `new Function(...)` when the factory is instantiated. Use this for local development or any environment where `unsafe-eval` is allowed (most chart hosts).
+Transpile Pine Script to a chart-host `CustomIndicator` factory. The indicator runtime is compiled with `new Function(...)` when the factory is instantiated. Use this for local development or any environment where `unsafe-eval` is allowed (most chart hosts).
 
 ```typescript
 function transpileToPineJS(
@@ -159,7 +159,7 @@ if (!report.pass) {
 }
 ```
 
-Use this when you want to catch chart-host breakages **before** webapp integration — non-constructable constructors, missing `metainfo.styles[plot.id]`, undefined plot slots, reducer crashes against TradingView-shaped runtime.
+Use this when you want to catch chart-host breakages **before** webapp integration — non-constructable constructors, missing `metainfo.styles[plot.id]`, undefined plot slots, reducer crashes against host-runtime-shaped reducer paths.
 
 ---
 

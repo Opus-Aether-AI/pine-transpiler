@@ -20,7 +20,10 @@ function runOneBar(source: string): number[] {
   return output.values;
 }
 
-function runOneBarWithMeta(source: string): {
+function runOneBarWithMeta(
+  source: string,
+  periodOverride?: string,
+): {
   values: number[];
   diagnostics: RuntimeDiagnostic[];
   diagnosticsVersion?: number;
@@ -31,7 +34,18 @@ function runOneBarWithMeta(source: string): {
   }
 
   const runtime = createMockRuntime({ barCount: 5 });
-  const indicator = result.indicatorFactory(runtime.pineJs);
+  const std =
+    typeof periodOverride === 'string' && periodOverride.length > 0
+      ? (new Proxy(runtime.pineJs.Std as Record<string, unknown>, {
+          get(target, prop, receiver) {
+            if (prop === 'period') return () => periodOverride;
+            return Reflect.get(target, prop, receiver);
+          },
+        }) as never)
+      : runtime.pineJs;
+  const indicator = result.indicatorFactory(
+    std === runtime.pineJs ? runtime.pineJs : ({ Std: std } as never),
+  );
   const ctor = indicator.constructor as new () => {
     main: (ctx: unknown, cb: (index: number) => number) => unknown;
   };
@@ -75,14 +89,25 @@ function runOneBarWithMeta(source: string): {
   };
 }
 
-function runBars(source: string, bars = 6): number[][] {
+function runBars(source: string, bars = 6, periodOverride?: string): number[][] {
   const result = transpileToPineJS(source, 'request_security_regression', 'Req');
   if (!result.success || !result.indicatorFactory) {
     throw new Error(result.error ?? 'transpile failed');
   }
 
   const runtime = createMockRuntime({ barCount: bars });
-  const indicator = result.indicatorFactory(runtime.pineJs);
+  const std =
+    typeof periodOverride === 'string' && periodOverride.length > 0
+      ? (new Proxy(runtime.pineJs.Std as Record<string, unknown>, {
+          get(target, prop, receiver) {
+            if (prop === 'period') return () => periodOverride;
+            return Reflect.get(target, prop, receiver);
+          },
+        }) as never)
+      : runtime.pineJs;
+  const indicator = result.indicatorFactory(
+    std === runtime.pineJs ? runtime.pineJs : ({ Std: std } as never),
+  );
   const ctor = indicator.constructor as new () => {
     main: (ctx: unknown, cb: (index: number) => number) => unknown;
   };
@@ -299,10 +324,10 @@ plot(bOpen)
     }
   });
 
-  it('emits diagnostics when lookahead_off close-bar alignment is approximate on non-integral timeframe ratios', () => {
+  it('emits diagnostics when lookahead_off close-bar alignment is approximate on calendar-unit timeframes', () => {
     const source = `//@version=5
 indicator("req approx align diag")
-v = request.security(syminfo.tickerid, "15", close, barmerge.gaps_off, barmerge.lookahead_off)
+v = request.security(syminfo.tickerid, "W", close, barmerge.gaps_off, barmerge.lookahead_off)
 plot(v)
 `;
     const result = transpileToPineJS(source, 'request_security_regression', 'Req');
@@ -315,7 +340,7 @@ plot(v)
       runtime.pineJs.Std as Record<string, unknown>,
       {
         get(target, prop, receiver) {
-          if (prop === 'period') return () => '7';
+          if (prop === 'period') return () => 'D';
           return Reflect.get(target, prop, receiver);
         },
       },
@@ -341,5 +366,78 @@ plot(v)
         (d) => d.code === 'request.security/approximate-bucket-alignment',
       ),
     ).toBe(true);
+  });
+
+  it('keeps non-integral fixed-unit merge timing distinct between lookahead modes', () => {
+    const source = `//@version=5
+indicator("req approx merge behavior")
+vClose = request.security(syminfo.tickerid, "15", close, barmerge.gaps_on, barmerge.lookahead_off)
+vOpen = request.security(syminfo.tickerid, "15", close, barmerge.gaps_on, barmerge.lookahead_on)
+plot(vClose)
+plot(vOpen)
+`;
+    const rows = runBars(source, 50, '7');
+    const closeSeries = rows.map((r) => r[0] as number);
+    const openSeries = rows.map((r) => r[1] as number);
+    const closeOnlyCount = rows.filter(
+      (r) => Number.isFinite(r[0] as number) && Number.isNaN(r[1] as number),
+    ).length;
+    const openOnlyCount = rows.filter(
+      (r) => Number.isNaN(r[0] as number) && Number.isFinite(r[1] as number),
+    ).length;
+    expect(closeOnlyCount).toBeGreaterThan(0);
+    expect(openOnlyCount).toBeGreaterThan(0);
+    expect(closeSeries.some((v) => Number.isFinite(v))).toBe(true);
+    expect(openSeries.some((v) => Number.isFinite(v))).toBe(true);
+  });
+
+  it('does not flag approximate alignment for fixed-unit non-integral ratios', () => {
+    const source = `//@version=5
+indicator("req non-integral fixed ratio")
+vClose = request.security(syminfo.tickerid, "90", close, barmerge.gaps_on, barmerge.lookahead_off)
+vOpen = request.security(syminfo.tickerid, "90", close, barmerge.gaps_on, barmerge.lookahead_on)
+plot(vClose)
+plot(vOpen)
+`;
+    const { diagnostics } = runOneBarWithMeta(source, '40');
+    expect(
+      diagnostics.some(
+        (d) => d.code === 'request.security/approximate-bucket-alignment',
+      ),
+    ).toBe(false);
+
+    const rows = runBars(source, 60, '40');
+    const closeOnlyCount = rows.filter(
+      (r) => Number.isFinite(r[0] as number) && Number.isNaN(r[1] as number),
+    ).length;
+    const openOnlyCount = rows.filter(
+      (r) => Number.isNaN(r[0] as number) && Number.isFinite(r[1] as number),
+    ).length;
+    expect(closeOnlyCount).toBeGreaterThan(0);
+    expect(openOnlyCount).toBeGreaterThan(0);
+  });
+
+  it('keeps tuple mixed-state requests consistent with scalar decomposition', () => {
+    const source = `//@version=5
+indicator("req tuple mixed state")
+[a, b] = request.security(syminfo.tickerid, "15", [ta.sma(close, 14), close], barmerge.gaps_off, barmerge.lookahead_off)
+a2 = request.security(syminfo.tickerid, "15", ta.sma(close, 14), barmerge.gaps_off, barmerge.lookahead_off)
+b2 = request.security(syminfo.tickerid, "15", close, barmerge.gaps_off, barmerge.lookahead_off)
+plot(a)
+plot(b)
+plot(a2)
+plot(b2)
+`;
+    const rows = runBars(source, 80);
+    for (const row of rows) {
+      const a = row[0] as number;
+      const b = row[1] as number;
+      const a2 = row[2] as number;
+      const b2 = row[3] as number;
+      const same = (left: number, right: number) =>
+        left === right || (Number.isNaN(left) && Number.isNaN(right));
+      expect(same(a, a2)).toBe(true);
+      expect(same(b, b2)).toBe(true);
+    }
   });
 });
