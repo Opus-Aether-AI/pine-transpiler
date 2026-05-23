@@ -36,6 +36,55 @@ import {
 } from './generator-utils';
 import { HelperUsage } from './helper-usage';
 
+export interface UnimplementedPineFunctionErrorOptions {
+  pineFunction: string;
+  line?: number;
+  column?: number;
+  supportedFunctions: string[];
+  namespaceLabel: string;
+}
+
+export class UnimplementedPineFunctionError extends Error {
+  public readonly pineFunction: string;
+  public readonly line?: number;
+  public readonly column?: number;
+  public readonly supportedFunctions: string[];
+  public readonly namespaceLabel: string;
+
+  constructor(options: UnimplementedPineFunctionErrorOptions) {
+    const { pineFunction, line, column, supportedFunctions, namespaceLabel } =
+      options;
+    const previewCount = 18;
+    const visible = supportedFunctions.slice(0, previewCount);
+    const truncatedCount = Math.max(
+      0,
+      supportedFunctions.length - visible.length,
+    );
+    const supportedPreview =
+      truncatedCount > 0
+        ? `${visible.join(', ')}, ... (+${truncatedCount} more)`
+        : visible.join(', ');
+    const locationText =
+      typeof line === 'number' && typeof column === 'number'
+        ? `Location: line ${line}, column ${column}`
+        : 'Location: unknown';
+    super(
+      [
+        `Pine function \`${pineFunction}\` is not implemented.`,
+        `Supported \`${namespaceLabel}\`: ${supportedPreview || '<none>'}`,
+        'See docs/SUPPORTED_FEATURES.md',
+        locationText,
+      ].join('\n'),
+    );
+    this.name = 'UnimplementedPineFunctionError';
+    this.pineFunction = pineFunction;
+    this.line = line;
+    this.column = column;
+    this.supportedFunctions = supportedFunctions;
+    this.namespaceLabel = namespaceLabel;
+  }
+}
+
 /**
  * A Pine call argument written as `name=value` parses to an
  * AssignmentExpression with an Identifier on the left and operator `=`.
@@ -315,6 +364,47 @@ const IMPLICIT_SERIES_BY_TA_CALL: Record<string, string> = {
   'ta.lowestbars': 'context.new_var(low)',
 };
 
+const STD_PLUS_POLYFILL_FUNCTIONS = new Set([
+  'bb',
+  'bbw',
+  'kc',
+  'kcw',
+  'hma',
+  'mom',
+  'vwap',
+  'crossover',
+  'crossunder',
+  'macd',
+  'rsi',
+  'wpr',
+  'cmo',
+  'ao',
+  'cleanup',
+]);
+
+const TA_FUNCTION_KEYS = new Set<string>([
+  ...Object.keys(TA_FUNCTION_MAPPINGS),
+  ...Object.keys(MULTI_OUTPUT_MAPPINGS).filter((name) =>
+    name.startsWith('ta.'),
+  ),
+]);
+const MATH_FUNCTION_KEYS = new Set<string>(Object.keys(MATH_FUNCTION_MAPPINGS));
+const TIME_FUNCTION_KEYS = new Set<string>(Object.keys(TIME_FUNCTION_MAPPINGS));
+
+const TA_SUPPORTED_FOR_ERROR = [...TA_FUNCTION_KEYS].sort((a, b) =>
+  a.localeCompare(b),
+);
+const MATH_SUPPORTED_FOR_ERROR = [...MATH_FUNCTION_KEYS].sort((a, b) =>
+  a.localeCompare(b),
+);
+const TIME_SUPPORTED_FOR_ERROR = [...TIME_FUNCTION_KEYS].sort((a, b) =>
+  a.localeCompare(b),
+);
+
+export interface ExpressionGeneratorOptions {
+  allowUnimplemented?: boolean;
+}
+
 /**
  * Interface for expression generation, used for dependency injection.
  */
@@ -365,6 +455,7 @@ buildUnifiedFunctionMap();
 export class ExpressionGenerator implements ExpressionGeneratorInterface {
   private indentLevel = 0;
   private statementGen: StatementGeneratorLike | null = null;
+  private readonly allowUnimplemented: boolean;
   private persistentScopes: Array<
     Map<string, { kind: 'var' | 'varip'; keyExpr: string }>
   > = [new Map()];
@@ -379,8 +470,12 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
    */
   public readonly helperUsage: HelperUsage;
 
-  constructor(helperUsage: HelperUsage = new HelperUsage()) {
+  constructor(
+    helperUsage: HelperUsage = new HelperUsage(),
+    options: ExpressionGeneratorOptions = {},
+  ) {
     this.helperUsage = helperUsage;
+    this.allowUnimplemented = options.allowUnimplemented === true;
   }
 
   public setIndentLevel(level: number): void {
@@ -480,7 +575,8 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
 
   private generateCallExpression(expr: CallExpression): string {
     let callee = this.generateExpression(expr.callee as Expression);
-    const pineCallee = callee;
+    const pineCallee =
+      this.resolvePineCallee(expr.callee as Expression) ?? callee;
     const normalizedArgs = this.normalizeCallArguments(
       pineCallee,
       expr.arguments,
@@ -502,7 +598,13 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
     );
     const args = runtimeArgExprs.map((a) => this.generateExpression(a));
 
-    const mapping = UNIFIED_FUNCTION_MAP.get(callee);
+    const mapping = UNIFIED_FUNCTION_MAP.get(pineCallee);
+
+    if (!mapping && this.shouldGateBuiltinCall(pineCallee)) {
+      if (!this.allowUnimplemented) {
+        throw this.buildUnimplementedPineFunctionError(pineCallee, expr);
+      }
+    }
 
     if (mapping) {
       callee = mapping.stdName || mapping.jsName || callee;
@@ -524,6 +626,154 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
     }
 
     return `${callee}(${args.join(', ')})`;
+  }
+
+  private resolvePineCallee(expr: Expression): string | null {
+    if (expr.type === 'Identifier') return expr.name;
+    if (!('type' in expr)) return null;
+    if (expr.type !== 'MemberExpression') return null;
+    if (expr.computed) return null;
+    if (expr.property.type !== 'Identifier') return null;
+    const object = this.resolvePineCallee(expr.object);
+    if (!object) return null;
+    return `${object}.${expr.property.name}`;
+  }
+
+  private shouldGateBuiltinCall(pineCallee: string): boolean {
+    if (TA_FUNCTION_KEYS.has(pineCallee)) return false;
+    if (MATH_FUNCTION_KEYS.has(pineCallee)) return false;
+    if (TIME_FUNCTION_KEYS.has(pineCallee)) return false;
+
+    if (pineCallee.startsWith('ta.')) return true;
+    if (pineCallee.startsWith('math.')) return true;
+    if (pineCallee === 'time') return true;
+    if (pineCallee.startsWith('time.')) return true;
+    if (pineCallee.startsWith('timeframe.')) return true;
+    if (pineCallee.startsWith('session.')) return true;
+
+    if (pineCallee.startsWith('StdPlus.')) {
+      const name = pineCallee.slice('StdPlus.'.length);
+      return !STD_PLUS_POLYFILL_FUNCTIONS.has(name);
+    }
+
+    return false;
+  }
+
+  private buildUnimplementedPineFunctionError(
+    pineCallee: string,
+    callExpr: CallExpression,
+  ): UnimplementedPineFunctionError {
+    const loc = this.getBestEffortLocation(callExpr.callee as Expression) ?? {
+      line: undefined,
+      column: undefined,
+    };
+    if (pineCallee.startsWith('ta.')) {
+      return new UnimplementedPineFunctionError({
+        pineFunction: pineCallee,
+        line: loc.line,
+        column: loc.column,
+        supportedFunctions: TA_SUPPORTED_FOR_ERROR,
+        namespaceLabel: 'ta.*',
+      });
+    }
+    if (pineCallee.startsWith('math.')) {
+      return new UnimplementedPineFunctionError({
+        pineFunction: pineCallee,
+        line: loc.line,
+        column: loc.column,
+        supportedFunctions: MATH_SUPPORTED_FOR_ERROR,
+        namespaceLabel: 'math.*',
+      });
+    }
+    if (
+      pineCallee === 'time' ||
+      pineCallee.startsWith('time.') ||
+      pineCallee.startsWith('timeframe.') ||
+      pineCallee.startsWith('session.')
+    ) {
+      return new UnimplementedPineFunctionError({
+        pineFunction: pineCallee,
+        line: loc.line,
+        column: loc.column,
+        supportedFunctions: TIME_SUPPORTED_FOR_ERROR,
+        namespaceLabel: 'time/session/timeframe',
+      });
+    }
+
+    const stdPlusSupported = [...STD_PLUS_POLYFILL_FUNCTIONS]
+      .map((name) => `StdPlus.${name}`)
+      .sort((a, b) => a.localeCompare(b));
+    return new UnimplementedPineFunctionError({
+      pineFunction: pineCallee,
+      line: loc.line,
+      column: loc.column,
+      supportedFunctions: stdPlusSupported,
+      namespaceLabel: 'StdPlus.*',
+    });
+  }
+
+  private getBestEffortLocation(
+    expr: Expression,
+  ): { line?: number; column?: number } | null {
+    if (
+      expr.loc &&
+      typeof expr.loc.start.line === 'number' &&
+      typeof expr.loc.start.column === 'number'
+    ) {
+      return { line: expr.loc.start.line, column: expr.loc.start.column };
+    }
+
+    if (expr.type === 'MemberExpression') {
+      const objectLoc = this.getBestEffortLocation(expr.object);
+      if (objectLoc) return objectLoc;
+      if (expr.property.type === 'Identifier') {
+        return this.getBestEffortLocation(expr.property);
+      }
+      return this.getBestEffortLocation(expr.property as Expression);
+    }
+
+    if (expr.type === 'CallExpression') {
+      return this.getBestEffortLocation(expr.callee as Expression);
+    }
+
+    if (expr.type === 'AssignmentExpression') {
+      if (!Array.isArray(expr.left) && expr.left.type === 'Identifier') {
+        const leftLoc = this.getBestEffortLocation(expr.left);
+        if (leftLoc) return leftLoc;
+      } else if (
+        !Array.isArray(expr.left) &&
+        expr.left.type === 'MemberExpression'
+      ) {
+        const leftLoc = this.getBestEffortLocation(expr.left);
+        if (leftLoc) return leftLoc;
+      }
+      return this.getBestEffortLocation(expr.right);
+    }
+
+    if (expr.type === 'BinaryExpression') {
+      return (
+        this.getBestEffortLocation(expr.left) ??
+        this.getBestEffortLocation(expr.right)
+      );
+    }
+    if (expr.type === 'UnaryExpression') {
+      return this.getBestEffortLocation(expr.argument);
+    }
+    if (expr.type === 'ConditionalExpression') {
+      return (
+        this.getBestEffortLocation(expr.test) ??
+        this.getBestEffortLocation(expr.consequent) ??
+        this.getBestEffortLocation(expr.alternate)
+      );
+    }
+    if (expr.type === 'ArrayExpression') {
+      for (const element of expr.elements) {
+        const loc = this.getBestEffortLocation(element);
+        if (loc) return loc;
+      }
+      return null;
+    }
+    return null;
   }
 
   /**

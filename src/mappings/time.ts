@@ -105,6 +105,16 @@ export const RESOLUTION_MAPPINGS: Record<string, TimeFunctionMapping> = {
     needsContext: true,
     description: 'Timeframe multiplier',
   },
+  'timeframe.in_seconds': {
+    stdName: 'timeframe.in_seconds',
+    needsContext: false,
+    description: 'Timeframe (or provided resolution) in seconds',
+  },
+  'timeframe.change': {
+    stdName: 'timeframe.change',
+    needsContext: false,
+    description: 'True when the specified timeframe changes',
+  },
 };
 
 // ============================================================================

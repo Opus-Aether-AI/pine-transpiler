@@ -38,6 +38,12 @@ Named-arg order is normalized to canonical positional, so the runtime mock binds
 
 ## Standard library
 
+### Strict std-call gate
+
+By default, transpilation now hard-fails when a Pine builtin call in mapped namespaces (`ta.*`, `math.*`, `time/session/timeframe`, `StdPlus.*`) does not resolve to a registered mapping/polyfill. The error is emitted at transpile time with source location and a supported-function preview, instead of silently emitting a runtime-broken call.
+
+Legacy best-effort behavior is still available by setting `allowUnimplemented: true` in `TranspileOptions`.
+
 ### Technical analysis (`ta.*`)
 
 | Category | Functions |

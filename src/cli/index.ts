@@ -5,7 +5,12 @@
  * Command-line interface for transpiling Pine Script to JavaScript/PineJS format.
  */
 
-import { commandInfo, commandTranspile, commandValidate } from './commands';
+import {
+  commandCheck,
+  commandInfo,
+  commandTranspile,
+  commandValidate,
+} from './commands';
 import { getHelpText, getVersion, parseArguments } from './utils';
 
 /**
@@ -15,12 +20,12 @@ function main(): void {
   const { command, file, options } = parseArguments();
 
   if (options.version) {
-    console.log(`pine-transpiler v${getVersion()}`);
+    process.stdout.write(`pine-transpiler v${getVersion()}\n`);
     process.exit(0);
   }
 
   if (options.help || !command) {
-    console.log(getHelpText());
+    process.stdout.write(getHelpText());
     process.exit(0);
   }
 
@@ -31,12 +36,15 @@ function main(): void {
     case 'validate':
       commandValidate(file, options);
       break;
+    case 'check':
+      commandCheck(file, options);
+      break;
     case 'info':
       commandInfo();
       break;
     default:
-      console.error(`Error: Unknown command '${command}'`);
-      console.log(getHelpText());
+      process.stderr.write(`Error: Unknown command '${command}'\n`);
+      process.stdout.write(getHelpText());
       process.exit(1);
   }
 }

@@ -4,6 +4,12 @@ This document describes unsupported and partially supported Pine features in the
 
 ## Unsupported Features
 
+### Unmapped std functions in mapped namespaces
+
+Calls under `ta.*`, `math.*`, `time/session/timeframe`, and `StdPlus.*` that do not exist in the mapping/polyfill registries are now treated as hard transpile errors by default (with source line/column in the error message).
+
+If you explicitly need legacy best-effort emit semantics, pass `allowUnimplemented: true` in `TranspileOptions`.
+
 ### External `request.*` APIs
 
 Only `request.security` has subset support. The following remain unsupported:

@@ -16,8 +16,8 @@ export function commandValidate(
   _options: CLIOptions,
 ): void {
   if (!file) {
-    console.error('Error: No input file specified');
-    console.error('Usage: pine-transpiler validate <file>');
+    process.stderr.write('Error: No input file specified\n');
+    process.stderr.write('Usage: pine-transpiler validate <file>\n');
     process.exit(1);
   }
 
@@ -25,11 +25,11 @@ export function commandValidate(
   const result = canTranspilePineScript(code);
 
   if (result.valid) {
-    console.log(`✓ ${file} is valid Pine Script`);
+    process.stdout.write(`✓ ${file} is valid Pine Script\n`);
     process.exit(0);
   } else {
-    console.error(`✗ ${file} has syntax errors:`);
-    console.error(`  ${result.reason}`);
+    process.stderr.write(`✗ ${file} has syntax errors:\n`);
+    process.stderr.write(`  ${result.reason}\n`);
     process.exit(1);
   }
 }

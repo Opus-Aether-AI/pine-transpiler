@@ -14,6 +14,7 @@
  */
 
 import { buildIndicatorFactory, generateStandaloneFactory } from './factory';
+import type { PineSourceMapEntry } from './generator';
 import { ASTGenerator } from './generator/ast-generator';
 import { HelperUsage } from './generator/helper-usage';
 import { MetadataVisitor } from './generator/metadata-visitor';
@@ -71,9 +72,20 @@ export function generateBody(
   ast: Program,
   historicalAccess: Set<string>,
   helperUsage?: HelperUsage,
+  options?: {
+    allowUnimplemented?: boolean;
+    pineSourceMapOut?: PineSourceMapEntry[];
+  },
 ): string {
-  const generator = new ASTGenerator(historicalAccess, helperUsage);
-  return generator.generate(ast);
+  const generator = new ASTGenerator(historicalAccess, helperUsage, {
+    allowUnimplemented: options?.allowUnimplemented === true,
+  });
+  const body = generator.generate(ast);
+  if (options?.pineSourceMapOut) {
+    options.pineSourceMapOut.length = 0;
+    options.pineSourceMapOut.push(...generator.getPineSourceMap());
+  }
+  return body;
 }
 
 /**
@@ -94,6 +106,8 @@ export function buildFactory(
     helperUsage?: HelperUsage;
     autoBgColorerForBoxes?: boolean;
     includeStandaloneFields?: boolean;
+    pineSourceMap?: PineSourceMapEntry[];
+    sourceLines?: string[];
   },
 ): IndicatorFactory {
   return buildIndicatorFactory({
@@ -110,6 +124,8 @@ export function buildFactory(
     mainBody,
     helperUsage: options.helperUsage?.toRecord(),
     autoBgColorerForBoxes: options.autoBgColorerForBoxes ?? false,
+    pineSourceMap: options.pineSourceMap,
+    sourceLines: options.sourceLines,
     ...(options.includeStandaloneFields
       ? {
           sessionVariables: metadata.sessionVariables,
@@ -135,6 +151,9 @@ export function buildStandaloneFactoryCode(
     indicatorName?: string;
     autoBgColorerForBoxes?: boolean;
     ast?: Program;
+    allowUnimplemented?: boolean;
+    pineSourceMap?: PineSourceMapEntry[];
+    sourceLines?: string[];
   },
 ): string {
   return generateStandaloneFactory({
@@ -156,6 +175,9 @@ export function buildStandaloneFactoryCode(
     computedVariables: metadata.computedVariables,
     inputVariableMap: metadata.inputVariableMap,
     programAst: options.ast,
+    allowUnimplemented: options.allowUnimplemented === true,
+    pineSourceMap: options.pineSourceMap,
+    sourceLines: options.sourceLines,
   });
 }
 
@@ -164,6 +186,7 @@ export interface CompileResult {
   metadata: MetadataVisitor;
   mainBody: string;
   helperUsage: HelperUsage;
+  pineSourceMap: PineSourceMapEntry[];
   factory: IndicatorFactory;
 }
 
@@ -179,15 +202,22 @@ export function compile(
     indicatorName?: string;
     autoBgColorerForBoxes?: boolean;
     includeStandaloneFields?: boolean;
+    allowUnimplemented?: boolean;
   },
 ): CompileResult {
   const ast = parse(code);
   const metadata = extractMetadata(ast);
   const helperUsage = new HelperUsage();
-  const mainBody = generateBody(ast, metadata.historicalAccess, helperUsage);
+  const pineSourceMap: PineSourceMapEntry[] = [];
+  const mainBody = generateBody(ast, metadata.historicalAccess, helperUsage, {
+    allowUnimplemented: options.allowUnimplemented === true,
+    pineSourceMapOut: pineSourceMap,
+  });
   const factory = buildFactory(metadata, mainBody, {
     ...options,
     helperUsage,
+    pineSourceMap,
+    sourceLines: code.split('\n'),
   });
-  return { ast, metadata, mainBody, helperUsage, factory };
+  return { ast, metadata, mainBody, helperUsage, pineSourceMap, factory };
 }

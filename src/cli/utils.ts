@@ -48,6 +48,7 @@ USAGE:
 COMMANDS:
   transpile <file>   Transpile a Pine Script file to JavaScript
   validate <file>    Validate Pine Script syntax without transpiling
+  check <file>       Run pre-flight compatibility checks (parse/transpile/runtime)
   info               Show supported features and mapping statistics
 
 OPTIONS:
@@ -70,6 +71,10 @@ EXAMPLES:
 
   # Validate syntax
   pine-transpiler validate script.pine
+
+  # Pre-flight script compatibility report
+  pine-transpiler check script.pine
+  pine-transpiler check script.pine --format json
 
   # Show supported features
   pine-transpiler info
@@ -108,7 +113,7 @@ export function parseArguments(): ParsedArgs {
 export function readInput(filePath: string): string {
   const resolvedPath = resolve(filePath);
   if (!existsSync(resolvedPath)) {
-    console.error(`Error: File not found: ${filePath}`);
+    process.stderr.write(`Error: File not found: ${filePath}\n`);
     process.exit(1);
   }
   return readFileSync(resolvedPath, 'utf-8');
@@ -120,9 +125,9 @@ export function readInput(filePath: string): string {
 export function writeOutput(content: string, outputPath?: string): void {
   if (outputPath) {
     writeFileSync(resolve(outputPath), content, 'utf-8');
-    console.error(`Written to: ${outputPath}`);
+    process.stderr.write(`Written to: ${outputPath}\n`);
   } else {
-    console.log(content);
+    process.stdout.write(content.endsWith('\n') ? content : `${content}\n`);
   }
 }
 

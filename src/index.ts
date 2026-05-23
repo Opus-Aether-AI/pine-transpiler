@@ -9,6 +9,7 @@
 
 import { withCspEvalHint } from './csp-errors';
 import { attachPineJsBody, generateStandaloneFactory } from './factory';
+import type { PineSourceMapEntry } from './generator';
 import { HelperUsage } from './generator/helper-usage';
 import {
   getAllPineFunctionNames,
@@ -38,6 +39,7 @@ import type {
   ParsedInput,
   ParsedPlot,
   ParsedVariable,
+  PineRuntimeError,
   TAFunctionMapping,
   TimeFunctionMapping,
   TranspilerRuntimeError,
@@ -59,6 +61,7 @@ export type {
   ParsedInput,
   ParsedPlot,
   ParsedVariable,
+  PineRuntimeError,
   TAFunctionMapping,
   TimeFunctionMapping,
   TranspilerRuntimeError,
@@ -126,6 +129,15 @@ export interface TranspileOptions {
    * bg_colorer plot".
    */
   autoBgColorerForBoxes?: boolean;
+  /**
+   * When false (default), calls to known Pine std namespaces
+   * (`ta.*`, `math.*`, `time/session/timeframe` families) that do not
+   * resolve to a mapping/polyfill raise a transpile-time error.
+   *
+   * Set to true for legacy best-effort emit mode where unknown calls
+   * are left as-is in generated JS.
+   */
+  allowUnimplemented?: boolean;
 }
 
 /**
@@ -147,6 +159,7 @@ export function transpileToPineJS(
       indicatorId,
       indicatorName,
       autoBgColorerForBoxes: options?.autoBgColorerForBoxes ?? false,
+      allowUnimplemented: options?.allowUnimplemented ?? false,
     });
     return { success: true, indicatorFactory: factory };
   } catch (error) {
@@ -173,12 +186,19 @@ export function transpileToStandaloneFactory(
   try {
     const ast = parse(code);
     const metadata = extractMetadata(ast);
-    const mainBody = generateBody(ast, metadata.historicalAccess);
+    const pineSourceMap: PineSourceMapEntry[] = [];
+    const mainBody = generateBody(ast, metadata.historicalAccess, undefined, {
+      allowUnimplemented: options?.allowUnimplemented ?? false,
+      pineSourceMapOut: pineSourceMap,
+    });
     const factoryCode = buildStandaloneFactoryCode(metadata, mainBody, {
       indicatorId,
       indicatorName,
       autoBgColorerForBoxes: options?.autoBgColorerForBoxes ?? false,
       ast,
+      allowUnimplemented: options?.allowUnimplemented ?? false,
+      pineSourceMap,
+      sourceLines: code.split('\n'),
     });
     return { success: true, factoryCode };
   } catch (error) {

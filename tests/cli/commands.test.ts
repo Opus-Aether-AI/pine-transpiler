@@ -4,8 +4,8 @@
  * Exercises the actual `src/cli/commands/{transpile,validate,info}.ts`
  * paths by importing and invoking them with a temp file. Stubs
  * `process.exit` to throw a sentinel so we can assert exit codes
- * without terminating the test runner, and spies on `console.log` /
- * `console.error` to capture output.
+ * without terminating the test runner, and spies on
+ * `process.stdout/stderr.write` to capture output.
  */
 
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
@@ -37,12 +37,23 @@ function captureExit(): {
   }) as never);
   const logs: string[] = [];
   const errors: string[] = [];
-  const logSpy = spyOn(console, 'log').mockImplementation((...args) => {
-    logs.push(args.map((a) => String(a)).join(' '));
-  });
-  const errSpy = spyOn(console, 'error').mockImplementation((...args) => {
-    errors.push(args.map((a) => String(a)).join(' '));
-  });
+  const toText = (chunk: unknown): string => {
+    if (typeof chunk === 'string') return chunk;
+    if (chunk instanceof Uint8Array) return Buffer.from(chunk).toString('utf8');
+    return String(chunk);
+  };
+  const stdoutSpy = spyOn(process.stdout, 'write').mockImplementation(
+    ((chunk: unknown) => {
+      logs.push(toText(chunk));
+      return true;
+    }) as never,
+  );
+  const stderrSpy = spyOn(process.stderr, 'write').mockImplementation(
+    ((chunk: unknown) => {
+      errors.push(toText(chunk));
+      return true;
+    }) as never,
+  );
   return {
     run(fn) {
       logs.length = 0;
@@ -60,8 +71,8 @@ function captureExit(): {
     },
     restore() {
       exitSpy.mockRestore();
-      logSpy.mockRestore();
-      errSpy.mockRestore();
+      stdoutSpy.mockRestore();
+      stderrSpy.mockRestore();
     },
   };
 }

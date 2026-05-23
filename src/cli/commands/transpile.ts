@@ -58,8 +58,8 @@ export function commandTranspile(
   options: CLIOptions,
 ): void {
   if (!file) {
-    console.error('Error: No input file specified');
-    console.error('Usage: pine-transpiler transpile <file>');
+    process.stderr.write('Error: No input file specified\n');
+    process.stderr.write('Usage: pine-transpiler transpile <file>\n');
     process.exit(1);
   }
 
@@ -71,9 +71,8 @@ export function commandTranspile(
       const result = transpile(code);
       writeOutput(result, options.output);
     } catch (error) {
-      console.error(
-        'Transpilation error:',
-        error instanceof Error ? error.message : error,
+      process.stderr.write(
+        `Transpilation error: ${error instanceof Error ? error.message : String(error)}\n`,
       );
       process.exit(1);
     }
@@ -84,7 +83,7 @@ export function commandTranspile(
     const result = transpileToPineJS(code, indicatorId, indicatorName);
 
     if (!result.success) {
-      console.error('Transpilation error:', result.error);
+      process.stderr.write(`Transpilation error: ${result.error}\n`);
       process.exit(1);
     }
 
@@ -103,13 +102,15 @@ export function commandTranspile(
       indicatorName,
     );
     if (!result.success || !result.factoryCode) {
-      console.error('Transpilation error:', result.error ?? 'Unknown error');
+      process.stderr.write(
+        `Transpilation error: ${result.error ?? 'Unknown error'}\n`,
+      );
       process.exit(1);
     }
     writeOutput(result.factoryCode, options.output);
   } else {
-    console.error(
-      `Error: Unknown format '${format}'. Use 'js', 'pinejs', or 'factory'.`,
+    process.stderr.write(
+      `Error: Unknown format '${format}'. Use 'js', 'pinejs', or 'factory'.\n`,
     );
     process.exit(1);
   }

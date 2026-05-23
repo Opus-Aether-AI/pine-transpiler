@@ -28,6 +28,10 @@ bun run lint:fix
 
 # Build dist/ (vite)
 bun run build
+
+# Pre-flight compatibility report (parse/transpile/runtime on 100 bars)
+bun pine-transpiler check tests/corpus/fixtures/ict-killzones.pine
+bun pine-transpiler check tests/corpus/fixtures/ict-killzones.pine --format json
 ```
 
 ## Test coverage
@@ -91,6 +95,11 @@ bun run corpus:differential
 # Visual parity baselines (snapshot-tested)
 bun run corpus:visual
 
+# Synthetic SVG visual harness (curated + top100)
+bun run visual:harness
+bun run visual:harness -- --fixture=curated/ict-killzones.pine
+bun run visual:harness -- --update-snapshots
+
 # Refresh corpus + visual snapshots after intentional changes
 bun run corpus:snap
 
@@ -107,6 +116,12 @@ bun run corpus:gate
 # Host-runtime safety gate
 #   (constructor, per-bar plot shape, visual-event payload integrity)
 bun run chart:safety
+
+# Wild local corpus scan (never commits local pool content)
+bun run corpus:wild -- --source=/tmp/pine-corpus-wild --top=5
+
+# Seeded Pine smoke fuzzer
+bun run fuzz -- --iterations=200 --depth=4
 ```
 
 `bun run chart:safety` writes failure artifacts to `.tmp/chart-safety/` for inspection.

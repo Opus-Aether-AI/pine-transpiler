@@ -56,6 +56,21 @@ export interface TranspilerRuntimeError {
 }
 
 /**
+ * Runtime error shape emitted from transpiled indicator execution.
+ * Attached on per-bar fallback arrays via `__caughtError`.
+ */
+export interface PineRuntimeError {
+  message: string;
+  pineLocation?: {
+    line: number;
+    column: number;
+    sourceSnippet: string;
+  };
+  jsStack?: string;
+  barIndex?: number;
+}
+
+/**
  * Parsed indicator metadata from Pine Script code
  */
 export interface ParsedIndicator {

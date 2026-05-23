@@ -4,7 +4,7 @@
  * Re-exports all generator functions and types
  */
 
-export { ASTGenerator } from './ast-generator';
+export { ASTGenerator, type PineSourceMapEntry } from './ast-generator';
 export {
   getArg,
   getBooleanValue,
@@ -15,6 +15,9 @@ export {
 export {
   ExpressionGenerator,
   type ExpressionGeneratorInterface,
+  type ExpressionGeneratorOptions,
+  UnimplementedPineFunctionError,
+  type UnimplementedPineFunctionErrorOptions,
 } from './expression-generator';
 export {
   type FunctionMapping,

@@ -196,7 +196,11 @@ The transpiler tracks them as stateful handles and emits a `__visualEvents` stre
 <details>
 <summary>Is there a CLI?</summary>
 
-Yes. `bunx pine-transpiler input.pine --format pinejs > out.js` produces a `CustomIndicator` factory module. Run `pine-transpiler --help` for the full flag list, or see [docs/API.md](docs/API.md).
+Yes. Three modes:
+
+- **Transpile a script** — `bunx pine-transpiler input.pine --format pinejs > out.js` produces a `CustomIndicator` factory module.
+- **Pre-flight check** — `bunx pine-transpiler check input.pine` parses, transpiles, and dry-runs the script across 100 bars on a deterministic mock runtime, then prints a structured compatibility report (parse errors, unmapped Pine functions with line/col, partial-support warnings, runtime errors). Exit codes: `0` on `PASS`, `1` on `FAIL`, `2` on `WARN`. Add `--format=json` for machine-readable output.
+- `pine-transpiler --help` for the full flag list, or see [docs/API.md](docs/API.md).
 </details>
 
 <details>

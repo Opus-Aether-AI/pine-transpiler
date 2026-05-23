@@ -14,7 +14,7 @@ export function commandInfo(): void {
   const stats = getMappingStats();
   const VERSION = getVersion();
 
-  console.log(`
+  process.stdout.write(`
 Pine Script Transpiler v${VERSION}
 ================================
 

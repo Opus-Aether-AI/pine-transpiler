@@ -49,6 +49,20 @@ interface TranspileOptions {
    * conflict. See HOST_RENDERING_CONTRACT.md.
    */
   autoBgColorerForBoxes?: boolean;
+
+  /**
+   * When `true`, the transpiler keeps the legacy best-effort behaviour
+   * of emitting `Std.<name>` calls for Pine builtins that aren't in the
+   * mapping/polyfill registries — those calls then fail at runtime.
+   *
+   * Default `false` — unmapped builtins under `ta.*`, `math.*`,
+   * `time.*` / `timeframe.*` / `session.*`, and `StdPlus.*` fail at
+   * **transpile time** with a structured error that includes the
+   * Pine source line/column and a preview of supported functions.
+   * Pass this flag if you intentionally want to ship a script that
+   * exercises an un-implemented builtin and handle the failure yourself.
+   */
+  allowUnimplemented?: boolean;
 }
 ```
 

@@ -305,7 +305,7 @@ describe('generateStandaloneFactory', () => {
         bgcolors: [],
       });
 
-      expect(result).toContain('"type": "shape"');
+      expect(result).toContain('"type": "shapes"');
       expect(result).toContain('"plottype": "shape_circle"');
     });
   });

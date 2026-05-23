@@ -6,7 +6,10 @@
  */
 
 import { appendCspHint } from '../csp-errors';
-import { ASTGenerator } from '../generator/ast-generator';
+import {
+  ASTGenerator,
+  type PineSourceMapEntry,
+} from '../generator/ast-generator';
 import { sanitizeIdentifier } from '../generator/generator-utils';
 import { HelperUsage, type HelperUsageRecord } from '../generator/helper-usage';
 import type {
@@ -45,6 +48,7 @@ import type {
   ParsedBgcolor,
   ParsedInput,
   ParsedPlot,
+  PineRuntimeError,
   PlotStyle,
 } from '../types';
 import { COLOR_MAP } from '../types';
@@ -100,6 +104,20 @@ export interface IndicatorFactoryOptions {
   inputVariableMap?: Map<string, number>;
   // Original parsed AST (used by standalone factory for user declarations)
   programAst?: Program;
+  /**
+   * Keep standalone declaration generation in lockstep with the
+   * transpile-stage strictness toggle.
+   */
+  allowUnimplemented?: boolean;
+  /**
+   * Best-effort JS-line to Pine source-location mapping for runtime
+   * error augmentation.
+   */
+  pineSourceMap?: PineSourceMapEntry[];
+  /**
+   * Original Pine source split by lines for runtime snippet lookup.
+   */
+  sourceLines?: string[];
 }
 
 function indentCode(code: string, spaces: number): string {
@@ -108,6 +126,89 @@ function indentCode(code: string, spaces: number): string {
     .split('\n')
     .map((line) => `${pad}${line}`)
     .join('\n');
+}
+
+function countCompletedLines(source: string): number {
+  if (!source) return 0;
+  return source.split('\n').length - 1;
+}
+
+function parseStackLocations(
+  stack: string | undefined,
+): Array<{ line: number; column: number }> {
+  if (typeof stack !== 'string' || stack.length === 0) return [];
+  const locations: Array<{ line: number; column: number }> = [];
+  const lines = stack.split('\n').map((line) => line.trim());
+  const framePattern = /:(\d+):(\d+)\)?$/;
+  for (const frame of lines) {
+    const match = frame.match(framePattern);
+    if (!match) continue;
+    const line = Number(match[1]);
+    const column = Number(match[2]);
+    if (!Number.isFinite(line) || !Number.isFinite(column)) continue;
+    locations.push({ line, column });
+  }
+  return locations;
+}
+
+function resolvePineLocation(
+  jsLine: number,
+  preambleLineOffset: number,
+  pineSourceMap: PineSourceMapEntry[],
+  sourceLines: string[],
+): PineRuntimeError['pineLocation'] | undefined {
+  if (!Number.isFinite(jsLine)) return undefined;
+  const jsBodyLine = jsLine - preambleLineOffset;
+  if (!Number.isFinite(jsBodyLine) || jsBodyLine < 1) return undefined;
+
+  let best: PineSourceMapEntry | undefined;
+  for (let i = 0; i < pineSourceMap.length; i++) {
+    const entry = pineSourceMap[i] as PineSourceMapEntry;
+    if (entry.jsLine > jsBodyLine) break;
+    best = entry;
+  }
+  if (!best) return undefined;
+
+  const snippetRaw = sourceLines[best.line - 1] ?? '';
+  const sourceSnippet = snippetRaw.trim();
+  return {
+    line: best.line,
+    column: best.column,
+    sourceSnippet,
+  };
+}
+
+function augmentPineRuntimeError(
+  error: unknown,
+  barIndex: number,
+  preambleLineOffset: number,
+  pineSourceMap: PineSourceMapEntry[],
+  sourceLines: string[],
+): PineRuntimeError {
+  const base =
+    error instanceof Error
+      ? error
+      : new Error(typeof error === 'string' ? error : String(error));
+  const jsStack = typeof base.stack === 'string' ? base.stack : undefined;
+  const parsedFrames = parseStackLocations(jsStack);
+  let pineLocation: PineRuntimeError['pineLocation'] | undefined;
+  for (const frame of parsedFrames) {
+    pineLocation = resolvePineLocation(
+      frame.line,
+      preambleLineOffset,
+      pineSourceMap,
+      sourceLines,
+    );
+    if (pineLocation) break;
+  }
+
+  const enriched = base as Error & PineRuntimeError;
+  enriched.jsStack = jsStack;
+  enriched.barIndex = barIndex;
+  if (pineLocation) {
+    enriched.pineLocation = pineLocation;
+  }
+  return enriched;
 }
 
 const STANDALONE_RUNTIME_HELPERS = `
@@ -2622,6 +2723,8 @@ export function buildIndicatorFactory(
     historicalAccess,
     mainBody,
     helperUsage,
+    pineSourceMap = [],
+    sourceLines = [],
     // Default `false`: host renderers consuming `__visualEvents` draw
     // their own price-constrained rectangles from `box.new`. The
     // full-column auto bg_colorer was originally a fallback for
@@ -2639,6 +2742,10 @@ export function buildIndicatorFactory(
     helperUsage,
   );
   const body = preamble + mainBody;
+  const preambleLineOffset = countCompletedLines(preamble);
+  const sortedPineSourceMap = [...pineSourceMap].sort(
+    (a, b) => a.jsLine - b.jsLine,
+  );
 
   // Pine `box.new(..., bgcolor = ...)` has no direct equivalent in the
   // host chart runtime
@@ -4251,17 +4358,25 @@ export function buildIndicatorFactory(
             markProcessedBar();
             return normalizedPlotValues;
           } catch (e) {
+            const caughtError = augmentPineRuntimeError(
+              e,
+              resolvedBarIndex,
+              preambleLineOffset,
+              sortedPineSourceMap,
+              sourceLines,
+            );
             // Suppress the per-bar console.error when the error is
             // just the compile error being rethrown — the
             // compilation catch above already logged it once, and
             // logging it 200 more times (once per bar) is noise.
             const isCompileRethrow =
-              typeof e === 'object' &&
-              e !== null &&
-              (e as { __compileError?: boolean }).__compileError === true;
+              typeof caughtError === 'object' &&
+              caughtError !== null &&
+              (caughtError as { __compileError?: boolean }).__compileError ===
+                true;
             if (!isCompileRethrow) {
               // biome-ignore lint/suspicious/noConsole: Runtime error logging
-              console.error('Script execution error', e);
+              console.error('Script execution error', caughtError);
             }
             // Synthesize a NaN-of-declared-length array so the chart
             // doesn't crash on a bad bar. Tag the array with a non-
@@ -4303,7 +4418,7 @@ export function buildIndicatorFactory(
             // the message. Non-enumerable so spread / JSON.stringify
             // don't drag it into chart output.
             Object.defineProperty(fallback, '__caughtError', {
-              value: e,
+              value: caughtError,
               enumerable: false,
               writable: false,
               configurable: false,
@@ -4434,9 +4549,12 @@ function generateStandaloneDeclarationCode(
   declarations: Statement[],
   historicalAccess?: Set<string>,
   version = 6,
+  allowUnimplemented = false,
 ): string {
   if (declarations.length === 0) return '';
-  const generator = new ASTGenerator(historicalAccess ?? new Set());
+  const generator = new ASTGenerator(historicalAccess ?? new Set(), undefined, {
+    allowUnimplemented,
+  });
   const declarationProgram: Program = {
     type: 'Program',
     body: declarations,
@@ -4471,6 +4589,7 @@ export function generateStandaloneFactory(
     computedVariables,
     inputVariableMap,
     programAst,
+    allowUnimplemented = false,
   } = options;
 
   const userDeclarationStatements =
@@ -4482,6 +4601,7 @@ export function generateStandaloneFactory(
     userDeclarationStatements,
     historicalAccess,
     programAst?.version ?? 6,
+    allowUnimplemented,
   );
 
   const safeId = sanitizeIndicatorId(indicatorId);
@@ -4494,16 +4614,16 @@ export function generateStandaloneFactory(
   const hasBgcolors = bgcolors && bgcolors.length > 0;
   const useSessionBgMetadata = hasBgcolors && !hasTranspiledMainBody;
 
-  // Build plots array - include bg_colorer if we have bgcolors
-  const nativePlots: Array<{ id: string; type: string; palette?: string }> = [];
-
-  // Add regular plots first
-  for (const plot of plots) {
-    nativePlots.push({
-      id: plot.id,
-      type: plot.type === 'hline' ? 'line' : plot.type,
-    });
-  }
+  // Build plots array - include bg_colorer if we have bgcolors.
+  // Keep standalone metadata in lockstep with runtime metadata helpers.
+  const nativePlots: Array<{
+    id: string;
+    type: string;
+    palette?: string;
+    plottype?: string;
+    char?: string;
+    location?: 'AboveBar' | 'BelowBar' | 'Top' | 'Bottom' | 'Absolute';
+  }> = buildPlotsMetadata(plots).map((plot) => ({ ...plot }));
 
   // Add bg_colorer for bgcolor support
   if (useSessionBgMetadata) {
@@ -4533,50 +4653,22 @@ export function generateStandaloneFactory(
       }
     : {};
 
-  // Build style defaults
-  const styleDefaults: Record<string, Record<string, unknown>> = {};
+  // Build style defaults from the shared helper so runtime and
+  // standalone paths stay aligned for visual plot metadata.
+  const styleDefaults: Record<
+    string,
+    Record<string, unknown>
+  > = Object.fromEntries(
+    Object.entries(buildDefaultStyles(plots)).map(([id, style]) => [
+      id,
+      style as unknown as Record<string, unknown>,
+    ]),
+  );
   if (useSessionBgMetadata) {
     // Use average transparency from bgcolors
     const avgTransparency =
       bgcolors.reduce((sum, bg) => sum + bg.transparency, 0) / bgcolors.length;
     styleDefaults.sessionBg = { transparency: Math.round(avgTransparency) };
-  }
-
-  // Add plot styles for regular plots
-  for (const plot of plots) {
-    if (
-      plot.type === 'line' ||
-      plot.type === 'histogram' ||
-      plot.type === 'area'
-    ) {
-      styleDefaults[plot.id] = {
-        linestyle: 0,
-        linewidth: plot.linewidth || 1,
-        plottype: plot.type === 'histogram' ? 1 : plot.type === 'area' ? 3 : 0,
-        trackPrice: false,
-        transparency: 0,
-        color: plot.color || '#2962FF',
-      };
-    } else if (plot.type === 'shape' || plot.type === 'char') {
-      styleDefaults[plot.id] = {
-        ...(plot.type === 'shape' ? { plottype: 'shape_circle' } : {}),
-        ...(plot.type === 'char'
-          ? { char: String(plot.char ?? '').trim() || '•' }
-          : {}),
-        location:
-          plot.location === 'belowbar'
-            ? 'BelowBar'
-            : plot.location === 'top'
-              ? 'Top'
-              : plot.location === 'bottom'
-                ? 'Bottom'
-                : plot.location === 'absolute'
-                  ? 'Absolute'
-                  : 'AboveBar',
-        color: plot.color || '#2962FF',
-        size: 'small',
-      };
-    }
   }
 
   // Build input defaults
@@ -4585,7 +4677,7 @@ export function generateStandaloneFactory(
     inputDefaults[input.id] = input.defval;
   }
 
-  // Build styles metadata
+  // Build styles metadata from the shared helper.
   const stylesMetadata: Record<
     string,
     {
@@ -4593,30 +4685,9 @@ export function generateStandaloneFactory(
       histogramBase?: number;
       location?: 'AboveBar' | 'BelowBar' | 'Top' | 'Bottom' | 'Absolute';
     }
-  > = {};
+  > = { ...buildStylesMetadata(plots) };
   if (useSessionBgMetadata) {
     stylesMetadata.sessionBg = { title: 'Session Background' };
-  }
-
-  // Add plot style metadata
-  for (const plot of plots) {
-    const location =
-      plot.type === 'shape' || plot.type === 'char'
-        ? plot.location === 'belowbar'
-          ? 'BelowBar'
-          : plot.location === 'top'
-            ? 'Top'
-            : plot.location === 'bottom'
-              ? 'Bottom'
-              : plot.location === 'absolute'
-                ? 'Absolute'
-                : 'AboveBar'
-        : undefined;
-    stylesMetadata[plot.id] = {
-      title: plot.title || plot.id,
-      ...(plot.type === 'histogram' ? { histogramBase: 0 } : {}),
-      ...(location ? { location } : {}),
-    };
   }
 
   // Build inputs metadata

@@ -38,6 +38,7 @@ describe('getHelpText', () => {
     const text = getHelpText();
     expect(text).toContain('transpile');
     expect(text).toContain('validate');
+    expect(text).toContain('check');
     expect(text).toContain('info');
   });
 
@@ -126,14 +127,33 @@ describe('parseArguments', () => {
 
 describe('readInput / writeOutput', () => {
   let workDir: string;
-  let logSpy: ReturnType<typeof spyOn>;
-  let errSpy: ReturnType<typeof spyOn>;
+  let stdoutSpy: ReturnType<typeof spyOn>;
+  let stderrSpy: ReturnType<typeof spyOn>;
   let exitSpy: ReturnType<typeof spyOn>;
+  const stdoutChunks: string[] = [];
+  const stderrChunks: string[] = [];
+  const toText = (chunk: unknown): string => {
+    if (typeof chunk === 'string') return chunk;
+    if (chunk instanceof Uint8Array) return Buffer.from(chunk).toString('utf8');
+    return String(chunk);
+  };
 
   beforeEach(() => {
     workDir = mkdtempSync(join(tmpdir(), 'pine-utils-test-'));
-    logSpy = spyOn(console, 'log').mockImplementation(() => {});
-    errSpy = spyOn(console, 'error').mockImplementation(() => {});
+    stdoutChunks.length = 0;
+    stderrChunks.length = 0;
+    stdoutSpy = spyOn(process.stdout, 'write').mockImplementation(
+      ((chunk: unknown) => {
+        stdoutChunks.push(toText(chunk));
+        return true;
+      }) as never,
+    );
+    stderrSpy = spyOn(process.stderr, 'write').mockImplementation(
+      ((chunk: unknown) => {
+        stderrChunks.push(toText(chunk));
+        return true;
+      }) as never,
+    );
     exitSpy = spyOn(process, 'exit').mockImplementation(((
       code?: number | string | null,
     ) => {
@@ -143,8 +163,8 @@ describe('readInput / writeOutput', () => {
 
   afterEach(() => {
     rmSync(workDir, { recursive: true, force: true });
-    logSpy.mockRestore();
-    errSpy.mockRestore();
+    stdoutSpy.mockRestore();
+    stderrSpy.mockRestore();
     exitSpy.mockRestore();
   });
 
@@ -172,11 +192,8 @@ describe('readInput / writeOutput', () => {
     expect(readFileSync(out, 'utf-8')).toBe('factory body');
   });
 
-  it('writeOutput logs to stdout when no path is provided', () => {
+  it('writeOutput writes to stdout when no path is provided', () => {
     writeOutput('inline content');
-    const logged = (logSpy.mock.calls as unknown[][])
-      .map((args) => args.map((a) => String(a)).join(' '))
-      .join('\n');
-    expect(logged).toContain('inline content');
+    expect(stdoutChunks.join('')).toContain('inline content');
   });
 });

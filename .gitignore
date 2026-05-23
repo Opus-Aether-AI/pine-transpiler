@@ -25,4 +25,10 @@ pnpm-debug.log*
 **/.turbo/
 tmp
 .tmp
+/tmp/pine-corpus-wild/
 bun.lock
+
+# Local-only dev convenience shim. Lets `bun pine-transpiler check ...`
+# work without first running `bun run build`. The shipped `bin` entry
+# in package.json points at the built `dist/cli/index.js`.
+/pine-transpiler
