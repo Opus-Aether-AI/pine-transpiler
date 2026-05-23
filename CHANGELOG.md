@@ -12,6 +12,13 @@ docs/RELEASING.md for the flow and `.github/release-please-config.json`
 for the commit-type → section mapping.
 -->
 
+## [0.4.9](https://github.com/Opus-Aether-AI/pine-transpiler/compare/v0.4.8...v0.4.9) (2026-05-23)
+
+
+### Fixed
+
+* **metainfo:** prefix study ids with `tv-basicstudies-N` ([#31](https://github.com/Opus-Aether-AI/pine-transpiler/issues/31)) ([4b61b4c](https://github.com/Opus-Aether-AI/pine-transpiler/commit/4b61b4c5e4d8e2e313177fd62c08a85091911177))
+
 ## [0.4.8](https://github.com/Opus-Aether-AI/pine-transpiler/compare/v0.4.7...v0.4.8) (2026-05-22)
 
 
