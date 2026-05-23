@@ -463,7 +463,7 @@ export interface PlotStyle {
  * Study metainfo - Complete indicator description
  */
 export interface StudyMetaInfo {
-  /** Unique indicator ID (format: "name@basicstudies-1") */
+  /** Unique indicator ID (format: "name@tv-basicstudies-1") */
   id: string;
 
   /** Full indicator name/description */

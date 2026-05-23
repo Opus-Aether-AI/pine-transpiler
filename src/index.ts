@@ -249,7 +249,7 @@ export function executePineJS(
         }
       }
       if (indicator.metainfo) {
-        const rawId = `${indicatorId}@basicstudies-1`;
+        const rawId = `${indicatorId}@tv-basicstudies-1`;
         indicator.metainfo.id = rawId;
       }
       return indicator;
