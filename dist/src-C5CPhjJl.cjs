@@ -9946,7 +9946,7 @@ function withTransparency(color, transparency) {
 }
 function getColorValue(expr, resolveIdentifier) {
 	if (!expr) return null;
-	if (expr.type === "Literal" && typeof expr.value === "string") return isHexColor(expr.value) ? expr.value : null;
+	if (expr.type === "Literal" && expr.kind === "color" && typeof expr.value === "string") return isHexColor(expr.value) ? expr.value : null;
 	if (expr.type === "Identifier") return resolveIdentifier?.(expr.name) ?? COLOR_MAP[expr.name] ?? null;
 	if (expr.type === "MemberExpression" && expr.object.type === "Identifier" && expr.object.name === "color" && expr.property.type === "Identifier") return COLOR_MAP[expr.property.name] ?? null;
 	if (expr.type === "CallExpression") {
@@ -11244,4 +11244,4 @@ Object.defineProperty(exports, "validateInputSize", {
 	}
 });
 
-//# sourceMappingURL=src-BBJXeXKe.cjs.map
+//# sourceMappingURL=src-C5CPhjJl.cjs.map

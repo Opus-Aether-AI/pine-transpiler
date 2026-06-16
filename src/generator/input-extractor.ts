@@ -52,7 +52,11 @@ export function getColorValue(
 ): string | null {
   if (!expr) return null;
 
-  if (expr.type === 'Literal' && typeof expr.value === 'string') {
+  if (
+    expr.type === 'Literal' &&
+    expr.kind === 'color' &&
+    typeof expr.value === 'string'
+  ) {
     return isHexColor(expr.value) ? expr.value : null;
   }
 

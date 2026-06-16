@@ -9946,7 +9946,7 @@ function withTransparency(color, transparency) {
 }
 function getColorValue(expr, resolveIdentifier) {
 	if (!expr) return null;
-	if (expr.type === "Literal" && typeof expr.value === "string") return isHexColor(expr.value) ? expr.value : null;
+	if (expr.type === "Literal" && expr.kind === "color" && typeof expr.value === "string") return isHexColor(expr.value) ? expr.value : null;
 	if (expr.type === "Identifier") return resolveIdentifier?.(expr.name) ?? COLOR_MAP[expr.name] ?? null;
 	if (expr.type === "MemberExpression" && expr.object.type === "Identifier" && expr.object.name === "color" && expr.property.type === "Identifier") return COLOR_MAP[expr.property.name] ?? null;
 	if (expr.type === "CallExpression") {
@@ -11113,4 +11113,4 @@ function executePineJS(code, indicatorId, indicatorName) {
 //#endregion
 export { MATH_FUNCTION_MAPPINGS as S, getAllPineFunctionNames as _, transpileToStandaloneFactory as a, MULTI_OUTPUT_MAPPINGS as b, compile as c, parse as d, validateInputSize as f, HelperUsage as g, PRICE_SOURCES as h, transpileToPineJS as i, extractMetadata as l, COLOR_MAP as m, executePineJS as n, MAX_INPUT_SIZE as o, generateStandaloneFactory as p, transpile as r, buildFactory as s, canTranspilePineScript as t, generateBody as u, getMappingStats as v, TA_FUNCTION_MAPPINGS as x, TIME_FUNCTION_MAPPINGS as y };
 
-//# sourceMappingURL=src-CdxwGo-F.js.map
+//# sourceMappingURL=src-W29ELGnr.js.map

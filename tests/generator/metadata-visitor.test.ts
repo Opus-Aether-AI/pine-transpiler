@@ -266,6 +266,21 @@ flag = label == "A"
           dependencies: ['label'],
         });
       });
+
+      it('should not treat quoted hex strings as color variables', () => {
+        const code = `
+label = "#FFFFFF"
+flag = label == "#FFFFFF"
+`;
+        const metadata = extractMetadata(code);
+        expect(metadata.computedVariables.get('label')).toMatchObject({
+          expression: '"#FFFFFF"',
+        });
+        expect(metadata.computedVariables.get('flag')).toMatchObject({
+          expression: '(label == "#FFFFFF")',
+          dependencies: ['label'],
+        });
+      });
     });
 
     describe('Multiple inputs', () => {
