@@ -370,8 +370,8 @@ const StdPlus = {
      * @returns {[number, number, number]} [middle, upper, lower]
      */
     bb: function(ctx, series, length, mult) {
-        const basis = Std.sma(ctx, series, length);
-        const dev = Std.stdev(ctx, series, length);
+        const basis = Std.sma(series, length, ctx);
+        const dev = Std.stdev(series, length, ctx);
         
         if (isNaN(basis) || isNaN(dev)) {
             return [NaN, NaN, NaN];
@@ -387,8 +387,8 @@ const StdPlus = {
      * Bollinger Bands Width
      */
     bbw: function(ctx, series, length, mult) {
-        const basis = Std.sma(ctx, series, length);
-        const dev = Std.stdev(ctx, series, length);
+        const basis = Std.sma(series, length, ctx);
+        const dev = Std.stdev(series, length, ctx);
         
         if (isNaN(basis) || isNaN(dev) || basis === 0) {
             return NaN;
@@ -404,8 +404,8 @@ const StdPlus = {
      * Note: Simplified implementation using ATR for range
      */
     kc: function(ctx, series, length, mult, useTrueRange) {
-        const basis = Std.ema(ctx, series, length);
-        const range = Std.atr(ctx, length);
+        const basis = Std.ema(series, length, ctx);
+        const range = Std.atr(length, ctx);
         
         if (isNaN(basis) || isNaN(range)) {
             return [NaN, NaN, NaN];
@@ -421,8 +421,8 @@ const StdPlus = {
      * Keltner Channels Width
      */
     kcw: function(ctx, series, length, mult, useTrueRange) {
-        const basis = Std.ema(ctx, series, length);
-        const range = Std.atr(ctx, length);
+        const basis = Std.ema(series, length, ctx);
+        const range = Std.atr(length, ctx);
         
         if (isNaN(basis) || isNaN(range) || basis === 0) {
             return NaN;
@@ -441,8 +441,8 @@ const StdPlus = {
         const len2 = Math.floor(length / 2);
         const sqrtLen = Math.round(Math.sqrt(length));
 
-        const wma1 = Std.wma(ctx, series, len2);
-        const wma2 = Std.wma(ctx, series, length);
+        const wma1 = Std.wma(series, len2, ctx);
+        const wma2 = Std.wma(series, length, ctx);
 
         if (isNaN(wma1) || isNaN(wma2)) return NaN;
 
@@ -456,14 +456,14 @@ const StdPlus = {
         // new_var(value) on every bar both retrieves the persistent
         // series and appends the current bar's value.
         const diffSeries = ctx.new_var(diff);
-        return Std.wma(ctx, diffSeries, sqrtLen);
+        return Std.wma(diffSeries, sqrtLen, ctx);
     },
 
     /**
      * Momentum
      */
     mom: function(ctx, source, length) {
-        return Std.change(ctx, source, length);
+        return Std.change(source, length, ctx);
     },
 
     /**
@@ -474,7 +474,7 @@ const StdPlus = {
      * while some runtimes only expose scalar VWAP.
      */
     vwap: function(ctx, source, anchor, stdevMult) {
-        const value = Std.vwap(ctx, source, anchor, stdevMult);
+        const value = Std.vwap(source, anchor, stdevMult, ctx);
         if (Array.isArray(value)) return value;
 
         // Tuple form fallback for runtimes that only return scalar VWAP.
@@ -491,14 +491,14 @@ const StdPlus = {
      * Crossover (A crosses over B)
      */
     crossover: function(ctx, a, b) {
-        return Std.cross(ctx, a, b) && Std.gt(ctx, a, b);
+        return Std.cross(a, b, ctx) && Std.gt(a, b);
     },
 
     /**
      * Crossunder (A crosses under B)
      */
     crossunder: function(ctx, a, b) {
-        return Std.cross(ctx, a, b) && Std.lt(ctx, a, b);
+        return Std.cross(a, b, ctx) && Std.lt(a, b);
     },
     
     /**
@@ -506,8 +506,8 @@ const StdPlus = {
      * @returns {[number, number, number]} [macdLine, signalLine, histogram]
      */
     macd: function(ctx, series, fastLen, slowLen, sigLen) {
-        const fastMA = Std.ema(ctx, series, fastLen);
-        const slowMA = Std.ema(ctx, series, slowLen);
+        const fastMA = Std.ema(series, fastLen, ctx);
+        const slowMA = Std.ema(series, slowLen, ctx);
 
         if (isNaN(fastMA) || isNaN(slowMA)) {
             return [NaN, NaN, NaN];
@@ -522,7 +522,7 @@ const StdPlus = {
         // histogram (macdLine - signal) followed it. Pushing via
         // ctx.new_var() each bar is the contract.
         const macdSeries = ctx.new_var(macdLine);
-        const signalLine = Std.ema(ctx, macdSeries, sigLen);
+        const signalLine = Std.ema(macdSeries, sigLen, ctx);
         const histogram = macdLine - signalLine;
 
         return [macdLine, signalLine, histogram];
@@ -532,7 +532,7 @@ const StdPlus = {
      * RSI Wrapper
      */
     rsi: function(ctx, x, y) {
-        return Std.rsi(ctx, x, y);
+        return Std.rsi(x, y, ctx);
     },
     
     /**
@@ -549,8 +549,8 @@ const StdPlus = {
         const highSeries = ctx.new_var(high);
         const lowSeries = ctx.new_var(low);
 
-        const hh = Std.highest(ctx, highSeries, length);
-        const ll = Std.lowest(ctx, lowSeries, length);
+        const hh = Std.highest(highSeries, length, ctx);
+        const ll = Std.lowest(lowSeries, length, ctx);
         
         if (isNaN(hh) || isNaN(ll) || hh === ll) return NaN;
         
@@ -614,8 +614,8 @@ const StdPlus = {
         // history (was overwriting via .set() — same bug as macd/hma).
         const hl2Series = ctx.new_var(hl2);
 
-        const sma5 = Std.sma(ctx, hl2Series, 5);
-        const sma34 = Std.sma(ctx, hl2Series, 34);
+        const sma5 = Std.sma(hl2Series, 5, ctx);
+        const sma34 = Std.sma(hl2Series, 34, ctx);
 
         if (isNaN(sma5) || isNaN(sma34)) return NaN;
 
@@ -3100,7 +3100,8 @@ var ExpressionGenerator = class {
 				if (implicitSeries) args.unshift(implicitSeries);
 				else args[0] = this.wrapSeriesArgument(runtimeArgExprs[0], args[0]);
 			}
-			if (mapping.contextArg) args.unshift("context");
+			if (mapping.contextArg) if (callee.startsWith("StdPlus.")) args.unshift("context");
+			else args.push("context");
 		}
 		return `${callee}(${args.join(", ")})`;
 	}
@@ -5492,12 +5493,26 @@ function __isInSessionAt(timestamp, sessionRaw, timezone) {
   }
   const clock = __readClockAt(timestamp, timezone);
   const dayToken = String(clock.dayOfWeek);
-  if (daysRaw && !String(daysRaw).includes(dayToken)) return false;
   const current = clock.hour * 60 + clock.minute;
   const start = startHour * 60 + startMinute;
   const end = endHour * 60 + endMinute;
-  if (start <= end) return current >= start && current < end;
-  return current >= start || current < end;
+  const normalizedDays = String(daysRaw || '1234567');
+  if (start <= end) {
+    if (normalizedDays && !normalizedDays.includes(dayToken)) return false;
+    return current >= start && current < end;
+  }
+  // Overnight sessions are anchored to the day the session starts.
+  // Example: "2200-0200:2" includes Monday 23:00 and Tuesday 01:00.
+  if (current >= start) {
+    if (normalizedDays && !normalizedDays.includes(dayToken)) return false;
+    return true;
+  }
+  if (current < end) {
+    const prevDayToken = String(clock.dayOfWeek === 1 ? 7 : clock.dayOfWeek - 1);
+    if (normalizedDays && !normalizedDays.includes(prevDayToken)) return false;
+    return true;
+  }
+  return false;
 }
 
 function __compatTime(currentBarTime, priorProcessedBars, chartPeriod, timeframeArg, sessionArg, timezoneArg, barsBackArg) {
@@ -5923,6 +5938,46 @@ function generateStandaloneRuntimeMainBody(runtimeBody, totalPlotCount, hasBgcol
           if (Array.isArray(value)) return value.map((item) => _naLike(item));
           return Number.NaN;
         };
+        const _hasCalendarUnit = (raw) => {
+          const tf = String(raw == null ? '' : raw).trim().toUpperCase();
+          if (!tf) return false;
+          const m = tf.match(/^(\\d+)?([SMHDWMY])?$/);
+          const unit = (m && m[2]) || '';
+          return unit === 'W' || unit === 'M' || unit === 'Y';
+        };
+        const _parseTimeframeSpec = (raw) => {
+          const tf = String(raw == null ? '' : raw).trim().toUpperCase();
+          if (!tf) return null;
+          const m = tf.match(/^(\\d+)?([SMHDWMY])?$/);
+          if (!m) return null;
+          const amount = Number(m[1] || 1);
+          if (!Number.isFinite(amount) || amount <= 0) return null;
+          return { amount, unit: m[2] || '' };
+        };
+        const _requestBucketKey = (timestamp, timeframeArg, bucketSizeMs, timezone) => {
+          const spec = _parseTimeframeSpec(timeframeArg);
+          if (!spec) return 'ms:' + String(Math.floor(timestamp / bucketSizeMs));
+          if (spec.unit === 'W') {
+            const clock = __readClockAt(timestamp, timezone);
+            const dayStartUtc = Date.UTC(clock.year, clock.month - 1, clock.dayOfMonth);
+            const mondayIndex = clock.dayOfWeek === 1 ? 6 : clock.dayOfWeek - 2;
+            const weekStartUtc = dayStartUtc - mondayIndex * 86400000;
+            const bucket = Math.floor(weekStartUtc / (spec.amount * 7 * 86400000));
+            return 'w:' + String(spec.amount) + ':' + String(bucket);
+          }
+          if (spec.unit === 'M') {
+            const clock = __readClockAt(timestamp, timezone);
+            const monthIndex = clock.year * 12 + (clock.month - 1);
+            const bucket = Math.floor(monthIndex / spec.amount);
+            return 'm:' + String(spec.amount) + ':' + String(bucket);
+          }
+          if (spec.unit === 'Y') {
+            const clock = __readClockAt(timestamp, timezone);
+            const bucket = Math.floor(clock.year / spec.amount);
+            return 'y:' + String(spec.amount) + ':' + String(bucket);
+          }
+          return 'ms:' + String(Math.floor(timestamp / bucketSizeMs));
+        };
         const _requestSecurity = (symbolArg, timeframeArg, expressionArg, ...extraArgs) => {
           const currentTicker = String((syminfo && syminfo.tickerid) || '');
           const requestedTicker =
@@ -5953,35 +6008,49 @@ function generateStandaloneRuntimeMainBody(runtimeBody, totalPlotCount, hasBgcol
             merge.gaps,
             merge.lookahead,
           ].join('|');
-          const bucket = Math.floor(_barTime / bucketSizeMs);
+          const bucketKey = _requestBucketKey(
+            _barTime,
+            timeframeArg,
+            bucketSizeMs,
+            syminfo && syminfo.timezone ? syminfo.timezone : undefined,
+          );
 
           let state = __requestSecurityState.get(key);
           let changedBucket = false;
           if (!state) {
             state = {
-              lastBucket: bucket,
+              lastBucket: bucketKey,
               currentValue: _cloneRequestValue(expressionArg),
               confirmedValue: _naLike(expressionArg),
             };
             __requestSecurityState.set(key, state);
             changedBucket = true;
-          } else if (state.lastBucket !== bucket) {
+          } else if (state.lastBucket !== bucketKey) {
             state.confirmedValue = _cloneRequestValue(state.currentValue);
             state.currentValue = _cloneRequestValue(expressionArg);
-            state.lastBucket = bucket;
+            state.lastBucket = bucketKey;
             changedBucket = true;
           } else {
             state.currentValue = _cloneRequestValue(expressionArg);
           }
 
           const nextBucket = Math.floor((_barTime + chartTfMs) / bucketSizeMs);
-          const isBucketCloseBar = nextBucket !== bucket;
+          const currentBucket = Math.floor(_barTime / bucketSizeMs);
+          const isBucketCloseBar = nextBucket !== currentBucket;
           const isLookaheadOn = merge.lookahead === 'lookahead_on';
-          const eventBar = isLookaheadOn ? changedBucket : isBucketCloseBar;
+          const approximateAlignment =
+            _hasCalendarUnit(_chartPeriod) ||
+            _hasCalendarUnit(timeframeArg);
+          const effectiveBucketCloseBar = approximateAlignment
+            ? changedBucket
+            : isBucketCloseBar;
+          const eventBar = isLookaheadOn ? changedBucket : effectiveBucketCloseBar;
           const merged = isLookaheadOn
             ? state.currentValue
-            : isBucketCloseBar
-              ? state.currentValue
+            : effectiveBucketCloseBar
+              ? approximateAlignment
+                ? state.confirmedValue
+                : state.currentValue
               : state.confirmedValue;
 
           if (merge.gaps === 'gaps_on' && !eventBar) {
@@ -5992,19 +6061,34 @@ function generateStandaloneRuntimeMainBody(runtimeBody, totalPlotCount, hasBgcol
         const request = {
           security: _requestSecurity,
         };
-        const session = {
-          ismarket: false,
-          ispremarket: false,
-          ispostmarket: false,
-        };
         const array = __createArrayNamespace();
         const time = _barTime;
+        const _chartTfMs = __timeframeToSeconds(_chartPeriod, _chartPeriod) * 1000;
+        const _sessionTimezone = syminfo && syminfo.timezone ? syminfo.timezone : undefined;
+        const _symbol = context && typeof context === 'object' && context.symbol ? context.symbol : {};
+        const _isInSession = (raw, fallback) => {
+          const sessionRaw = typeof raw === 'string' && raw.trim() ? raw : fallback;
+          return __isInSessionAt(_barTime, sessionRaw, _sessionTimezone);
+        };
+        const session = {
+          get ismarket() {
+            return _isInSession(_symbol.session_regular, '0930-1600');
+          },
+          get ispremarket() {
+            return _isInSession(_symbol.session_premarket, '0400-0930');
+          },
+          get ispostmarket() {
+            return _isInSession(_symbol.session_postmarket, '1600-2000');
+          },
+        };
         const time_close =
           typeof _stdWithCompat.time_close === 'function'
-            ? __toNumber(_stdWithCompat.time_close(context), _barTime + 60000)
-            : _barTime + 60000;
+            ? __toNumber(_stdWithCompat.time_close(context), _barTime + _chartTfMs)
+            : _barTime + _chartTfMs;
         const _clock = __readClockAt(_barTime, syminfo.timezone);
-        const time_tradingday = Date.UTC(_clock.year, _clock.month - 1, _clock.dayOfMonth);
+        const _elapsedMs =
+          (_clock.hour * 3600 + _clock.minute * 60 + _clock.second) * 1000;
+        const time_tradingday = _barTime - _elapsedMs;
         const bar_index = _resolvedBarIndex;
         const hour = _clock.hour;
         const minute = _clock.minute;
@@ -6757,7 +6841,7 @@ function buildIndicatorFactory(options) {
 		return {
 			name: `User_${safeId}`,
 			metainfo: {
-				id: `User_${safeId}@basicstudies-1`,
+				id: `User_${safeId}@tv-basicstudies-1`,
 				description: indicatorName || name,
 				shortDescription: shortName,
 				is_price_study: overlay,
@@ -6960,12 +7044,23 @@ function buildIndicatorFactory(options) {
 						if (!Number.isFinite(startHour) || !Number.isFinite(startMinute) || !Number.isFinite(endHour) || !Number.isFinite(endMinute)) return false;
 						const { hour, minute, dayOfWeek } = readClockAt(timestamp, timezone);
 						const days = (daysRaw ?? "1234567").trim();
-						if (days && !days.includes(String(dayOfWeek))) return false;
 						const current = hour * 60 + minute;
 						const start = startHour * 60 + startMinute;
 						const end = endHour * 60 + endMinute;
-						if (start <= end) return current >= start && current < end;
-						return current >= start || current < end;
+						if (start <= end) {
+							if (days && !days.includes(String(dayOfWeek))) return false;
+							return current >= start && current < end;
+						}
+						if (current >= start) {
+							if (days && !days.includes(String(dayOfWeek))) return false;
+							return true;
+						}
+						if (current < end) {
+							const prevDay = dayOfWeek === 1 ? 7 : dayOfWeek - 1;
+							if (days && !days.includes(String(prevDay))) return false;
+							return true;
+						}
+						return false;
 					};
 					const chartTimeframeMs = parseTimeframeToMs(timeframe.period) ?? 6e4;
 					const resolveBarsBackTime = (timeframeArg, barsBackArg) => {
@@ -7295,18 +7390,52 @@ function buildIndicatorFactory(options) {
 						const unit = m[2] ?? "";
 						if (!unit) return num;
 						if (unit === "S") return num / 60;
-						if (unit === "M") return num * 43800;
+						if (unit === "M") return num * 43200;
 						if (unit === "H") return num * 60;
 						if (unit === "D") return num * 1440;
 						if (unit === "W") return num * 10080;
 						if (unit === "Y") return num * 525600;
 						return null;
 					};
+					const parseTimeframeSpec = (raw) => {
+						const tf = String(raw ?? "").trim();
+						if (!tf) return null;
+						const m = tf.toUpperCase().match(/^(\d+)?([SMHDWMY])?$/);
+						if (!m) return null;
+						const amount = Number(m[1] ?? 1);
+						if (!Number.isFinite(amount) || amount <= 0) return null;
+						return {
+							amount,
+							unit: m[2] ?? ""
+						};
+					};
 					const hasCalendarUnit = (raw) => {
 						const tf = String(raw ?? "").trim().toUpperCase();
 						if (!tf) return false;
 						const unit = tf.match(/^(\d+)?([SMHDWMY])?$/)?.[2] ?? "";
 						return unit === "W" || unit === "M" || unit === "Y";
+					};
+					const buildRequestBucketKey = (timestamp, timeframeArg, timezone, bucketSizeMs) => {
+						const spec = parseTimeframeSpec(timeframeArg);
+						if (!spec) return `ms:${Math.floor(timestamp / bucketSizeMs)}`;
+						if (spec.unit === "W") {
+							const clock = readClockAt(timestamp, timezone);
+							const weekStartUtc = Date.UTC(clock.year, clock.month - 1, clock.dayOfMonth) - (clock.dayOfWeek === 1 ? 6 : clock.dayOfWeek - 2) * 864e5;
+							const bucket = Math.floor(weekStartUtc / (spec.amount * 7 * 864e5));
+							return `w:${spec.amount}:${bucket}`;
+						}
+						if (spec.unit === "M") {
+							const clock = readClockAt(timestamp, timezone);
+							const monthIndex = clock.year * 12 + (clock.month - 1);
+							const bucket = Math.floor(monthIndex / spec.amount);
+							return `m:${spec.amount}:${bucket}`;
+						}
+						if (spec.unit === "Y") {
+							const clock = readClockAt(timestamp, timezone);
+							const bucket = Math.floor(clock.year / spec.amount);
+							return `y:${spec.amount}:${bucket}`;
+						}
+						return `ms:${Math.floor(timestamp / bucketSizeMs)}`;
 					};
 					const resolveMergeMode = (extras) => {
 						let gaps = "gaps_off";
@@ -7357,34 +7486,32 @@ function buildIndicatorFactory(options) {
 							return expressionArg;
 						}
 						const callSite = inferRequestSecurityCallSite();
-						const bucket = Math.floor(currentBarTime / bucketSizeMs);
+						const bucketKey = buildRequestBucketKey(currentBarTime, timeframeArg, readStringField(ctx.symbol, "timezone") ?? "America/New_York", bucketSizeMs);
 						const key = `${callSite}|${String(symbolArg)}|${String(timeframeArg)}|${merge.gaps}|${merge.lookahead}`;
 						const existing = _requestSecurityState.get(key);
 						let changedBucket = false;
 						if (!existing) {
 							_requestSecurityState.set(key, {
-								lastBucket: bucket,
+								lastBucket: bucketKey,
 								currentValue: cloneValue(expressionArg),
 								confirmedValue: naLike(expressionArg)
 							});
 							changedBucket = true;
-						} else if (existing.lastBucket !== bucket) {
+						} else if (existing.lastBucket !== bucketKey) {
 							existing.confirmedValue = cloneValue(existing.currentValue);
 							existing.currentValue = cloneValue(expressionArg);
-							existing.lastBucket = bucket;
+							existing.lastBucket = bucketKey;
 							changedBucket = true;
 						} else existing.currentValue = cloneValue(expressionArg);
 						const state = _requestSecurityState.get(key);
 						if (!state) return expressionArg;
-						const isBucketCloseBar = Math.floor((currentBarTime + chartTimeframeMs) / bucketSizeMs) !== bucket;
+						const isBucketCloseBar = Math.floor((currentBarTime + chartTimeframeMs) / bucketSizeMs) !== Math.floor(currentBarTime / bucketSizeMs);
 						const isLookaheadOn = merge.lookahead === "lookahead_on";
-						const ratio = bucketSizeMs / chartTimeframeMs;
-						const hasIntegralRatio = Number.isFinite(ratio) && Math.abs(ratio - Math.round(ratio)) < 1e-9;
-						const approximateAlignment = hasCalendarUnit(currentTfRaw) || hasCalendarUnit(timeframeArg) || !hasIntegralRatio;
+						const approximateAlignment = hasCalendarUnit(currentTfRaw) || hasCalendarUnit(timeframeArg);
 						if (!isLookaheadOn && approximateAlignment) emitRequestSecurityDiagnostic("request.security/approximate-bucket-alignment", `request.security("${String(timeframeArg)}", lookahead_off) uses approximate close-bar alignment on chart timeframe "${String(currentTfRaw)}"`, `approx-align|${String(currentTfRaw)}|${String(timeframeArg)}|${merge.gaps}|${merge.lookahead}`);
 						const effectiveBucketCloseBar = approximateAlignment ? changedBucket : isBucketCloseBar;
 						const eventBar = isLookaheadOn ? changedBucket : effectiveBucketCloseBar;
-						const merged = isLookaheadOn ? state.currentValue : effectiveBucketCloseBar ? state.currentValue : state.confirmedValue;
+						const merged = isLookaheadOn ? state.currentValue : effectiveBucketCloseBar ? approximateAlignment ? state.confirmedValue : state.currentValue : state.confirmedValue;
 						if (merge.gaps === "gaps_on" && !eventBar) return naLike(expressionArg);
 						return cloneValue(merged);
 					};
@@ -7414,23 +7541,23 @@ function buildIndicatorFactory(options) {
 					const stdTimeFn = stdLib.time;
 					const time = typeof stdTimeFn === "function" ? Number(stdTimeFn(ctx)) : 0;
 					const stdTimeCloseFn = stdLib.time_close;
-					const time_close = typeof stdTimeCloseFn === "function" ? Number(stdTimeCloseFn(ctx)) : time + 6e4;
-					const _td = new Date(time);
-					_td.setUTCHours(0, 0, 0, 0);
-					const time_tradingday = _td.getTime();
+					const symbolTimezone = readStringField(ctx.symbol, "timezone") ?? "America/New_York";
+					const time_close = typeof stdTimeCloseFn === "function" ? Number(stdTimeCloseFn(ctx)) : time + chartTimeframeMs;
+					const _tdClock = readClockAt(time, symbolTimezone);
+					const time_tradingday = time - (_tdClock.hour * 3600 + _tdClock.minute * 60 + _tdClock.second) * 1e3;
 					const bar_index = resolvedBarIndex;
 					const readClock = () => {
 						const stdHourFn = stdLib.hour;
 						const stdMinuteFn = stdLib.minute;
 						const stdDayOfWeekFn = stdLib.dayofweek;
-						const fallbackDate = new Date(time);
-						const hourVal = typeof stdHourFn === "function" ? Number(stdHourFn(ctx)) : fallbackDate.getUTCHours();
-						const minuteVal = typeof stdMinuteFn === "function" ? Number(stdMinuteFn(ctx)) : fallbackDate.getUTCMinutes();
-						const dayOfWeekVal = typeof stdDayOfWeekFn === "function" ? Number(stdDayOfWeekFn(ctx)) : fallbackDate.getUTCDay() + 1;
+						const fallbackClock = readClockAt(time, symbolTimezone);
+						const hourVal = typeof stdHourFn === "function" ? Number(stdHourFn(ctx, symbolTimezone)) : fallbackClock.hour;
+						const minuteVal = typeof stdMinuteFn === "function" ? Number(stdMinuteFn(ctx, symbolTimezone)) : fallbackClock.minute;
+						const dayOfWeekVal = typeof stdDayOfWeekFn === "function" ? Number(stdDayOfWeekFn(ctx, symbolTimezone)) : fallbackClock.dayOfWeek;
 						return {
-							hour: Number.isFinite(hourVal) ? hourVal : fallbackDate.getUTCHours(),
-							minute: Number.isFinite(minuteVal) ? minuteVal : fallbackDate.getUTCMinutes(),
-							dayOfWeek: Number.isFinite(dayOfWeekVal) ? dayOfWeekVal : fallbackDate.getUTCDay() + 1
+							hour: Number.isFinite(hourVal) ? hourVal : fallbackClock.hour,
+							minute: Number.isFinite(minuteVal) ? minuteVal : fallbackClock.minute,
+							dayOfWeek: Number.isFinite(dayOfWeekVal) ? dayOfWeekVal : fallbackClock.dayOfWeek
 						};
 					};
 					const isInSession = (sessionStr) => {
@@ -7443,14 +7570,25 @@ function buildIndicatorFactory(options) {
 						const endHour = Number(endRaw.slice(0, 2));
 						const endMinute = Number(endRaw.slice(2, 4));
 						if (!Number.isFinite(startHour) || !Number.isFinite(startMinute) || !Number.isFinite(endHour) || !Number.isFinite(endMinute)) return false;
-						const days = daysRaw ?? "1234567";
 						const { hour: currentHour, minute: currentMinute, dayOfWeek } = readClock();
-						if (!days.includes(String(dayOfWeek))) return false;
+						const days = (daysRaw ?? "1234567").trim();
 						const current = currentHour * 60 + currentMinute;
 						const start = startHour * 60 + startMinute;
 						const end = endHour * 60 + endMinute;
-						if (start <= end) return current >= start && current < end;
-						return current >= start || current < end;
+						if (start <= end) {
+							if (days && !days.includes(String(dayOfWeek))) return false;
+							return current >= start && current < end;
+						}
+						if (current >= start) {
+							if (days && !days.includes(String(dayOfWeek))) return false;
+							return true;
+						}
+						if (current < end) {
+							const prevDay = dayOfWeek === 1 ? 7 : dayOfWeek - 1;
+							if (days && !days.includes(String(prevDay))) return false;
+							return true;
+						}
+						return false;
 					};
 					const session = {
 						get ismarket() {
@@ -7704,7 +7842,7 @@ function createIndicator(PineJS) {
     name: 'User_${safeId}',
     metainfo: {
       _metainfoVersion: 53,
-      id: 'User_${safeId}@basicstudies-1',
+      id: 'User_${safeId}@tv-basicstudies-1',
       description: ${JSON.stringify(indicatorName || name)},
       shortDescription: ${JSON.stringify(shortName)},
       is_hidden_study: false,
@@ -10917,7 +11055,7 @@ function executePineJS(code, indicatorId, indicatorName) {
 				}
 			}
 			if (indicator.metainfo) {
-				const rawId = `${indicatorId}@basicstudies-1`;
+				const rawId = `${indicatorId}@tv-basicstudies-1`;
 				indicator.metainfo.id = rawId;
 			}
 			return indicator;
@@ -10935,6 +11073,137 @@ function executePineJS(code, indicatorId, indicatorName) {
 	}
 }
 //#endregion
-export { MATH_FUNCTION_MAPPINGS as S, getAllPineFunctionNames as _, transpileToStandaloneFactory as a, MULTI_OUTPUT_MAPPINGS as b, compile as c, parse as d, validateInputSize as f, HelperUsage as g, PRICE_SOURCES as h, transpileToPineJS as i, extractMetadata as l, COLOR_MAP as m, executePineJS as n, MAX_INPUT_SIZE as o, generateStandaloneFactory as p, transpile as r, buildFactory as s, canTranspilePineScript as t, generateBody as u, getMappingStats as v, TA_FUNCTION_MAPPINGS as x, TIME_FUNCTION_MAPPINGS as y };
+Object.defineProperty(exports, "COLOR_MAP", {
+	enumerable: true,
+	get: function() {
+		return COLOR_MAP;
+	}
+});
+Object.defineProperty(exports, "HelperUsage", {
+	enumerable: true,
+	get: function() {
+		return HelperUsage;
+	}
+});
+Object.defineProperty(exports, "MATH_FUNCTION_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return MATH_FUNCTION_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "MAX_INPUT_SIZE", {
+	enumerable: true,
+	get: function() {
+		return MAX_INPUT_SIZE;
+	}
+});
+Object.defineProperty(exports, "MULTI_OUTPUT_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return MULTI_OUTPUT_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "PRICE_SOURCES", {
+	enumerable: true,
+	get: function() {
+		return PRICE_SOURCES;
+	}
+});
+Object.defineProperty(exports, "TA_FUNCTION_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return TA_FUNCTION_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "TIME_FUNCTION_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return TIME_FUNCTION_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "buildFactory", {
+	enumerable: true,
+	get: function() {
+		return buildFactory;
+	}
+});
+Object.defineProperty(exports, "canTranspilePineScript", {
+	enumerable: true,
+	get: function() {
+		return canTranspilePineScript;
+	}
+});
+Object.defineProperty(exports, "compile", {
+	enumerable: true,
+	get: function() {
+		return compile;
+	}
+});
+Object.defineProperty(exports, "executePineJS", {
+	enumerable: true,
+	get: function() {
+		return executePineJS;
+	}
+});
+Object.defineProperty(exports, "extractMetadata", {
+	enumerable: true,
+	get: function() {
+		return extractMetadata;
+	}
+});
+Object.defineProperty(exports, "generateBody", {
+	enumerable: true,
+	get: function() {
+		return generateBody;
+	}
+});
+Object.defineProperty(exports, "generateStandaloneFactory", {
+	enumerable: true,
+	get: function() {
+		return generateStandaloneFactory;
+	}
+});
+Object.defineProperty(exports, "getAllPineFunctionNames", {
+	enumerable: true,
+	get: function() {
+		return getAllPineFunctionNames;
+	}
+});
+Object.defineProperty(exports, "getMappingStats", {
+	enumerable: true,
+	get: function() {
+		return getMappingStats;
+	}
+});
+Object.defineProperty(exports, "parse", {
+	enumerable: true,
+	get: function() {
+		return parse;
+	}
+});
+Object.defineProperty(exports, "transpile", {
+	enumerable: true,
+	get: function() {
+		return transpile;
+	}
+});
+Object.defineProperty(exports, "transpileToPineJS", {
+	enumerable: true,
+	get: function() {
+		return transpileToPineJS;
+	}
+});
+Object.defineProperty(exports, "transpileToStandaloneFactory", {
+	enumerable: true,
+	get: function() {
+		return transpileToStandaloneFactory;
+	}
+});
+Object.defineProperty(exports, "validateInputSize", {
+	enumerable: true,
+	get: function() {
+		return validateInputSize;
+	}
+});
 
-//# sourceMappingURL=src-DJm57Grt.js.map
+//# sourceMappingURL=src-CFgsNpc_.cjs.map

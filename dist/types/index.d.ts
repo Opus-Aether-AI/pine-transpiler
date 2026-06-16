@@ -1,0 +1,173 @@
+/**
+ * Type definitions for the Pine Script to PineJS transpiler
+ */
+export type { CustomIndicator, IndicatorConstructor, IndicatorConstructorFactory, IndicatorFactory, InputCallback, PineJSRuntime, PineJSStdLibrary, PlotStyle, RuntimeContext, StudyInputInfo, StudyMetaInfo, StudyPlotInfo, TranspileToPineJSResult, TranspileToStandaloneFactoryResult, } from './runtime';
+/**
+ * Warning about unsupported feature during parsing
+ */
+export interface ParseWarning {
+    /** Warning type category */
+    type: 'unsupported' | 'partial' | 'deprecated' | 'info';
+    /** Human-readable warning message */
+    message: string;
+    /** Feature or function name that triggered the warning */
+    feature?: string;
+    /** Function name if warning is about a specific function */
+    functionName?: string;
+    /** Line number in source code (if available) */
+    line?: number | undefined;
+}
+/**
+ * Error during transpilation runtime
+ */
+export interface TranspilerRuntimeError {
+    message: string;
+    line?: number;
+    column?: number;
+}
+/**
+ * Parsed indicator metadata from Pine Script code
+ */
+export interface ParsedIndicator {
+    name: string;
+    shortName: string;
+    overlay: boolean;
+    inputs: ParsedInput[];
+    plots: ParsedPlot[];
+    variables: ParsedVariable[];
+    /** Custom function definitions */
+    functions: ParsedFunction[];
+    version: number;
+    /** Warnings about unsupported features */
+    warnings: ParseWarning[];
+}
+/**
+ * Parsed input from Pine Script
+ */
+export interface ParsedInput {
+    id: string;
+    name: string;
+    type: 'integer' | 'float' | 'bool' | 'source' | 'string' | 'session';
+    defval: number | boolean | string;
+    min?: number | undefined;
+    max?: number | undefined;
+    options?: string[];
+}
+/**
+ * Parsed plot from Pine Script
+ */
+export interface ParsedPlot {
+    id: string;
+    title: string;
+    varName: string;
+    type: 'line' | 'histogram' | 'circles' | 'columns' | 'area' | 'stepline' | 'cross' | 'shape' | 'char' | 'hline' | 'bg_colorer';
+    color: string;
+    linewidth: number;
+    /** The value expression to plot (variable name or expression) */
+    valueExpr?: string | undefined;
+    /** For hline - horizontal line price level */
+    price?: number | undefined;
+    /** For plotshape - the shape style */
+    shape?: 'circle' | 'cross' | 'diamond' | 'square' | 'triangleup' | 'triangledown' | 'flag' | 'label' | undefined;
+    /** Location for shapes */
+    location?: 'abovebar' | 'belowbar' | 'top' | 'bottom' | 'absolute' | undefined;
+    /** For plotchar - glyph rendered by chars plots */
+    char?: string | undefined;
+    /** For bg_colorer - palette name */
+    palette?: string | undefined;
+}
+/**
+ * Parsed bgcolor() call from Pine Script
+ */
+export interface ParsedBgcolor {
+    /** Index in the order of bgcolor() calls */
+    index: number;
+    /** The condition expression (transpiled JS) */
+    condition: string;
+    /** Color name or hex value */
+    color: string;
+    /** Transparency (0-100) */
+    transparency: number;
+    /** Original color expression for reference */
+    colorExpr?: string;
+}
+/**
+ * Parsed variable assignment from Pine Script
+ */
+export interface ParsedVariable {
+    name: string;
+    expression: string;
+    /** Line number in source code */
+    line: number;
+    /** Whether this is an internal variable (e.g., tuple holder) */
+    isInternal?: boolean;
+}
+/**
+ * Parsed custom function definition from Pine Script
+ */
+export interface ParsedFunction {
+    /** Function name */
+    name: string;
+    /** Parameter names */
+    params: string[];
+    /** Function body expression */
+    body: string;
+    /** Line number in source code */
+    line: number;
+}
+/**
+ * Configuration for how a ta.* function maps to Std.*
+ */
+export interface TAFunctionMapping {
+    /** The Std.* function name */
+    stdName: string;
+    /** Whether the first argument needs to be wrapped as a series */
+    needsSeries: boolean;
+    /** Whether to append context as the last argument */
+    contextArg: boolean;
+    /** Number of expected arguments (for validation) */
+    argCount?: number;
+    /** Description for documentation */
+    description?: string;
+}
+/**
+ * Configuration for multi-output functions like ta.macd, ta.dmi
+ */
+export interface MultiOutputFunctionMapping extends TAFunctionMapping {
+    /** Number of output values returned */
+    outputCount: number;
+    /** Names of the output values */
+    outputNames: string[];
+}
+/**
+ * Comparison function mapping with optional epsilon support
+ */
+export interface ComparisonFunctionMapping {
+    /** The Std.* function name */
+    stdName: string;
+    /** Whether function returns boolean (true) or number 0/1 (false) */
+    returnsBoolean: boolean;
+    /** Whether the function supports an epsilon parameter */
+    supportsEpsilon?: boolean;
+}
+/**
+ * Time function mapping
+ */
+export interface TimeFunctionMapping {
+    /** The Std.* function name */
+    stdName: string;
+    /** Whether context is required */
+    needsContext: boolean;
+    /** Description */
+    description?: string;
+}
+/**
+ * Color map for Pine Script color constants
+ */
+export declare const COLOR_MAP: Record<string, string>;
+/**
+ * Built-in price sources
+ */
+export declare const PRICE_SOURCES: readonly ["close", "open", "high", "low", "volume", "hl2", "hlc3", "ohlc4", "hlcc4"];
+export type PriceSource = (typeof PRICE_SOURCES)[number];
+//# sourceMappingURL=index.d.ts.map
