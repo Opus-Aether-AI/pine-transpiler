@@ -2858,7 +2858,7 @@ export function buildIndicatorFactory(
     return {
       name: `User_${safeId}`,
       metainfo: {
-        id: `User_${safeId}@basicstudies-1`,
+        id: `User_${safeId}@tv-basicstudies-1`,
         description: indicatorName || name,
         shortDescription: shortName,
         is_price_study: overlay,
@@ -4764,7 +4764,7 @@ function createIndicator(PineJS) {
     name: 'User_${safeId}',
     metainfo: {
       _metainfoVersion: 53,
-      id: 'User_${safeId}@basicstudies-1',
+      id: 'User_${safeId}@tv-basicstudies-1',
       description: ${JSON.stringify(indicatorName || name)},
       shortDescription: ${JSON.stringify(shortName)},
       is_hidden_study: false,
