@@ -132,6 +132,17 @@ describe('MetadataVisitor', () => {
         });
       });
 
+      it('should override existing alpha when color.new transparency is zero', () => {
+        const code =
+          'sessionColor = input.color(color.new(#FFFFFF00, 0), "Session color")';
+        const metadata = extractMetadata(code);
+        expect(metadata.inputs[0]).toMatchObject({
+          type: 'color',
+          defval: '#FFFFFFFF',
+          name: 'Session color',
+        });
+      });
+
       it('should extract input.color() with color.rgb transparency', () => {
         const code =
           'sessionColor = input.color(color.rgb(41, 98, 255, 85), "Session color")';

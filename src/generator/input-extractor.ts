@@ -20,12 +20,15 @@ function toHexByte(value: number): string {
 }
 
 function withTransparency(color: string, transparency: number | null): string {
-  if (transparency === null || transparency <= 0) return color;
+  if (transparency === null) return color;
 
-  const alpha = 255 * (1 - Math.max(0, Math.min(100, transparency)) / 100);
-  const alphaHex = toHexByte(alpha);
-  const hex = color.match(/^#([0-9a-fA-F]{6})(?:[0-9a-fA-F]{2})?$/);
-  if (hex) return `#${hex[1].toUpperCase()}${alphaHex}`;
+  const hex = color.match(/^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$/);
+  if (hex) {
+    if (transparency <= 0 && !hex[2]) return `#${hex[1].toUpperCase()}`;
+
+    const alpha = 255 * (1 - Math.max(0, Math.min(100, transparency)) / 100);
+    return `#${hex[1].toUpperCase()}${toHexByte(alpha)}`;
+  }
 
   return color;
 }

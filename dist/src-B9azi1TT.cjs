@@ -9932,10 +9932,13 @@ function toHexByte(value) {
 	return Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, "0").toUpperCase();
 }
 function withTransparency(color, transparency) {
-	if (transparency === null || transparency <= 0) return color;
-	const alphaHex = toHexByte(255 * (1 - Math.max(0, Math.min(100, transparency)) / 100));
-	const hex = color.match(/^#([0-9a-fA-F]{6})(?:[0-9a-fA-F]{2})?$/);
-	if (hex) return `#${hex[1].toUpperCase()}${alphaHex}`;
+	if (transparency === null) return color;
+	const hex = color.match(/^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$/);
+	if (hex) {
+		if (transparency <= 0 && !hex[2]) return `#${hex[1].toUpperCase()}`;
+		const alpha = 255 * (1 - Math.max(0, Math.min(100, transparency)) / 100);
+		return `#${hex[1].toUpperCase()}${toHexByte(alpha)}`;
+	}
 	return color;
 }
 function getColorValue(expr) {
@@ -11242,4 +11245,4 @@ Object.defineProperty(exports, "validateInputSize", {
 	}
 });
 
-//# sourceMappingURL=src-Dbdv5POa.cjs.map
+//# sourceMappingURL=src-B9azi1TT.cjs.map

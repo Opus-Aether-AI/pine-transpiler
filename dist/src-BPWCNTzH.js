@@ -9932,10 +9932,13 @@ function toHexByte(value) {
 	return Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, "0").toUpperCase();
 }
 function withTransparency(color, transparency) {
-	if (transparency === null || transparency <= 0) return color;
-	const alphaHex = toHexByte(255 * (1 - Math.max(0, Math.min(100, transparency)) / 100));
-	const hex = color.match(/^#([0-9a-fA-F]{6})(?:[0-9a-fA-F]{2})?$/);
-	if (hex) return `#${hex[1].toUpperCase()}${alphaHex}`;
+	if (transparency === null) return color;
+	const hex = color.match(/^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$/);
+	if (hex) {
+		if (transparency <= 0 && !hex[2]) return `#${hex[1].toUpperCase()}`;
+		const alpha = 255 * (1 - Math.max(0, Math.min(100, transparency)) / 100);
+		return `#${hex[1].toUpperCase()}${toHexByte(alpha)}`;
+	}
 	return color;
 }
 function getColorValue(expr) {
@@ -11111,4 +11114,4 @@ function executePineJS(code, indicatorId, indicatorName) {
 //#endregion
 export { MATH_FUNCTION_MAPPINGS as S, getAllPineFunctionNames as _, transpileToStandaloneFactory as a, MULTI_OUTPUT_MAPPINGS as b, compile as c, parse as d, validateInputSize as f, HelperUsage as g, PRICE_SOURCES as h, transpileToPineJS as i, extractMetadata as l, COLOR_MAP as m, executePineJS as n, MAX_INPUT_SIZE as o, generateStandaloneFactory as p, transpile as r, buildFactory as s, canTranspilePineScript as t, generateBody as u, getMappingStats as v, TA_FUNCTION_MAPPINGS as x, TIME_FUNCTION_MAPPINGS as y };
 
-//# sourceMappingURL=src-C0PlKy6g.js.map
+//# sourceMappingURL=src-BPWCNTzH.js.map
