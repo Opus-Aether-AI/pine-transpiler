@@ -47,7 +47,7 @@ export interface ParsedIndicator {
 export interface ParsedInput {
     id: string;
     name: string;
-    type: 'integer' | 'float' | 'bool' | 'source' | 'string' | 'session';
+    type: 'integer' | 'float' | 'bool' | 'source' | 'string' | 'session' | 'color';
     defval: number | boolean | string;
     min?: number | undefined;
     max?: number | undefined;

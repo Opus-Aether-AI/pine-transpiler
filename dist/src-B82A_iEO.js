@@ -7812,7 +7812,7 @@ function generateStandaloneFactory(options) {
 	const inputsMetadata = inputs.map((input) => ({
 		id: input.id,
 		name: input.name,
-		type: input.type === "integer" ? "integer" : input.type === "float" ? "float" : input.type === "bool" ? "bool" : input.type === "source" ? "source" : input.type === "session" ? "session" : "text",
+		type: input.type === "integer" ? "integer" : input.type === "float" ? "float" : input.type === "bool" ? "bool" : input.type === "source" ? "source" : input.type === "session" ? "session" : input.type === "color" ? "color" : "text",
 		defval: input.defval,
 		...input.min !== void 0 ? { min: input.min } : {},
 		...input.max !== void 0 ? { max: input.max } : {},
@@ -9928,6 +9928,39 @@ function getFnName(node) {
 }
 //#endregion
 //#region src/generator/input-extractor.ts
+function toHexByte(value) {
+	return Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, "0").toUpperCase();
+}
+function withTransparency(color, transparency) {
+	if (transparency === null || transparency <= 0) return color;
+	const alphaHex = toHexByte(255 * (1 - Math.max(0, Math.min(100, transparency)) / 100));
+	const hex = color.match(/^#([0-9a-fA-F]{6})(?:[0-9a-fA-F]{2})?$/);
+	if (hex) return `#${hex[1].toUpperCase()}${alphaHex}`;
+	return color;
+}
+function getColorValue(expr) {
+	if (!expr) return null;
+	if (expr.type === "Literal" && typeof expr.value === "string") return expr.value;
+	if (expr.type === "Identifier" && COLOR_MAP[expr.name]) return COLOR_MAP[expr.name];
+	if (expr.type === "MemberExpression" && expr.object.type === "Identifier" && expr.object.name === "color" && expr.property.type === "Identifier") return COLOR_MAP[expr.property.name] ?? null;
+	if (expr.type === "CallExpression") {
+		const fnName = getFnName(expr.callee);
+		if (fnName === "color.new") {
+			const color = getColorValue(getArg(expr.arguments, 0, "color"));
+			if (!color) return null;
+			return withTransparency(color, getNumberValue(getArg(expr.arguments, 1, "transp")));
+		}
+		if (fnName === "color.rgb") {
+			const r = getNumberValue(getArg(expr.arguments, 0, "r"));
+			const g = getNumberValue(getArg(expr.arguments, 1, "g"));
+			const b = getNumberValue(getArg(expr.arguments, 2, "b"));
+			const transparency = getNumberValue(getArg(expr.arguments, 3, "transp"));
+			if (r === null || g === null || b === null) return null;
+			return withTransparency(`#${toHexByte(r)}${toHexByte(g)}${toHexByte(b)}`, transparency);
+		}
+	}
+	return null;
+}
 /**
 * Extracts input declarations from Pine Script.
 */
@@ -9960,6 +9993,9 @@ var InputExtractor = class {
 			type = "source";
 			if (defvalExpr?.type === "Identifier") defval = defvalExpr.name;
 			else defval = "close";
+		} else if (fnName === "input.color") {
+			type = "color";
+			defval = getColorValue(defvalExpr) ?? COLOR_MAP.blue;
 		} else if (fnName === "input.time") {
 			type = "integer";
 			defval = getNumberValue(defvalExpr) ?? Date.now();
@@ -11075,4 +11111,4 @@ function executePineJS(code, indicatorId, indicatorName) {
 //#endregion
 export { MATH_FUNCTION_MAPPINGS as S, getAllPineFunctionNames as _, transpileToStandaloneFactory as a, MULTI_OUTPUT_MAPPINGS as b, compile as c, parse as d, validateInputSize as f, HelperUsage as g, PRICE_SOURCES as h, transpileToPineJS as i, extractMetadata as l, COLOR_MAP as m, executePineJS as n, MAX_INPUT_SIZE as o, generateStandaloneFactory as p, transpile as r, buildFactory as s, canTranspilePineScript as t, generateBody as u, getMappingStats as v, TA_FUNCTION_MAPPINGS as x, TIME_FUNCTION_MAPPINGS as y };
 
-//# sourceMappingURL=src-BQaOB-ng.js.map
+//# sourceMappingURL=src-B82A_iEO.js.map
