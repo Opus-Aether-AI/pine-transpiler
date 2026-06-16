@@ -143,6 +143,17 @@ describe('MetadataVisitor', () => {
         });
       });
 
+      it('should extract input.color() with named color.rgb channels', () => {
+        const code =
+          'sessionColor = input.color(color.rgb(red=41, green=98, blue=255, transp=85), "Session color")';
+        const metadata = extractMetadata(code);
+        expect(metadata.inputs[0]).toMatchObject({
+          type: 'color',
+          defval: '#2962FF26',
+          name: 'Session color',
+        });
+      });
+
       it('should extract input.time()', () => {
         const code = 'startTime = input.time(0, "Start Time")';
         const metadata = extractMetadata(code);

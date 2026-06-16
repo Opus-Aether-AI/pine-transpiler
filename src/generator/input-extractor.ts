@@ -59,9 +59,15 @@ function getColorValue(expr: Expression | null): string | null {
       return withTransparency(color, transparency);
     }
     if (fnName === 'color.rgb') {
-      const r = getNumberValue(getArg(expr.arguments, 0, 'r'));
-      const g = getNumberValue(getArg(expr.arguments, 1, 'g'));
-      const b = getNumberValue(getArg(expr.arguments, 2, 'b'));
+      const r = getNumberValue(
+        getArg(expr.arguments, 0, 'r') ?? getArg(expr.arguments, 0, 'red'),
+      );
+      const g = getNumberValue(
+        getArg(expr.arguments, 1, 'g') ?? getArg(expr.arguments, 1, 'green'),
+      );
+      const b = getNumberValue(
+        getArg(expr.arguments, 2, 'b') ?? getArg(expr.arguments, 2, 'blue'),
+      );
       const transparency = getNumberValue(getArg(expr.arguments, 3, 'transp'));
       if (r === null || g === null || b === null) return null;
       const color = `#${toHexByte(r)}${toHexByte(g)}${toHexByte(b)}`;

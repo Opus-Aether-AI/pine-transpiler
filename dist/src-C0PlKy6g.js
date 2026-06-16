@@ -9951,9 +9951,9 @@ function getColorValue(expr) {
 			return withTransparency(color, getNumberValue(getArg(expr.arguments, 1, "transp")));
 		}
 		if (fnName === "color.rgb") {
-			const r = getNumberValue(getArg(expr.arguments, 0, "r"));
-			const g = getNumberValue(getArg(expr.arguments, 1, "g"));
-			const b = getNumberValue(getArg(expr.arguments, 2, "b"));
+			const r = getNumberValue(getArg(expr.arguments, 0, "r") ?? getArg(expr.arguments, 0, "red"));
+			const g = getNumberValue(getArg(expr.arguments, 1, "g") ?? getArg(expr.arguments, 1, "green"));
+			const b = getNumberValue(getArg(expr.arguments, 2, "b") ?? getArg(expr.arguments, 2, "blue"));
 			const transparency = getNumberValue(getArg(expr.arguments, 3, "transp"));
 			if (r === null || g === null || b === null) return null;
 			return withTransparency(`#${toHexByte(r)}${toHexByte(g)}${toHexByte(b)}`, transparency);
@@ -11111,4 +11111,4 @@ function executePineJS(code, indicatorId, indicatorName) {
 //#endregion
 export { MATH_FUNCTION_MAPPINGS as S, getAllPineFunctionNames as _, transpileToStandaloneFactory as a, MULTI_OUTPUT_MAPPINGS as b, compile as c, parse as d, validateInputSize as f, HelperUsage as g, PRICE_SOURCES as h, transpileToPineJS as i, extractMetadata as l, COLOR_MAP as m, executePineJS as n, MAX_INPUT_SIZE as o, generateStandaloneFactory as p, transpile as r, buildFactory as s, canTranspilePineScript as t, generateBody as u, getMappingStats as v, TA_FUNCTION_MAPPINGS as x, TIME_FUNCTION_MAPPINGS as y };
 
-//# sourceMappingURL=src-B82A_iEO.js.map
+//# sourceMappingURL=src-C0PlKy6g.js.map
