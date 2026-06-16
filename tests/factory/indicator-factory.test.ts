@@ -149,6 +149,26 @@ describe('generateStandaloneFactory', () => {
       expect(result).toContain('"defval": "0930-1600:23456"');
     });
 
+    it('should generate color input', () => {
+      const inputs: ParsedInput[] = [
+        { id: 'in_0', name: 'Session color', type: 'color', defval: '#2962FF' },
+      ];
+
+      const result = generateStandaloneFactory({
+        indicatorId: 'test',
+        indicatorName: 'Test',
+        name: 'Test',
+        shortName: 'Test',
+        overlay: true,
+        plots: [],
+        inputs,
+        bgcolors: [],
+      });
+
+      expect(result).toContain('"type": "color"');
+      expect(result).toContain('"defval": "#2962FF"');
+    });
+
     it('should generate string input as text', () => {
       const inputs: ParsedInput[] = [
         { id: 'in_0', name: 'Label', type: 'string', defval: 'Hello' },

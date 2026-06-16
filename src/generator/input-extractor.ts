@@ -5,13 +5,61 @@
  */
 
 import type { CallExpression, Expression } from '../parser/ast';
-import type { ParsedInput } from '../types';
+import { COLOR_MAP, type ParsedInput } from '../types';
 import {
   getArg,
   getBooleanValue,
+  getFnName,
   getNumberValue,
   getStringValue,
 } from './call-expression-helper';
+
+function toHexByte(value: number): string {
+  const clamped = Math.max(0, Math.min(255, Math.round(value)));
+  return clamped.toString(16).padStart(2, '0').toUpperCase();
+}
+
+function getColorValue(expr: Expression | null): string | null {
+  if (!expr) return null;
+
+  if (expr.type === 'Literal' && typeof expr.value === 'string') {
+    return expr.value;
+  }
+
+  if (expr.type === 'Identifier' && COLOR_MAP[expr.name]) {
+    return COLOR_MAP[expr.name];
+  }
+
+  if (
+    expr.type === 'MemberExpression' &&
+    expr.object.type === 'Identifier' &&
+    expr.object.name === 'color' &&
+    expr.property.type === 'Identifier'
+  ) {
+    return COLOR_MAP[expr.property.name] ?? null;
+  }
+
+  if (expr.type === 'CallExpression') {
+    const fnName = getFnName(expr.callee as Expression);
+    if (fnName === 'color.new') {
+      return getColorValue(getArg(expr.arguments, 0, 'color'));
+    }
+    if (fnName === 'color.rgb') {
+      const r = getNumberValue(getArg(expr.arguments, 0, 'r'));
+      const g = getNumberValue(getArg(expr.arguments, 1, 'g'));
+      const b = getNumberValue(getArg(expr.arguments, 2, 'b'));
+      const transparency = getNumberValue(getArg(expr.arguments, 3, 'transp'));
+      if (r === null || g === null || b === null) return null;
+      const alpha = 1 - (transparency ?? 0) / 100;
+      if (alpha < 1) {
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      }
+      return `#${toHexByte(r)}${toHexByte(g)}${toHexByte(b)}`;
+    }
+  }
+
+  return null;
+}
 
 /**
  * Extracts input declarations from Pine Script.
@@ -51,6 +99,9 @@ export class InputExtractor {
       } else {
         defval = 'close';
       }
+    } else if (fnName === 'input.color') {
+      type = 'color';
+      defval = getColorValue(defvalExpr) ?? COLOR_MAP.blue;
     } else if (fnName === 'input.time') {
       type = 'integer';
       defval = getNumberValue(defvalExpr) ?? Date.now();

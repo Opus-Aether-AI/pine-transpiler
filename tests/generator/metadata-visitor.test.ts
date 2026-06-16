@@ -121,6 +121,17 @@ describe('MetadataVisitor', () => {
         expect(metadata.inputs[0].defval).toBe('close');
       });
 
+      it('should extract input.color() with color.new default', () => {
+        const code =
+          'sessionColor = input.color(color.new(#2962FF, 85), "Session color")';
+        const metadata = extractMetadata(code);
+        expect(metadata.inputs[0]).toMatchObject({
+          type: 'color',
+          defval: '#2962FF',
+          name: 'Session color',
+        });
+      });
+
       it('should extract input.time()', () => {
         const code = 'startTime = input.time(0, "Start Time")';
         const metadata = extractMetadata(code);
