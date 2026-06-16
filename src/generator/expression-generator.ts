@@ -519,7 +519,11 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
         }
       }
       if (mapping.contextArg) {
-        args.unshift('context');
+        if (callee.startsWith('StdPlus.')) {
+          args.unshift('context');
+        } else {
+          args.push('context');
+        }
       }
     }
 

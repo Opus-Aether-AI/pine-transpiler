@@ -242,17 +242,17 @@ export function createHarnessRuntime(
       return Number.isFinite(n) ? n : Number.NaN;
     },
     toBool: (value: unknown) => coerceNumber(value) !== 0,
-    sma: (_ctx: RuntimeContext, series: unknown, length: number) =>
+    sma: (series: unknown, length: number, _ctx: RuntimeContext) =>
       sma(series, length),
-    ema: (_ctx: RuntimeContext, series: unknown, length: number) =>
+    ema: (series: unknown, length: number, _ctx: RuntimeContext) =>
       ema(series, length),
-    rsi: (_ctx: RuntimeContext, series: unknown, length: number) =>
+    rsi: (series: unknown, length: number, _ctx: RuntimeContext) =>
       rsi(series, length),
-    tr: () => {
+    tr: (_ctx: RuntimeContext) => {
       const b = currentBar();
       return b ? b.high - b.low : Number.NaN;
     },
-    atr: () => {
+    atr: (_length: number, _ctx: RuntimeContext) => {
       const b = currentBar();
       return b ? b.high - b.low : Number.NaN;
     },

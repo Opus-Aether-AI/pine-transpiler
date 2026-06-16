@@ -3,4 +3,4 @@ const _getHistorical_volume = (offset) => _series_volume.get(offset);
 indicator("Volume MA", false);
 var length = input.int(20, "Length");
 Std.plot(volume, "Volume", color.blue, plot.style_columns);
-Std.plot(Std.sma(context, _series_volume, length), "Volume MA", color.red);
+Std.plot(Std.sma(_series_volume, length, context), "Volume MA", color.red);

@@ -1,0 +1,13 @@
+/**
+ * Matrix Function Mappings (Pine v6)
+ *
+ * Pine `matrix.*` APIs are lowered to lightweight JS helpers so scripts
+ * like `var matrix = matrix.new<string>(...)` don't depend on an
+ * injected runtime namespace object.
+ */
+export declare const MATRIX_FUNCTION_MAPPINGS: Record<string, {
+    stdName: string;
+    description: string;
+}>;
+export declare const MATRIX_HELPER_FUNCTIONS = "\n// Matrix helpers (Pine v6 matrix.*)\nconst _matrixSafeInt = (v, fallback = 0) => {\n  const n = Number(v);\n  if (!Number.isFinite(n)) return fallback;\n  return Math.max(0, Math.floor(n));\n};\nconst _matrixNew = (rows = 0, columns = 0, fill = NaN) => {\n  const r = _matrixSafeInt(rows, 0);\n  const c = _matrixSafeInt(columns, 0);\n  const data = Array.from({ length: r }, () => Array(c).fill(fill));\n  return { _rows: data, _columns: c, _fill: fill };\n};\nconst _matrixRows = (m) => (Array.isArray(m?._rows) ? m._rows.length : 0);\nconst _matrixColumns = (m) =>\n  typeof m?._columns === 'number' ? m._columns : 0;\nconst _matrixNormalizeRow = (m, row) => {\n  const values = Array.isArray(row) ? [...row] : [row];\n  const width = _matrixColumns(m);\n  if (width === 0) return values;\n  if (values.length > width) return values.slice(0, width);\n  if (values.length < width) {\n    return values.concat(Array(width - values.length).fill(m?._fill ?? NaN));\n  }\n  return values;\n};\nconst _matrixAddRow = (m, index, row) => {\n  if (!Array.isArray(m?._rows)) return m;\n  const at = _matrixSafeInt(index, m._rows.length);\n  const safeIndex = Math.min(at, m._rows.length);\n  m._rows.splice(safeIndex, 0, _matrixNormalizeRow(m, row));\n  return m;\n};\nconst _matrixRemoveRow = (m, index) => {\n  if (!Array.isArray(m?._rows) || m._rows.length === 0) return [];\n  const at = _matrixSafeInt(index, m._rows.length - 1);\n  const safeIndex = Math.min(at, m._rows.length - 1);\n  const removed = m._rows.splice(safeIndex, 1);\n  return removed[0] ?? [];\n};\nconst _matrixGet = (m, row, column) => {\n  if (!Array.isArray(m?._rows)) return NaN;\n  const r = _matrixSafeInt(row, 0);\n  const c = _matrixSafeInt(column, 0);\n  return m._rows[r]?.[c];\n};\nconst _matrixSet = (m, row, column, value) => {\n  if (!Array.isArray(m?._rows)) return m;\n  const r = _matrixSafeInt(row, 0);\n  const c = _matrixSafeInt(column, 0);\n  if (!Array.isArray(m._rows[r])) {\n    m._rows[r] = Array(_matrixColumns(m)).fill(m?._fill ?? NaN);\n  }\n  m._rows[r][c] = value;\n  return m;\n};\n";
+//# sourceMappingURL=matrix.d.ts.map

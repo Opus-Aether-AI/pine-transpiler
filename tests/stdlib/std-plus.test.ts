@@ -33,11 +33,11 @@ describe('StdPlus Library', () => {
     });
 
     it('should compute basis using SMA', () => {
-      expect(STD_PLUS_LIBRARY).toContain('Std.sma(ctx, series, length)');
+      expect(STD_PLUS_LIBRARY).toContain('Std.sma(series, length, ctx)');
     });
 
     it('should compute deviation using stdev', () => {
-      expect(STD_PLUS_LIBRARY).toContain('Std.stdev(ctx, series, length)');
+      expect(STD_PLUS_LIBRARY).toContain('Std.stdev(series, length, ctx)');
     });
 
     it('should return tuple [middle, upper, lower]', () => {
@@ -82,11 +82,11 @@ describe('StdPlus Library', () => {
     });
 
     it('should use EMA for basis', () => {
-      expect(STD_PLUS_LIBRARY).toContain('Std.ema(ctx, series, length)');
+      expect(STD_PLUS_LIBRARY).toContain('Std.ema(series, length, ctx)');
     });
 
     it('should use ATR for range', () => {
-      expect(STD_PLUS_LIBRARY).toContain('Std.atr(ctx, length)');
+      expect(STD_PLUS_LIBRARY).toContain('Std.atr(length, ctx)');
     });
 
     it('should transpile ta.kc call', () => {
@@ -121,8 +121,8 @@ describe('StdPlus Library', () => {
     });
 
     it('should use WMA twice', () => {
-      expect(STD_PLUS_LIBRARY).toContain('Std.wma(ctx, series, len2)');
-      expect(STD_PLUS_LIBRARY).toContain('Std.wma(ctx, series, length)');
+      expect(STD_PLUS_LIBRARY).toContain('Std.wma(series, len2, ctx)');
+      expect(STD_PLUS_LIBRARY).toContain('Std.wma(series, length, ctx)');
     });
 
     it('should compute 2 * WMA(n/2) - WMA(n)', () => {
@@ -134,7 +134,7 @@ describe('StdPlus Library', () => {
     });
 
     it('should apply final WMA with sqrt(n) period', () => {
-      expect(STD_PLUS_LIBRARY).toContain('Std.wma(ctx, diffSeries, sqrtLen)');
+      expect(STD_PLUS_LIBRARY).toContain('Std.wma(diffSeries, sqrtLen, ctx)');
     });
 
     it('should transpile ta.hma call', () => {
@@ -153,7 +153,7 @@ hmaValue = ta.hma(close, 14)`;
     });
 
     it('should use Std.change internally', () => {
-      expect(STD_PLUS_LIBRARY).toContain('Std.change(ctx, source, length)');
+      expect(STD_PLUS_LIBRARY).toContain('Std.change(source, length, ctx)');
     });
 
     it('should transpile ta.mom call', () => {
@@ -173,7 +173,7 @@ momValue = ta.mom(close, 10)`;
 
     it('should check cross and greater than', () => {
       expect(STD_PLUS_LIBRARY).toContain(
-        'Std.cross(ctx, a, b) && Std.gt(ctx, a, b)',
+        'Std.cross(a, b, ctx) && Std.gt(a, b)',
       );
     });
 
@@ -196,7 +196,7 @@ crossed = ta.crossover(sma14, sma28)`;
 
     it('should check cross and less than', () => {
       expect(STD_PLUS_LIBRARY).toContain(
-        'Std.cross(ctx, a, b) && Std.lt(ctx, a, b)',
+        'Std.cross(a, b, ctx) && Std.lt(a, b)',
       );
     });
 
@@ -220,11 +220,11 @@ crossed = ta.crossunder(sma14, sma28)`;
     });
 
     it('should compute fast EMA', () => {
-      expect(STD_PLUS_LIBRARY).toContain('Std.ema(ctx, series, fastLen)');
+      expect(STD_PLUS_LIBRARY).toContain('Std.ema(series, fastLen, ctx)');
     });
 
     it('should compute slow EMA', () => {
-      expect(STD_PLUS_LIBRARY).toContain('Std.ema(ctx, series, slowLen)');
+      expect(STD_PLUS_LIBRARY).toContain('Std.ema(series, slowLen, ctx)');
     });
 
     it('should compute MACD line as fast - slow', () => {
@@ -232,7 +232,7 @@ crossed = ta.crossunder(sma14, sma28)`;
     });
 
     it('should compute signal line using EMA of MACD', () => {
-      expect(STD_PLUS_LIBRARY).toContain('Std.ema(ctx, macdSeries, sigLen)');
+      expect(STD_PLUS_LIBRARY).toContain('Std.ema(macdSeries, sigLen, ctx)');
     });
 
     it('should compute histogram', () => {
@@ -265,7 +265,7 @@ crossed = ta.crossunder(sma14, sma28)`;
     });
 
     it('should delegate to Std.rsi', () => {
-      expect(STD_PLUS_LIBRARY).toContain('Std.rsi(ctx, x, y)');
+      expect(STD_PLUS_LIBRARY).toContain('Std.rsi(x, y, ctx)');
     });
   });
 

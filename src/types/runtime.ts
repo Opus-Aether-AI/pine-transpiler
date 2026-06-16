@@ -58,172 +58,180 @@ export interface PineJSStdLibrary {
   // ============================================================================
   // Moving Averages
   // ============================================================================
-  sma: (context: RuntimeContext, series: PineSeries, length: number) => number;
-  ema: (context: RuntimeContext, series: PineSeries, length: number) => number;
-  wma: (context: RuntimeContext, series: PineSeries, length: number) => number;
-  vwma: (context: RuntimeContext, series: PineSeries, length: number) => number;
-  rma: (context: RuntimeContext, series: PineSeries, length: number) => number;
-  swma: (context: RuntimeContext, series: PineSeries) => number;
+  sma: (series: PineSeries, length: number, context: RuntimeContext) => number;
+  ema: (series: PineSeries, length: number, context: RuntimeContext) => number;
+  wma: (series: PineSeries, length: number, context: RuntimeContext) => number;
+  vwma: (series: PineSeries, length: number, context: RuntimeContext) => number;
+  rma: (series: PineSeries, length: number, context: RuntimeContext) => number;
+  swma: (series: PineSeries, context: RuntimeContext) => number;
   alma: (
-    context: RuntimeContext,
     series: PineSeries,
     length: number,
     offset: number,
     sigma: number,
+    context: RuntimeContext,
   ) => number;
   linreg: (
-    context: RuntimeContext,
     series: PineSeries,
     length: number,
     offset: number,
+    context: RuntimeContext,
   ) => number;
-  smma: (context: RuntimeContext, series: PineSeries, length: number) => number;
+  smma: (series: PineSeries, length: number, context: RuntimeContext) => number;
 
   // ============================================================================
   // Momentum Indicators
   // ============================================================================
-  rsi: (context: RuntimeContext, series: PineSeries, length: number) => number;
+  rsi: (series: PineSeries, length: number, context: RuntimeContext) => number;
   macd: (
-    context: RuntimeContext,
     series: PineSeries,
     fast: number,
     slow: number,
     signal: number,
+    context: RuntimeContext,
   ) => [number, number, number];
   stoch: (
-    context: RuntimeContext,
     source: PineSeries,
     high: PineSeries,
     low: PineSeries,
     length: number,
-  ) => number;
-  cci: (context: RuntimeContext, source: PineSeries, length: number) => number;
-  mfi: (context: RuntimeContext, series: PineSeries, length: number) => number;
-  roc: (context: RuntimeContext, series: PineSeries, length: number) => number;
-  mom: (context: RuntimeContext, series: PineSeries, length: number) => number;
-  tsi: (
     context: RuntimeContext,
+  ) => number;
+  cci: (source: PineSeries, length: number, context: RuntimeContext) => number;
+  mfi: (series: PineSeries, length: number, context: RuntimeContext) => number;
+  roc: (series: PineSeries, length: number, context: RuntimeContext) => number;
+  mom: (series: PineSeries, length: number, context: RuntimeContext) => number;
+  tsi: (
     series: PineSeries,
     short: number,
     long: number,
+    context: RuntimeContext,
   ) => number;
 
   // ============================================================================
   // Volatility Indicators
   // ============================================================================
-  atr: (context: RuntimeContext, length: number) => number;
-  tr: (context: RuntimeContext) => number;
+  atr: (length: number, context: RuntimeContext) => number;
+  tr: (
+    handleNaOrContext: boolean | RuntimeContext,
+    context?: RuntimeContext,
+  ) => number;
   stdev: (
-    context: RuntimeContext,
     series: PineSeries,
     length: number,
+    context: RuntimeContext,
   ) => number;
   variance: (
-    context: RuntimeContext,
     series: PineSeries,
     length: number,
-  ) => number;
-  dev: (context: RuntimeContext, series: PineSeries, length: number) => number;
-  bb: (
     context: RuntimeContext,
+  ) => number;
+  dev: (series: PineSeries, length: number, context: RuntimeContext) => number;
+  bb: (
     series: PineSeries,
     length: number,
     mult: number,
+    context: RuntimeContext,
   ) => [number, number, number];
   bbw: (
-    context: RuntimeContext,
     series: PineSeries,
     length: number,
     mult: number,
+    context: RuntimeContext,
   ) => number;
   kc: (
-    context: RuntimeContext,
     series: PineSeries,
     length: number,
     mult: number,
+    context: RuntimeContext,
   ) => [number, number, number];
   kcw: (
-    context: RuntimeContext,
     series: PineSeries,
     length: number,
     mult: number,
+    context: RuntimeContext,
   ) => number;
   donchian: (
-    context: RuntimeContext,
     length: number,
+    context: RuntimeContext,
   ) => [number, number, number];
 
   // ============================================================================
   // Trend Indicators
   // ============================================================================
   adx: (
-    context: RuntimeContext,
     diLength: number,
     adxSmoothing: number,
+    context: RuntimeContext,
   ) => number;
   dmi: (
-    context: RuntimeContext,
     diLength: number,
     adxSmoothing: number,
+    context: RuntimeContext,
   ) => [number, number, number, number, number];
   supertrend: (
-    context: RuntimeContext,
     factor: number,
     atrPeriod: number,
+    context: RuntimeContext,
   ) => [number, number];
   sar: (
-    context: RuntimeContext,
     start: number,
     inc: number,
     max: number,
+    context: RuntimeContext,
   ) => number;
   pivothigh: (
-    context: RuntimeContext,
     series: PineSeries,
     leftbars: number,
     rightbars: number,
+    context: RuntimeContext,
   ) => number;
   pivotlow: (
-    context: RuntimeContext,
     series: PineSeries,
     leftbars: number,
     rightbars: number,
+    context: RuntimeContext,
   ) => number;
 
   // ============================================================================
   // Cross Detection
   // ============================================================================
   cross: (
-    context: RuntimeContext,
     series1: PineSeries,
     series2: PineSeries,
+    context: RuntimeContext,
   ) => boolean;
   crossover: (
-    context: RuntimeContext,
     series1: PineSeries,
     series2: PineSeries,
+    context: RuntimeContext,
   ) => boolean;
   crossunder: (
-    context: RuntimeContext,
     series1: PineSeries,
     series2: PineSeries,
+    context: RuntimeContext,
   ) => boolean;
   rising: (
-    context: RuntimeContext,
     series: PineSeries,
     length: number,
+    context: RuntimeContext,
   ) => boolean;
   falling: (
-    context: RuntimeContext,
     series: PineSeries,
     length: number,
+    context: RuntimeContext,
   ) => boolean;
 
   // ============================================================================
   // Volume Indicators
   // ============================================================================
   obv: (context: RuntimeContext) => number;
-  vwap: (context: RuntimeContext) => number;
+  vwap: (
+    source: PineSeries,
+    anchor: unknown,
+    stdevMult: number | undefined,
+    context: RuntimeContext,
+  ) => number | [number, number, number];
   accdist: (context: RuntimeContext) => number;
 
   // ============================================================================
@@ -231,67 +239,67 @@ export interface PineJSStdLibrary {
   // ============================================================================
   na: (value: unknown) => boolean;
   nz: (value: unknown, replacement?: number) => number;
-  cum: (context: RuntimeContext, series: PineSeries) => number;
-  sum: (context: RuntimeContext, series: PineSeries, length: number) => number;
+  cum: (series: PineSeries, context: RuntimeContext) => number;
+  sum: (series: PineSeries, length: number, context: RuntimeContext) => number;
   change: (
-    context: RuntimeContext,
     series: PineSeries,
     length: number,
+    context?: RuntimeContext,
   ) => number;
   percentrank: (
-    context: RuntimeContext,
     series: PineSeries,
     length: number,
+    context: RuntimeContext,
   ) => number;
 
   highest: (
-    context: RuntimeContext,
     series: PineSeries,
     length: number,
+    context: RuntimeContext,
   ) => number;
   lowest: (
-    context: RuntimeContext,
     series: PineSeries,
     length: number,
+    context: RuntimeContext,
   ) => number;
   highestbars: (
-    context: RuntimeContext,
     series: PineSeries,
     length: number,
+    context: RuntimeContext,
   ) => number;
   lowestbars: (
-    context: RuntimeContext,
     series: PineSeries,
     length: number,
+    context: RuntimeContext,
   ) => number;
 
   median: (
-    context: RuntimeContext,
     series: PineSeries,
     length: number,
+    context: RuntimeContext,
   ) => number;
-  mode: (context: RuntimeContext, series: PineSeries, length: number) => number;
+  mode: (series: PineSeries, length: number, context: RuntimeContext) => number;
 
   correlation: (
-    context: RuntimeContext,
     series1: PineSeries,
     series2: PineSeries,
     length: number,
+    context: RuntimeContext,
   ) => number;
   cov: (
-    context: RuntimeContext,
     series1: PineSeries,
     series2: PineSeries,
     length: number,
+    context: RuntimeContext,
   ) => number;
 
   valuewhen: (
-    context: RuntimeContext,
     condition: boolean,
     source: PineSeries,
     occurrence: number,
+    context: RuntimeContext,
   ) => number;
-  barssince: (context: RuntimeContext, condition: boolean) => number;
+  barssince: (condition: boolean, context: RuntimeContext) => number;
 
   // ============================================================================
   // Time Functions

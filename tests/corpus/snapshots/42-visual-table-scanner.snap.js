@@ -85,8 +85,8 @@ const _pineScopeKey = (scopeId) => {
 };
 
 indicator("Visual Table Scanner", false);
-var score = Std.rsi(context, _series_close, 14);
-var trend = (Std.ema(context, _series_close, 20) > Std.ema(context, _series_close, 50));
+var score = Std.rsi(_series_close, 14, context);
+var trend = (Std.ema(_series_close, 20, context) > Std.ema(_series_close, 50, context));
 var t = _pineVar("t", () => (table.new(position.top_right, 2, 2)));
 table.cell(t, 0, 0, "Trend", NaN, NaN, color.white, NaN, NaN, NaN, _colorNew(color.blue, 70));
 table.cell(t, 1, 0, (trend ? "UP" : "DN"), NaN, NaN, (trend ? color.lime : color.red), NaN, NaN, NaN, _colorNew(color.black, 0));

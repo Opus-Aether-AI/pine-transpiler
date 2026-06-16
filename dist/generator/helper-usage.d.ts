@@ -1,0 +1,100 @@
+/**
+ * Helper-usage tracking.
+ *
+ * Runtime helpers (math, session, StdPlus, array, map, matrix, color,
+ * string, utility, state) are emitted into the generated body whenever
+ * the corresponding Pine builtin is called — e.g. `ta.sma(close, n)`
+ * does not need a helper, but `array.push(arr, v)` is emitted as
+ * `_arrayPush(arr, v)`, which requires `ARRAY_HELPER_FUNCTIONS` in
+ * the preamble.
+ *
+ * Historically, `analyzeRequiredHelpers(mainBody: string)` in
+ * `src/factory/indicator-factory.ts` scanned the generated body for
+ * marker substrings (e.g. `mainBody.includes('_arrayPush(')`) to decide
+ * which helper libraries to inject. That works but is brittle: adding
+ * a new helper meant updating the marker list in lockstep with the
+ * mapping table in a different file, and substring matches inside
+ * string literals could produce false positives. That function was
+ * retired in v0.4.0; the body-scan now lives on
+ * {@link HelperUsage.fromBody} below, next to the categorization.
+ *
+ * `HelperUsage` is the alternative: the generator records which helper
+ * categories it actually emitted, and `generatePreamble` consults that
+ * record directly. The mapping table — where helper names already
+ * live — is now the single source of truth.
+ *
+ * The string-grep fallback now lives here too, on
+ * {@link HelperUsage.fromBody}: external callers of
+ * `buildIndicatorFactory` / `generateStandaloneFactory` that don't
+ * supply a `helperUsage` can be inferred from the transpiled body
+ * using the same prefix/name rules `classifyHelperName` enforces. This
+ * keeps the "what is a helper" knowledge in one module — adding a new
+ * category only requires editing `classifyHelperName` and
+ * `BODY_SCAN_PATTERNS` together.
+ */
+export type HelperCategory = 'math' | 'session' | 'stdplus' | 'array' | 'map' | 'matrix' | 'color' | 'string' | 'utility' | 'state';
+export interface HelperUsageRecord {
+    needsMath: boolean;
+    needsSession: boolean;
+    needsStdPlus: boolean;
+    needsArray: boolean;
+    needsMap: boolean;
+    needsMatrix: boolean;
+    needsColor: boolean;
+    needsString: boolean;
+    needsUtility: boolean;
+    needsState: boolean;
+}
+/**
+ * Classify a helper identifier into its category by prefix or exact
+ * name. Returns null for identifiers that don't correspond to a
+ * preamble-injected helper (e.g. `Std.sma`, `Math.abs`, user-defined
+ * function names).
+ *
+ * Names are matched against the same set as the body-scan patterns
+ * in {@link BODY_SCAN_PATTERNS} — keeping the two in sync is the
+ * whole point of this module.
+ */
+export declare function classifyHelperName(name: string): HelperCategory | null;
+/**
+ * Accumulating set of helper categories used during code generation.
+ * Created fresh per transpilation; mutated by the generators at every
+ * helper emission; consumed by the factory builder when assembling
+ * the preamble.
+ */
+export declare class HelperUsage {
+    private readonly categories;
+    /**
+     * Infer helper usage from an already-transpiled JS body by scanning
+     * for the per-category patterns in {@link BODY_SCAN_PATTERNS}. Used
+     * by the factory builder as a fallback when a caller invokes
+     * `buildIndicatorFactory` or `generateStandaloneFactory` directly
+     * without going through the pipeline (which always supplies a
+     * tracker populated at emission time).
+     *
+     * Less accurate than emission-site tracking (a marker substring
+     * inside a string literal would trip the pattern), but sufficient
+     * to keep direct-caller back-compat intact.
+     */
+    static fromBody(mainBody: string): HelperUsage;
+    /** Mark a category as used. */
+    mark(category: HelperCategory): void;
+    /**
+     * Classify an emitted helper identifier and mark its category as
+     * used. Returns true if the identifier was a helper; false for
+     * non-helper names (which is the common case — most calls are to
+     * `Std.X` or user-defined functions).
+     */
+    markByName(name: string): boolean;
+    has(category: HelperCategory): boolean;
+    /**
+     * Project the tracked set into the record shape that
+     * `generatePreamble` consumes. Order mirrors the historical
+     * `analyzeRequiredHelpers` return value so call sites are drop-in
+     * substitutable.
+     */
+    toRecord(): HelperUsageRecord;
+    /** Merge another tracker's categories into this one. */
+    mergeFrom(other: HelperUsage): void;
+}
+//# sourceMappingURL=helper-usage.d.ts.map
