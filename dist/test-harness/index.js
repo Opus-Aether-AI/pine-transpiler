@@ -1,4 +1,4 @@
-import { i as transpileToPineJS } from "../src-DJm57Grt.js";
+import { i as transpileToPineJS } from "../src-BQaOB-ng.js";
 //#region src/test-harness/descriptor.ts
 function toMessage$1(error) {
 	if (error instanceof Error) return error.message;
@@ -339,14 +339,14 @@ function createHarnessRuntime(options) {
 				return Number.isFinite(n) ? n : NaN;
 			},
 			toBool: (value) => coerceNumber(value) !== 0,
-			sma: (_ctx, series, length) => sma(series, length),
-			ema: (_ctx, series, length) => ema(series, length),
-			rsi: (_ctx, series, length) => rsi(series, length),
-			tr: () => {
+			sma: (series, length, _ctx) => sma(series, length),
+			ema: (series, length, _ctx) => ema(series, length),
+			rsi: (series, length, _ctx) => rsi(series, length),
+			tr: (_ctx) => {
 				const b = currentBar();
 				return b ? b.high - b.low : NaN;
 			},
-			atr: () => {
+			atr: (_length, _ctx) => {
 				const b = currentBar();
 				return b ? b.high - b.low : NaN;
 			},

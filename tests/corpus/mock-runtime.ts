@@ -180,6 +180,18 @@ function readSeriesValue(value: unknown, offset = 0): number {
   return Number.NaN;
 }
 
+function assertContextLike(
+  ctx: unknown,
+): asserts ctx is RuntimeContextInternal {
+  if (
+    typeof ctx !== 'object' ||
+    ctx === null ||
+    typeof (ctx as { new_var?: unknown }).new_var !== 'function'
+  ) {
+    throw new TypeError('PineJS Std context must be the final argument');
+  }
+}
+
 function collectSeriesHistory(series: unknown): number[] {
   // Returned oldest -> newest for stable indicator math.
   const newestToOldest: number[] = [];
@@ -585,10 +597,9 @@ function buildStd(
     eq: (a: unknown, b: unknown) => readSeriesValue(a) === readSeriesValue(b),
     neq: (a: unknown, b: unknown) => readSeriesValue(a) !== readSeriesValue(b),
 
-    // Moving averages — all TA-style Std functions take (ctx, ...args).
-    // The first parameter (ctx) is discarded by the mock; data comes
-    // from the bar pointer or from the passed-in series/value.
-    sma: (_ctx: unknown, series: unknown, length: number) => {
+    // Moving averages — TA-style PineJS.Std functions take context last.
+    sma: (series: unknown, length: number, ctx: unknown) => {
+      assertContextLike(ctx);
       let sum = 0;
       for (let i = 0; i < length; i++) {
         const v = readSeriesValue(series, i);
@@ -597,7 +608,8 @@ function buildStd(
       }
       return sum / length;
     },
-    ema: (_ctx: unknown, series: unknown, length: number) => {
+    ema: (series: unknown, length: number, ctx: unknown) => {
+      assertContextLike(ctx);
       const values = collectSeriesHistory(series);
       if (values.length < length) return Number.NaN;
 
@@ -611,7 +623,8 @@ function buildStd(
       }
       return ema;
     },
-    rma: (_ctx: unknown, series: unknown, length: number) => {
+    rma: (series: unknown, length: number, ctx: unknown) => {
+      assertContextLike(ctx);
       const values = collectSeriesHistory(series);
       if (values.length < length) return Number.NaN;
 
@@ -625,7 +638,8 @@ function buildStd(
       }
       return rma;
     },
-    wma: (_ctx: unknown, series: unknown, length: number) => {
+    wma: (series: unknown, length: number, ctx: unknown) => {
+      assertContextLike(ctx);
       let sum = 0;
       let weight = 0;
       for (let i = 0; i < length; i++) {
@@ -637,7 +651,8 @@ function buildStd(
       }
       return weight > 0 ? sum / weight : Number.NaN;
     },
-    vwma: (_ctx: unknown, series: unknown, length: number) => {
+    vwma: (series: unknown, length: number, ctx: unknown) => {
+      assertContextLike(ctx);
       let sum = 0;
       let volSum = 0;
       for (let i = 0; i < length; i++) {
@@ -651,7 +666,8 @@ function buildStd(
     },
 
     // Oscillators
-    rsi: (_ctx: unknown, series: unknown, length: number) => {
+    rsi: (series: unknown, length: number, ctx: unknown) => {
+      assertContextLike(ctx);
       const values = collectSeriesHistory(series);
       if (values.length <= length) return Number.NaN;
 
@@ -678,14 +694,15 @@ function buildStd(
       const rs = avgGain / avgLoss;
       return 100 - 100 / (1 + rs);
     },
-    roc: (_ctx: unknown, series: unknown, length: number) => {
+    roc: (series: unknown, length: number, ctx: unknown) => {
+      assertContextLike(ctx);
       const cur = readSeriesValue(series, 0);
       const prev = readSeriesValue(series, length);
       if (!Number.isFinite(cur) || !Number.isFinite(prev) || prev === 0)
         return Number.NaN;
       return ((cur - prev) / prev) * 100;
     },
-    change: (_ctx: unknown, series: unknown, length = 1) => {
+    change: (series: unknown, length = 1, _ctx?: unknown) => {
       const cur = readSeriesValue(series, 0);
       const prev = readSeriesValue(series, length);
       return Number.isFinite(cur) && Number.isFinite(prev)
@@ -693,11 +710,12 @@ function buildStd(
         : Number.NaN;
     },
     valuewhen: (
-      _ctx: unknown,
       condition: unknown,
       source: unknown,
       occurrenceRaw: unknown,
+      ctx: unknown,
     ) => {
+      assertContextLike(ctx);
       const occurrence = Math.max(
         0,
         Math.trunc(readSeriesValue(occurrenceRaw)),
@@ -732,7 +750,8 @@ function buildStd(
     // visible offset up to the current bar. Earlier this stub returned
     // just the current value, which silently broke any indicator gating
     // on `cum(volume) > threshold` and similar accumulators.
-    cum: (_ctx: unknown, series: unknown) => {
+    cum: (series: unknown, ctx: unknown) => {
+      assertContextLike(ctx);
       // Scalar input (`series` is a number, e.g. when the transpiler
       // emits a current-bar value where a series was expected): treat
       // it as the bar-0 contribution. Without this guard we'd loop
@@ -756,7 +775,8 @@ function buildStd(
       }
       return i === 0 ? Number.NaN : total;
     },
-    cci: (_ctx: unknown, series: unknown, length: number) => {
+    cci: (series: unknown, length: number, ctx: unknown) => {
+      assertContextLike(ctx);
       const values: number[] = [];
       for (let i = 0; i < length; i++) {
         const v = readSeriesValue(series, i);
@@ -768,7 +788,8 @@ function buildStd(
       const cur = readSeriesValue(series, 0);
       return md === 0 ? Number.NaN : (cur - mean) / (0.015 * md);
     },
-    mfi: (_ctx: unknown, _series: unknown, length: number) => {
+    mfi: (_series: unknown, length: number, ctx: unknown) => {
+      assertContextLike(ctx);
       // Approx: use price * volume; simplified for mock determinism
       let posSum = 0;
       let negSum = 0;
@@ -786,7 +807,8 @@ function buildStd(
       const ratio = posSum / negSum;
       return 100 - 100 / (1 + ratio);
     },
-    wpr: (_ctx: unknown, length: number) => {
+    wpr: (length: number, ctx: unknown) => {
+      assertContextLike(ctx);
       const cur = currentBar();
       if (!cur) return Number.NaN;
       let hh = -Infinity;
@@ -801,7 +823,8 @@ function buildStd(
     },
 
     // Volatility
-    stdev: (_ctx: unknown, series: unknown, length: number) => {
+    stdev: (series: unknown, length: number, ctx: unknown) => {
+      assertContextLike(ctx);
       const values: number[] = [];
       for (let i = 0; i < length; i++) {
         const v = readSeriesValue(series, i);
@@ -813,7 +836,8 @@ function buildStd(
         values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length;
       return Math.sqrt(variance);
     },
-    variance: (_ctx: unknown, series: unknown, length: number) => {
+    variance: (series: unknown, length: number, ctx: unknown) => {
+      assertContextLike(ctx);
       const values: number[] = [];
       for (let i = 0; i < length; i++) {
         const v = readSeriesValue(series, i);
@@ -823,7 +847,8 @@ function buildStd(
       const mean = values.reduce((a, b) => a + b, 0) / values.length;
       return values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length;
     },
-    atr: (_ctx: unknown, length: number) => {
+    atr: (length: number, ctx: unknown) => {
+      assertContextLike(ctx);
       const trs: number[] = [];
       for (let i = 0; i < length; i++) {
         const cur = bars[pointer.current - i];
@@ -840,7 +865,9 @@ function buildStd(
       }
       return trs.reduce((a, b) => a + b, 0) / trs.length;
     },
-    tr: (_ctx: unknown) => {
+    tr: (...args: unknown[]) => {
+      const ctx = args.at(-1);
+      assertContextLike(ctx);
       const cur = currentBar();
       const prev = bars[pointer.current - 1];
       if (!cur) return Number.NaN;
@@ -853,7 +880,8 @@ function buildStd(
     },
 
     // Trend
-    highest: (_ctx: unknown, series: unknown, length: number) => {
+    highest: (series: unknown, length: number, ctx: unknown) => {
+      assertContextLike(ctx);
       let h = -Infinity;
       for (let i = 0; i < length; i++) {
         const v = readSeriesValue(series, i);
@@ -862,7 +890,8 @@ function buildStd(
       }
       return h === -Infinity ? Number.NaN : h;
     },
-    lowest: (_ctx: unknown, series: unknown, length: number) => {
+    lowest: (series: unknown, length: number, ctx: unknown) => {
+      assertContextLike(ctx);
       let l = Infinity;
       for (let i = 0; i < length; i++) {
         const v = readSeriesValue(series, i);
@@ -871,7 +900,8 @@ function buildStd(
       }
       return l === Infinity ? Number.NaN : l;
     },
-    median: (_ctx: unknown, series: unknown, length: number) => {
+    median: (series: unknown, length: number, ctx: unknown) => {
+      assertContextLike(ctx);
       const values: number[] = [];
       for (let i = 0; i < length; i++) {
         const v = readSeriesValue(series, i);
@@ -884,7 +914,8 @@ function buildStd(
         ? (values[mid - 1] + values[mid]) / 2
         : values[mid];
     },
-    sum: (_ctx: unknown, series: unknown, length: number) => {
+    sum: (series: unknown, length: number, ctx: unknown) => {
+      assertContextLike(ctx);
       let sum = 0;
       for (let i = 0; i < length; i++) {
         const v = readSeriesValue(series, i);
@@ -895,7 +926,10 @@ function buildStd(
     },
 
     // Cross detection (single boolean, no series state)
-    cross: (_ctx: unknown, _a: unknown, _b: unknown) => false,
+    cross: (_a: unknown, _b: unknown, ctx: unknown) => {
+      assertContextLike(ctx);
+      return false;
+    },
 
     // Stochastic mock. Pine's bare `ta.stoch(source, high, low, length)`
     // returns just %K (a single float); %D is conventionally smoothed
@@ -905,12 +939,13 @@ function buildStd(
     // inside a user function) don't crash on "not iterable". Real Pine
     // would never see this contract — only the mock does.
     stoch: (
-      _ctx: unknown,
       _source: unknown,
       _high: unknown,
       _low: unknown,
       length: number,
+      ctx: unknown,
     ) => {
+      assertContextLike(ctx);
       let hh = -Infinity;
       let ll = Infinity;
       for (let i = 0; i < length; i++) {
@@ -930,25 +965,39 @@ function buildStd(
     // Supertrend — returns [supertrend, direction]. Mock returns the
     // current close as the trendline and 1 (uptrend) — the corpus is
     // about transpile correctness, not numerical fidelity.
-    supertrend: (_ctx: unknown, _factor: unknown, _period: unknown) => {
+    supertrend: (_factor: unknown, _period: unknown, ctx: unknown) => {
+      assertContextLike(ctx);
       const close = currentBar()?.close ?? Number.NaN;
       return [close, 1];
     },
 
     // ADX / DMI — deterministic approximations aligned with strict-audit
     // reference math so parity checks can catch transpiler regressions.
-    adx: (_ctx: unknown, diLength: unknown, adxSmoothing: unknown) => {
+    adx: (diLength: unknown, adxSmoothing: unknown, ctx: unknown) => {
+      assertContextLike(ctx);
       return computeDmiAtCurrent(diLength, adxSmoothing)[3];
     },
-    dmi: (_ctx: unknown, diLength: unknown, adxSmoothing: unknown) => {
+    dmi: (diLength: unknown, adxSmoothing: unknown, ctx: unknown) => {
+      assertContextLike(ctx);
       return computeDmiAtCurrent(diLength, adxSmoothing);
     },
 
     // VWAP — simplified, no rollover tracking
-    vwap: (_ctx: unknown, source: unknown) => readSeriesValue(source, 0),
+    vwap: (
+      source: unknown,
+      _anchor?: unknown,
+      _stdevMult?: unknown,
+      ctx?: unknown,
+    ) => {
+      assertContextLike(ctx);
+      return readSeriesValue(source, 0);
+    },
 
     // OBV — cumulative directional volume
-    obv: (_ctx: unknown) => computeObvAtCurrent(),
+    obv: (ctx: unknown) => {
+      assertContextLike(ctx);
+      return computeObvAtCurrent();
+    },
 
     // Pivot detection — mock returns NaN (real Pine returns the pivot
     // value when one is detected; we don't replicate that logic).
@@ -957,7 +1006,8 @@ function buildStd(
 
     // highestbars/lowestbars: index of the bar where the max/min over
     // the lookback window occurred (negative offset back).
-    highestbars: (_ctx: unknown, series: unknown, length: number) => {
+    highestbars: (series: unknown, length: number, ctx: unknown) => {
+      assertContextLike(ctx);
       let max = -Infinity;
       let idx = 0;
       for (let i = 0; i < length; i++) {
@@ -969,7 +1019,8 @@ function buildStd(
       }
       return idx;
     },
-    lowestbars: (_ctx: unknown, series: unknown, length: number) => {
+    lowestbars: (series: unknown, length: number, ctx: unknown) => {
+      assertContextLike(ctx);
       let min = Infinity;
       let idx = 0;
       for (let i = 0; i < length; i++) {
@@ -984,7 +1035,8 @@ function buildStd(
 
     // Parabolic SAR — simplified: tracks the previous bar's close as a
     // proxy. Real implementation needs trend state across bars.
-    sar: (_ctx: unknown, _start: unknown, _inc: unknown, _max: unknown) => {
+    sar: (_start: unknown, _inc: unknown, _max: unknown, ctx: unknown) => {
+      assertContextLike(ctx);
       return bars[pointer.current - 1]?.close ?? Number.NaN;
     },
   };
