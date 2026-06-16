@@ -9947,7 +9947,7 @@ function withTransparency(color, transparency) {
 function getColorValue(expr, resolveIdentifier) {
 	if (!expr) return null;
 	if (expr.type === "Literal" && typeof expr.value === "string") return isHexColor(expr.value) ? expr.value : null;
-	if (expr.type === "Identifier") return COLOR_MAP[expr.name] ?? resolveIdentifier?.(expr.name) ?? null;
+	if (expr.type === "Identifier") return resolveIdentifier?.(expr.name) ?? COLOR_MAP[expr.name] ?? null;
 	if (expr.type === "MemberExpression" && expr.object.type === "Identifier" && expr.object.name === "color" && expr.property.type === "Identifier") return COLOR_MAP[expr.property.name] ?? null;
 	if (expr.type === "CallExpression") {
 		const fnName = getFnName(expr.callee);
@@ -11111,6 +11111,137 @@ function executePineJS(code, indicatorId, indicatorName) {
 	}
 }
 //#endregion
-export { MATH_FUNCTION_MAPPINGS as S, getAllPineFunctionNames as _, transpileToStandaloneFactory as a, MULTI_OUTPUT_MAPPINGS as b, compile as c, parse as d, validateInputSize as f, HelperUsage as g, PRICE_SOURCES as h, transpileToPineJS as i, extractMetadata as l, COLOR_MAP as m, executePineJS as n, MAX_INPUT_SIZE as o, generateStandaloneFactory as p, transpile as r, buildFactory as s, canTranspilePineScript as t, generateBody as u, getMappingStats as v, TA_FUNCTION_MAPPINGS as x, TIME_FUNCTION_MAPPINGS as y };
+Object.defineProperty(exports, "COLOR_MAP", {
+	enumerable: true,
+	get: function() {
+		return COLOR_MAP;
+	}
+});
+Object.defineProperty(exports, "HelperUsage", {
+	enumerable: true,
+	get: function() {
+		return HelperUsage;
+	}
+});
+Object.defineProperty(exports, "MATH_FUNCTION_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return MATH_FUNCTION_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "MAX_INPUT_SIZE", {
+	enumerable: true,
+	get: function() {
+		return MAX_INPUT_SIZE;
+	}
+});
+Object.defineProperty(exports, "MULTI_OUTPUT_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return MULTI_OUTPUT_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "PRICE_SOURCES", {
+	enumerable: true,
+	get: function() {
+		return PRICE_SOURCES;
+	}
+});
+Object.defineProperty(exports, "TA_FUNCTION_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return TA_FUNCTION_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "TIME_FUNCTION_MAPPINGS", {
+	enumerable: true,
+	get: function() {
+		return TIME_FUNCTION_MAPPINGS;
+	}
+});
+Object.defineProperty(exports, "buildFactory", {
+	enumerable: true,
+	get: function() {
+		return buildFactory;
+	}
+});
+Object.defineProperty(exports, "canTranspilePineScript", {
+	enumerable: true,
+	get: function() {
+		return canTranspilePineScript;
+	}
+});
+Object.defineProperty(exports, "compile", {
+	enumerable: true,
+	get: function() {
+		return compile;
+	}
+});
+Object.defineProperty(exports, "executePineJS", {
+	enumerable: true,
+	get: function() {
+		return executePineJS;
+	}
+});
+Object.defineProperty(exports, "extractMetadata", {
+	enumerable: true,
+	get: function() {
+		return extractMetadata;
+	}
+});
+Object.defineProperty(exports, "generateBody", {
+	enumerable: true,
+	get: function() {
+		return generateBody;
+	}
+});
+Object.defineProperty(exports, "generateStandaloneFactory", {
+	enumerable: true,
+	get: function() {
+		return generateStandaloneFactory;
+	}
+});
+Object.defineProperty(exports, "getAllPineFunctionNames", {
+	enumerable: true,
+	get: function() {
+		return getAllPineFunctionNames;
+	}
+});
+Object.defineProperty(exports, "getMappingStats", {
+	enumerable: true,
+	get: function() {
+		return getMappingStats;
+	}
+});
+Object.defineProperty(exports, "parse", {
+	enumerable: true,
+	get: function() {
+		return parse;
+	}
+});
+Object.defineProperty(exports, "transpile", {
+	enumerable: true,
+	get: function() {
+		return transpile;
+	}
+});
+Object.defineProperty(exports, "transpileToPineJS", {
+	enumerable: true,
+	get: function() {
+		return transpileToPineJS;
+	}
+});
+Object.defineProperty(exports, "transpileToStandaloneFactory", {
+	enumerable: true,
+	get: function() {
+		return transpileToStandaloneFactory;
+	}
+});
+Object.defineProperty(exports, "validateInputSize", {
+	enumerable: true,
+	get: function() {
+		return validateInputSize;
+	}
+});
 
-//# sourceMappingURL=src-DTDhdZo6.js.map
+//# sourceMappingURL=src-BBJXeXKe.cjs.map

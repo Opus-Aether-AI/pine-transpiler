@@ -57,7 +57,7 @@ export function getColorValue(
   }
 
   if (expr.type === 'Identifier') {
-    return COLOR_MAP[expr.name] ?? resolveIdentifier?.(expr.name) ?? null;
+    return resolveIdentifier?.(expr.name) ?? COLOR_MAP[expr.name] ?? null;
   }
 
   if (
