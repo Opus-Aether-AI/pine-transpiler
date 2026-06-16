@@ -19,6 +19,17 @@ function toHexByte(value: number): string {
   return clamped.toString(16).padStart(2, '0').toUpperCase();
 }
 
+function withTransparency(color: string, transparency: number | null): string {
+  if (transparency === null || transparency <= 0) return color;
+
+  const alpha = 255 * (1 - Math.max(0, Math.min(100, transparency)) / 100);
+  const alphaHex = toHexByte(alpha);
+  const hex = color.match(/^#([0-9a-fA-F]{6})(?:[0-9a-fA-F]{2})?$/);
+  if (hex) return `#${hex[1].toUpperCase()}${alphaHex}`;
+
+  return color;
+}
+
 function getColorValue(expr: Expression | null): string | null {
   if (!expr) return null;
 
@@ -42,7 +53,10 @@ function getColorValue(expr: Expression | null): string | null {
   if (expr.type === 'CallExpression') {
     const fnName = getFnName(expr.callee as Expression);
     if (fnName === 'color.new') {
-      return getColorValue(getArg(expr.arguments, 0, 'color'));
+      const color = getColorValue(getArg(expr.arguments, 0, 'color'));
+      if (!color) return null;
+      const transparency = getNumberValue(getArg(expr.arguments, 1, 'transp'));
+      return withTransparency(color, transparency);
     }
     if (fnName === 'color.rgb') {
       const r = getNumberValue(getArg(expr.arguments, 0, 'r'));
@@ -50,11 +64,8 @@ function getColorValue(expr: Expression | null): string | null {
       const b = getNumberValue(getArg(expr.arguments, 2, 'b'));
       const transparency = getNumberValue(getArg(expr.arguments, 3, 'transp'));
       if (r === null || g === null || b === null) return null;
-      const alpha = 1 - (transparency ?? 0) / 100;
-      if (alpha < 1) {
-        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-      }
-      return `#${toHexByte(r)}${toHexByte(g)}${toHexByte(b)}`;
+      const color = `#${toHexByte(r)}${toHexByte(g)}${toHexByte(b)}`;
+      return withTransparency(color, transparency);
     }
   }
 

@@ -25,11 +25,11 @@ describe('Trading Sessions color input metadata', () => {
         id: 'in_0',
         name: 'Session color',
         type: 'color',
-        defval: '#2962FF',
+        defval: '#2962FF26',
       }),
     ]);
     expect(indicator.metainfo.defaults.inputs).toEqual({
-      in_0: '#2962FF',
+      in_0: '#2962FF26',
     });
   });
 });
