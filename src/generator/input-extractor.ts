@@ -5,19 +5,125 @@
  */
 
 import type { CallExpression, Expression } from '../parser/ast';
-import type { ParsedInput } from '../types';
+import { COLOR_MAP, type ParsedInput } from '../types';
 import {
   getArg,
   getBooleanValue,
+  getFnName,
   getNumberValue,
   getStringValue,
 } from './call-expression-helper';
+
+export type ColorIdentifierResolver = (
+  name: string,
+) => string | null | undefined;
+
+function toHexByte(value: number): string {
+  const clamped = Math.max(0, Math.min(255, Math.round(value)));
+  return clamped.toString(16).padStart(2, '0').toUpperCase();
+}
+
+function normalizeHexColor(value: string): string | null {
+  const hex = value.match(
+    /^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?)$/,
+  );
+  if (!hex) return null;
+
+  const digits = hex[1];
+  const expanded =
+    digits.length === 3 || digits.length === 4
+      ? [...digits].map((digit) => `${digit}${digit}`).join('')
+      : digits;
+
+  return `#${expanded.toUpperCase()}`;
+}
+
+export function withTransparency(
+  color: string,
+  transparency: number | null,
+): string {
+  if (transparency === null) return color;
+
+  const normalized = normalizeHexColor(color);
+  const hex = normalized?.match(/^#([0-9A-F]{6})([0-9A-F]{2})?$/);
+  if (hex) {
+    if (transparency <= 0 && !hex[2]) return `#${hex[1]}`;
+
+    const alpha = 255 * (1 - Math.max(0, Math.min(100, transparency)) / 100);
+    return `#${hex[1]}${toHexByte(alpha)}`;
+  }
+
+  return color;
+}
+
+export function getColorValue(
+  expr: Expression | null,
+  resolveIdentifier?: ColorIdentifierResolver,
+): string | null {
+  if (!expr) return null;
+
+  if (
+    expr.type === 'Literal' &&
+    expr.kind === 'color' &&
+    typeof expr.value === 'string'
+  ) {
+    return normalizeHexColor(expr.value);
+  }
+
+  if (expr.type === 'Identifier') {
+    return resolveIdentifier?.(expr.name) ?? null;
+  }
+
+  if (
+    expr.type === 'MemberExpression' &&
+    expr.object.type === 'Identifier' &&
+    expr.object.name === 'color' &&
+    expr.property.type === 'Identifier'
+  ) {
+    return COLOR_MAP[expr.property.name] ?? null;
+  }
+
+  if (expr.type === 'CallExpression') {
+    const fnName = getFnName(expr.callee as Expression);
+    if (fnName === 'color.new') {
+      const color = getColorValue(
+        getArg(expr.arguments, 0, 'color'),
+        resolveIdentifier,
+      );
+      if (!color) return null;
+      const transparency = getNumberValue(getArg(expr.arguments, 1, 'transp'));
+      return withTransparency(color, transparency);
+    }
+    if (fnName === 'color.rgb') {
+      const r = getNumberValue(
+        getArg(expr.arguments, 0, 'r') ?? getArg(expr.arguments, 0, 'red'),
+      );
+      const g = getNumberValue(
+        getArg(expr.arguments, 1, 'g') ?? getArg(expr.arguments, 1, 'green'),
+      );
+      const b = getNumberValue(
+        getArg(expr.arguments, 2, 'b') ?? getArg(expr.arguments, 2, 'blue'),
+      );
+      const transparency = getNumberValue(getArg(expr.arguments, 3, 'transp'));
+      if (r === null || g === null || b === null) return null;
+      const color = `#${toHexByte(r)}${toHexByte(g)}${toHexByte(b)}`;
+      return withTransparency(color, transparency);
+    }
+  }
+
+  return null;
+}
 
 /**
  * Extracts input declarations from Pine Script.
  */
 export class InputExtractor {
   private inputCount = 0;
+  private resolveColorIdentifier?: ColorIdentifierResolver;
+
+  public setColorResolver(resolver: ColorIdentifierResolver): void {
+    this.resolveColorIdentifier = resolver;
+  }
 
   /**
    * Extract input from a CallExpression
@@ -51,6 +157,11 @@ export class InputExtractor {
       } else {
         defval = 'close';
       }
+    } else if (fnName === 'input.color') {
+      type = 'color';
+      defval =
+        getColorValue(defvalExpr, this.resolveColorIdentifier) ??
+        COLOR_MAP.blue;
     } else if (fnName === 'input.time') {
       type = 'integer';
       defval = getNumberValue(defvalExpr) ?? Date.now();

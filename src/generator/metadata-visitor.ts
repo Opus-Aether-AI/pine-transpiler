@@ -28,10 +28,15 @@ import {
   getArg,
   getBooleanValue,
   getFnName,
+  getNumberValue,
   getStringValue,
 } from './call-expression-helper';
 import { isStatement } from './generator-utils';
-import { InputExtractor } from './input-extractor';
+import {
+  getColorValue,
+  InputExtractor,
+  withTransparency,
+} from './input-extractor';
 import { PlotExtractor } from './plot-extractor';
 
 /**
@@ -108,6 +113,8 @@ export interface ComputedVariable {
   dependencies: string[]; // Other variables this depends on
 }
 
+type TrackedColor = { color: string; transparency: number | null };
+
 export class MetadataVisitor {
   public inputs: ParsedInput[] = [];
   public plots: ParsedPlot[] = [];
@@ -122,8 +129,7 @@ export class MetadataVisitor {
   public historicalAccess: Set<string> = new Set();
 
   // Track color variable definitions: varName -> { color, transparency }
-  private colorVariables: Map<string, { color: string; transparency: number }> =
-    new Map();
+  private colorVariables: Map<string, TrackedColor> = new Map();
 
   // Track string-literal var definitions so plotchar `text =`/`char =`
   // identifier references resolve to their declared value. Limited to
@@ -161,6 +167,9 @@ export class MetadataVisitor {
     // visible without re-wiring.
     this.plotExtractor.setStringResolver((name) =>
       this.stringVariables.get(name),
+    );
+    this.inputExtractor.setColorResolver((name) =>
+      this.resolveTrackedColorDefault(name),
     );
     this.visitStatements(node.body);
   }
@@ -677,30 +686,43 @@ export class MetadataVisitor {
   /**
    * Extract color info from an initializer expression
    */
-  private extractColorInfoFromInit(
-    expr: Expression,
-  ): { color: string; transparency: number } | null {
+  private extractColorInfoFromInit(expr: Expression): TrackedColor | null {
     if (expr.type === 'CallExpression') {
       const fnName = getFnName(expr.callee);
       if (
         (fnName === 'color.new' || fnName === '_colorNew') &&
         expr.arguments.length >= 2
       ) {
-        const baseColor = this.extractColorFromExpr(expr.arguments[0]);
-        let transparency = 0;
-        const transpArg = expr.arguments[1];
-        if (
-          transpArg.type === 'Literal' &&
-          typeof transpArg.value === 'number'
-        ) {
-          transparency = transpArg.value;
-        }
+        const baseColor = getColorValue(expr.arguments[0], (name) =>
+          this.resolveTrackedColorDefault(name),
+        );
+        const transparency =
+          getNumberValue(getArg(expr.arguments, 1, 'transp')) ?? 0;
         if (baseColor) {
           return { color: baseColor, transparency };
         }
       }
     }
+
+    if (expr.type === 'Identifier') {
+      const tracked = this.colorVariables.get(expr.name);
+      if (tracked) return tracked;
+    }
+
+    const directColor = getColorValue(expr, (name) =>
+      this.resolveTrackedColorDefault(name),
+    );
+    if (directColor) {
+      return { color: directColor, transparency: null };
+    }
+
     return null;
+  }
+
+  private resolveTrackedColorDefault(name: string): string | null {
+    const tracked = this.colorVariables.get(name);
+    if (!tracked) return null;
+    return withTransparency(tracked.color, tracked.transparency);
   }
 
   /**
@@ -719,7 +741,7 @@ export class MetadataVisitor {
     const extractedInfo = this.extractColorInfo(colorArg);
     if (extractedInfo) {
       color = extractedInfo.color;
-      transparency = extractedInfo.transparency;
+      transparency = extractedInfo.transparency ?? 0;
     }
 
     // Extract condition from conditional expression
@@ -781,9 +803,7 @@ export class MetadataVisitor {
   /**
    * Extract color and transparency from an expression
    */
-  private extractColorInfo(
-    expr: Expression,
-  ): { color: string; transparency: number } | null {
+  private extractColorInfo(expr: Expression): TrackedColor | null {
     // Direct color.new() call
     if (expr.type === 'CallExpression') {
       const fnName = getFnName(expr.callee);
@@ -791,18 +811,21 @@ export class MetadataVisitor {
         (fnName === 'color.new' || fnName === '_colorNew') &&
         expr.arguments.length >= 2
       ) {
-        const baseColor = this.extractColorFromExpr(expr.arguments[0]);
-        let transparency = 0;
-        const transpArg = expr.arguments[1];
-        if (
-          transpArg.type === 'Literal' &&
-          typeof transpArg.value === 'number'
-        ) {
-          transparency = transpArg.value;
-        }
+        const baseColor = getColorValue(expr.arguments[0], (name) =>
+          this.resolveTrackedColorDefault(name),
+        );
+        const transparency =
+          getNumberValue(getArg(expr.arguments, 1, 'transp')) ?? 0;
         if (baseColor) {
           return { color: baseColor, transparency };
         }
+      }
+
+      if (fnName === 'color.rgb') {
+        const color = getColorValue(expr, (name) =>
+          this.resolveTrackedColorDefault(name),
+        );
+        if (color) return { color, transparency: null };
       }
     }
 
@@ -821,51 +844,13 @@ export class MetadataVisitor {
     }
 
     // Direct color reference (color.red, #FF0000)
-    const directColor = this.extractColorFromExpr(expr);
+    const directColor = getColorValue(expr, (name) =>
+      this.resolveTrackedColorDefault(name),
+    );
     if (directColor) {
-      return { color: directColor, transparency: 0 };
+      return { color: directColor, transparency: null };
     }
 
-    return null;
-  }
-
-  /**
-   * Extract color from expression (color.red, #FF0000, etc.)
-   */
-  private extractColorFromExpr(expr: Expression): string | null {
-    if (expr.type === 'Literal' && typeof expr.value === 'string') {
-      return expr.value; // hex color
-    }
-    if (
-      expr.type === 'MemberExpression' &&
-      expr.object.type === 'Identifier' &&
-      expr.object.name === 'color' &&
-      expr.property.type === 'Identifier'
-    ) {
-      const colorName = expr.property.name;
-      const colorMap: Record<string, string> = {
-        blue: '#2962FF',
-        red: '#FF5252',
-        green: '#4CAF50',
-        yellow: '#FFEB3B',
-        orange: '#FF9800',
-        purple: '#9C27B0',
-        white: '#FFFFFF',
-        black: '#000000',
-        gray: '#9E9E9E',
-        teal: '#009688',
-        aqua: '#00BCD4',
-        lime: '#CDDC39',
-        pink: '#E91E63',
-        navy: '#1A237E',
-        maroon: '#B71C1C',
-      };
-      return colorMap[colorName] || null;
-    }
-    if (expr.type === 'Identifier') {
-      // Could be a variable reference - return null for now
-      return null;
-    }
     return null;
   }
 

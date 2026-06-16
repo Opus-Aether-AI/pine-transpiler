@@ -4634,7 +4634,9 @@ export function generateStandaloneFactory(
               ? 'source'
               : input.type === 'session'
                 ? 'session'
-                : 'text',
+                : input.type === 'color'
+                  ? 'color'
+                  : 'text',
     defval: input.defval,
     ...(input.min !== undefined ? { min: input.min } : {}),
     ...(input.max !== undefined ? { max: input.max } : {}),

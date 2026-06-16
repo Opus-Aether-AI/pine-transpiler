@@ -121,6 +121,113 @@ describe('MetadataVisitor', () => {
         expect(metadata.inputs[0].defval).toBe('close');
       });
 
+      it('should extract input.color() with color.new default', () => {
+        const code =
+          'sessionColor = input.color(color.new(#2962FF, 85), "Session color")';
+        const metadata = extractMetadata(code);
+        expect(metadata.inputs[0]).toMatchObject({
+          type: 'color',
+          defval: '#2962FF26',
+          name: 'Session color',
+        });
+      });
+
+      it('should expand shorthand hex before applying color.new transparency', () => {
+        const code =
+          'sessionColor = input.color(color.new(#F00, 85), "Session color")';
+        const metadata = extractMetadata(code);
+        expect(metadata.inputs[0]).toMatchObject({
+          type: 'color',
+          defval: '#FF000026',
+          name: 'Session color',
+        });
+      });
+
+      it('should override existing alpha when color.new transparency is zero', () => {
+        const code =
+          'sessionColor = input.color(color.new(#FFFFFF00, 0), "Session color")';
+        const metadata = extractMetadata(code);
+        expect(metadata.inputs[0]).toMatchObject({
+          type: 'color',
+          defval: '#FFFFFFFF',
+          name: 'Session color',
+        });
+      });
+
+      it('should extract input.color() from a tracked color variable default', () => {
+        const code = `
+baseColor = color.new(color.red, 50)
+sessionColor = input.color(baseColor, "Session color")
+`;
+        const metadata = extractMetadata(code);
+        expect(metadata.inputs[0]).toMatchObject({
+          type: 'color',
+          defval: '#FF525280',
+          name: 'Session color',
+        });
+      });
+
+      it('should preserve alpha from a tracked 8-digit color variable default', () => {
+        const code = `
+baseColor = #FFFFFF00
+sessionColor = input.color(baseColor, "Session color")
+`;
+        const metadata = extractMetadata(code);
+        expect(metadata.inputs[0]).toMatchObject({
+          type: 'color',
+          defval: '#FFFFFF00',
+          name: 'Session color',
+        });
+      });
+
+      it('should extract input.color() from a tracked color.rgb default', () => {
+        const code = `
+baseColor = color.rgb(41, 98, 255, 85)
+sessionColor = input.color(baseColor, "Session color")
+`;
+        const metadata = extractMetadata(code);
+        expect(metadata.inputs[0]).toMatchObject({
+          type: 'color',
+          defval: '#2962FF26',
+          name: 'Session color',
+        });
+      });
+
+      it('should prefer tracked color variables over bare color-name fallback', () => {
+        const code = `
+red = color.green
+sessionColor = input.color(red, "Session color")
+`;
+        const metadata = extractMetadata(code);
+        expect(metadata.inputs[0]).toMatchObject({
+          type: 'color',
+          defval: '#4CAF50',
+          name: 'Session color',
+        });
+      });
+
+      it('should extract input.color() with color.rgb transparency', () => {
+        const code =
+          'sessionColor = input.color(color.rgb(41, 98, 255, 85), "Session color")';
+        const metadata = extractMetadata(code);
+        expect(metadata.inputs[0]).toMatchObject({
+          type: 'color',
+          defval: '#2962FF26',
+          name: 'Session color',
+        });
+      });
+
+      it('should extract input.color() with named color.rgb channels', () => {
+        const code =
+          'sessionColor = input.color(color.rgb(red=41, green=98, blue=255, transp=85), "Session color")';
+        const metadata = extractMetadata(code);
+        expect(metadata.inputs[0]).toMatchObject({
+          type: 'color',
+          defval: '#2962FF26',
+          name: 'Session color',
+        });
+      });
+
       it('should extract input.time()', () => {
         const code = 'startTime = input.time(0, "Start Time")';
         const metadata = extractMetadata(code);
@@ -152,6 +259,53 @@ describe('MetadataVisitor', () => {
           'maType = input("SMA", "MA Type", options=["SMA", "EMA", "WMA"])';
         const metadata = extractMetadata(code);
         expect(metadata.inputs[0].options).toEqual(['SMA', 'EMA', 'WMA']);
+      });
+    });
+
+    describe('Color Variable Tracking', () => {
+      it('should not treat ordinary string constants as color variables', () => {
+        const code = `
+label = "A"
+flag = label == "A"
+`;
+        const metadata = extractMetadata(code);
+        expect(metadata.computedVariables.get('label')).toMatchObject({
+          expression: '"A"',
+        });
+        expect(metadata.computedVariables.get('flag')).toMatchObject({
+          expression: '(label == "A")',
+          dependencies: ['label'],
+        });
+      });
+
+      it('should not treat quoted hex strings as color variables', () => {
+        const code = `
+label = "#FFFFFF"
+flag = label == "#FFFFFF"
+`;
+        const metadata = extractMetadata(code);
+        expect(metadata.computedVariables.get('label')).toMatchObject({
+          expression: '"#FFFFFF"',
+        });
+        expect(metadata.computedVariables.get('flag')).toMatchObject({
+          expression: '(label == "#FFFFFF")',
+          dependencies: ['label'],
+        });
+      });
+
+      it('should not treat ordinary identifiers with color names as color variables', () => {
+        const code = `
+red = close
+copy = red
+`;
+        const metadata = extractMetadata(code);
+        expect(metadata.computedVariables.get('red')).toMatchObject({
+          expression: 'close',
+        });
+        expect(metadata.computedVariables.get('copy')).toMatchObject({
+          expression: 'red',
+          dependencies: ['red'],
+        });
       });
     });
 

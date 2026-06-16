@@ -93,6 +93,7 @@ export declare class MetadataVisitor {
      * Extract color info from an initializer expression
      */
     private extractColorInfoFromInit;
+    private resolveTrackedColorDefault;
     /**
      * Extract bgcolor() call information
      */
@@ -105,10 +106,6 @@ export declare class MetadataVisitor {
      * Extract color and transparency from an expression
      */
     private extractColorInfo;
-    /**
-     * Extract color from expression (color.red, #FF0000, etc.)
-     */
-    private extractColorFromExpr;
     /**
      * Check if a function is supported and add appropriate warnings
      */

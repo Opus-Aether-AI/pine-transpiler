@@ -7812,7 +7812,7 @@ function generateStandaloneFactory(options) {
 	const inputsMetadata = inputs.map((input) => ({
 		id: input.id,
 		name: input.name,
-		type: input.type === "integer" ? "integer" : input.type === "float" ? "float" : input.type === "bool" ? "bool" : input.type === "source" ? "source" : input.type === "session" ? "session" : "text",
+		type: input.type === "integer" ? "integer" : input.type === "float" ? "float" : input.type === "bool" ? "bool" : input.type === "source" ? "source" : input.type === "session" ? "session" : input.type === "color" ? "color" : "text",
 		defval: input.defval,
 		...input.min !== void 0 ? { min: input.min } : {},
 		...input.max !== void 0 ? { max: input.max } : {},
@@ -9928,12 +9928,57 @@ function getFnName(node) {
 }
 //#endregion
 //#region src/generator/input-extractor.ts
+function toHexByte(value) {
+	return Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, "0").toUpperCase();
+}
+function normalizeHexColor(value) {
+	const hex = value.match(/^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?)$/);
+	if (!hex) return null;
+	const digits = hex[1];
+	return `#${(digits.length === 3 || digits.length === 4 ? [...digits].map((digit) => `${digit}${digit}`).join("") : digits).toUpperCase()}`;
+}
+function withTransparency(color, transparency) {
+	if (transparency === null) return color;
+	const hex = normalizeHexColor(color)?.match(/^#([0-9A-F]{6})([0-9A-F]{2})?$/);
+	if (hex) {
+		if (transparency <= 0 && !hex[2]) return `#${hex[1]}`;
+		const alpha = 255 * (1 - Math.max(0, Math.min(100, transparency)) / 100);
+		return `#${hex[1]}${toHexByte(alpha)}`;
+	}
+	return color;
+}
+function getColorValue(expr, resolveIdentifier) {
+	if (!expr) return null;
+	if (expr.type === "Literal" && expr.kind === "color" && typeof expr.value === "string") return normalizeHexColor(expr.value);
+	if (expr.type === "Identifier") return resolveIdentifier?.(expr.name) ?? null;
+	if (expr.type === "MemberExpression" && expr.object.type === "Identifier" && expr.object.name === "color" && expr.property.type === "Identifier") return COLOR_MAP[expr.property.name] ?? null;
+	if (expr.type === "CallExpression") {
+		const fnName = getFnName(expr.callee);
+		if (fnName === "color.new") {
+			const color = getColorValue(getArg(expr.arguments, 0, "color"), resolveIdentifier);
+			if (!color) return null;
+			return withTransparency(color, getNumberValue(getArg(expr.arguments, 1, "transp")));
+		}
+		if (fnName === "color.rgb") {
+			const r = getNumberValue(getArg(expr.arguments, 0, "r") ?? getArg(expr.arguments, 0, "red"));
+			const g = getNumberValue(getArg(expr.arguments, 1, "g") ?? getArg(expr.arguments, 1, "green"));
+			const b = getNumberValue(getArg(expr.arguments, 2, "b") ?? getArg(expr.arguments, 2, "blue"));
+			const transparency = getNumberValue(getArg(expr.arguments, 3, "transp"));
+			if (r === null || g === null || b === null) return null;
+			return withTransparency(`#${toHexByte(r)}${toHexByte(g)}${toHexByte(b)}`, transparency);
+		}
+	}
+	return null;
+}
 /**
 * Extracts input declarations from Pine Script.
 */
 var InputExtractor = class {
 	constructor() {
 		this.inputCount = 0;
+	}
+	setColorResolver(resolver) {
+		this.resolveColorIdentifier = resolver;
 	}
 	/**
 	* Extract input from a CallExpression
@@ -9960,6 +10005,9 @@ var InputExtractor = class {
 			type = "source";
 			if (defvalExpr?.type === "Identifier") defval = defvalExpr.name;
 			else defval = "close";
+		} else if (fnName === "input.color") {
+			type = "color";
+			defval = getColorValue(defvalExpr, this.resolveColorIdentifier) ?? COLOR_MAP.blue;
 		} else if (fnName === "input.time") {
 			type = "integer";
 			defval = getNumberValue(defvalExpr) ?? Date.now();
@@ -10304,6 +10352,7 @@ var MetadataVisitor = class {
 	}
 	visit(node) {
 		this.plotExtractor.setStringResolver((name) => this.stringVariables.get(name));
+		this.inputExtractor.setColorResolver((name) => this.resolveTrackedColorDefault(name));
 		this.visitStatements(node.body);
 	}
 	visitStatements(stmts) {
@@ -10649,17 +10698,29 @@ var MetadataVisitor = class {
 		if (expr.type === "CallExpression") {
 			const fnName = getFnName(expr.callee);
 			if ((fnName === "color.new" || fnName === "_colorNew") && expr.arguments.length >= 2) {
-				const baseColor = this.extractColorFromExpr(expr.arguments[0]);
-				let transparency = 0;
-				const transpArg = expr.arguments[1];
-				if (transpArg.type === "Literal" && typeof transpArg.value === "number") transparency = transpArg.value;
+				const baseColor = getColorValue(expr.arguments[0], (name) => this.resolveTrackedColorDefault(name));
+				const transparency = getNumberValue(getArg(expr.arguments, 1, "transp")) ?? 0;
 				if (baseColor) return {
 					color: baseColor,
 					transparency
 				};
 			}
 		}
+		if (expr.type === "Identifier") {
+			const tracked = this.colorVariables.get(expr.name);
+			if (tracked) return tracked;
+		}
+		const directColor = getColorValue(expr, (name) => this.resolveTrackedColorDefault(name));
+		if (directColor) return {
+			color: directColor,
+			transparency: null
+		};
 		return null;
+	}
+	resolveTrackedColorDefault(name) {
+		const tracked = this.colorVariables.get(name);
+		if (!tracked) return null;
+		return withTransparency(tracked.color, tracked.transparency);
 	}
 	/**
 	* Extract bgcolor() call information
@@ -10674,7 +10735,7 @@ var MetadataVisitor = class {
 		const extractedInfo = this.extractColorInfo(colorArg);
 		if (extractedInfo) {
 			color = extractedInfo.color;
-			transparency = extractedInfo.transparency;
+			transparency = extractedInfo.transparency ?? 0;
 		}
 		if (colorArg.type === "ConditionalExpression") conditionExpr = this.stringifyCondition(colorArg.test);
 		this.bgcolors.push({
@@ -10718,13 +10779,18 @@ var MetadataVisitor = class {
 		if (expr.type === "CallExpression") {
 			const fnName = getFnName(expr.callee);
 			if ((fnName === "color.new" || fnName === "_colorNew") && expr.arguments.length >= 2) {
-				const baseColor = this.extractColorFromExpr(expr.arguments[0]);
-				let transparency = 0;
-				const transpArg = expr.arguments[1];
-				if (transpArg.type === "Literal" && typeof transpArg.value === "number") transparency = transpArg.value;
+				const baseColor = getColorValue(expr.arguments[0], (name) => this.resolveTrackedColorDefault(name));
+				const transparency = getNumberValue(getArg(expr.arguments, 1, "transp")) ?? 0;
 				if (baseColor) return {
 					color: baseColor,
 					transparency
+				};
+			}
+			if (fnName === "color.rgb") {
+				const color = getColorValue(expr, (name) => this.resolveTrackedColorDefault(name));
+				if (color) return {
+					color,
+					transparency: null
 				};
 			}
 		}
@@ -10733,36 +10799,11 @@ var MetadataVisitor = class {
 			const tracked = this.colorVariables.get(expr.name);
 			if (tracked) return tracked;
 		}
-		const directColor = this.extractColorFromExpr(expr);
+		const directColor = getColorValue(expr, (name) => this.resolveTrackedColorDefault(name));
 		if (directColor) return {
 			color: directColor,
-			transparency: 0
+			transparency: null
 		};
-		return null;
-	}
-	/**
-	* Extract color from expression (color.red, #FF0000, etc.)
-	*/
-	extractColorFromExpr(expr) {
-		if (expr.type === "Literal" && typeof expr.value === "string") return expr.value;
-		if (expr.type === "MemberExpression" && expr.object.type === "Identifier" && expr.object.name === "color" && expr.property.type === "Identifier") return {
-			blue: "#2962FF",
-			red: "#FF5252",
-			green: "#4CAF50",
-			yellow: "#FFEB3B",
-			orange: "#FF9800",
-			purple: "#9C27B0",
-			white: "#FFFFFF",
-			black: "#000000",
-			gray: "#9E9E9E",
-			teal: "#009688",
-			aqua: "#00BCD4",
-			lime: "#CDDC39",
-			pink: "#E91E63",
-			navy: "#1A237E",
-			maroon: "#B71C1C"
-		}[expr.property.name] || null;
-		if (expr.type === "Identifier") return null;
 		return null;
 	}
 	/**
@@ -11073,137 +11114,6 @@ function executePineJS(code, indicatorId, indicatorName) {
 	}
 }
 //#endregion
-Object.defineProperty(exports, "COLOR_MAP", {
-	enumerable: true,
-	get: function() {
-		return COLOR_MAP;
-	}
-});
-Object.defineProperty(exports, "HelperUsage", {
-	enumerable: true,
-	get: function() {
-		return HelperUsage;
-	}
-});
-Object.defineProperty(exports, "MATH_FUNCTION_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return MATH_FUNCTION_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "MAX_INPUT_SIZE", {
-	enumerable: true,
-	get: function() {
-		return MAX_INPUT_SIZE;
-	}
-});
-Object.defineProperty(exports, "MULTI_OUTPUT_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return MULTI_OUTPUT_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "PRICE_SOURCES", {
-	enumerable: true,
-	get: function() {
-		return PRICE_SOURCES;
-	}
-});
-Object.defineProperty(exports, "TA_FUNCTION_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return TA_FUNCTION_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "TIME_FUNCTION_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return TIME_FUNCTION_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "buildFactory", {
-	enumerable: true,
-	get: function() {
-		return buildFactory;
-	}
-});
-Object.defineProperty(exports, "canTranspilePineScript", {
-	enumerable: true,
-	get: function() {
-		return canTranspilePineScript;
-	}
-});
-Object.defineProperty(exports, "compile", {
-	enumerable: true,
-	get: function() {
-		return compile;
-	}
-});
-Object.defineProperty(exports, "executePineJS", {
-	enumerable: true,
-	get: function() {
-		return executePineJS;
-	}
-});
-Object.defineProperty(exports, "extractMetadata", {
-	enumerable: true,
-	get: function() {
-		return extractMetadata;
-	}
-});
-Object.defineProperty(exports, "generateBody", {
-	enumerable: true,
-	get: function() {
-		return generateBody;
-	}
-});
-Object.defineProperty(exports, "generateStandaloneFactory", {
-	enumerable: true,
-	get: function() {
-		return generateStandaloneFactory;
-	}
-});
-Object.defineProperty(exports, "getAllPineFunctionNames", {
-	enumerable: true,
-	get: function() {
-		return getAllPineFunctionNames;
-	}
-});
-Object.defineProperty(exports, "getMappingStats", {
-	enumerable: true,
-	get: function() {
-		return getMappingStats;
-	}
-});
-Object.defineProperty(exports, "parse", {
-	enumerable: true,
-	get: function() {
-		return parse;
-	}
-});
-Object.defineProperty(exports, "transpile", {
-	enumerable: true,
-	get: function() {
-		return transpile;
-	}
-});
-Object.defineProperty(exports, "transpileToPineJS", {
-	enumerable: true,
-	get: function() {
-		return transpileToPineJS;
-	}
-});
-Object.defineProperty(exports, "transpileToStandaloneFactory", {
-	enumerable: true,
-	get: function() {
-		return transpileToStandaloneFactory;
-	}
-});
-Object.defineProperty(exports, "validateInputSize", {
-	enumerable: true,
-	get: function() {
-		return validateInputSize;
-	}
-});
+export { MATH_FUNCTION_MAPPINGS as S, getAllPineFunctionNames as _, transpileToStandaloneFactory as a, MULTI_OUTPUT_MAPPINGS as b, compile as c, parse as d, validateInputSize as f, HelperUsage as g, PRICE_SOURCES as h, transpileToPineJS as i, extractMetadata as l, COLOR_MAP as m, executePineJS as n, MAX_INPUT_SIZE as o, generateStandaloneFactory as p, transpile as r, buildFactory as s, canTranspilePineScript as t, generateBody as u, getMappingStats as v, TA_FUNCTION_MAPPINGS as x, TIME_FUNCTION_MAPPINGS as y };
 
-//# sourceMappingURL=src-CFgsNpc_.cjs.map
+//# sourceMappingURL=src-CXMTIVyB.js.map
