@@ -23,6 +23,12 @@ function toHexByte(value: number): string {
   return clamped.toString(16).padStart(2, '0').toUpperCase();
 }
 
+function isHexColor(value: string): boolean {
+  return /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?)$/.test(
+    value,
+  );
+}
+
 export function withTransparency(
   color: string,
   transparency: number | null,
@@ -47,7 +53,7 @@ export function getColorValue(
   if (!expr) return null;
 
   if (expr.type === 'Literal' && typeof expr.value === 'string') {
-    return expr.value;
+    return isHexColor(expr.value) ? expr.value : null;
   }
 
   if (expr.type === 'Identifier') {

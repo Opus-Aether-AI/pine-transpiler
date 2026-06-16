@@ -238,6 +238,23 @@ sessionColor = input.color(baseColor, "Session color")
       });
     });
 
+    describe('Color Variable Tracking', () => {
+      it('should not treat ordinary string constants as color variables', () => {
+        const code = `
+label = "A"
+flag = label == "A"
+`;
+        const metadata = extractMetadata(code);
+        expect(metadata.computedVariables.get('label')).toMatchObject({
+          expression: '"A"',
+        });
+        expect(metadata.computedVariables.get('flag')).toMatchObject({
+          expression: '(label == "A")',
+          dependencies: ['label'],
+        });
+      });
+    });
+
     describe('Multiple inputs', () => {
       it('should extract multiple inputs with correct IDs', () => {
         const code = `

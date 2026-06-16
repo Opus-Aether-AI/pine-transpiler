@@ -9931,6 +9931,9 @@ function getFnName(node) {
 function toHexByte(value) {
 	return Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, "0").toUpperCase();
 }
+function isHexColor(value) {
+	return /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?)$/.test(value);
+}
 function withTransparency(color, transparency) {
 	if (transparency === null) return color;
 	const hex = color.match(/^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$/);
@@ -9943,7 +9946,7 @@ function withTransparency(color, transparency) {
 }
 function getColorValue(expr, resolveIdentifier) {
 	if (!expr) return null;
-	if (expr.type === "Literal" && typeof expr.value === "string") return expr.value;
+	if (expr.type === "Literal" && typeof expr.value === "string") return isHexColor(expr.value) ? expr.value : null;
 	if (expr.type === "Identifier") return COLOR_MAP[expr.name] ?? resolveIdentifier?.(expr.name) ?? null;
 	if (expr.type === "MemberExpression" && expr.object.type === "Identifier" && expr.object.name === "color" && expr.property.type === "Identifier") return COLOR_MAP[expr.property.name] ?? null;
 	if (expr.type === "CallExpression") {
@@ -11241,4 +11244,4 @@ Object.defineProperty(exports, "validateInputSize", {
 	}
 });
 
-//# sourceMappingURL=src-D0yV-Azs.cjs.map
+//# sourceMappingURL=src-DzcG0SAU.cjs.map
