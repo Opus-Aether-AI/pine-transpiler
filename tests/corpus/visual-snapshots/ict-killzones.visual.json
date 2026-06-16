@@ -113,8 +113,8 @@
       },
       {
         "id": "in_103",
-        "type": "float",
-        "defval": 0
+        "type": "color",
+        "defval": "#000000"
       },
       {
         "id": "in_104",
@@ -133,8 +133,8 @@
       },
       {
         "id": "in_107",
-        "type": "float",
-        "defval": 0
+        "type": "color",
+        "defval": "#000000"
       },
       {
         "id": "in_108",
@@ -158,8 +158,8 @@
       },
       {
         "id": "in_111",
-        "type": "float",
-        "defval": 0
+        "type": "color",
+        "defval": "#000000"
       },
       {
         "id": "in_112",
@@ -188,8 +188,8 @@
       },
       {
         "id": "in_117",
-        "type": "float",
-        "defval": 0
+        "type": "color",
+        "defval": "#000000"
       },
       {
         "id": "in_118",
@@ -203,13 +203,13 @@
       },
       {
         "id": "in_12",
-        "type": "float",
-        "defval": 0
+        "type": "color",
+        "defval": "#2962FF"
       },
       {
         "id": "in_120",
-        "type": "float",
-        "defval": 0
+        "type": "color",
+        "defval": "#000000"
       },
       {
         "id": "in_121",
@@ -223,8 +223,8 @@
       },
       {
         "id": "in_123",
-        "type": "float",
-        "defval": 0
+        "type": "color",
+        "defval": "#000000"
       },
       {
         "id": "in_124",
@@ -238,8 +238,8 @@
       },
       {
         "id": "in_126",
-        "type": "float",
-        "defval": 0
+        "type": "color",
+        "defval": "#000000"
       },
       {
         "id": "in_127",
@@ -268,8 +268,8 @@
       },
       {
         "id": "in_16",
-        "type": "float",
-        "defval": 0
+        "type": "color",
+        "defval": "#FF5252"
       },
       {
         "id": "in_17",
@@ -293,7 +293,7 @@
       },
       {
         "id": "in_20",
-        "type": "text",
+        "type": "color",
         "defval": "#089981"
       },
       {
@@ -313,8 +313,8 @@
       },
       {
         "id": "in_24",
-        "type": "float",
-        "defval": 0
+        "type": "color",
+        "defval": "#FFEB3B"
       },
       {
         "id": "in_25",
@@ -333,8 +333,8 @@
       },
       {
         "id": "in_28",
-        "type": "float",
-        "defval": 0
+        "type": "color",
+        "defval": "#9C27B0"
       },
       {
         "id": "in_29",
@@ -398,8 +398,8 @@
       },
       {
         "id": "in_4",
-        "type": "float",
-        "defval": 0
+        "type": "color",
+        "defval": "#000000"
       },
       {
         "id": "in_40",
@@ -533,8 +533,8 @@
       },
       {
         "id": "in_64",
-        "type": "float",
-        "defval": 0
+        "type": "color",
+        "defval": "#2962FF"
       },
       {
         "id": "in_65",
@@ -553,7 +553,7 @@
       },
       {
         "id": "in_68",
-        "type": "text",
+        "type": "color",
         "defval": "#089981"
       },
       {
@@ -578,8 +578,8 @@
       },
       {
         "id": "in_72",
-        "type": "float",
-        "defval": 0
+        "type": "color",
+        "defval": "#FF5252"
       },
       {
         "id": "in_73",
@@ -638,8 +638,8 @@
       },
       {
         "id": "in_83",
-        "type": "float",
-        "defval": 0
+        "type": "color",
+        "defval": "#000000"
       },
       {
         "id": "in_84",
@@ -658,8 +658,8 @@
       },
       {
         "id": "in_87",
-        "type": "float",
-        "defval": 0
+        "type": "color",
+        "defval": "#000000"
       },
       {
         "id": "in_88",
@@ -683,8 +683,8 @@
       },
       {
         "id": "in_91",
-        "type": "float",
-        "defval": 0
+        "type": "color",
+        "defval": "#000000"
       },
       {
         "id": "in_92",
@@ -703,8 +703,8 @@
       },
       {
         "id": "in_95",
-        "type": "float",
-        "defval": 0
+        "type": "color",
+        "defval": "#000000"
       },
       {
         "id": "in_96",
@@ -723,8 +723,8 @@
       },
       {
         "id": "in_99",
-        "type": "float",
-        "defval": 0
+        "type": "color",
+        "defval": "#000000"
       }
     ],
     "styleKeys": [
