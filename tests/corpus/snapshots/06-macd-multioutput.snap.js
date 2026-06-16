@@ -15,8 +15,8 @@ const StdPlus = {
      * @returns {[number, number, number]} [middle, upper, lower]
      */
     bb: function(ctx, series, length, mult) {
-        const basis = Std.sma(ctx, series, length);
-        const dev = Std.stdev(ctx, series, length);
+        const basis = Std.sma(series, length, ctx);
+        const dev = Std.stdev(series, length, ctx);
         
         if (isNaN(basis) || isNaN(dev)) {
             return [NaN, NaN, NaN];
@@ -32,8 +32,8 @@ const StdPlus = {
      * Bollinger Bands Width
      */
     bbw: function(ctx, series, length, mult) {
-        const basis = Std.sma(ctx, series, length);
-        const dev = Std.stdev(ctx, series, length);
+        const basis = Std.sma(series, length, ctx);
+        const dev = Std.stdev(series, length, ctx);
         
         if (isNaN(basis) || isNaN(dev) || basis === 0) {
             return NaN;
@@ -49,8 +49,8 @@ const StdPlus = {
      * Note: Simplified implementation using ATR for range
      */
     kc: function(ctx, series, length, mult, useTrueRange) {
-        const basis = Std.ema(ctx, series, length);
-        const range = Std.atr(ctx, length);
+        const basis = Std.ema(series, length, ctx);
+        const range = Std.atr(length, ctx);
         
         if (isNaN(basis) || isNaN(range)) {
             return [NaN, NaN, NaN];
@@ -66,8 +66,8 @@ const StdPlus = {
      * Keltner Channels Width
      */
     kcw: function(ctx, series, length, mult, useTrueRange) {
-        const basis = Std.ema(ctx, series, length);
-        const range = Std.atr(ctx, length);
+        const basis = Std.ema(series, length, ctx);
+        const range = Std.atr(length, ctx);
         
         if (isNaN(basis) || isNaN(range) || basis === 0) {
             return NaN;
@@ -86,8 +86,8 @@ const StdPlus = {
         const len2 = Math.floor(length / 2);
         const sqrtLen = Math.round(Math.sqrt(length));
 
-        const wma1 = Std.wma(ctx, series, len2);
-        const wma2 = Std.wma(ctx, series, length);
+        const wma1 = Std.wma(series, len2, ctx);
+        const wma2 = Std.wma(series, length, ctx);
 
         if (isNaN(wma1) || isNaN(wma2)) return NaN;
 
@@ -101,14 +101,14 @@ const StdPlus = {
         // new_var(value) on every bar both retrieves the persistent
         // series and appends the current bar's value.
         const diffSeries = ctx.new_var(diff);
-        return Std.wma(ctx, diffSeries, sqrtLen);
+        return Std.wma(diffSeries, sqrtLen, ctx);
     },
 
     /**
      * Momentum
      */
     mom: function(ctx, source, length) {
-        return Std.change(ctx, source, length);
+        return Std.change(source, length, ctx);
     },
 
     /**
@@ -119,7 +119,7 @@ const StdPlus = {
      * while some runtimes only expose scalar VWAP.
      */
     vwap: function(ctx, source, anchor, stdevMult) {
-        const value = Std.vwap(ctx, source, anchor, stdevMult);
+        const value = Std.vwap(source, anchor, stdevMult, ctx);
         if (Array.isArray(value)) return value;
 
         // Tuple form fallback for runtimes that only return scalar VWAP.
@@ -136,14 +136,14 @@ const StdPlus = {
      * Crossover (A crosses over B)
      */
     crossover: function(ctx, a, b) {
-        return Std.cross(ctx, a, b) && Std.gt(ctx, a, b);
+        return Std.cross(a, b, ctx) && Std.gt(a, b);
     },
 
     /**
      * Crossunder (A crosses under B)
      */
     crossunder: function(ctx, a, b) {
-        return Std.cross(ctx, a, b) && Std.lt(ctx, a, b);
+        return Std.cross(a, b, ctx) && Std.lt(a, b);
     },
     
     /**
@@ -151,8 +151,8 @@ const StdPlus = {
      * @returns {[number, number, number]} [macdLine, signalLine, histogram]
      */
     macd: function(ctx, series, fastLen, slowLen, sigLen) {
-        const fastMA = Std.ema(ctx, series, fastLen);
-        const slowMA = Std.ema(ctx, series, slowLen);
+        const fastMA = Std.ema(series, fastLen, ctx);
+        const slowMA = Std.ema(series, slowLen, ctx);
 
         if (isNaN(fastMA) || isNaN(slowMA)) {
             return [NaN, NaN, NaN];
@@ -167,7 +167,7 @@ const StdPlus = {
         // histogram (macdLine - signal) followed it. Pushing via
         // ctx.new_var() each bar is the contract.
         const macdSeries = ctx.new_var(macdLine);
-        const signalLine = Std.ema(ctx, macdSeries, sigLen);
+        const signalLine = Std.ema(macdSeries, sigLen, ctx);
         const histogram = macdLine - signalLine;
 
         return [macdLine, signalLine, histogram];
@@ -177,7 +177,7 @@ const StdPlus = {
      * RSI Wrapper
      */
     rsi: function(ctx, x, y) {
-        return Std.rsi(ctx, x, y);
+        return Std.rsi(x, y, ctx);
     },
     
     /**
@@ -194,8 +194,8 @@ const StdPlus = {
         const highSeries = ctx.new_var(high);
         const lowSeries = ctx.new_var(low);
 
-        const hh = Std.highest(ctx, highSeries, length);
-        const ll = Std.lowest(ctx, lowSeries, length);
+        const hh = Std.highest(highSeries, length, ctx);
+        const ll = Std.lowest(lowSeries, length, ctx);
         
         if (isNaN(hh) || isNaN(ll) || hh === ll) return NaN;
         
@@ -259,8 +259,8 @@ const StdPlus = {
         // history (was overwriting via .set() — same bug as macd/hma).
         const hl2Series = ctx.new_var(hl2);
 
-        const sma5 = Std.sma(ctx, hl2Series, 5);
-        const sma34 = Std.sma(ctx, hl2Series, 34);
+        const sma5 = Std.sma(hl2Series, 5, ctx);
+        const sma34 = Std.sma(hl2Series, 34, ctx);
 
         if (isNaN(sma5) || isNaN(sma34)) return NaN;
 

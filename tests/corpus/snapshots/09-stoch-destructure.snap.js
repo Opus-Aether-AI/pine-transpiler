@@ -7,7 +7,7 @@ const _getHistorical_low = (offset) => _series_low.get(offset);
 indicator("Stochastic", false);
 var k = input.int(14, "%K");
 var d = input.int(3, "%D");
-var [sk, sd] = Std.stoch(context, close, high, low, k);
+var [sk, sd] = Std.stoch(close, high, low, k, context);
 Std.plot(sk, "%K", color.blue);
 Std.plot(sd, "%D", color.orange);
 hline(80);
