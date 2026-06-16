@@ -99,6 +99,11 @@ const PARTIALLY_SUPPORTED_FUNCTIONS = new Set([
  */
 const DEPRECATED_FUNCTIONS = new Set(['study', 'security']);
 
+function toHexByte(value: number): string {
+  const clamped = Math.max(0, Math.min(255, Math.round(value)));
+  return clamped.toString(16).padStart(2, '0').toUpperCase();
+}
+
 /**
  * Computed variable info for code generation
  */
@@ -161,6 +166,9 @@ export class MetadataVisitor {
     // visible without re-wiring.
     this.plotExtractor.setStringResolver((name) =>
       this.stringVariables.get(name),
+    );
+    this.inputExtractor.setColorResolver((name) =>
+      this.resolveTrackedColorDefault(name),
     );
     this.visitStatements(node.body);
   }
@@ -700,7 +708,31 @@ export class MetadataVisitor {
         }
       }
     }
+
+    if (expr.type === 'Identifier') {
+      const tracked = this.colorVariables.get(expr.name);
+      if (tracked) return tracked;
+    }
+
+    const directColor = this.extractColorFromExpr(expr);
+    if (directColor) {
+      return { color: directColor, transparency: 0 };
+    }
+
     return null;
+  }
+
+  private resolveTrackedColorDefault(name: string): string | null {
+    const tracked = this.colorVariables.get(name);
+    if (!tracked) return null;
+
+    const hex = tracked.color.match(/^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$/);
+    if (!hex) return tracked.color;
+    if (tracked.transparency <= 0 && !hex[2]) return `#${hex[1].toUpperCase()}`;
+
+    const alpha =
+      255 * (1 - Math.max(0, Math.min(100, tracked.transparency)) / 100);
+    return `#${hex[1].toUpperCase()}${toHexByte(alpha)}`;
   }
 
   /**

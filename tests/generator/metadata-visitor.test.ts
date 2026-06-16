@@ -143,6 +143,19 @@ describe('MetadataVisitor', () => {
         });
       });
 
+      it('should extract input.color() from a tracked color variable default', () => {
+        const code = `
+baseColor = color.new(color.red, 50)
+sessionColor = input.color(baseColor, "Session color")
+`;
+        const metadata = extractMetadata(code);
+        expect(metadata.inputs[0]).toMatchObject({
+          type: 'color',
+          defval: '#FF525280',
+          name: 'Session color',
+        });
+      });
+
       it('should extract input.color() with color.rgb transparency', () => {
         const code =
           'sessionColor = input.color(color.rgb(41, 98, 255, 85), "Session color")';

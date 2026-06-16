@@ -9928,7 +9928,7 @@ function getFnName(node) {
 }
 //#endregion
 //#region src/generator/input-extractor.ts
-function toHexByte(value) {
+function toHexByte$1(value) {
 	return Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, "0").toUpperCase();
 }
 function withTransparency(color, transparency) {
@@ -9937,19 +9937,19 @@ function withTransparency(color, transparency) {
 	if (hex) {
 		if (transparency <= 0 && !hex[2]) return `#${hex[1].toUpperCase()}`;
 		const alpha = 255 * (1 - Math.max(0, Math.min(100, transparency)) / 100);
-		return `#${hex[1].toUpperCase()}${toHexByte(alpha)}`;
+		return `#${hex[1].toUpperCase()}${toHexByte$1(alpha)}`;
 	}
 	return color;
 }
-function getColorValue(expr) {
+function getColorValue(expr, resolveIdentifier) {
 	if (!expr) return null;
 	if (expr.type === "Literal" && typeof expr.value === "string") return expr.value;
-	if (expr.type === "Identifier" && COLOR_MAP[expr.name]) return COLOR_MAP[expr.name];
+	if (expr.type === "Identifier") return COLOR_MAP[expr.name] ?? resolveIdentifier?.(expr.name) ?? null;
 	if (expr.type === "MemberExpression" && expr.object.type === "Identifier" && expr.object.name === "color" && expr.property.type === "Identifier") return COLOR_MAP[expr.property.name] ?? null;
 	if (expr.type === "CallExpression") {
 		const fnName = getFnName(expr.callee);
 		if (fnName === "color.new") {
-			const color = getColorValue(getArg(expr.arguments, 0, "color"));
+			const color = getColorValue(getArg(expr.arguments, 0, "color"), resolveIdentifier);
 			if (!color) return null;
 			return withTransparency(color, getNumberValue(getArg(expr.arguments, 1, "transp")));
 		}
@@ -9959,7 +9959,7 @@ function getColorValue(expr) {
 			const b = getNumberValue(getArg(expr.arguments, 2, "b") ?? getArg(expr.arguments, 2, "blue"));
 			const transparency = getNumberValue(getArg(expr.arguments, 3, "transp"));
 			if (r === null || g === null || b === null) return null;
-			return withTransparency(`#${toHexByte(r)}${toHexByte(g)}${toHexByte(b)}`, transparency);
+			return withTransparency(`#${toHexByte$1(r)}${toHexByte$1(g)}${toHexByte$1(b)}`, transparency);
 		}
 	}
 	return null;
@@ -9970,6 +9970,9 @@ function getColorValue(expr) {
 var InputExtractor = class {
 	constructor() {
 		this.inputCount = 0;
+	}
+	setColorResolver(resolver) {
+		this.resolveColorIdentifier = resolver;
 	}
 	/**
 	* Extract input from a CallExpression
@@ -9998,7 +10001,7 @@ var InputExtractor = class {
 			else defval = "close";
 		} else if (fnName === "input.color") {
 			type = "color";
-			defval = getColorValue(defvalExpr) ?? COLOR_MAP.blue;
+			defval = getColorValue(defvalExpr, this.resolveColorIdentifier) ?? COLOR_MAP.blue;
 		} else if (fnName === "input.time") {
 			type = "integer";
 			defval = getNumberValue(defvalExpr) ?? Date.now();
@@ -10318,6 +10321,9 @@ var PARTIALLY_SUPPORTED_FUNCTIONS = new Set([
 * Deprecated functions that should be migrated
 */
 var DEPRECATED_FUNCTIONS = new Set(["study", "security"]);
+function toHexByte(value) {
+	return Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, "0").toUpperCase();
+}
 var MetadataVisitor = class {
 	constructor() {
 		this.inputs = [];
@@ -10343,6 +10349,7 @@ var MetadataVisitor = class {
 	}
 	visit(node) {
 		this.plotExtractor.setStringResolver((name) => this.stringVariables.get(name));
+		this.inputExtractor.setColorResolver((name) => this.resolveTrackedColorDefault(name));
 		this.visitStatements(node.body);
 	}
 	visitStatements(stmts) {
@@ -10698,7 +10705,25 @@ var MetadataVisitor = class {
 				};
 			}
 		}
+		if (expr.type === "Identifier") {
+			const tracked = this.colorVariables.get(expr.name);
+			if (tracked) return tracked;
+		}
+		const directColor = this.extractColorFromExpr(expr);
+		if (directColor) return {
+			color: directColor,
+			transparency: 0
+		};
 		return null;
+	}
+	resolveTrackedColorDefault(name) {
+		const tracked = this.colorVariables.get(name);
+		if (!tracked) return null;
+		const hex = tracked.color.match(/^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$/);
+		if (!hex) return tracked.color;
+		if (tracked.transparency <= 0 && !hex[2]) return `#${hex[1].toUpperCase()}`;
+		const alpha = 255 * (1 - Math.max(0, Math.min(100, tracked.transparency)) / 100);
+		return `#${hex[1].toUpperCase()}${toHexByte(alpha)}`;
 	}
 	/**
 	* Extract bgcolor() call information
@@ -11114,4 +11139,4 @@ function executePineJS(code, indicatorId, indicatorName) {
 //#endregion
 export { MATH_FUNCTION_MAPPINGS as S, getAllPineFunctionNames as _, transpileToStandaloneFactory as a, MULTI_OUTPUT_MAPPINGS as b, compile as c, parse as d, validateInputSize as f, HelperUsage as g, PRICE_SOURCES as h, transpileToPineJS as i, extractMetadata as l, COLOR_MAP as m, executePineJS as n, MAX_INPUT_SIZE as o, generateStandaloneFactory as p, transpile as r, buildFactory as s, canTranspilePineScript as t, generateBody as u, getMappingStats as v, TA_FUNCTION_MAPPINGS as x, TIME_FUNCTION_MAPPINGS as y };
 
-//# sourceMappingURL=src-BPWCNTzH.js.map
+//# sourceMappingURL=src-DAi5CfUO.js.map

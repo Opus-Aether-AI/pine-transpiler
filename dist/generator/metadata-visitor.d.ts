@@ -93,6 +93,7 @@ export declare class MetadataVisitor {
      * Extract color info from an initializer expression
      */
     private extractColorInfoFromInit;
+    private resolveTrackedColorDefault;
     /**
      * Extract bgcolor() call information
      */

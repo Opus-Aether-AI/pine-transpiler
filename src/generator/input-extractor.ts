@@ -14,6 +14,8 @@ import {
   getStringValue,
 } from './call-expression-helper';
 
+type ColorIdentifierResolver = (name: string) => string | null | undefined;
+
 function toHexByte(value: number): string {
   const clamped = Math.max(0, Math.min(255, Math.round(value)));
   return clamped.toString(16).padStart(2, '0').toUpperCase();
@@ -33,15 +35,18 @@ function withTransparency(color: string, transparency: number | null): string {
   return color;
 }
 
-function getColorValue(expr: Expression | null): string | null {
+function getColorValue(
+  expr: Expression | null,
+  resolveIdentifier?: ColorIdentifierResolver,
+): string | null {
   if (!expr) return null;
 
   if (expr.type === 'Literal' && typeof expr.value === 'string') {
     return expr.value;
   }
 
-  if (expr.type === 'Identifier' && COLOR_MAP[expr.name]) {
-    return COLOR_MAP[expr.name];
+  if (expr.type === 'Identifier') {
+    return COLOR_MAP[expr.name] ?? resolveIdentifier?.(expr.name) ?? null;
   }
 
   if (
@@ -56,7 +61,10 @@ function getColorValue(expr: Expression | null): string | null {
   if (expr.type === 'CallExpression') {
     const fnName = getFnName(expr.callee as Expression);
     if (fnName === 'color.new') {
-      const color = getColorValue(getArg(expr.arguments, 0, 'color'));
+      const color = getColorValue(
+        getArg(expr.arguments, 0, 'color'),
+        resolveIdentifier,
+      );
       if (!color) return null;
       const transparency = getNumberValue(getArg(expr.arguments, 1, 'transp'));
       return withTransparency(color, transparency);
@@ -86,6 +94,11 @@ function getColorValue(expr: Expression | null): string | null {
  */
 export class InputExtractor {
   private inputCount = 0;
+  private resolveColorIdentifier?: ColorIdentifierResolver;
+
+  public setColorResolver(resolver: ColorIdentifierResolver): void {
+    this.resolveColorIdentifier = resolver;
+  }
 
   /**
    * Extract input from a CallExpression
@@ -121,7 +134,9 @@ export class InputExtractor {
       }
     } else if (fnName === 'input.color') {
       type = 'color';
-      defval = getColorValue(defvalExpr) ?? COLOR_MAP.blue;
+      defval =
+        getColorValue(defvalExpr, this.resolveColorIdentifier) ??
+        COLOR_MAP.blue;
     } else if (fnName === 'input.time') {
       type = 'integer';
       defval = getNumberValue(defvalExpr) ?? Date.now();

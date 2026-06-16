@@ -1,10 +1,13 @@
 import { CallExpression } from '../parser/ast';
 import { ParsedInput } from '../types';
+type ColorIdentifierResolver = (name: string) => string | null | undefined;
 /**
  * Extracts input declarations from Pine Script.
  */
 export declare class InputExtractor {
     private inputCount;
+    private resolveColorIdentifier?;
+    setColorResolver(resolver: ColorIdentifierResolver): void;
     /**
      * Extract input from a CallExpression
      */
@@ -18,4 +21,5 @@ export declare class InputExtractor {
      */
     getInputCount(): number;
 }
+export {};
 //# sourceMappingURL=input-extractor.d.ts.map
