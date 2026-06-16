@@ -132,6 +132,17 @@ describe('MetadataVisitor', () => {
         });
       });
 
+      it('should expand shorthand hex before applying color.new transparency', () => {
+        const code =
+          'sessionColor = input.color(color.new(#F00, 85), "Session color")';
+        const metadata = extractMetadata(code);
+        expect(metadata.inputs[0]).toMatchObject({
+          type: 'color',
+          defval: '#FF000026',
+          name: 'Session color',
+        });
+      });
+
       it('should override existing alpha when color.new transparency is zero', () => {
         const code =
           'sessionColor = input.color(color.new(#FFFFFF00, 0), "Session color")';
@@ -279,6 +290,21 @@ flag = label == "#FFFFFF"
         expect(metadata.computedVariables.get('flag')).toMatchObject({
           expression: '(label == "#FFFFFF")',
           dependencies: ['label'],
+        });
+      });
+
+      it('should not treat ordinary identifiers with color names as color variables', () => {
+        const code = `
+red = close
+copy = red
+`;
+        const metadata = extractMetadata(code);
+        expect(metadata.computedVariables.get('red')).toMatchObject({
+          expression: 'close',
+        });
+        expect(metadata.computedVariables.get('copy')).toMatchObject({
+          expression: 'red',
+          dependencies: ['red'],
         });
       });
     });

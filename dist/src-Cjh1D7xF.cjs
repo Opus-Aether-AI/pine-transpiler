@@ -9931,23 +9931,26 @@ function getFnName(node) {
 function toHexByte(value) {
 	return Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, "0").toUpperCase();
 }
-function isHexColor(value) {
-	return /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?)$/.test(value);
+function normalizeHexColor(value) {
+	const hex = value.match(/^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?)$/);
+	if (!hex) return null;
+	const digits = hex[1];
+	return `#${(digits.length === 3 || digits.length === 4 ? [...digits].map((digit) => `${digit}${digit}`).join("") : digits).toUpperCase()}`;
 }
 function withTransparency(color, transparency) {
 	if (transparency === null) return color;
-	const hex = color.match(/^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$/);
+	const hex = normalizeHexColor(color)?.match(/^#([0-9A-F]{6})([0-9A-F]{2})?$/);
 	if (hex) {
-		if (transparency <= 0 && !hex[2]) return `#${hex[1].toUpperCase()}`;
+		if (transparency <= 0 && !hex[2]) return `#${hex[1]}`;
 		const alpha = 255 * (1 - Math.max(0, Math.min(100, transparency)) / 100);
-		return `#${hex[1].toUpperCase()}${toHexByte(alpha)}`;
+		return `#${hex[1]}${toHexByte(alpha)}`;
 	}
 	return color;
 }
 function getColorValue(expr, resolveIdentifier) {
 	if (!expr) return null;
-	if (expr.type === "Literal" && expr.kind === "color" && typeof expr.value === "string") return isHexColor(expr.value) ? expr.value : null;
-	if (expr.type === "Identifier") return resolveIdentifier?.(expr.name) ?? COLOR_MAP[expr.name] ?? null;
+	if (expr.type === "Literal" && expr.kind === "color" && typeof expr.value === "string") return normalizeHexColor(expr.value);
+	if (expr.type === "Identifier") return resolveIdentifier?.(expr.name) ?? null;
 	if (expr.type === "MemberExpression" && expr.object.type === "Identifier" && expr.object.name === "color" && expr.property.type === "Identifier") return COLOR_MAP[expr.property.name] ?? null;
 	if (expr.type === "CallExpression") {
 		const fnName = getFnName(expr.callee);
@@ -11244,4 +11247,4 @@ Object.defineProperty(exports, "validateInputSize", {
 	}
 });
 
-//# sourceMappingURL=src-C5CPhjJl.cjs.map
+//# sourceMappingURL=src-Cjh1D7xF.cjs.map
