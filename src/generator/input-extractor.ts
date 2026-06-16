@@ -14,14 +14,19 @@ import {
   getStringValue,
 } from './call-expression-helper';
 
-type ColorIdentifierResolver = (name: string) => string | null | undefined;
+export type ColorIdentifierResolver = (
+  name: string,
+) => string | null | undefined;
 
 function toHexByte(value: number): string {
   const clamped = Math.max(0, Math.min(255, Math.round(value)));
   return clamped.toString(16).padStart(2, '0').toUpperCase();
 }
 
-function withTransparency(color: string, transparency: number | null): string {
+export function withTransparency(
+  color: string,
+  transparency: number | null,
+): string {
   if (transparency === null) return color;
 
   const hex = color.match(/^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$/);
@@ -35,7 +40,7 @@ function withTransparency(color: string, transparency: number | null): string {
   return color;
 }
 
-function getColorValue(
+export function getColorValue(
   expr: Expression | null,
   resolveIdentifier?: ColorIdentifierResolver,
 ): string | null {

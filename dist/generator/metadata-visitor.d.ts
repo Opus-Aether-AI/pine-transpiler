@@ -107,10 +107,6 @@ export declare class MetadataVisitor {
      */
     private extractColorInfo;
     /**
-     * Extract color from expression (color.red, #FF0000, etc.)
-     */
-    private extractColorFromExpr;
-    /**
      * Check if a function is supported and add appropriate warnings
      */
     private checkFunctionSupport;

@@ -9928,7 +9928,7 @@ function getFnName(node) {
 }
 //#endregion
 //#region src/generator/input-extractor.ts
-function toHexByte$1(value) {
+function toHexByte(value) {
 	return Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, "0").toUpperCase();
 }
 function withTransparency(color, transparency) {
@@ -9937,7 +9937,7 @@ function withTransparency(color, transparency) {
 	if (hex) {
 		if (transparency <= 0 && !hex[2]) return `#${hex[1].toUpperCase()}`;
 		const alpha = 255 * (1 - Math.max(0, Math.min(100, transparency)) / 100);
-		return `#${hex[1].toUpperCase()}${toHexByte$1(alpha)}`;
+		return `#${hex[1].toUpperCase()}${toHexByte(alpha)}`;
 	}
 	return color;
 }
@@ -9959,7 +9959,7 @@ function getColorValue(expr, resolveIdentifier) {
 			const b = getNumberValue(getArg(expr.arguments, 2, "b") ?? getArg(expr.arguments, 2, "blue"));
 			const transparency = getNumberValue(getArg(expr.arguments, 3, "transp"));
 			if (r === null || g === null || b === null) return null;
-			return withTransparency(`#${toHexByte$1(r)}${toHexByte$1(g)}${toHexByte$1(b)}`, transparency);
+			return withTransparency(`#${toHexByte(r)}${toHexByte(g)}${toHexByte(b)}`, transparency);
 		}
 	}
 	return null;
@@ -10321,9 +10321,6 @@ var PARTIALLY_SUPPORTED_FUNCTIONS = new Set([
 * Deprecated functions that should be migrated
 */
 var DEPRECATED_FUNCTIONS = new Set(["study", "security"]);
-function toHexByte(value) {
-	return Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, "0").toUpperCase();
-}
 var MetadataVisitor = class {
 	constructor() {
 		this.inputs = [];
@@ -10695,10 +10692,8 @@ var MetadataVisitor = class {
 		if (expr.type === "CallExpression") {
 			const fnName = getFnName(expr.callee);
 			if ((fnName === "color.new" || fnName === "_colorNew") && expr.arguments.length >= 2) {
-				const baseColor = this.extractColorFromExpr(expr.arguments[0]);
-				let transparency = 0;
-				const transpArg = expr.arguments[1];
-				if (transpArg.type === "Literal" && typeof transpArg.value === "number") transparency = transpArg.value;
+				const baseColor = getColorValue(expr.arguments[0], (name) => this.resolveTrackedColorDefault(name));
+				const transparency = getNumberValue(getArg(expr.arguments, 1, "transp")) ?? 0;
 				if (baseColor) return {
 					color: baseColor,
 					transparency
@@ -10709,21 +10704,17 @@ var MetadataVisitor = class {
 			const tracked = this.colorVariables.get(expr.name);
 			if (tracked) return tracked;
 		}
-		const directColor = this.extractColorFromExpr(expr);
+		const directColor = getColorValue(expr, (name) => this.resolveTrackedColorDefault(name));
 		if (directColor) return {
 			color: directColor,
-			transparency: 0
+			transparency: null
 		};
 		return null;
 	}
 	resolveTrackedColorDefault(name) {
 		const tracked = this.colorVariables.get(name);
 		if (!tracked) return null;
-		const hex = tracked.color.match(/^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$/);
-		if (!hex) return tracked.color;
-		if (tracked.transparency <= 0 && !hex[2]) return `#${hex[1].toUpperCase()}`;
-		const alpha = 255 * (1 - Math.max(0, Math.min(100, tracked.transparency)) / 100);
-		return `#${hex[1].toUpperCase()}${toHexByte(alpha)}`;
+		return withTransparency(tracked.color, tracked.transparency);
 	}
 	/**
 	* Extract bgcolor() call information
@@ -10738,7 +10729,7 @@ var MetadataVisitor = class {
 		const extractedInfo = this.extractColorInfo(colorArg);
 		if (extractedInfo) {
 			color = extractedInfo.color;
-			transparency = extractedInfo.transparency;
+			transparency = extractedInfo.transparency ?? 0;
 		}
 		if (colorArg.type === "ConditionalExpression") conditionExpr = this.stringifyCondition(colorArg.test);
 		this.bgcolors.push({
@@ -10782,13 +10773,18 @@ var MetadataVisitor = class {
 		if (expr.type === "CallExpression") {
 			const fnName = getFnName(expr.callee);
 			if ((fnName === "color.new" || fnName === "_colorNew") && expr.arguments.length >= 2) {
-				const baseColor = this.extractColorFromExpr(expr.arguments[0]);
-				let transparency = 0;
-				const transpArg = expr.arguments[1];
-				if (transpArg.type === "Literal" && typeof transpArg.value === "number") transparency = transpArg.value;
+				const baseColor = getColorValue(expr.arguments[0], (name) => this.resolveTrackedColorDefault(name));
+				const transparency = getNumberValue(getArg(expr.arguments, 1, "transp")) ?? 0;
 				if (baseColor) return {
 					color: baseColor,
 					transparency
+				};
+			}
+			if (fnName === "color.rgb") {
+				const color = getColorValue(expr, (name) => this.resolveTrackedColorDefault(name));
+				if (color) return {
+					color,
+					transparency: null
 				};
 			}
 		}
@@ -10797,36 +10793,11 @@ var MetadataVisitor = class {
 			const tracked = this.colorVariables.get(expr.name);
 			if (tracked) return tracked;
 		}
-		const directColor = this.extractColorFromExpr(expr);
+		const directColor = getColorValue(expr, (name) => this.resolveTrackedColorDefault(name));
 		if (directColor) return {
 			color: directColor,
-			transparency: 0
+			transparency: null
 		};
-		return null;
-	}
-	/**
-	* Extract color from expression (color.red, #FF0000, etc.)
-	*/
-	extractColorFromExpr(expr) {
-		if (expr.type === "Literal" && typeof expr.value === "string") return expr.value;
-		if (expr.type === "MemberExpression" && expr.object.type === "Identifier" && expr.object.name === "color" && expr.property.type === "Identifier") return {
-			blue: "#2962FF",
-			red: "#FF5252",
-			green: "#4CAF50",
-			yellow: "#FFEB3B",
-			orange: "#FF9800",
-			purple: "#9C27B0",
-			white: "#FFFFFF",
-			black: "#000000",
-			gray: "#9E9E9E",
-			teal: "#009688",
-			aqua: "#00BCD4",
-			lime: "#CDDC39",
-			pink: "#E91E63",
-			navy: "#1A237E",
-			maroon: "#B71C1C"
-		}[expr.property.name] || null;
-		if (expr.type === "Identifier") return null;
 		return null;
 	}
 	/**
@@ -11270,4 +11241,4 @@ Object.defineProperty(exports, "validateInputSize", {
 	}
 });
 
-//# sourceMappingURL=src-BacWfdcW.cjs.map
+//# sourceMappingURL=src-D0yV-Azs.cjs.map

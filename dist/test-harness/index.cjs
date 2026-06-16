@@ -1,5 +1,5 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-const require_src = require("../src-BacWfdcW.cjs");
+const require_src = require("../src-D0yV-Azs.cjs");
 //#region src/test-harness/descriptor.ts
 function toMessage$1(error) {
 	if (error instanceof Error) return error.message;
