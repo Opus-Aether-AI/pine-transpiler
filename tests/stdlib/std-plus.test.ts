@@ -333,6 +333,17 @@ plot(middle)`;
       expect(STD_PLUS_LIBRARY).not.toContain('ctx._macd_series = new Map()');
     });
 
+    it('does not clean up removed manual series caches', () => {
+      const cleanupSection = STD_PLUS_LIBRARY.split(
+        'cleanup: function(ctx)',
+      )[1];
+      expect(cleanupSection).not.toContain('ctx._hma_diff_series');
+      expect(cleanupSection).not.toContain('ctx._macd_series');
+      expect(cleanupSection).not.toContain('ctx._wpr_series');
+      expect(cleanupSection).not.toContain('ctx._ao_series');
+      expect(cleanupSection).toContain('ctx._cmo_series.clear()');
+    });
+
     it('uses ctx.new_var per bar to persist series', () => {
       // Both hma and macd reach for the documented PineJS persistence
       // primitive directly.
