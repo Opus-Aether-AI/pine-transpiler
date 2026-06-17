@@ -130,7 +130,7 @@ describe('StdPlus Library', () => {
     });
 
     it('should create persistent series for diff values', () => {
-      expect(STD_PLUS_LIBRARY).toContain('ctx._hma_diff_series');
+      expect(STD_PLUS_LIBRARY).toContain('ctx.new_var(diff)');
     });
 
     it('should apply final WMA with sqrt(n) period', () => {
@@ -246,7 +246,7 @@ crossed = ta.crossunder(sma14, sma28)`;
     });
 
     it('should create persistent series for MACD values', () => {
-      expect(STD_PLUS_LIBRARY).toContain('ctx._macd_series');
+      expect(STD_PLUS_LIBRARY).toContain('ctx.new_var(macdLine)');
     });
 
     it('should transpile ta.macd call', () => {
