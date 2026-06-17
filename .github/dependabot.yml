@@ -11,9 +11,6 @@ updates:
       timezone: Asia/Kolkata
     open-pull-requests-limit: 5
     versioning-strategy: increase
-    labels:
-      - dependencies
-      - automated
     groups:
       # Batch minor/patch bumps to reduce PR noise; majors stay individual
       dev-dependencies:
@@ -35,10 +32,6 @@ updates:
       time: "06:00"
       timezone: Asia/Kolkata
     open-pull-requests-limit: 3
-    labels:
-      - dependencies
-      - github-actions
-      - automated
     commit-message:
       prefix: chore
       include: scope
