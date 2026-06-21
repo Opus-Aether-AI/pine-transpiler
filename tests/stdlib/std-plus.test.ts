@@ -130,7 +130,7 @@ describe('StdPlus Library', () => {
     });
 
     it('should create persistent series for diff values', () => {
-      expect(STD_PLUS_LIBRARY).toContain('ctx._hma_diff_series');
+      expect(STD_PLUS_LIBRARY).toContain('ctx.new_var(diff)');
     });
 
     it('should apply final WMA with sqrt(n) period', () => {
@@ -246,7 +246,7 @@ crossed = ta.crossunder(sma14, sma28)`;
     });
 
     it('should create persistent series for MACD values', () => {
-      expect(STD_PLUS_LIBRARY).toContain('ctx._macd_series');
+      expect(STD_PLUS_LIBRARY).toContain('ctx.new_var(macdLine)');
     });
 
     it('should transpile ta.macd call', () => {
@@ -331,6 +331,17 @@ plot(middle)`;
 
     it('does not manually cache MACD series in ctx', () => {
       expect(STD_PLUS_LIBRARY).not.toContain('ctx._macd_series = new Map()');
+    });
+
+    it('does not clean up removed manual series caches', () => {
+      const cleanupSection = STD_PLUS_LIBRARY.split(
+        'cleanup: function(ctx)',
+      )[1];
+      expect(cleanupSection).not.toContain('ctx._hma_diff_series');
+      expect(cleanupSection).not.toContain('ctx._macd_series');
+      expect(cleanupSection).not.toContain('ctx._wpr_series');
+      expect(cleanupSection).not.toContain('ctx._ao_series');
+      expect(cleanupSection).toContain('ctx._cmo_series.clear()');
     });
 
     it('uses ctx.new_var per bar to persist series', () => {
