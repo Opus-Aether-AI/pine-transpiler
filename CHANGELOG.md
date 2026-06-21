@@ -12,6 +12,15 @@ docs/RELEASING.md for the flow and `.github/release-please-config.json`
 for the commit-type → section mapping.
 -->
 
+## [0.4.10](https://github.com/Opus-Aether-AI/pine-transpiler/compare/v0.4.9...v0.4.10) (2026-06-21)
+
+
+### Fixed
+
+* **ci:** parse release-please PR JSON at runtime ([#45](https://github.com/Opus-Aether-AI/pine-transpiler/issues/45)) ([6ca0d34](https://github.com/Opus-Aether-AI/pine-transpiler/commit/6ca0d34ae45cfa205d31a29bb1d70bfe41e64dd0))
+* emit PineJS TA context last ([#41](https://github.com/Opus-Aether-AI/pine-transpiler/issues/41)) ([5f11eaf](https://github.com/Opus-Aether-AI/pine-transpiler/commit/5f11eaf268ac90d5654b40dbcd43c7e2e84e6390))
+* preserve color input metadata ([#42](https://github.com/Opus-Aether-AI/pine-transpiler/issues/42)) ([16e7ef2](https://github.com/Opus-Aether-AI/pine-transpiler/commit/16e7ef28403a983910742f1c3da78b5c323ec2ae))
+
 ## [0.4.9](https://github.com/Opus-Aether-AI/pine-transpiler/compare/v0.4.8...v0.4.9) (2026-05-23)
 
 
