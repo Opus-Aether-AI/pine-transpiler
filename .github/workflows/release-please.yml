@@ -69,9 +69,15 @@ jobs:
         if: ${{ steps.release.outputs.pr }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ fromJSON(steps.release.outputs.pr).number }}
+          PR_JSON: ${{ steps.release.outputs.pr }}
           REPO: ${{ github.repository }}
         run: |
+          PR_NUMBER="$(printf '%s' "${PR_JSON}" | jq -r '.number // empty')"
+          if [ -z "${PR_NUMBER}" ]; then
+            echo "::error::release-please returned PR output without a number"
+            exit 1
+          fi
+
           echo "Enabling auto-merge on Release PR #${PR_NUMBER}"
           gh pr merge "${PR_NUMBER}" --repo "${REPO}" --auto --squash
 
