@@ -248,7 +248,7 @@ export function createHarnessRuntime(
       ema(series, length),
     rsi: (series: unknown, length: number, _ctx: RuntimeContext) =>
       rsi(series, length),
-    tr: (_ctx: RuntimeContext) => {
+    tr: (..._args: unknown[]) => {
       const b = currentBar();
       return b ? b.high - b.low : Number.NaN;
     },

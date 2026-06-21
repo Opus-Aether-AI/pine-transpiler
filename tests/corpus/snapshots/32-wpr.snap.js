@@ -269,20 +269,8 @@ const StdPlus = {
      * Cleanup cached series to free memory
      */
     cleanup: function(ctx) {
-        if (ctx._hma_diff_series) {
-            ctx._hma_diff_series.clear();
-        }
-        if (ctx._macd_series) {
-            ctx._macd_series.clear();
-        }
-        if (ctx._wpr_series) {
-            ctx._wpr_series = null;
-        }
         if (ctx._cmo_series) {
             ctx._cmo_series.clear();
-        }
-        if (ctx._ao_series) {
-            ctx._ao_series = null;
         }
     }
 };
