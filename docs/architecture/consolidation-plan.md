@@ -10,7 +10,16 @@ This is executed in **gated, incremental phases**. Each phase is independently s
 - **Definition of done for any step:** `bun run typecheck` + `bun run lint` + `bun test tests/` all green, AND the Visual harness Parity signature for affected fixtures does not regress (turns *more* green, never less).
 - **One namespace / one concern per PR.** Never a big-bang. The migration is a sequence of small, reviewable PRs.
 - **Behaviour-preserving by default.** Where a copy was *wrong* (e.g. `line.new` arg index), the registry value is correct and the change is a *fix* — called out explicitly, with a regression test, never silent.
-- **The registry is correct-by-construction against the Host contract** (ADR-0003) — when registry and a runtime copy disagree, the registry (validated against `charting_library.d.ts`) wins.
+- **The registry is the source of truth; when it and a runtime copy disagree, the registry wins.** For `Std.*` it is validated against the Host contract (`charting_library.d.ts`); for the internal drawing/Visual-event ABI it is validated by the internal oracle (ADR-0003). The drawing ABI is *not* validated by Host `Std.*` types.
+
+## Phase 0 — De-risk the unknowns (spike, no production change) — *do before committing to the plan*
+
+The review flagged two things the rest of the plan rests on; prove them first or the later phases are built on sand.
+
+1. **Runtime-ABI inventory.** Enumerate every symbol the emitted standalone Factory expects in scope (`__createStubNamespaces`, `__createVisualStubs`, `__createInput`, the `Std`/`box`/`line`/`label`/`table` wrapper params at `indicator-factory.ts:4145`, `:4689`, `:4732`) and every per-instance state holder (handle stores, bar-time, `request.security` call-site state, `__visualCtx`). Output: a written ABI surface the Runtime module must satisfy.
+2. **Standalone-bundle feasibility spike.** Throwaway prototype: take the real Runtime module and bundle it to a self-contained string that drops into the standalone Factory with **no `import`, no `export`, no `new Function`**, exposing the same in-scope symbols, with per-instance state via `createRuntimeInstance()`. Prove a trivial indicator transpiles + runs both paths identically. If this can't be made CSP-safe cleanly, the whole "one module, bundled into standalone" decision (ADR-0002) is revisited *now*, not in Phase 4.
+
+Gate: ABI documented; a working standalone-bundle prototype for one primitive, or an explicit ADR amendment if infeasible.
 
 ## Phase 1 — Safety net (additive, low risk) — *do first*
 
@@ -26,14 +35,17 @@ Gate: full suite green; harness runs and its red/green status is recorded as the
 
 1. Define the registry schema (`src/registry/`): per namespace, per function — canonical arg order + handle field mapping + constants; an explicit override hook for irregular functions (`request.security`, multi-output `ta.*`).
 2. Populate it for the **drawing primitives first** (`line`, `box`, `label`, `linefill`, `table`) — the most regular and the highest-drift. Source the *correct* values from `DRAWING_CANONICAL_ARG_ORDER` + the Host contract.
-3. Route the **argument canonicalizer** (`expression-generator.ts`) through the registry; delete the standalone `DRAWING_CANONICAL_ARG_ORDER` list. Behaviour-preserving — the existing contract tests (`tests/contract/canonical-arg-order.test.ts`) must stay green.
+3. **Data-only first:** prove the registry-derived arg arrays are **byte-for-byte equal** to today's `DRAWING_CANONICAL_ARG_ORDER`/`INPUT_CANONICAL_ARG_ORDER` (a snapshot equivalence test) **before** routing any logic through it.
+4. Then route the **argument canonicalizer** (`normalizeCallArguments`) **and** `normalizeVisualStyle()` (the Visual-event projection) through the registry **in the same step** — routing only one leaves the other as a drift source. Delete the now-dead constant lists. Behaviour-preserving — `tests/contract/canonical-arg-order.test.ts` must stay green.
 
-Gate: full suite green; no Parity regression. The registry now owns arg order.
+Gate: full suite green; no Parity regression. The registry now owns arg order **and** visual-style slots.
 
 ## Phase 3 — Build the shared Runtime module (ADR-0002)
 
 1. `createDrawingNamespace(descriptor)` (+ siblings) builds a namespace (handle store, `.new`, methods, constants, visual-event emission) from a registry descriptor — as **real, unit-tested TS** in `src/runtime/`.
-2. Migrate **one namespace at a time** (`linefill` first — smallest, freshest; then `line`, `box`, `label`, `table`). For each: replace the mock copy (`stub-namespaces.ts`) AND the PineJS-path copy with the registry-derived namespace. Add direct unit tests for the namespace's `new`/methods/constants.
+2. Migrate **one namespace at a time**, simplest first: `table` or `label`, then `line`, then `box`. For each: replace **both** Runtime copies — `stub-namespaces.ts` (PineJS path + tests) **and** the standalone string-template copy in `indicator-factory.ts` — with the registry-derived namespace. Add direct unit tests for `new`/methods/constants and the two-instance isolation test (ADR-0002).
+   - **`linefill` is not on `main`** (it lands via PR #49); fold it into this migration *after* #49 merges, or treat it as explicit new scope — do **not** list it as an existing migration target.
+   - **Behaviour fixes ride with the migration, not before it:** where a copy was wrong (e.g. `line.new` arg index, dropped `text_halign`), the correction lands *in the same PR* as that namespace's runtime swap, with a named regression test and the harness diff showing exactly which fixtures change.
 3. After each namespace migration, the harness fixtures exercising it should move from red → green (drift removed). That is the per-step success signal.
 
 Gate (per namespace): full suite green; the affected harness fixtures go green; new unit tests cover the namespace.

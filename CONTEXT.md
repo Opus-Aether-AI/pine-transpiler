@@ -13,8 +13,10 @@ The shared vocabulary for this codebase. Use these terms exactly in code, commen
 - **Factory** — the generated JS artifact: a function the Host calls to obtain `{ metainfo, constructor }`. Two production shapes exist (see **Factory path**).
 
 - **Factory path** — one of the two ways we emit a Factory:
-  - **PineJS path** (`transpileToPineJS`) — returns a callable Factory that expects the Host to supply `Std.*`. Used by the web app.
-  - **Standalone path** (`transpileToStandaloneFactory`) — emits self-contained ESM source with its own embedded runtime; no `Host` `Std` needed; CSP-safe (no `new Function`).
+  - **PineJS path** (`transpileToPineJS`) — returns a callable Factory. Backs the Pine namespaces with the **mock Runtime** `src/runtime/stub-namespaces.ts` (`createStubNamespaces`, called at `indicator-factory.ts:2918`), and uses the Host's `Std.*` for TA math. Used by the web app.
+  - **Standalone path** (`transpileToStandaloneFactory`) — emits ESM source that is **CSP-safe** (no `new Function`) and embeds its **own** copy of the drawing/helper Runtime (the `STANDALONE_RUNTIME_HELPERS` string template). It **still reads `const Std = PineJS.Std`** — it self-implements the drawing primitives and helpers, but still depends on the Host `Std.*` for TA math.
+
+  > The two paths back the same Pine namespaces with **two different Runtime copies** — `stub-namespaces.ts` (PineJS path + tests) and the `STANDALONE_RUNTIME_HELPERS` template (standalone path). That split is the **Runtime drift**.
 
 - **metainfo** — the descriptor the Host reads to know how to render: `id`, `plots`, `defaults.styles`, `is_price_study`, `inputs`. Built from the script's `indicator(...)` call and its `plot`/`input` usage.
 

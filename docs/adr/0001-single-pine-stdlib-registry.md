@@ -23,20 +23,26 @@ Adding a Pine feature today means editing every copy from memory. Forgetting one
 
 ## Decision
 
-Introduce **one declarative Pine-stdlib registry** as the single source of truth. For each Pine namespace it describes, per function/constant:
+Introduce **one declarative Pine-stdlib registry** as the single source of truth. The review of this ADR established that arg order is only one of several facets that drift; the registry must own **all of them by parameter name**. For each function/constant the registry describes:
 
-- the **canonical arg order** (param names, defaults),
-- the **handle field mapping** (arg name → handle field, for drawing primitives),
-- the namespace **constants** and their resolved values,
-- enough metadata to drive multi-output reshaping and `metainfo` where applicable.
+- **canonical arg order** — param names + defaults (today: `DRAWING_CANONICAL_ARG_ORDER`/`INPUT_CANONICAL_ARG_ORDER`).
+- **handle-field mapping** — for drawing primitives, which *stored* handle field each named param maps to (a `.new` constructs a handle).
+- **visual-event field mapping** — which params appear in the emitted **Visual event** payload. This is a **distinct** mapping: `normalizeVisualStyle()` (`indicator-factory.ts`) hard-codes its own slots today and already drifts from canonical order. Constructor args / stored fields / event fields are three different projections of the same params and must each be named in the registry.
+- **mutator/accessor semantics** — for `set_*`/`get_*` methods and table mutations (`table.cell` is a *mutation*, not a handle construction).
+- **constants** — namespace constants (`line.style_*`, `label.style_*`) and resolved values.
+- **context placement** — where the Host runtime `context` goes: `Std.*` is **context-last** but `StdPlus.*` is **context-first** (`std-plus.ts` vs `expression-generator.ts`). The registry encodes this per function.
+- **output arity/shape** — for multi-output `ta.*` (`macd`, `bb`, `kc`, `dmi`, `supertrend`): output names, target function, series wrapping.
+- **arity kind** — fixed vs **variadic** (`math.max/min/avg/sum` use `minArgs`, not a fixed order).
+- **special-lowering hook** — a *typed* escape for genuinely irregular functions (`request.security` merges first three named args + uses call-site state + timeframe buckets). Not a vague "override" — a declared hook with a typed contract.
 
 Everything that currently encodes these facts is **derived from** the registry:
 
-1. the argument canonicalizer (replacing the standalone `DRAWING_CANONICAL_ARG_ORDER`/`INPUT_CANONICAL_ARG_ORDER` lists),
-2. the **Runtime module** (ADR-0002),
-3. generated "supported Pine surface" docs.
+1. the argument canonicalizer (`normalizeCallArguments`),
+2. `normalizeVisualStyle()` (the visual-event projection),
+3. the **Runtime module** (ADR-0002) — handle construction, mutators, constants,
+4. generated "supported Pine surface" docs.
 
-The registry is plain data + small typed accessors — not a framework. It lives in `src/registry/` (one file per namespace family) and is the first thing a contributor edits to add Pine surface.
+The registry is plain data + small typed accessors — not a framework. It lives in `src/registry/` (one file per namespace family) and is the first thing a contributor edits to add Pine surface. Migrate the **regular** drawing primitives first; irregular functions (`request.security`, multi-output `ta.*`) use the special-lowering hook or stay bespoke until the schema is proven.
 
 ## Consequences
 

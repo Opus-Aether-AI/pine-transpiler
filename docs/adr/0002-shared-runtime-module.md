@@ -6,15 +6,14 @@
 
 ## Context
 
-The **Runtime** (the JS backing Pine namespaces at execution time) exists today in two or three forms that drift (see ADR-0001):
+The **Runtime** (the JS backing Pine namespaces at execution time) exists today in **two** forms that drift (see ADR-0001):
 
-1. As a **575-line embedded string template** (`STANDALONE_RUNTIME_HELPERS` in `src/factory/indicator-factory.ts:113-687`) emitted verbatim into the standalone Factory.
-2. As **reference TypeScript functions** in the *same file* (lines 168-685) used by the PineJS path.
-3. As the **mock Runtime** `src/runtime/stub-namespaces.ts` used by tests/visual harness.
+1. **Standalone copy** — a large embedded **string template** (`STANDALONE_RUNTIME_HELPERS`, `src/factory/indicator-factory.ts:113`…~`:1290`, containing `__createLineNamespace`/`__createBoxNamespace`/… and `__createStubNamespaces`) emitted verbatim into the standalone Factory. The "reference TypeScript functions" people assume exist *are this string* — they are not separately used.
+2. **PineJS + test copy** — the real module `src/runtime/stub-namespaces.ts` (`createStubNamespaces`), imported by `indicator-factory.ts:33` and called by the **PineJS path** at `indicator-factory.ts:2918`, and used directly by tests/visual harness.
 
-Because (1) is a string, it is not real code: it cannot be type-checked or unit-tested, and is only observable by transpiling a script and inspecting/executing the generated output. There is no test asserting (1) matches (2) — they can diverge silently.
+Because (1) is a string, it is not real code: it cannot be type-checked or unit-tested, and is only observable by transpiling a script and inspecting/executing the output. No test asserts (1) matches (2) — they diverge silently (the `line.new` arg-index split is exactly this).
 
-This is a **shallow, low-locality** arrangement: the same behaviour is spread across copies, the bugs hide in *how* the copies are kept in sync, and the most important copy (the shipped standalone Runtime) is the least testable.
+This is a **shallow, low-locality** arrangement: the same behaviour is spread across copies, the bugs hide in *how* the copies are kept in sync, and the shipped standalone copy is the least testable. (Note: the standalone Factory still reads `const Std = PineJS.Std` — it self-implements drawing/helpers, not TA math.)
 
 ## Decision
 
@@ -38,7 +37,7 @@ The embedded string template and the duplicate hand-copies are **deleted**.
 
 **Negative / cost**
 - The standalone path must **bundle** a TS module into emitted ESM while staying CSP-safe (no `new Function`, no external imports in the output). Mitigation: bundle the Runtime module to a self-contained string *at build time* (one generated artifact derived from real code + tested), so the output is still inlined but its source is real, tested code — not a hand-edited template.
-- Care needed so per-instance state (handle stores, bar-time, visual context) stays correctly scoped per indicator instance. Mitigation: the module exposes a `createRuntime()` factory; no module-level mutable state.
+- **Per-instance state is load-bearing**, not incidental: the Host reconstructs an indicator on full recalc, and two instances of the same script must not share handle stores / bar-time / `request.security` call-site state / `__visualCtx`. Today this state is created once per *constructor* (`indicator-factory.ts:2918` PineJS, `:4732` standalone). Mitigation: the module's API is **`createRuntimeInstance(...)`** called **inside the constructor** (never module-level mutable state), with a **`beginBar(...)`** call per bar to reset the visual-event sink. Ship **two-instance isolation tests** (run two instances of one script interleaved; assert no cross-talk) as a first-class part of this phase.
 
 ## Alternatives considered
 
