@@ -21,6 +21,10 @@ The review flagged two things the rest of the plan rests on; prove them first or
 
 Gate: ABI documented; a working standalone-bundle prototype for one primitive, or an explicit ADR amendment if infeasible.
 
+**Outcome (done):** `FEASIBLE_WITH_CHANGES`. The ABI is documented in `docs/architecture/runtime-abi.md`; the bundle approach is proven (CSP-safe, two-instance-isolated) and folded into ADR-0002. Two scoping findings carry forward:
+- **Drift is wider than the drawing primitives.** The ABI inventory found path divergence in `timeframe.in_seconds`, `syminfo`, `ticker`, `request`/`request.security`, `array`, and the compiled-script **param order** (`log` placed differently across paths). **Drawing-runtime consolidation (Phases 2-4) and wider wrapper-ABI harmonization are separate jobs** — do not let them bleed together. The wrapper-ABI track is sequenced *after* the drawing primitives are unified and the harness is green.
+- **`colorToSlot` state leak** (PineJS factory closure, not constructor) must move into constructor-owned state during Phase 3.
+
 ## Phase 1 — Safety net (additive, low risk) — *do first*
 
 The net must exist before the risky refactor. All additive; nothing existing changes shape.

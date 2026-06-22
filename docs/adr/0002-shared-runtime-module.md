@@ -27,6 +27,16 @@ Collapse the Runtime into **one real, unit-tested TypeScript module** (`src/runt
 
 The embedded string template and the duplicate hand-copies are **deleted**.
 
+### Validated by the Phase 0 spike (status: feasible)
+
+A throwaway prototype proved the keystone: a real TS runtime module for one primitive (`label`) was bundled **CSP-safe** and run identically through both paths.
+
+- **Bundling mechanism that works:** real TS module → `bun build --target=browser --format=esm` → expose side-effect globals (`__spikeCreateRuntimeInstance`, `__spikeCreateLabelNamespace`) → **alias** them to the in-scope helper names the emitted standalone Factory expects. The output had **zero** `import` / `export` / `new Function` (verified). The aliasing layer is therefore part of the contract — ADR requires an **explicit bundle-exposure/alias ABI** (a documented mapping from module exports → emitted-factory in-scope symbols), captured in `docs/architecture/runtime-abi.md`.
+- **Per-instance isolation works:** `createRuntimeInstance()` isolated state cleanly; the interleaved two-instance test passed (separate handle-id and event streams, no cross-talk).
+- **Required tightening:** *all* mutable runtime state must live under constructor-owned `createRuntimeInstance()` — including today's `colorToSlot` map, which currently leaks into the **PineJS factory closure** (`indicator-factory.ts:2721-2728`), not the constructor. Moving it is part of this ADR's scope.
+
+See `docs/architecture/runtime-abi.md` for the full ABI the module must satisfy.
+
 ## Consequences
 
 **Positive**
