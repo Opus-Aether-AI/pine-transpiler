@@ -24,6 +24,7 @@ import {
   UTILITY_HELPER_FUNCTIONS,
 } from '../mappings';
 import type { Program, Statement } from '../parser/ast';
+import { getDrawingFn } from '../registry';
 import {
   createBarstate,
   createInputMock,
@@ -109,6 +110,79 @@ function indentCode(code: string, spaces: number): string {
     .map((line) => `${pad}${line}`)
     .join('\n');
 }
+
+interface DrawingVisualStyleSlots {
+  colorIndices: number[];
+  linewidthIndex: number | null;
+}
+
+interface DrawingVisualStyleProjection {
+  colors: readonly string[];
+  linewidth?: string;
+}
+
+const DRAWING_VISUAL_STYLE_PROJECTIONS: Readonly<
+  Record<string, DrawingVisualStyleProjection>
+> = {
+  'box.new': {
+    colors: ['border_color', 'bgcolor'],
+    linewidth: 'border_width',
+  },
+  'label.new': {
+    colors: ['color', 'textcolor'],
+  },
+  'line.new': {
+    colors: ['color'],
+    linewidth: 'width',
+  },
+  'linefill.new': {
+    colors: ['color'],
+  },
+  'table.cell': {
+    colors: ['text_color', 'bgcolor'],
+  },
+};
+
+function buildDrawingVisualStyleSlots(): Readonly<
+  Record<string, DrawingVisualStyleSlots>
+> {
+  const slots: Record<string, DrawingVisualStyleSlots> = {};
+
+  for (const [call, projection] of Object.entries(
+    DRAWING_VISUAL_STYLE_PROJECTIONS,
+  )) {
+    const [namespace, fn] = call.split('.');
+    const visualEventArgs =
+      namespace && fn
+        ? getDrawingFn(namespace, fn)?.visualEventArgs
+        : undefined;
+    if (!visualEventArgs) continue;
+
+    const colorIndices = projection.colors
+      .map((name) => visualEventArgs.indexOf(name))
+      .filter((index): index is number => index >= 0);
+    const linewidthIndex =
+      projection.linewidth === undefined
+        ? null
+        : visualEventArgs.indexOf(projection.linewidth);
+
+    slots[call] = {
+      colorIndices,
+      linewidthIndex:
+        typeof linewidthIndex === 'number' && linewidthIndex >= 0
+          ? linewidthIndex
+          : null,
+    };
+  }
+
+  return slots;
+}
+
+// Keep the visual-style projection in sync with the live registry.
+const DRAWING_VISUAL_STYLE_SLOTS = buildDrawingVisualStyleSlots();
+const DRAWING_VISUAL_STYLE_SLOTS_JSON = JSON.stringify(
+  DRAWING_VISUAL_STYLE_SLOTS,
+);
 
 const STANDALONE_RUNTIME_HELPERS = `
 function __toNumber(value, fallback) {
@@ -741,6 +815,8 @@ function __readTranspFromColor(color) {
   return Math.round((1 - clamped) * 100);
 }
 
+const __DRAWING_VISUAL_STYLE_SLOTS = ${DRAWING_VISUAL_STYLE_SLOTS_JSON};
+
 function __normalizeVisualStyle(call, args) {
   const colors = [];
   for (const arg of args) {
@@ -811,7 +887,7 @@ function __normalizeVisualStyle(call, args) {
       transp = numberAt(1);
       display = displayAt(2) ?? displayAt(4) ?? displayAt(3);
       break;
-    default:
+    default: {
       if (
         normalizedCall.endsWith('.set_width') ||
         normalizedCall.endsWith('.set_border_width')
@@ -826,24 +902,17 @@ function __normalizeVisualStyle(call, args) {
       ) {
         colorAt(1);
       }
-      if (normalizedCall === 'line.new') {
-        colorAt(6);
-        linewidth = numberAt(8);
-      } else if (normalizedCall === 'linefill.new') {
-        colorAt(2);
-      } else if (normalizedCall === 'box.new') {
-        colorAt(4);
-        colorAt(9);
-        linewidth = numberAt(5);
-      } else if (normalizedCall === 'label.new') {
-        colorAt(5);
-        colorAt(7);
-      } else if (normalizedCall === 'table.cell') {
-        colorAt(4);
-        colorAt(5);
-        colorAt(7);
+      const drawingStyleSlots = __DRAWING_VISUAL_STYLE_SLOTS[normalizedCall];
+      if (drawingStyleSlots) {
+        for (const index of drawingStyleSlots.colorIndices) {
+          colorAt(index);
+        }
+        if (drawingStyleSlots.linewidthIndex !== null) {
+          linewidth = numberAt(drawingStyleSlots.linewidthIndex);
+        }
       }
       break;
+    }
   }
 
   const normalizedColors = [...new Set(colors)].sort((a, b) =>
@@ -2316,7 +2385,7 @@ function normalizeVisualStyle(
       transp = numberAt(1);
       display = displayAt(2) ?? displayAt(4) ?? displayAt(3);
       break;
-    default:
+    default: {
       if (
         normalizedCall.endsWith('.set_width') ||
         normalizedCall.endsWith('.set_border_width')
@@ -2331,24 +2400,17 @@ function normalizeVisualStyle(
       ) {
         colorAt(1);
       }
-      if (normalizedCall === 'line.new') {
-        colorAt(6);
-        linewidth = numberAt(8);
-      } else if (normalizedCall === 'linefill.new') {
-        colorAt(2);
-      } else if (normalizedCall === 'box.new') {
-        colorAt(4);
-        colorAt(9);
-        linewidth = numberAt(5);
-      } else if (normalizedCall === 'label.new') {
-        colorAt(5);
-        colorAt(7);
-      } else if (normalizedCall === 'table.cell') {
-        colorAt(4);
-        colorAt(5);
-        colorAt(7);
+      const drawingStyleSlots = DRAWING_VISUAL_STYLE_SLOTS[normalizedCall];
+      if (drawingStyleSlots) {
+        for (const index of drawingStyleSlots.colorIndices) {
+          colorAt(index);
+        }
+        if (drawingStyleSlots.linewidthIndex !== null) {
+          linewidth = numberAt(drawingStyleSlots.linewidthIndex);
+        }
       }
       break;
+    }
   }
 
   const normalizedColors = [...new Set(colors)].sort((a, b) =>

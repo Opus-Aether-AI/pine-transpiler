@@ -28,6 +28,7 @@ import type {
   SwitchExpression,
   UnaryExpression,
 } from '../parser/ast';
+import { getDrawingFn, getInputFn } from '../registry';
 import {
   type FunctionMapping,
   indent,
@@ -59,243 +60,6 @@ function isNamedArgument(
     arg.left.type === 'Identifier'
   );
 }
-
-/**
- * Pine v6 canonical positional-arg order for drawing-namespace
- * constructors and table.cell. When a user calls these with named
- * args (`box.new(time, high, time, low, bgcolor = c, text = t)`),
- * the parser preserves the source order — but downstream consumers
- * (runtime stubs, the host VisualEventsRenderer that reads
- * `__visualEvents[*].args`) need a deterministic layout. We reorder
- * named args into these slots and pad missing slots with `na` so
- * `args[i]` always means the same Pine parameter.
- *
- * Order taken directly from Pine v6 reference signatures.
- */
-const DRAWING_CANONICAL_ARG_ORDER: Record<string, string[]> = {
-  'box.new': [
-    'left',
-    'top',
-    'right',
-    'bottom',
-    'border_color',
-    'border_width',
-    'border_style',
-    'extend',
-    'xloc',
-    'bgcolor',
-    'text',
-    'text_size',
-    'text_color',
-    'text_halign',
-    'text_valign',
-    'text_wrap',
-    'force_overlay',
-    'text_font_family',
-  ],
-  'line.new': [
-    'x1',
-    'y1',
-    'x2',
-    'y2',
-    'xloc',
-    'extend',
-    'color',
-    'style',
-    'width',
-    'force_overlay',
-  ],
-  'label.new': [
-    'x',
-    'y',
-    'text',
-    'xloc',
-    'yloc',
-    'color',
-    'style',
-    'textcolor',
-    'size',
-    'textalign',
-    'tooltip',
-    'text_font_family',
-    'force_overlay',
-    'text_formatting',
-  ],
-  'linefill.new': ['line1', 'line2', 'color'],
-  'table.new': [
-    'position',
-    'columns',
-    'rows',
-    'bgcolor',
-    'frame_color',
-    'frame_width',
-    'border_color',
-    'border_width',
-    'force_overlay',
-  ],
-  'table.cell': [
-    'table_id',
-    'column',
-    'row',
-    'text',
-    'width',
-    'height',
-    'text_color',
-    'text_halign',
-    'text_valign',
-    'text_size',
-    'bgcolor',
-    'tooltip',
-    'text_font_family',
-    'text_formatting',
-  ],
-};
-
-/**
- * Canonical positional order for typed input helpers.
- *
- * Pine allows named args (`input.int(title="Len", defval=14)`), but our
- * runtime input mock only treats the first argument as the default value.
- * If named args are emitted in source order, `title` can incorrectly land
- * in slot 0 and coerce the runtime value to a string.
- */
-const INPUT_CANONICAL_ARG_ORDER: Record<string, string[]> = {
-  input: [
-    'defval',
-    'title',
-    'tooltip',
-    'inline',
-    'group',
-    'display',
-    'confirm',
-    'options',
-    'minval',
-    'maxval',
-    'step',
-  ],
-  'input.int': [
-    'defval',
-    'title',
-    'minval',
-    'maxval',
-    'step',
-    'tooltip',
-    'inline',
-    'group',
-    'display',
-    'confirm',
-    'options',
-  ],
-  'input.float': [
-    'defval',
-    'title',
-    'minval',
-    'maxval',
-    'step',
-    'tooltip',
-    'inline',
-    'group',
-    'display',
-    'confirm',
-    'options',
-  ],
-  'input.bool': [
-    'defval',
-    'title',
-    'tooltip',
-    'inline',
-    'group',
-    'display',
-    'confirm',
-  ],
-  'input.string': [
-    'defval',
-    'title',
-    'options',
-    'tooltip',
-    'inline',
-    'group',
-    'display',
-    'confirm',
-  ],
-  'input.source': [
-    'defval',
-    'title',
-    'tooltip',
-    'inline',
-    'group',
-    'display',
-    'confirm',
-  ],
-  'input.color': [
-    'defval',
-    'title',
-    'tooltip',
-    'inline',
-    'group',
-    'display',
-    'confirm',
-  ],
-  'input.timeframe': [
-    'defval',
-    'title',
-    'options',
-    'tooltip',
-    'inline',
-    'group',
-    'display',
-    'confirm',
-  ],
-  'input.session': [
-    'defval',
-    'title',
-    'options',
-    'tooltip',
-    'inline',
-    'group',
-    'display',
-    'confirm',
-  ],
-  'input.time': [
-    'defval',
-    'title',
-    'tooltip',
-    'inline',
-    'group',
-    'display',
-    'confirm',
-  ],
-  'input.symbol': [
-    'defval',
-    'title',
-    'tooltip',
-    'inline',
-    'group',
-    'display',
-    'confirm',
-  ],
-  'input.text_area': [
-    'defval',
-    'title',
-    'tooltip',
-    'inline',
-    'group',
-    'display',
-    'confirm',
-  ],
-  'input.price': [
-    'defval',
-    'title',
-    'minval',
-    'maxval',
-    'step',
-    'tooltip',
-    'inline',
-    'group',
-    'display',
-    'confirm',
-  ],
-};
 
 const BUILTIN_SERIES_IDENTIFIERS = new Set([
   'open',
@@ -555,13 +319,18 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
     if (pineCallee === 'request.security') {
       return this.normalizeRequestSecurityArgs(args);
     }
-    const inputCanonicalOrder = INPUT_CANONICAL_ARG_ORDER[pineCallee];
+    const inputCanonicalOrder = getInputFn(pineCallee)?.canonicalArgs;
     if (inputCanonicalOrder) {
       return this.normalizeByCanonicalOrder(args, inputCanonicalOrder);
     }
-    const canonicalOrder = DRAWING_CANONICAL_ARG_ORDER[pineCallee];
-    if (canonicalOrder) {
-      return this.normalizeByCanonicalOrder(args, canonicalOrder);
+    const [namespace, fn] = pineCallee.split('.');
+    const drawingSpec =
+      namespace && fn ? getDrawingFn(namespace, fn) : undefined;
+    const drawingCanonicalOrder = drawingSpec?.visualEventArgs
+      ? drawingSpec.canonicalArgs
+      : undefined;
+    if (drawingCanonicalOrder) {
+      return this.normalizeByCanonicalOrder(args, drawingCanonicalOrder);
     }
     return args;
   }
@@ -637,7 +406,7 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
    */
   private normalizeByCanonicalOrder(
     args: Expression[],
-    canonicalOrder: string[],
+    canonicalOrder: readonly string[],
   ): Expression[] {
     const positional: Expression[] = [];
     const namedLookup = new Map<string, Expression>();

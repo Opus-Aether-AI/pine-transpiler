@@ -1,132 +1,214 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'bun:test';
-import {
-  getDrawingFn,
-  getInputFn,
-  INPUT_REGISTRY,
-} from '../../src/registry';
+import { transpileToPineJS } from '../../src/index';
+import { getDrawingFn, getInputFn } from '../../src/registry';
 
 const EXPRESSION_GENERATOR_SOURCE = readFileSync(
   new URL('../../src/generator/expression-generator.ts', import.meta.url),
   'utf8',
 );
 
-const DRAWING_CANONICAL_ARG_ORDER = readCanonicalMap(
-  'DRAWING_CANONICAL_ARG_ORDER',
-);
-const INPUT_CANONICAL_ARG_ORDER = readCanonicalMap('INPUT_CANONICAL_ARG_ORDER');
+interface CanonicalCallCase {
+  callee: string;
+  source: string;
+  positionalArgs: string[];
+  namedArgs: Record<string, string>;
+}
 
-const KNOWN_DRAWING_CORRECTIONS: Readonly<Record<string, readonly string[]>> = {
-  // Empty in Phase 2a: the generator canonical arrays are already authoritative.
-};
+const DRAWING_CASES: CanonicalCallCase[] = [
+  {
+    callee: 'line.new',
+    source: `//@version=6
+indicator("line-live", overlay=true)
+line.new(bar_index, high, bar_index + 1, low, width = 3, color = #AABBCC, xloc = xloc.bar_index, style = line.style_dashed)
+plot(close)
+`,
+    positionalArgs: ['bar_index', 'high', '(bar_index + 1)', 'low'],
+    namedArgs: {
+      xloc: 'xloc.bar_index',
+      color: '"#AABBCC"',
+      style: 'line.style_dashed',
+      width: '3',
+    },
+  },
+  {
+    callee: 'box.new',
+    source: `//@version=6
+indicator("box-live", overlay=true)
+box.new(time, high, time, low, bgcolor = #00FF00, border_color = #FF0000, xloc = xloc.bar_time, text = "hello", text_color = #0000FF)
+plot(close)
+`,
+    positionalArgs: ['time', 'high', 'time', 'low'],
+    namedArgs: {
+      border_color: '"#FF0000"',
+      xloc: 'xloc.bar_time',
+      bgcolor: '"#00FF00"',
+      text: '"hello"',
+      text_color: '"#0000FF"',
+    },
+  },
+  {
+    callee: 'label.new',
+    source: `//@version=6
+indicator("label-live", overlay=true)
+label.new(bar_index, high, text = "tag", xloc = xloc.bar_index, color = #112233, textcolor = #FFFFFF, size = size.large)
+plot(close)
+`,
+    positionalArgs: ['bar_index', 'high'],
+    namedArgs: {
+      text: '"tag"',
+      xloc: 'xloc.bar_index',
+      color: '"#112233"',
+      textcolor: '"#FFFFFF"',
+      size: 'size.large',
+    },
+  },
+  {
+    callee: 'table.cell',
+    source: `//@version=6
+indicator("table-live", overlay=true)
+t = table.new(position.top_right, 1, 1)
+table.cell(t, 0, 0, bgcolor = #00FF00, text = "X", text_color = #FF0000)
+plot(close)
+`,
+    positionalArgs: ['t', '0', '0'],
+    namedArgs: {
+      text: '"X"',
+      text_color: '"#FF0000"',
+      bgcolor: '"#00FF00"',
+    },
+  },
+];
 
-const KNOWN_INPUT_CORRECTIONS: Readonly<Record<string, readonly string[]>> = {
-  // Empty in Phase 2a: the generator canonical arrays are already authoritative.
-};
+const INPUT_CASES: CanonicalCallCase[] = [
+  {
+    callee: 'input.int',
+    source: `//@version=6
+indicator("input-int-live", overlay=false)
+len = input.int(title = "Len", defval = 14, tooltip = "T")
+plot(close)
+`,
+    positionalArgs: [],
+    namedArgs: {
+      defval: '14',
+      title: '"Len"',
+      tooltip: '"T"',
+    },
+  },
+  {
+    callee: 'input.string',
+    source: `//@version=6
+indicator("input-string-live", overlay=false)
+mode = input.string(tooltip = "pick", title = "Mode", options = ["A", "B"], defval = "A")
+plot(close)
+`,
+    positionalArgs: [],
+    namedArgs: {
+      defval: '"A"',
+      title: '"Mode"',
+      options: '["A", "B"]',
+      tooltip: '"pick"',
+    },
+  },
+  {
+    callee: 'input.price',
+    source: `//@version=6
+indicator("input-price-live", overlay=false)
+priceInput = input.price(title = "Px", step = 0.25, defval = 1.5, tooltip = "P")
+plot(close)
+`,
+    positionalArgs: [],
+    namedArgs: {
+      defval: '1.5',
+      title: '"Px"',
+      step: '0.25',
+      tooltip: '"P"',
+    },
+  },
+];
 
-function readCanonicalMap(name: string): Record<string, string[]> {
-  const prefix = `const ${name}: Record<string, string[]> = `;
-  const start = EXPRESSION_GENERATOR_SOURCE.indexOf(prefix);
-  if (start === -1) {
-    throw new Error(`Could not locate ${name} in expression-generator.ts`);
+function transpileBody(source: string): string {
+  const result = transpileToPineJS(source, 'registry_live_source', 'Registry Live Source');
+  if (!result.success || !result.indicatorFactory) {
+    throw new Error(result.error ?? 'transpile failed');
   }
-  const objectStart = EXPRESSION_GENERATOR_SOURCE.indexOf(
-    '{',
-    start + prefix.length,
+  const body = result.indicatorFactory.__pineJsBody;
+  if (typeof body !== 'string' || body.length === 0) {
+    throw new Error('missing __pineJsBody');
+  }
+  return body;
+}
+
+function getCanonicalArgsForCall(callee: string): readonly string[] {
+  if (callee.startsWith('input')) {
+    const inputSpec = getInputFn(callee);
+    if (!inputSpec) {
+      throw new Error(`missing input registry spec for ${callee}`);
+    }
+    return inputSpec.canonicalArgs;
+  }
+
+  const [namespace, fn] = callee.split('.');
+  const drawingSpec =
+    namespace && fn ? getDrawingFn(namespace, fn) : undefined;
+  if (!drawingSpec) {
+    throw new Error(`missing drawing registry spec for ${callee}`);
+  }
+  return drawingSpec.canonicalArgs;
+}
+
+function buildExpectedArgs({
+  callee,
+  positionalArgs,
+  namedArgs,
+}: CanonicalCallCase): string[] {
+  const canonicalArgs = getCanonicalArgsForCall(callee);
+  const highestNamedSlot = Math.max(
+    -1,
+    ...Object.keys(namedArgs).map((name) => canonicalArgs.indexOf(name)),
   );
-  if (objectStart === -1) {
-    throw new Error(`Could not locate ${name} object start`);
-  }
+  const fillLength = Math.max(positionalArgs.length, highestNamedSlot + 1);
 
-  let depth = 0;
-  let objectEnd = -1;
-  for (let index = objectStart; index < EXPRESSION_GENERATOR_SOURCE.length; index++) {
-    const char = EXPRESSION_GENERATOR_SOURCE[index];
-    if (char === '{') depth += 1;
-    if (char === '}') {
-      depth -= 1;
-      if (depth === 0) {
-        objectEnd = index;
-        break;
-      }
+  const out: string[] = [];
+  for (let index = 0; index < fillLength; index++) {
+    const positional = positionalArgs[index];
+    if (positional !== undefined) {
+      out.push(positional);
+      continue;
     }
-  }
 
-  if (objectEnd === -1) {
-    throw new Error(`Could not locate ${name} object end`);
+    const paramName = canonicalArgs[index];
+    const named = paramName ? namedArgs[paramName] : undefined;
+    out.push(named ?? 'NaN');
   }
-
-  const literal = EXPRESSION_GENERATOR_SOURCE.slice(objectStart, objectEnd + 1);
-  return Function(`return (${literal});`)() as Record<string, string[]>;
+  return out;
 }
 
-function assertCanonicalMatch(
-  key: string,
-  actual: readonly string[] | undefined,
-  expected: readonly string[],
-  knownCorrections: Readonly<Record<string, readonly string[]>>,
-): void {
-  expect(actual).toBeDefined();
-  const correction = knownCorrections[key];
-  if (correction) {
-    expect(actual).toEqual(correction);
-    expect(actual).not.toEqual(expected);
-    return;
-  }
-  expect(actual).toEqual(expected);
+function assertCanonicalCallEmission(testCase: CanonicalCallCase): void {
+  const body = transpileBody(testCase.source);
+  const expectedArgs = buildExpectedArgs(testCase);
+  expect(body).toContain(`${testCase.callee}(${expectedArgs.join(', ')})`);
 }
 
-describe('registry canonical equivalence — drawing', () => {
-  for (const [key, expectedArgs] of Object.entries(
-    DRAWING_CANONICAL_ARG_ORDER,
-  )) {
-    it(`${key} matches the current canonical array exactly`, () => {
-      const [namespace, fn] = key.split('.');
-      const actual = getDrawingFn(namespace ?? '', fn ?? '')?.canonicalArgs;
-      assertCanonicalMatch(
-        key,
-        actual,
-        expectedArgs,
-        KNOWN_DRAWING_CORRECTIONS,
-      );
-    });
-  }
-
-  it('KNOWN_DRAWING_CORRECTIONS only contains real divergences', () => {
-    for (const [key, correctedArgs] of Object.entries(
-      KNOWN_DRAWING_CORRECTIONS,
-    )) {
-      const [namespace, fn] = key.split('.');
-      const actual = getDrawingFn(namespace ?? '', fn ?? '')?.canonicalArgs;
-      const expected = DRAWING_CANONICAL_ARG_ORDER[key];
-      expect(expected).toBeDefined();
-      expect(actual).toEqual(correctedArgs);
-      expect(actual).not.toEqual(expected);
-    }
-  });
-});
-
-describe('registry canonical equivalence — inputs', () => {
-  it('covers the current input canonical keys exactly', () => {
-    expect(Object.keys(INPUT_REGISTRY).sort()).toEqual(
-      Object.keys(INPUT_CANONICAL_ARG_ORDER).sort(),
+describe('registry canonical equivalence — live source', () => {
+  it('expression-generator no longer declares local canonical arg maps', () => {
+    expect(EXPRESSION_GENERATOR_SOURCE).not.toMatch(
+      /\bconst\s+DRAWING_CANONICAL_ARG_ORDER\b/,
+    );
+    expect(EXPRESSION_GENERATOR_SOURCE).not.toMatch(
+      /\bconst\s+INPUT_CANONICAL_ARG_ORDER\b/,
     );
   });
 
-  for (const [key, expectedArgs] of Object.entries(INPUT_CANONICAL_ARG_ORDER)) {
-    it(`${key} matches the current canonical array exactly`, () => {
-      const actual = getInputFn(key)?.canonicalArgs;
-      assertCanonicalMatch(key, actual, expectedArgs, KNOWN_INPUT_CORRECTIONS);
+  for (const testCase of DRAWING_CASES) {
+    it(`${testCase.callee} emits registry-ordered canonical args in the live body`, () => {
+      assertCanonicalCallEmission(testCase);
     });
   }
 
-  it('KNOWN_INPUT_CORRECTIONS only contains real divergences', () => {
-    for (const [key, correctedArgs] of Object.entries(KNOWN_INPUT_CORRECTIONS)) {
-      const actual = getInputFn(key)?.canonicalArgs;
-      const expected = INPUT_CANONICAL_ARG_ORDER[key];
-      expect(expected).toBeDefined();
-      expect(actual).toEqual(correctedArgs);
-      expect(actual).not.toEqual(expected);
-    }
-  });
+  for (const testCase of INPUT_CASES) {
+    it(`${testCase.callee} emits registry-ordered canonical args in the live body`, () => {
+      assertCanonicalCallEmission(testCase);
+    });
+  }
 });

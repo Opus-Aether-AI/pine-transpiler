@@ -542,7 +542,7 @@ function makeBoxNamespace(): BoxStub {
   const box: Record<string, unknown> = {
     // Args land in Pine v6 canonical positional order — the generator's
     // `normalizeByCanonicalOrder` reorders named args before emission.
-    // See DRAWING_CANONICAL_ARG_ORDER in src/generator/expression-generator.ts.
+    // See the drawing registry canonical args in src/registry/drawing.ts.
     new: (...args: unknown[]) => {
       const h: DrawingHandle = {
         __id: nextId++,
