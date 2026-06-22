@@ -501,12 +501,18 @@ export class StatementGenerator implements StatementGeneratorInterface {
         const methodParamsDecl = methodParams.join(', ');
         const callArgs = methodParams.length > 0 ? `, ${methodParamsDecl}` : '';
         const receiverProtoVar = `_pineMethodProto_${scopeOrdinal}`;
+        const methodKeyVar = `_pineMethodKey_${scopeOrdinal}`;
+        const methodRegistryKey = `${receiverName}.${originalName}`;
+        this.expressionGen.helperUsage.mark('state');
         out += `\n${indent(this.indentLevel)}const ${receiverProtoVar} = (typeof ${receiverName} === 'function' && ${receiverName}.prototype) ? ${receiverName}.prototype : null;`;
-        out += `\n${indent(this.indentLevel)}if (${receiverProtoVar} && typeof ${receiverProtoVar}.${name} !== 'function') {\n${indent(this.indentLevel, 1)}${receiverProtoVar}.${name} = function(${methodParamsDecl}) { return ${name}(this${callArgs}); };\n${indent(this.indentLevel)}}`;
+        out += `\n${indent(this.indentLevel)}const ${methodKeyVar} = ${JSON.stringify(methodRegistryKey)};`;
+        out += `\n${indent(this.indentLevel)}if (!_pineState.methodImpls) _pineState.methodImpls = Object.create(null);`;
+        out += `\n${indent(this.indentLevel)}_pineState.methodImpls[${methodKeyVar}] = ${name};`;
+        out += `\n${indent(this.indentLevel)}if (${receiverProtoVar} && typeof ${receiverProtoVar}.${name} !== 'function') {\n${indent(this.indentLevel, 1)}${receiverProtoVar}.${name} = function(${methodParamsDecl}) {\n${indent(this.indentLevel, 2)}const _pineImpl = _pineState.methodImpls[${methodKeyVar}];\n${indent(this.indentLevel, 2)}return typeof _pineImpl === 'function' ? _pineImpl(this${callArgs}) : undefined;\n${indent(this.indentLevel, 1)}};\n${indent(this.indentLevel)}}`;
         if (originalName !== name) {
           // Preserve source-level method names (e.g. `delete`) when
           // sanitization rewrites the function identifier.
-          out += `\n${indent(this.indentLevel)}if (${receiverProtoVar} && typeof ${receiverProtoVar}[${JSON.stringify(originalName)}] !== 'function') {\n${indent(this.indentLevel, 1)}${receiverProtoVar}[${JSON.stringify(originalName)}] = function(${methodParamsDecl}) { return ${name}(this${callArgs}); };\n${indent(this.indentLevel)}}`;
+          out += `\n${indent(this.indentLevel)}if (${receiverProtoVar} && typeof ${receiverProtoVar}[${JSON.stringify(originalName)}] !== 'function') {\n${indent(this.indentLevel, 1)}${receiverProtoVar}[${JSON.stringify(originalName)}] = function(${methodParamsDecl}) {\n${indent(this.indentLevel, 2)}const _pineImpl = _pineState.methodImpls[${methodKeyVar}];\n${indent(this.indentLevel, 2)}return typeof _pineImpl === 'function' ? _pineImpl(this${callArgs}) : undefined;\n${indent(this.indentLevel, 1)}};\n${indent(this.indentLevel)}}`;
         }
       }
     }

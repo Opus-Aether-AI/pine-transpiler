@@ -61,6 +61,15 @@ export interface LineStub {
     get_y2: (lineObj: unknown) => number;
     [key: string]: unknown;
 }
+/** Namespace for linefill drawing functions */
+export interface LinefillStub {
+    new: (...args: unknown[]) => DrawingHandle;
+    delete: (linefillObj: unknown) => void;
+    set_color: (linefillObj: unknown, color: unknown) => void;
+    get_line1: (linefillObj: unknown) => unknown;
+    get_line2: (linefillObj: unknown) => unknown;
+    [key: string]: unknown;
+}
 /** Namespace for label functions */
 export interface LabelStub {
     new: (...args: unknown[]) => DrawingHandle;
@@ -129,6 +138,7 @@ export interface BarstateContext {
 export interface StubNamespaces {
     box: BoxStub;
     line: LineStub;
+    linefill: LinefillStub;
     label: LabelStub;
     table: TableStub;
     str: StrStub;
