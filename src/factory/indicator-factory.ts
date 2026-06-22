@@ -208,6 +208,7 @@ function __createLineNamespace() {
     const h = __resolveHandle(lineObj, lineStore);
     return h ? __toNumber(h.y2) : Number.NaN;
   };
+  const hasHandle = (lineObj) => __resolveHandle(lineObj, lineStore) !== undefined;
   const attachMethods = (h) => {
     if (typeof h.delete !== 'function') h.delete = () => remove(h);
     if (typeof h.set_x2 !== 'function') h.set_x2 = (x2) => setX2(h, x2);
@@ -246,11 +247,64 @@ function __createLineNamespace() {
     get_x2: getX2,
     get_y1: getY1,
     get_y2: getY2,
+    __hasHandle: hasHandle,
     style_solid: 'solid',
     style_dotted: 'dotted',
     style_dashed: 'dashed',
   };
   return __withConstantFallback(line, 'line');
+}
+
+function __createLinefillNamespace() {
+  let nextId = 1;
+  const linefillStore = new Map();
+  const remove = (linefillObj) => {
+    const h = __resolveHandle(linefillObj, linefillStore);
+    if (!h) return;
+    h.__deleted = true;
+    linefillStore.delete(h.__id);
+  };
+  const setColor = (linefillObj, color) => {
+    const h = __resolveHandle(linefillObj, linefillStore);
+    if (!h) return;
+    h.color = color;
+  };
+  const getLine1 = (linefillObj) => {
+    const h = __resolveHandle(linefillObj, linefillStore);
+    return h ? h.line1 : undefined;
+  };
+  const getLine2 = (linefillObj) => {
+    const h = __resolveHandle(linefillObj, linefillStore);
+    return h ? h.line2 : undefined;
+  };
+  const hasHandle = (linefillObj) =>
+    __resolveHandle(linefillObj, linefillStore) !== undefined;
+  const attachMethods = (h) => {
+    if (typeof h.delete !== 'function') h.delete = () => remove(h);
+    if (typeof h.set_color !== 'function') h.set_color = (color) => setColor(h, color);
+    if (typeof h.get_line1 !== 'function') h.get_line1 = () => getLine1(h);
+    if (typeof h.get_line2 !== 'function') h.get_line2 = () => getLine2(h);
+  };
+  const linefill = {
+    new: (...args) => {
+      const h = {
+        __id: nextId++,
+        __deleted: false,
+        line1: args[0],
+        line2: args[1],
+        color: args[2],
+      };
+      attachMethods(h);
+      linefillStore.set(h.__id, h);
+      return h;
+    },
+    delete: remove,
+    set_color: setColor,
+    get_line1: getLine1,
+    get_line2: getLine2,
+    __hasHandle: hasHandle,
+  };
+  return __withConstantFallback(linefill, 'linefill');
 }
 
 function __createBoxNamespace() {
@@ -324,6 +378,7 @@ function __createBoxNamespace() {
     const h = __resolveHandle(boxObj, boxStore);
     return h ? __toNumber(h.bottom) : Number.NaN;
   };
+  const hasHandle = (boxObj) => __resolveHandle(boxObj, boxStore) !== undefined;
   const attachMethods = (h) => {
     if (typeof h.delete !== 'function') h.delete = () => remove(h);
     if (typeof h.set_left !== 'function') h.set_left = (left) => setLeft(h, left);
@@ -377,6 +432,7 @@ function __createBoxNamespace() {
     get_right: getRight,
     get_top: getTop,
     get_bottom: getBottom,
+    __hasHandle: hasHandle,
     __setBarTime: (t) => {
       const n = Number(t);
       if (Number.isFinite(n)) currentBarTime = n;
@@ -447,6 +503,8 @@ function __createLabelNamespace() {
     const h = __resolveHandle(labelObj, labelStore);
     return h ? __toNumber(h.y) : Number.NaN;
   };
+  const hasHandle = (labelObj) =>
+    __resolveHandle(labelObj, labelStore) !== undefined;
   const attachMethods = (h) => {
     if (typeof h.delete !== 'function') h.delete = () => remove(h);
     if (typeof h.set_text !== 'function') h.set_text = (text) => setText(h, text);
@@ -488,6 +546,7 @@ function __createLabelNamespace() {
     set_x: setX,
     set_y: setY,
     get_y: getY,
+    __hasHandle: hasHandle,
     style_label_up: 'label_up',
     style_label_down: 'label_down',
     style_label_left: 'label_left',
@@ -529,6 +588,8 @@ function __createTableNamespace() {
       __toInteger(args[4], 0),
     ]);
   };
+  const hasHandle = (tableObj) =>
+    __resolveHandle(tableObj, tableStore) !== undefined;
   const table = {
     new: (...args) => {
       const t = {
@@ -549,6 +610,7 @@ function __createTableNamespace() {
     cell,
     clear,
     merge_cells,
+    __hasHandle: hasHandle,
   };
   return __withConstantFallback(table, 'table');
 }
@@ -609,6 +671,7 @@ function __createStubNamespaces() {
   return {
     box: __createBoxNamespace(),
     line: __createLineNamespace(),
+    linefill: __createLinefillNamespace(),
     label: __createLabelNamespace(),
     table: __createTableNamespace(),
     str: __createStrNamespace(),
@@ -766,6 +829,8 @@ function __normalizeVisualStyle(call, args) {
       if (normalizedCall === 'line.new') {
         colorAt(6);
         linewidth = numberAt(8);
+      } else if (normalizedCall === 'linefill.new') {
+        colorAt(2);
       } else if (normalizedCall === 'box.new') {
         colorAt(4);
         colorAt(9);
@@ -814,7 +879,7 @@ function __normalizeVisualStyle(call, args) {
   };
 }
 
-function __wrapVisualHandle(namespace, handle, ctx) {
+function __wrapVisualHandle(namespace, handle, ctx, isLiveHandle) {
   if (typeof handle !== 'object' || handle === null) return handle;
   const handleId = __extractHandleId(handle);
   return new Proxy(handle, {
@@ -823,7 +888,12 @@ function __wrapVisualHandle(namespace, handle, ctx) {
       if (typeof prop !== 'string') return value;
       if (typeof value !== 'function') return value;
       return (...args) => {
-        if (handleId !== undefined) {
+        const shouldEmit =
+          handleId !== undefined &&
+          (typeof isLiveHandle === 'function'
+            ? Boolean(isLiveHandle(target))
+            : true);
+        if (shouldEmit) {
           ctx.pushEvent({
             call: namespace + '.' + prop,
             args,
@@ -844,10 +914,23 @@ function __createVisualNamespaceProxy(namespace, ns, ctx) {
       if (typeof prop !== 'string') return value;
       if (typeof value !== 'function') return value;
       return (...args) => {
+        const hasLiveHandle =
+          typeof target.__hasHandle === 'function'
+            ? (valueToCheck) => Boolean(target.__hasHandle(valueToCheck))
+            : undefined;
+        const pendingHandle =
+          prop === 'new' ? undefined : __extractHandleId(args[0]);
+        const shouldEmit =
+          prop === 'new'
+            ? false
+            : pendingHandle !== undefined &&
+              (typeof hasLiveHandle === 'function'
+                ? hasLiveHandle(args[0])
+                : true);
         const result = value.apply(target, args);
         const handleId =
           prop === 'new' ? __extractHandleId(result) : __extractHandleId(args[0]);
-        if (handleId !== undefined) {
+        if ((prop === 'new' && handleId !== undefined) || shouldEmit) {
           ctx.pushEvent({
             call: namespace + '.' + prop,
             args,
@@ -856,7 +939,7 @@ function __createVisualNamespaceProxy(namespace, ns, ctx) {
           });
         }
         if (prop === 'new') {
-          return __wrapVisualHandle(namespace, result, ctx);
+          return __wrapVisualHandle(namespace, result, ctx, hasLiveHandle);
         }
         return result;
       };
@@ -868,6 +951,7 @@ function __createVisualStubs(raw, ctx) {
   return {
     ...raw,
     line: __createVisualNamespaceProxy('line', raw.line, ctx),
+    linefill: __createVisualNamespaceProxy('linefill', raw.linefill, ctx),
     box: __createVisualNamespaceProxy('box', raw.box, ctx),
     label: __createVisualNamespaceProxy('label', raw.label, ctx),
     table: __createVisualNamespaceProxy('table', raw.table, ctx),
@@ -1462,9 +1546,10 @@ function generateStandaloneRuntimeMainBody(
         const timeframe = __createTimeframe(_stdWithCompat, context);
         const math = __createMathNamespace();
         const ta = _stdWithCompat;
-        const color = __colorMap;
+        const color = Object.assign((value) => value, __colorMap);
         const box = __stubs.box;
         const line = __stubs.line;
+        const linefill = __stubs.linefill;
         const label = __stubs.label;
         const table = __stubs.table;
         const str = __stubs.str;
@@ -1774,6 +1859,7 @@ function generateStandaloneRuntimeMainBody(
           barcolor,
           box,
           line,
+          linefill,
           label,
           table,
           str,
@@ -1845,6 +1931,7 @@ ${compiledScriptBody}
           barcolor,
           box,
           line,
+          linefill,
           label,
           table,
           str,
@@ -2247,6 +2334,8 @@ function normalizeVisualStyle(
       if (normalizedCall === 'line.new') {
         colorAt(6);
         linewidth = numberAt(8);
+      } else if (normalizedCall === 'linefill.new') {
+        colorAt(2);
       } else if (normalizedCall === 'box.new') {
         colorAt(4);
         colorAt(9);
@@ -2362,6 +2451,7 @@ function wrapVisualHandle(
   namespace: string,
   handle: unknown,
   ctx: VisualEmissionContext,
+  isLiveHandle?: (value: unknown) => boolean,
 ): unknown {
   if (typeof handle !== 'object' || handle === null) return handle;
   const handleId = extractHandleId(handle);
@@ -2371,7 +2461,10 @@ function wrapVisualHandle(
       if (typeof prop !== 'string') return value;
       if (typeof value !== 'function') return value;
       return (...args: unknown[]) => {
-        if (handleId !== undefined) {
+        const shouldEmit =
+          handleId !== undefined &&
+          (typeof isLiveHandle === 'function' ? isLiveHandle(target) : true);
+        if (shouldEmit) {
           ctx.pushEvent({
             call: `${namespace}.${prop}`,
             args,
@@ -2396,6 +2489,24 @@ function createVisualNamespaceProxy(
       if (typeof prop !== 'string') return value;
       if (typeof value !== 'function') return value;
       return (...args: unknown[]) => {
+        const hasLiveHandle =
+          typeof target.__hasHandle === 'function'
+            ? (valueToCheck: unknown): boolean =>
+                Boolean(
+                  (target.__hasHandle as (value: unknown) => unknown)(
+                    valueToCheck,
+                  ),
+                )
+            : undefined;
+        const pendingHandle =
+          prop === 'new' ? undefined : extractHandleId(args[0]);
+        const shouldEmit =
+          prop === 'new'
+            ? false
+            : pendingHandle !== undefined &&
+              (typeof hasLiveHandle === 'function'
+                ? hasLiveHandle(args[0])
+                : true);
         // Invoke first so `<ns>.new` events can carry the freshly
         // created handle's `__id`. For ops that take a handle as the
         // first arg (e.g. `box.delete(handle)`), read `__id` from
@@ -2410,7 +2521,7 @@ function createVisualNamespaceProxy(
         // show up in corpus scripts. Do not emit lifecycle events for
         // unknown handles; renderer-side consumers require stable
         // `pineHandleId` for every drawing mutation event.
-        if (handleId !== undefined) {
+        if ((prop === 'new' && handleId !== undefined) || shouldEmit) {
           ctx.pushEvent({
             call: `${namespace}.${prop}`,
             args,
@@ -2419,7 +2530,7 @@ function createVisualNamespaceProxy(
           });
         }
         if (prop === 'new') {
-          return wrapVisualHandle(namespace, result, ctx);
+          return wrapVisualHandle(namespace, result, ctx, hasLiveHandle);
         }
         return result;
       };
@@ -2834,6 +2945,7 @@ export function buildIndicatorFactory(
             'barcolor',
             'box',
             'line',
+            'linefill',
             'label',
             'table',
             'str',
@@ -2909,7 +3021,7 @@ export function buildIndicatorFactory(
           };
         }
 
-        // Drawing namespaces (box, line, label, table) are persistent
+        // Drawing namespaces (box, line, linefill, label, table) are persistent
         // in Pine semantics — a `var` handle pushed into an array on
         // bar N is the same handle that gets `set_right(time)` on bar
         // N+1. Create them ONCE at indicator init so each handle's
@@ -2940,6 +3052,11 @@ export function buildIndicatorFactory(
           line: createVisualNamespaceProxy(
             'line',
             stubsRaw.line as Record<string, unknown>,
+            visualCtx,
+          ),
+          linefill: createVisualNamespaceProxy(
+            'linefill',
+            stubsRaw.linefill as Record<string, unknown>,
             visualCtx,
           ),
           box: createVisualNamespaceProxy(
@@ -3510,7 +3627,10 @@ export function buildIndicatorFactory(
           };
 
           // Color mapping
-          const color = COLOR_MAP;
+          const color = Object.assign(
+            (value: unknown): unknown => value,
+            COLOR_MAP,
+          );
 
           // Pine namespaces / globals user code expects to reference.
           // Without these wrapper-bound parameters, `shape.triangleup`,
@@ -4144,6 +4264,7 @@ export function buildIndicatorFactory(
               barcolor,
               stubs.box,
               stubs.line,
+              stubs.linefill,
               stubs.label,
               stubs.table,
               stubs.str,

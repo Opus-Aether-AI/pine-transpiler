@@ -15,7 +15,7 @@
 
 import { buildIndicatorFactory, generateStandaloneFactory } from './factory';
 import { ASTGenerator } from './generator/ast-generator';
-import { HelperUsage } from './generator/helper-usage';
+import { HelperUsage, type HelperUsageRecord } from './generator/helper-usage';
 import { MetadataVisitor } from './generator/metadata-visitor';
 import { Lexer, Parser } from './parser';
 import type { Program } from './parser/ast';
@@ -135,8 +135,14 @@ export function buildStandaloneFactoryCode(
     indicatorName?: string;
     autoBgColorerForBoxes?: boolean;
     ast?: Program;
+    helperUsage?: HelperUsage | HelperUsageRecord;
   },
 ): string {
+  const helperUsageRecord =
+    options.helperUsage instanceof HelperUsage
+      ? options.helperUsage.toRecord()
+      : options.helperUsage;
+
   return generateStandaloneFactory({
     indicatorId: options.indicatorId,
     indicatorName: options.indicatorName,
@@ -149,6 +155,7 @@ export function buildStandaloneFactoryCode(
     usedSources: metadata.usedSources,
     historicalAccess: metadata.historicalAccess,
     mainBody,
+    helperUsage: helperUsageRecord,
     autoBgColorerForBoxes: options.autoBgColorerForBoxes ?? false,
     sessionVariables: metadata.sessionVariables,
     derivedSessionVariables: metadata.derivedSessionVariables,
