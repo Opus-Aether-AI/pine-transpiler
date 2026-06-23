@@ -21,11 +21,13 @@
     ],
     "visualStyleSemantics": {
       "colors": [
-        "#2962FF",
         "#4CAF50",
-        "#FF5252"
+        "#FF5252",
+        "rgba(41, 98, 255, 0.1)"
       ],
-      "transpValues": [],
+      "transpValues": [
+        90
+      ],
       "linewidthValues": [],
       "offsetValues": [],
       "displayFlags": []

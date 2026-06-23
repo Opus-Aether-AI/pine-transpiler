@@ -252,6 +252,87 @@ function sanitizeIndicatorId(id) {
 	return id.replace(/[^a-zA-Z0-9_]/g, "_");
 }
 //#endregion
+//#region src/colors.ts
+function clampByte(value) {
+	return Math.max(0, Math.min(255, Math.round(value)));
+}
+function toHexByte(value) {
+	return clampByte(value).toString(16).padStart(2, "0").toUpperCase();
+}
+function roundAlpha(value) {
+	return Number(Math.max(0, Math.min(1, value)).toFixed(4));
+}
+function clampTransparency(value) {
+	if (!Number.isFinite(value)) return 0;
+	return Math.max(0, Math.min(100, value));
+}
+function alphaFromTransparency(transparency) {
+	return roundAlpha(1 - clampTransparency(transparency) / 100);
+}
+function normalizeHexColor(value) {
+	const hex = value.match(/^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?)$/);
+	if (!hex) return null;
+	const digits = hex[1];
+	return `#${(digits.length === 3 || digits.length === 4 ? [...digits].map((digit) => `${digit}${digit}`).join("") : digits).toUpperCase()}`;
+}
+function parseColorString(value) {
+	const normalizedHex = normalizeHexColor(value);
+	if (normalizedHex) {
+		const digits = normalizedHex.slice(1);
+		return {
+			red: parseInt(digits.slice(0, 2), 16),
+			green: parseInt(digits.slice(2, 4), 16),
+			blue: parseInt(digits.slice(4, 6), 16),
+			alpha: digits.length === 8 ? roundAlpha(parseInt(digits.slice(6, 8), 16) / 255) : null
+		};
+	}
+	const rgba = value.trim().match(/^rgba?\(([^)]+)\)$/i);
+	if (!rgba) return null;
+	const parts = rgba[1].split(",").map((part) => part.trim()).filter((part) => part.length > 0);
+	if (parts.length !== 3 && parts.length !== 4) return null;
+	const red = Number(parts[0]);
+	const green = Number(parts[1]);
+	const blue = Number(parts[2]);
+	if (![
+		red,
+		green,
+		blue
+	].every(Number.isFinite)) return null;
+	if (parts.length === 3) return {
+		red: clampByte(red),
+		green: clampByte(green),
+		blue: clampByte(blue),
+		alpha: null
+	};
+	const alpha = Number(parts[3]);
+	if (!Number.isFinite(alpha)) return null;
+	return {
+		red: clampByte(red),
+		green: clampByte(green),
+		blue: clampByte(blue),
+		alpha: roundAlpha(alpha)
+	};
+}
+function formatHexColor(color) {
+	return `#${toHexByte(color.red)}${toHexByte(color.green)}${toHexByte(color.blue)}`;
+}
+function formatRgbaColor(color, alpha) {
+	return `rgba(${color.red}, ${color.green}, ${color.blue}, ${roundAlpha(alpha)})`;
+}
+function toRenderableColor(value) {
+	const parsed = parseColorString(value);
+	if (!parsed) return value;
+	if (parsed.alpha === null || parsed.alpha >= 1) return formatHexColor(parsed);
+	return formatRgbaColor(parsed, parsed.alpha);
+}
+function applyTransparency(color, transparency) {
+	if (transparency === null) return toRenderableColor(color);
+	const parsed = parseColorString(color);
+	if (!parsed) return color;
+	if (transparency <= 0 && parsed.alpha === null) return formatHexColor(parsed);
+	return formatRgbaColor(parsed, alphaFromTransparency(transparency));
+}
+//#endregion
 //#region src/mappings/comparison.ts
 /**
 * Functions that return true/false with optional epsilon for floating point comparison
@@ -2026,12 +2107,83 @@ var COLOR_FUNCTION_MAPPINGS = {
 */
 var COLOR_HELPER_FUNCTIONS = `
 // Color helpers
-const _colorRgb = (r, g, b, t = 0) => \`rgba(\${r}, \${g}, \${b}, \${1 - t/100})\`;
-const _colorNew = (color, t) => color; // Simplified
-const _colorR = (color) => parseInt(color.slice(1, 3), 16);
-const _colorG = (color) => parseInt(color.slice(3, 5), 16);
-const _colorB = (color) => parseInt(color.slice(5, 7), 16);
-const _colorT = (color) => 0;
+const __colorClampByte = (value) => Math.max(0, Math.min(255, Math.round(Number(value) || 0)));
+const __colorClampTransparency = (value) => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(100, n));
+};
+const __colorRoundAlpha = (value) => Number(Math.max(0, Math.min(1, value)).toFixed(4));
+const __colorFormatRgba = (r, g, b, a) => \`rgba(\${r}, \${g}, \${b}, \${__colorRoundAlpha(a)})\`;
+const __colorParse = (color) => {
+  if (typeof color !== 'string') return null;
+  const token = color.trim();
+  const hex = token.match(/^#([0-9a-fA-F]{6})$/);
+  if (hex) {
+    const digits = hex[1];
+    return {
+      r: parseInt(digits.slice(0, 2), 16),
+      g: parseInt(digits.slice(2, 4), 16),
+      b: parseInt(digits.slice(4, 6), 16),
+      a: null,
+    };
+  }
+  const rgba = token.match(/^rgba?\\(([^)]+)\\)$/i);
+  if (!rgba) return null;
+  const parts = rgba[1]
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+  if (parts.length !== 3 && parts.length !== 4) return null;
+  const r = Number(parts[0]);
+  const g = Number(parts[1]);
+  const b = Number(parts[2]);
+  if (![r, g, b].every(Number.isFinite)) return null;
+  const parsed = {
+    r: __colorClampByte(r),
+    g: __colorClampByte(g),
+    b: __colorClampByte(b),
+    a: null,
+  };
+  if (parts.length === 3) return parsed;
+  const alpha = Number(parts[3]);
+  if (!Number.isFinite(alpha)) return null;
+  parsed.a = __colorRoundAlpha(alpha);
+  return parsed;
+};
+const _colorRgb = (r, g, b, t = 0) => __colorFormatRgba(
+  __colorClampByte(r),
+  __colorClampByte(g),
+  __colorClampByte(b),
+  1 - __colorClampTransparency(t) / 100,
+);
+const _colorNew = (color, t) => {
+  const parsed = __colorParse(color);
+  if (!parsed) return color;
+  return __colorFormatRgba(
+    parsed.r,
+    parsed.g,
+    parsed.b,
+    1 - __colorClampTransparency(t) / 100,
+  );
+};
+const _colorR = (color) => {
+  const parsed = __colorParse(color);
+  return parsed ? parsed.r : Number.NaN;
+};
+const _colorG = (color) => {
+  const parsed = __colorParse(color);
+  return parsed ? parsed.g : Number.NaN;
+};
+const _colorB = (color) => {
+  const parsed = __colorParse(color);
+  return parsed ? parsed.b : Number.NaN;
+};
+const _colorT = (color) => {
+  const parsed = __colorParse(color);
+  if (!parsed) return 0;
+  return Math.round((1 - (parsed.a === null ? 1 : parsed.a)) * 100);
+};
 `;
 //#endregion
 //#region src/mappings/map.ts
@@ -3264,7 +3416,8 @@ var ExpressionGenerator = class {
 		return `${left} ${op} ${right}`;
 	}
 	generateLiteral(expr) {
-		if (expr.kind === "string" || expr.kind === "color") return JSON.stringify(expr.value);
+		if (expr.kind === "string") return JSON.stringify(expr.value);
+		if (expr.kind === "color") return JSON.stringify(toRenderableColor(String(expr.value)));
 		if (expr.kind === "na") return "NaN";
 		return String(expr.value);
 	}
@@ -10075,28 +10228,17 @@ function getFnName(node) {
 }
 //#endregion
 //#region src/generator/input-extractor.ts
-function toHexByte(value) {
-	return Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, "0").toUpperCase();
-}
-function normalizeHexColor(value) {
-	const hex = value.match(/^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?)$/);
-	if (!hex) return null;
-	const digits = hex[1];
-	return `#${(digits.length === 3 || digits.length === 4 ? [...digits].map((digit) => `${digit}${digit}`).join("") : digits).toUpperCase()}`;
-}
+/**
+* Input Extractor
+*
+* Extracts input metadata from Pine Script AST CallExpression nodes.
+*/
 function withTransparency(color, transparency) {
-	if (transparency === null) return color;
-	const hex = normalizeHexColor(color)?.match(/^#([0-9A-F]{6})([0-9A-F]{2})?$/);
-	if (hex) {
-		if (transparency <= 0 && !hex[2]) return `#${hex[1]}`;
-		const alpha = 255 * (1 - Math.max(0, Math.min(100, transparency)) / 100);
-		return `#${hex[1]}${toHexByte(alpha)}`;
-	}
-	return color;
+	return applyTransparency(color, transparency);
 }
 function getColorValue(expr, resolveIdentifier) {
 	if (!expr) return null;
-	if (expr.type === "Literal" && expr.kind === "color" && typeof expr.value === "string") return normalizeHexColor(expr.value);
+	if (expr.type === "Literal" && expr.kind === "color" && typeof expr.value === "string") return toRenderableColor(expr.value);
 	if (expr.type === "Identifier") return resolveIdentifier?.(expr.name) ?? null;
 	if (expr.type === "MemberExpression" && expr.object.type === "Identifier" && expr.object.name === "color" && expr.property.type === "Identifier") return COLOR_MAP[expr.property.name] ?? null;
 	if (expr.type === "CallExpression") {
@@ -10204,6 +10346,11 @@ var InputExtractor = class {
 };
 //#endregion
 //#region src/generator/plot-extractor.ts
+/**
+* Plot Extractor
+*
+* Extracts plot metadata from Pine Script AST CallExpression nodes.
+*/
 /**
 * Extracts plot declarations from Pine Script.
 */
@@ -10408,7 +10555,7 @@ var PlotExtractor = class {
 	* Extract color from an expression
 	*/
 	extractColor(colorExpr) {
-		if (colorExpr.type === "Literal" && typeof colorExpr.value === "string") return colorExpr.value;
+		if (colorExpr.type === "Literal" && typeof colorExpr.value === "string") return toRenderableColor(colorExpr.value);
 		if (colorExpr.type === "MemberExpression" && colorExpr.object.type === "Identifier" && colorExpr.object.name === "color") {
 			if (colorExpr.property.type === "Identifier") {
 				const colorName = colorExpr.property.name;
@@ -11398,4 +11545,4 @@ Object.defineProperty(exports, "validateInputSize", {
 	}
 });
 
-//# sourceMappingURL=src-DhCiDIg3.cjs.map
+//# sourceMappingURL=src-BJunxCjS.cjs.map

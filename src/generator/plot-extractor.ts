@@ -4,6 +4,7 @@
  * Extracts plot metadata from Pine Script AST CallExpression nodes.
  */
 
+import { toRenderableColor } from '../colors';
 import type { CallExpression, Expression } from '../parser/ast';
 import type { ParsedPlot } from '../types';
 import { COLOR_MAP } from '../types';
@@ -282,7 +283,7 @@ export class PlotExtractor {
    */
   private extractColor(colorExpr: Expression): string {
     if (colorExpr.type === 'Literal' && typeof colorExpr.value === 'string') {
-      return colorExpr.value; // hex
+      return toRenderableColor(colorExpr.value);
     }
 
     if (
