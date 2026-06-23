@@ -29,15 +29,19 @@
     ],
     "visualStyleSemantics": {
       "colors": [
-        "#000000",
-        "#2962FF",
-        "#9E9E9E",
         "#FF5252",
         "#FFEB3B",
-        "#FFFFFF"
+        "#FFFFFF",
+        "rgba(0, 0, 0, 1)",
+        "rgba(158, 158, 158, 0.3)",
+        "rgba(255, 82, 82, 0.1)",
+        "rgba(41, 98, 255, 0.3)"
       ],
       "transpValues": [
-        10
+        0,
+        10,
+        70,
+        90
       ],
       "linewidthValues": [
         1

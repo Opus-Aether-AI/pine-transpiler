@@ -125,9 +125,10 @@ describe('MetadataVisitor', () => {
         const code =
           'sessionColor = input.color(color.new(#2962FF, 85), "Session color")';
         const metadata = extractMetadata(code);
+        // Regression for TradingView parseRgb: transparent defaults must be rgba(...), not #RRGGBBAA.
         expect(metadata.inputs[0]).toMatchObject({
           type: 'color',
-          defval: '#2962FF26',
+          defval: 'rgba(41, 98, 255, 0.15)',
           name: 'Session color',
         });
       });
@@ -138,7 +139,7 @@ describe('MetadataVisitor', () => {
         const metadata = extractMetadata(code);
         expect(metadata.inputs[0]).toMatchObject({
           type: 'color',
-          defval: '#FF000026',
+          defval: 'rgba(255, 0, 0, 0.15)',
           name: 'Session color',
         });
       });
@@ -149,7 +150,7 @@ describe('MetadataVisitor', () => {
         const metadata = extractMetadata(code);
         expect(metadata.inputs[0]).toMatchObject({
           type: 'color',
-          defval: '#FFFFFFFF',
+          defval: 'rgba(255, 255, 255, 1)',
           name: 'Session color',
         });
       });
@@ -162,7 +163,7 @@ sessionColor = input.color(baseColor, "Session color")
         const metadata = extractMetadata(code);
         expect(metadata.inputs[0]).toMatchObject({
           type: 'color',
-          defval: '#FF525280',
+          defval: 'rgba(255, 82, 82, 0.5)',
           name: 'Session color',
         });
       });
@@ -175,7 +176,7 @@ sessionColor = input.color(baseColor, "Session color")
         const metadata = extractMetadata(code);
         expect(metadata.inputs[0]).toMatchObject({
           type: 'color',
-          defval: '#FFFFFF00',
+          defval: 'rgba(255, 255, 255, 0)',
           name: 'Session color',
         });
       });
@@ -188,7 +189,7 @@ sessionColor = input.color(baseColor, "Session color")
         const metadata = extractMetadata(code);
         expect(metadata.inputs[0]).toMatchObject({
           type: 'color',
-          defval: '#2962FF26',
+          defval: 'rgba(41, 98, 255, 0.15)',
           name: 'Session color',
         });
       });
@@ -212,7 +213,7 @@ sessionColor = input.color(red, "Session color")
         const metadata = extractMetadata(code);
         expect(metadata.inputs[0]).toMatchObject({
           type: 'color',
-          defval: '#2962FF26',
+          defval: 'rgba(41, 98, 255, 0.15)',
           name: 'Session color',
         });
       });
@@ -223,7 +224,7 @@ sessionColor = input.color(red, "Session color")
         const metadata = extractMetadata(code);
         expect(metadata.inputs[0]).toMatchObject({
           type: 'color',
-          defval: '#2962FF26',
+          defval: 'rgba(41, 98, 255, 0.15)',
           name: 'Session color',
         });
       });

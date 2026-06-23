@@ -4,6 +4,7 @@
  * Extracts input metadata from Pine Script AST CallExpression nodes.
  */
 
+import { applyTransparency, toHexByte, toRenderableColor } from '../colors';
 import type { CallExpression, Expression } from '../parser/ast';
 import { COLOR_MAP, type ParsedInput } from '../types';
 import {
@@ -18,42 +19,11 @@ export type ColorIdentifierResolver = (
   name: string,
 ) => string | null | undefined;
 
-function toHexByte(value: number): string {
-  const clamped = Math.max(0, Math.min(255, Math.round(value)));
-  return clamped.toString(16).padStart(2, '0').toUpperCase();
-}
-
-function normalizeHexColor(value: string): string | null {
-  const hex = value.match(
-    /^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?)$/,
-  );
-  if (!hex) return null;
-
-  const digits = hex[1];
-  const expanded =
-    digits.length === 3 || digits.length === 4
-      ? [...digits].map((digit) => `${digit}${digit}`).join('')
-      : digits;
-
-  return `#${expanded.toUpperCase()}`;
-}
-
 export function withTransparency(
   color: string,
   transparency: number | null,
 ): string {
-  if (transparency === null) return color;
-
-  const normalized = normalizeHexColor(color);
-  const hex = normalized?.match(/^#([0-9A-F]{6})([0-9A-F]{2})?$/);
-  if (hex) {
-    if (transparency <= 0 && !hex[2]) return `#${hex[1]}`;
-
-    const alpha = 255 * (1 - Math.max(0, Math.min(100, transparency)) / 100);
-    return `#${hex[1]}${toHexByte(alpha)}`;
-  }
-
-  return color;
+  return applyTransparency(color, transparency);
 }
 
 export function getColorValue(
@@ -67,7 +37,7 @@ export function getColorValue(
     expr.kind === 'color' &&
     typeof expr.value === 'string'
   ) {
-    return normalizeHexColor(expr.value);
+    return toRenderableColor(expr.value);
   }
 
   if (expr.type === 'Identifier') {

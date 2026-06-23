@@ -20,16 +20,17 @@ describe('Trading Sessions color input metadata', () => {
 
     const indicator = result.indicatorFactory({ Std: {} } as never);
 
+    // Regression for TradingView parseRgb: transparent defaults must be rgba(...), not #RRGGBBAA.
     expect(indicator.metainfo.inputs).toEqual([
       expect.objectContaining({
         id: 'in_0',
         name: 'Session color',
         type: 'color',
-        defval: '#2962FF26',
+        defval: 'rgba(41, 98, 255, 0.15)',
       }),
     ]);
     expect(indicator.metainfo.defaults.inputs).toEqual({
-      in_0: '#2962FF26',
+      in_0: 'rgba(41, 98, 255, 0.15)',
     });
   });
 });

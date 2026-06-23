@@ -4,6 +4,7 @@
  * Handles generation of JavaScript expressions from Pine Script AST expression nodes.
  */
 
+import { toRenderableColor } from '../colors';
 import {
   ALL_UTILITY_MAPPINGS,
   MATH_FUNCTION_MAPPINGS,
@@ -799,8 +800,11 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
   }
 
   private generateLiteral(expr: Literal): string {
-    if (expr.kind === 'string' || expr.kind === 'color') {
+    if (expr.kind === 'string') {
       return JSON.stringify(expr.value);
+    }
+    if (expr.kind === 'color') {
+      return JSON.stringify(toRenderableColor(String(expr.value)));
     }
     if (expr.kind === 'na') {
       return 'NaN';

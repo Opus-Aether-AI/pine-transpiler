@@ -26,13 +26,15 @@
     "visualStyleSemantics": {
       "colors": [
         "#000000",
-        "#089981",
-        "#2962FF",
-        "#9C27B0",
-        "#FF5252",
-        "#FFEB3B"
+        "rgba(156, 39, 176, 0.86)",
+        "rgba(255, 235, 59, 0.86)",
+        "rgba(255, 82, 82, 0.86)",
+        "rgba(41, 98, 255, 0.86)",
+        "rgba(8, 153, 129, 0.86)"
       ],
-      "transpValues": [],
+      "transpValues": [
+        14
+      ],
       "linewidthValues": [],
       "offsetValues": [],
       "displayFlags": []
