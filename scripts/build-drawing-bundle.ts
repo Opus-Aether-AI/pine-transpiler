@@ -68,15 +68,16 @@ export function validateStandaloneDrawingBundle(bundle: string): void {
 }
 
 function appendAliasLayer(bundle: string): string {
+  // NOTE: do NOT declare __createStubNamespaces here. The standalone factory's
+  // STANDALONE_RUNTIME_HELPERS declares the real one (drawing + str), and a
+  // second top-level declaration makes the emitted ES module fail to parse on
+  // V8 ("Identifier '__createStubNamespaces' has already been declared").
   return `${bundle}
 
 var __createDrawingRuntime =
   globalThis.${STANDALONE_DRAWING_BUNDLE_GLOBAL}.createDrawingRuntime;
 var __createDrawingStubNamespaces =
-  globalThis.${STANDALONE_DRAWING_BUNDLE_GLOBAL}.createDrawingStubNamespaces;
-function __createStubNamespaces() {
-  return __createDrawingStubNamespaces();
-}`.trim();
+  globalThis.${STANDALONE_DRAWING_BUNDLE_GLOBAL}.createDrawingStubNamespaces;`.trim();
 }
 
 export function buildStandaloneDrawingBundle(): string {

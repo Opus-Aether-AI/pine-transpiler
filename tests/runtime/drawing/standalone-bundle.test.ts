@@ -19,7 +19,7 @@ interface LoadedStandaloneDrawingBundle {
   createDrawingRuntime:
     | StandaloneDrawingBundleApi['createDrawingRuntime']
     | undefined;
-  createStubNamespaces: (() => DrawingRuntime) | undefined;
+  createDrawingStubNamespaces: (() => DrawingRuntime) | undefined;
 }
 
 type SmokeRuntime = DrawingRuntime & {
@@ -51,9 +51,9 @@ return {
     typeof __createDrawingRuntime === 'function'
       ? __createDrawingRuntime
       : undefined,
-  createStubNamespaces:
-    typeof __createStubNamespaces === 'function'
-      ? __createStubNamespaces
+  createDrawingStubNamespaces:
+    typeof __createDrawingStubNamespaces === 'function'
+      ? __createDrawingStubNamespaces
       : undefined,
 };`,
   ) as (bundleGlobalName: string) => LoadedStandaloneDrawingBundle;
@@ -76,15 +76,15 @@ describe('STANDALONE_DRAWING_BUNDLE', () => {
     const {
       bundleApi,
       createDrawingRuntime,
-      createStubNamespaces,
+      createDrawingStubNamespaces,
     } = evaluateStandaloneDrawingBundle(STANDALONE_DRAWING_BUNDLE);
 
     expect(bundleApi).toBeDefined();
     expect(bundleApi?.createDrawingRuntime).toBe(createDrawingRuntime);
     expect(typeof bundleApi?.createDrawingStubNamespaces).toBe('function');
-    expect(typeof createStubNamespaces).toBe('function');
+    expect(typeof createDrawingStubNamespaces).toBe('function');
 
-    const stubs = createStubNamespaces?.();
+    const stubs = createDrawingStubNamespaces?.();
     expect(stubs).toBeDefined();
     expect(stubs?.line.__hasHandle(stubs.line.new(1, 2, 3, 4))).toBe(true);
     expect(stubs?.box.__hasHandle(stubs.box.new(10, 20, 30, 40))).toBe(true);
