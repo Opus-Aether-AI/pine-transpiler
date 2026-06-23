@@ -60,6 +60,8 @@
     "corpus:gate": "bun scripts/corpus/gate.ts",
     "chart:safety": "bun scripts/corpus/chart-safety.ts",
     "corpus:visual": "bun scripts/corpus/visual-parity.ts",
+    "visual:harness": "bun tests/visual-harness/run.ts",
+    "visual:harness:update": "bun tests/visual-harness/run.ts --update-snapshots",
     "corpus:snap": "UPDATE_SNAPSHOTS=1 bun test tests/corpus/ && UPDATE_VISUAL_SNAPSHOTS=1 bun run corpus:visual",
     "prepare": "vite build",
     "prepublishOnly": "bun run typecheck && bun run lint && bun run test && bun run build",
