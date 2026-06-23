@@ -39,6 +39,7 @@
   ],
   "scripts": {
     "build": "vite build",
+    "build:drawing-bundle": "bun scripts/build-drawing-bundle.ts",
     "dev": "vite build --watch",
     "start": "bun ./dist/cli/index.js",
     "typecheck": "tsc --noEmit",
