@@ -121,6 +121,7 @@ const DRAWING_CANONICAL_ARG_ORDER: Record<string, string[]> = {
     'force_overlay',
     'text_formatting',
   ],
+  'linefill.new': ['line1', 'line2', 'color'],
   'table.new': [
     'position',
     'columns',

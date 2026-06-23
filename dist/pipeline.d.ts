@@ -1,4 +1,4 @@
-import { HelperUsage } from './generator/helper-usage';
+import { HelperUsage, HelperUsageRecord } from './generator/helper-usage';
 import { MetadataVisitor } from './generator/metadata-visitor';
 import { Program } from './parser/ast';
 import { IndicatorFactory } from './types';
@@ -57,6 +57,7 @@ export declare function buildStandaloneFactoryCode(metadata: MetadataVisitor, ma
     indicatorName?: string;
     autoBgColorerForBoxes?: boolean;
     ast?: Program;
+    helperUsage?: HelperUsage | HelperUsageRecord;
 }): string;
 export interface CompileResult {
     ast: Program;
