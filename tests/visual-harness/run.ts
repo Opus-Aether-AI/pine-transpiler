@@ -30,6 +30,25 @@ interface CliArgs {
   updateSnapshots: boolean;
 }
 
+export interface VisualHarnessFixtureResult {
+  fixtureId: string;
+  status: 'pass' | 'fail';
+  detail?: string;
+}
+
+export interface RunVisualHarnessOptions {
+  fixture?: string;
+  updateSnapshots?: boolean;
+  logger?: (chunk: string) => void;
+}
+
+export interface VisualHarnessRunSummary {
+  pass: number;
+  fail: number;
+  total: number;
+  results: VisualHarnessFixtureResult[];
+}
+
 interface RunResult {
   frames: HarnessBarFrame[];
   error?: string;
@@ -377,58 +396,80 @@ function listTargetFixtures(fixtureFilter?: string): DiscoveredFixture[] {
   return all.filter((fixture) => fixture.group === DEFAULT_FIXTURE_GROUP);
 }
 
-function main(): void {
-  const args = parseArgs();
+export function runVisualHarness(
+  options: RunVisualHarnessOptions = {},
+): VisualHarnessRunSummary {
+  const write = options.logger ?? ((chunk: string) => process.stdout.write(chunk));
   ensureDir(BASELINE_DIR);
   ensureDir(ARTIFACT_ROOT);
 
-  const targets = listTargetFixtures(args.fixture);
+  const targets = listTargetFixtures(options.fixture);
   if (targets.length === 0) {
-    process.stderr.write('No fixtures selected for visual harness.\n');
-    process.exit(1);
+    throw new Error('No fixtures selected for visual harness.');
   }
 
   let pass = 0;
   let fail = 0;
+  const results: VisualHarnessFixtureResult[] = [];
 
-  process.stdout.write(
+  write(
     `Visual harness fixtures: ${targets.length} (group=${DEFAULT_FIXTURE_GROUP}, bars=${DEFAULT_BAR_COUNT})\n`,
   );
-  process.stdout.write(
-    `Mode: ${args.updateSnapshots ? 'update snapshots' : 'verify snapshots'}\n\n`,
+  write(
+    `Mode: ${options.updateSnapshots ? 'update snapshots' : 'verify snapshots'}\n\n`,
   );
 
   for (let i = 0; i < targets.length; i++) {
     const fixture = targets[i] as DiscoveredFixture;
     const id = fixtureId(fixture);
     const safeStem = fixtureStem(id);
-    process.stdout.write(`[${i + 1}/${targets.length}] ${id}\n`);
+    write(`[${i + 1}/${targets.length}] ${id}\n`);
 
     const source = readFileSync(fixture.path, 'utf8');
     const pineResult = runViaPineJs(source, safeStem);
     if (pineResult.error) {
       fail++;
-      process.stdout.write(`  FAIL: ${pineResult.error}\n\n`);
+      results.push({
+        fixtureId: id,
+        status: 'fail',
+        detail: pineResult.error,
+      });
+      write(`  FAIL: ${pineResult.error}\n\n`);
       continue;
     }
 
     const standaloneResult = runViaStandalone(source, `${safeStem}_standalone`);
     if (standaloneResult.error) {
       fail++;
-      process.stdout.write(`  FAIL: ${standaloneResult.error}\n\n`);
+      results.push({
+        fixtureId: id,
+        status: 'fail',
+        detail: standaloneResult.error,
+      });
+      write(`  FAIL: ${standaloneResult.error}\n\n`);
       continue;
     }
 
     const lifecycleError = validateHandleLifecycle(pineResult.frames);
     if (lifecycleError) {
       fail++;
-      process.stdout.write(`  FAIL: lifecycle ${lifecycleError}\n\n`);
+      results.push({
+        fixtureId: id,
+        status: 'fail',
+        detail: `lifecycle ${lifecycleError}`,
+      });
+      write(`  FAIL: lifecycle ${lifecycleError}\n\n`);
       continue;
     }
     const standaloneLifecycleError = validateHandleLifecycle(standaloneResult.frames);
     if (standaloneLifecycleError) {
       fail++;
-      process.stdout.write(
+      results.push({
+        fixtureId: id,
+        status: 'fail',
+        detail: `standalone lifecycle ${standaloneLifecycleError}`,
+      });
+      write(
         `  FAIL: standalone lifecycle ${standaloneLifecycleError}\n\n`,
       );
       continue;
@@ -456,7 +497,13 @@ function main(): void {
           2,
         )}\n`,
       );
-      process.stdout.write(`  FAIL: parity mismatch artifact=${parityPath}\n\n`);
+      const detail = `parity mismatch artifact=${parityPath}`;
+      results.push({
+        fixtureId: id,
+        status: 'fail',
+        detail,
+      });
+      write(`  FAIL: ${detail}\n\n`);
       continue;
     }
 
@@ -467,10 +514,11 @@ function main(): void {
     const baselinePath = join(BASELINE_DIR, `${safeStem}.svg`);
     const hadBaseline = existsSync(baselinePath);
 
-    if (args.updateSnapshots || !hadBaseline) {
+    if (options.updateSnapshots || !hadBaseline) {
       writeFileSync(baselinePath, svg);
       pass++;
-      process.stdout.write(
+      results.push({ fixtureId: id, status: 'pass' });
+      write(
         `  PASS: baseline ${hadBaseline ? 'updated' : 'created'}\n\n`,
       );
       continue;
@@ -479,7 +527,8 @@ function main(): void {
     const expected = readFileSync(baselinePath, 'utf8');
     if (expected === svg) {
       pass++;
-      process.stdout.write('  PASS\n\n');
+      results.push({ fixtureId: id, status: 'pass' });
+      write('  PASS\n\n');
       continue;
     }
 
@@ -492,15 +541,44 @@ function main(): void {
     writeFileSync(expectedPath, expected);
     writeFileSync(actualPath, svg);
     writeFileSync(diffPath, createDiffPreview(expected, svg));
-    process.stdout.write(`  FAIL: visual mismatch diff=${diffPath}\n\n`);
+    const detail = `visual mismatch diff=${diffPath}`;
+    results.push({
+      fixtureId: id,
+      status: 'fail',
+      detail,
+    });
+    write(`  FAIL: ${detail}\n\n`);
   }
 
-  process.stdout.write(
+  write(
     `Summary: PASS ${pass} / FAIL ${fail} / TOTAL ${targets.length}\n`,
   );
-  if (fail > 0) {
+
+  return {
+    pass,
+    fail,
+    total: targets.length,
+    results,
+  };
+}
+
+function main(): void {
+  const args = parseArgs();
+
+  try {
+    const summary = runVisualHarness({
+      fixture: args.fixture,
+      updateSnapshots: args.updateSnapshots,
+    });
+    if (summary.fail > 0) {
+      process.exitCode = 1;
+    }
+  } catch (error) {
+    process.stderr.write(`${normalizeRuntimeError(error)}\n`);
     process.exitCode = 1;
   }
 }
 
-main();
+if (import.meta.main) {
+  main();
+}

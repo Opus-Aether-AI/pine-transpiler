@@ -4,6 +4,17 @@
  * Re-exports all runtime mock factories, stub namespaces, and helper functions.
  */
 
+export {
+  createDrawingNamespace,
+  createDrawingRuntime,
+  type DrawingEventSink,
+  type DrawingHandle,
+  type DrawingNamespaceInstance,
+  type DrawingRuntime,
+  type DrawingTableCellData,
+  type DrawingTableHandle,
+  type DrawingVisualEvent,
+} from './drawing';
 // Re-export runtime helper functions
 export {
   avg,

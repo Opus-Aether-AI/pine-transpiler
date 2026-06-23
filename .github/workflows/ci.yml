@@ -46,6 +46,9 @@ jobs:
       - name: Run Tests
         run: bun test tests/
 
+      - name: Run Visual Harness Gate
+        run: bun run visual:harness:gate
+
       - name: Run Corpus
         run: bun run corpus
 

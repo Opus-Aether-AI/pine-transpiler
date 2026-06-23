@@ -24,6 +24,7 @@ import {
   UTILITY_HELPER_FUNCTIONS,
 } from '../mappings';
 import type { Program, Statement } from '../parser/ast';
+import { getDrawingFn } from '../registry';
 import {
   createBarstate,
   createInputMock,
@@ -37,6 +38,7 @@ import {
   type RuntimeContextInternal,
   type StdLibraryInternal,
 } from '../runtime';
+import { STANDALONE_DRAWING_BUNDLE } from '../runtime/drawing/standalone-bundle.generated';
 import { STD_PLUS_LIBRARY } from '../stdlib';
 import type {
   IndicatorConstructor,
@@ -110,6 +112,79 @@ function indentCode(code: string, spaces: number): string {
     .join('\n');
 }
 
+interface DrawingVisualStyleSlots {
+  colorIndices: number[];
+  linewidthIndex: number | null;
+}
+
+interface DrawingVisualStyleProjection {
+  colors: readonly string[];
+  linewidth?: string;
+}
+
+const DRAWING_VISUAL_STYLE_PROJECTIONS: Readonly<
+  Record<string, DrawingVisualStyleProjection>
+> = {
+  'box.new': {
+    colors: ['border_color', 'bgcolor'],
+    linewidth: 'border_width',
+  },
+  'label.new': {
+    colors: ['color', 'textcolor'],
+  },
+  'line.new': {
+    colors: ['color'],
+    linewidth: 'width',
+  },
+  'linefill.new': {
+    colors: ['color'],
+  },
+  'table.cell': {
+    colors: ['text_color', 'bgcolor'],
+  },
+};
+
+function buildDrawingVisualStyleSlots(): Readonly<
+  Record<string, DrawingVisualStyleSlots>
+> {
+  const slots: Record<string, DrawingVisualStyleSlots> = {};
+
+  for (const [call, projection] of Object.entries(
+    DRAWING_VISUAL_STYLE_PROJECTIONS,
+  )) {
+    const [namespace, fn] = call.split('.');
+    const visualEventArgs =
+      namespace && fn
+        ? getDrawingFn(namespace, fn)?.visualEventArgs
+        : undefined;
+    if (!visualEventArgs) continue;
+
+    const colorIndices = projection.colors
+      .map((name) => visualEventArgs.indexOf(name))
+      .filter((index): index is number => index >= 0);
+    const linewidthIndex =
+      projection.linewidth === undefined
+        ? null
+        : visualEventArgs.indexOf(projection.linewidth);
+
+    slots[call] = {
+      colorIndices,
+      linewidthIndex:
+        typeof linewidthIndex === 'number' && linewidthIndex >= 0
+          ? linewidthIndex
+          : null,
+    };
+  }
+
+  return slots;
+}
+
+// Keep the visual-style projection in sync with the live registry.
+const DRAWING_VISUAL_STYLE_SLOTS = buildDrawingVisualStyleSlots();
+const DRAWING_VISUAL_STYLE_SLOTS_JSON = JSON.stringify(
+  DRAWING_VISUAL_STYLE_SLOTS,
+);
+
 const STANDALONE_RUNTIME_HELPERS = `
 function __toNumber(value, fallback) {
   const n = Number(value);
@@ -139,480 +214,6 @@ function __coerceShapePlotValue(value) {
   const n = __coercePlotValue(value);
   if (!Number.isFinite(n)) return Number.NaN;
   return n === 0 ? Number.NaN : n;
-}
-
-function __asHandle(value) {
-  if (typeof value !== 'object' || value === null) return undefined;
-  if (typeof value.__id !== 'number') return undefined;
-  return value;
-}
-
-function __resolveHandle(value, store) {
-  const handle = __asHandle(value);
-  if (!handle) return undefined;
-  const resolved = store.get(handle.__id);
-  if (!resolved || resolved.__deleted) return undefined;
-  return resolved;
-}
-
-function __withConstantFallback(base, prefix) {
-  return new Proxy(base, {
-    get(target, prop) {
-      if (typeof prop !== 'string') return undefined;
-      if (prop in target) return target[prop];
-      return prefix + '.' + prop;
-    },
-  });
-}
-
-function __createLineNamespace() {
-  let nextId = 1;
-  const lineStore = new Map();
-  const remove = (lineObj) => {
-    const h = __resolveHandle(lineObj, lineStore);
-    if (!h) return;
-    h.__deleted = true;
-    lineStore.delete(h.__id);
-  };
-  const setX2 = (lineObj, x2) => {
-    const h = __resolveHandle(lineObj, lineStore);
-    if (!h) return;
-    h.x2 = __toNumber(x2);
-  };
-  const setXY1 = (lineObj, x1, y1) => {
-    const h = __resolveHandle(lineObj, lineStore);
-    if (!h) return;
-    h.x1 = __toNumber(x1);
-    h.y1 = __toNumber(y1);
-  };
-  const setXY2 = (lineObj, x2, y2) => {
-    const h = __resolveHandle(lineObj, lineStore);
-    if (!h) return;
-    h.x2 = __toNumber(x2);
-    h.y2 = __toNumber(y2);
-  };
-  const setColor = (lineObj, color) => {
-    const h = __resolveHandle(lineObj, lineStore);
-    if (!h) return;
-    h.color = color;
-  };
-  const getX2 = (lineObj) => {
-    const h = __resolveHandle(lineObj, lineStore);
-    return h ? __toNumber(h.x2) : Number.NaN;
-  };
-  const getY1 = (lineObj) => {
-    const h = __resolveHandle(lineObj, lineStore);
-    return h ? __toNumber(h.y1) : Number.NaN;
-  };
-  const getY2 = (lineObj) => {
-    const h = __resolveHandle(lineObj, lineStore);
-    return h ? __toNumber(h.y2) : Number.NaN;
-  };
-  const hasHandle = (lineObj) => __resolveHandle(lineObj, lineStore) !== undefined;
-  const attachMethods = (h) => {
-    if (typeof h.delete !== 'function') h.delete = () => remove(h);
-    if (typeof h.set_x2 !== 'function') h.set_x2 = (x2) => setX2(h, x2);
-    if (typeof h.set_xy1 !== 'function') h.set_xy1 = (x1, y1) => setXY1(h, x1, y1);
-    if (typeof h.set_xy2 !== 'function') h.set_xy2 = (x2, y2) => setXY2(h, x2, y2);
-    if (typeof h.set_color !== 'function') h.set_color = (color) => setColor(h, color);
-    if (typeof h.get_x2 !== 'function') h.get_x2 = () => getX2(h);
-    if (typeof h.get_y1 !== 'function') h.get_y1 = () => getY1(h);
-    if (typeof h.get_y2 !== 'function') h.get_y2 = () => getY2(h);
-  };
-
-  const line = {
-    new: (...args) => {
-      const h = {
-        __id: nextId++,
-        __deleted: false,
-        x1: __toNumber(args[0]),
-        y1: __toNumber(args[1]),
-        x2: __toNumber(args[2]),
-        y2: __toNumber(args[3]),
-        xloc: args[4],
-        extend: args[5],
-        color: args[6],
-        style: args[7],
-        width: __toInteger(args[8], 1),
-      };
-      attachMethods(h);
-      lineStore.set(h.__id, h);
-      return h;
-    },
-    delete: remove,
-    set_x2: setX2,
-    set_xy1: setXY1,
-    set_xy2: setXY2,
-    set_color: setColor,
-    get_x2: getX2,
-    get_y1: getY1,
-    get_y2: getY2,
-    __hasHandle: hasHandle,
-    style_solid: 'solid',
-    style_dotted: 'dotted',
-    style_dashed: 'dashed',
-  };
-  return __withConstantFallback(line, 'line');
-}
-
-function __createLinefillNamespace() {
-  let nextId = 1;
-  const linefillStore = new Map();
-  const remove = (linefillObj) => {
-    const h = __resolveHandle(linefillObj, linefillStore);
-    if (!h) return;
-    h.__deleted = true;
-    linefillStore.delete(h.__id);
-  };
-  const setColor = (linefillObj, color) => {
-    const h = __resolveHandle(linefillObj, linefillStore);
-    if (!h) return;
-    h.color = color;
-  };
-  const getLine1 = (linefillObj) => {
-    const h = __resolveHandle(linefillObj, linefillStore);
-    return h ? h.line1 : undefined;
-  };
-  const getLine2 = (linefillObj) => {
-    const h = __resolveHandle(linefillObj, linefillStore);
-    return h ? h.line2 : undefined;
-  };
-  const hasHandle = (linefillObj) =>
-    __resolveHandle(linefillObj, linefillStore) !== undefined;
-  const attachMethods = (h) => {
-    if (typeof h.delete !== 'function') h.delete = () => remove(h);
-    if (typeof h.set_color !== 'function') h.set_color = (color) => setColor(h, color);
-    if (typeof h.get_line1 !== 'function') h.get_line1 = () => getLine1(h);
-    if (typeof h.get_line2 !== 'function') h.get_line2 = () => getLine2(h);
-  };
-  const linefill = {
-    new: (...args) => {
-      const h = {
-        __id: nextId++,
-        __deleted: false,
-        line1: args[0],
-        line2: args[1],
-        color: args[2],
-      };
-      attachMethods(h);
-      linefillStore.set(h.__id, h);
-      return h;
-    },
-    delete: remove,
-    set_color: setColor,
-    get_line1: getLine1,
-    get_line2: getLine2,
-    __hasHandle: hasHandle,
-  };
-  return __withConstantFallback(linefill, 'linefill');
-}
-
-function __createBoxNamespace() {
-  let nextId = 1;
-  const boxStore = new Map();
-  let currentBarTime = Number.NaN;
-  const remove = (boxObj) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.__deleted = true;
-    boxStore.delete(h.__id);
-  };
-  const setLeft = (boxObj, left) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.left = __toNumber(left);
-  };
-  const setRight = (boxObj, right) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.right = __toNumber(right);
-  };
-  const setTop = (boxObj, top) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.top = __toNumber(top);
-  };
-  const setBottom = (boxObj, bottom) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.bottom = __toNumber(bottom);
-  };
-  const setExtend = (boxObj, extend) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.extend = extend;
-  };
-  const setBgcolor = (boxObj, color) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.bgcolor = color;
-  };
-  const setBorderColor = (boxObj, color) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.border_color = color;
-  };
-  const setBorderWidth = (boxObj, width) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.border_width = __toInteger(width, 1);
-  };
-  const setTextColor = (boxObj, color) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.text_color = color;
-  };
-  const getLeft = (boxObj) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    return h ? __toNumber(h.left) : Number.NaN;
-  };
-  const getRight = (boxObj) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    return h ? __toNumber(h.right) : Number.NaN;
-  };
-  const getTop = (boxObj) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    return h ? __toNumber(h.top) : Number.NaN;
-  };
-  const getBottom = (boxObj) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    return h ? __toNumber(h.bottom) : Number.NaN;
-  };
-  const hasHandle = (boxObj) => __resolveHandle(boxObj, boxStore) !== undefined;
-  const attachMethods = (h) => {
-    if (typeof h.delete !== 'function') h.delete = () => remove(h);
-    if (typeof h.set_left !== 'function') h.set_left = (left) => setLeft(h, left);
-    if (typeof h.set_right !== 'function') h.set_right = (right) => setRight(h, right);
-    if (typeof h.set_top !== 'function') h.set_top = (top) => setTop(h, top);
-    if (typeof h.set_bottom !== 'function') h.set_bottom = (bottom) => setBottom(h, bottom);
-    if (typeof h.set_extend !== 'function') h.set_extend = (extend) => setExtend(h, extend);
-    if (typeof h.set_bgcolor !== 'function') h.set_bgcolor = (color) => setBgcolor(h, color);
-    if (typeof h.set_border_color !== 'function') h.set_border_color = (color) => setBorderColor(h, color);
-    if (typeof h.set_border_width !== 'function') h.set_border_width = (width) => setBorderWidth(h, width);
-    if (typeof h.set_text_color !== 'function') h.set_text_color = (color) => setTextColor(h, color);
-    if (typeof h.get_left !== 'function') h.get_left = () => getLeft(h);
-    if (typeof h.get_right !== 'function') h.get_right = () => getRight(h);
-    if (typeof h.get_top !== 'function') h.get_top = () => getTop(h);
-    if (typeof h.get_bottom !== 'function') h.get_bottom = () => getBottom(h);
-  };
-  const box = {
-    new: (...args) => {
-      const h = {
-        __id: nextId++,
-        __deleted: false,
-        left: __toNumber(args[0]),
-        top: __toNumber(args[1]),
-        right: __toNumber(args[2]),
-        bottom: __toNumber(args[3]),
-        border_color: args[4],
-        border_width: __toInteger(args[5], 1),
-        border_style: args[6],
-        extend: args[7],
-        xloc: args[8],
-        bgcolor: args[9],
-        text: args[10],
-        text_size: args[11],
-        text_color: args[12],
-      };
-      attachMethods(h);
-      boxStore.set(h.__id, h);
-      return h;
-    },
-    delete: remove,
-    set_left: setLeft,
-    set_right: setRight,
-    set_top: setTop,
-    set_bottom: setBottom,
-    set_extend: setExtend,
-    set_bgcolor: setBgcolor,
-    set_border_color: setBorderColor,
-    set_border_width: setBorderWidth,
-    set_text_color: setTextColor,
-    get_left: getLeft,
-    get_right: getRight,
-    get_top: getTop,
-    get_bottom: getBottom,
-    __hasHandle: hasHandle,
-    __setBarTime: (t) => {
-      const n = Number(t);
-      if (Number.isFinite(n)) currentBarTime = n;
-    },
-    __getActiveBgcolor: () => {
-      if (!Number.isFinite(currentBarTime)) return null;
-      let active = null;
-      for (const h of boxStore.values()) {
-        if (__toNumber(h.right) === currentBarTime) active = h;
-      }
-      if (!active) return null;
-      return active.bgcolor || active.border_color || null;
-    },
-  };
-  return __withConstantFallback(box, 'box');
-}
-
-function __createLabelNamespace() {
-  let nextId = 1;
-  const labelStore = new Map();
-  const remove = (labelObj) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    if (!h) return;
-    h.__deleted = true;
-    labelStore.delete(h.__id);
-  };
-  const setText = (labelObj, text) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    if (!h) return;
-    h.text = text == null ? '' : String(text);
-  };
-  const getText = (labelObj) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    return h ? String(h.text == null ? '' : h.text) : '';
-  };
-  const setTooltip = (labelObj, tooltip) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    if (!h) return;
-    h.tooltip = tooltip == null ? '' : String(tooltip);
-  };
-  const setTextcolor = (labelObj, color) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    if (!h) return;
-    h.textcolor = color;
-  };
-  const setStyle = (labelObj, style) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    if (!h) return;
-    h.style = style;
-  };
-  const setXY = (labelObj, x, y) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    if (!h) return;
-    h.x = __toNumber(x);
-    h.y = __toNumber(y);
-  };
-  const setX = (labelObj, x) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    if (!h) return;
-    h.x = __toNumber(x);
-  };
-  const setY = (labelObj, y) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    if (!h) return;
-    h.y = __toNumber(y);
-  };
-  const getY = (labelObj) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    return h ? __toNumber(h.y) : Number.NaN;
-  };
-  const hasHandle = (labelObj) =>
-    __resolveHandle(labelObj, labelStore) !== undefined;
-  const attachMethods = (h) => {
-    if (typeof h.delete !== 'function') h.delete = () => remove(h);
-    if (typeof h.set_text !== 'function') h.set_text = (text) => setText(h, text);
-    if (typeof h.get_text !== 'function') h.get_text = () => getText(h);
-    if (typeof h.set_tooltip !== 'function') h.set_tooltip = (tooltip) => setTooltip(h, tooltip);
-    if (typeof h.set_textcolor !== 'function') h.set_textcolor = (color) => setTextcolor(h, color);
-    if (typeof h.set_style !== 'function') h.set_style = (style) => setStyle(h, style);
-    if (typeof h.set_xy !== 'function') h.set_xy = (x, y) => setXY(h, x, y);
-    if (typeof h.set_x !== 'function') h.set_x = (x) => setX(h, x);
-    if (typeof h.set_y !== 'function') h.set_y = (y) => setY(h, y);
-    if (typeof h.get_y !== 'function') h.get_y = () => getY(h);
-  };
-  const label = {
-    new: (...args) => {
-      const h = {
-        __id: nextId++,
-        __deleted: false,
-        x: __toNumber(args[0]),
-        y: __toNumber(args[1]),
-        text: args[2] == null ? '' : String(args[2]),
-        xloc: args[3],
-        yloc: args[4],
-        color: args[5],
-        style: args[6],
-        textcolor: args[7],
-        size: args[8],
-      };
-      attachMethods(h);
-      labelStore.set(h.__id, h);
-      return h;
-    },
-    delete: remove,
-    set_text: setText,
-    get_text: getText,
-    set_tooltip: setTooltip,
-    set_textcolor: setTextcolor,
-    set_style: setStyle,
-    set_xy: setXY,
-    set_x: setX,
-    set_y: setY,
-    get_y: getY,
-    __hasHandle: hasHandle,
-    style_label_up: 'label_up',
-    style_label_down: 'label_down',
-    style_label_left: 'label_left',
-    style_label_right: 'label_right',
-  };
-  return __withConstantFallback(label, 'label');
-}
-
-function __createTableNamespace() {
-  let nextId = 1;
-  const tableStore = new Map();
-  const keyFor = (col, row) => String(col) + ':' + String(row);
-  const cell = (...args) => {
-    const t = __resolveHandle(args[0], tableStore);
-    if (!t) return;
-    const col = __toInteger(args[1], 0);
-    const row = __toInteger(args[2], 0);
-    t.cells.set(keyFor(col, row), {
-      text: args[3],
-      textColor: args[6],
-      textSize: args[9],
-      bgcolor: args[10],
-      tooltip: args[11],
-    });
-  };
-  const clear = (...args) => {
-    const t = __resolveHandle(args[0], tableStore);
-    if (!t) return;
-    t.cells.clear();
-    t.merges = [];
-  };
-  const merge_cells = (...args) => {
-    const t = __resolveHandle(args[0], tableStore);
-    if (!t) return;
-    t.merges.push([
-      __toInteger(args[1], 0),
-      __toInteger(args[2], 0),
-      __toInteger(args[3], 0),
-      __toInteger(args[4], 0),
-    ]);
-  };
-  const hasHandle = (tableObj) =>
-    __resolveHandle(tableObj, tableStore) !== undefined;
-  const table = {
-    new: (...args) => {
-      const t = {
-        __id: nextId++,
-        __deleted: false,
-        position: args[0],
-        columns: Math.max(0, __toInteger(args[1], 0)),
-        rows: Math.max(0, __toInteger(args[2], 0)),
-        cells: new Map(),
-        merges: [],
-      };
-      t.cell = (...inner) => cell(t, ...inner);
-      t.clear = (...inner) => clear(t, ...inner);
-      t.merge_cells = (...inner) => merge_cells(t, ...inner);
-      tableStore.set(t.__id, t);
-      return t;
-    },
-    cell,
-    clear,
-    merge_cells,
-    __hasHandle: hasHandle,
-  };
-  return __withConstantFallback(table, 'table');
 }
 
 function __createStrNamespace() {
@@ -668,14 +269,9 @@ function __createStrNamespace() {
 }
 
 function __createStubNamespaces() {
-  return {
-    box: __createBoxNamespace(),
-    line: __createLineNamespace(),
-    linefill: __createLinefillNamespace(),
-    label: __createLabelNamespace(),
-    table: __createTableNamespace(),
+  return Object.assign({}, __createDrawingStubNamespaces(), {
     str: __createStrNamespace(),
-  };
+  });
 }
 
 function __extractHandleId(value) {
@@ -740,6 +336,8 @@ function __readTranspFromColor(color) {
   const clamped = Math.min(1, Math.max(0, alpha));
   return Math.round((1 - clamped) * 100);
 }
+
+const __DRAWING_VISUAL_STYLE_SLOTS = ${DRAWING_VISUAL_STYLE_SLOTS_JSON};
 
 function __normalizeVisualStyle(call, args) {
   const colors = [];
@@ -811,7 +409,7 @@ function __normalizeVisualStyle(call, args) {
       transp = numberAt(1);
       display = displayAt(2) ?? displayAt(4) ?? displayAt(3);
       break;
-    default:
+    default: {
       if (
         normalizedCall.endsWith('.set_width') ||
         normalizedCall.endsWith('.set_border_width')
@@ -826,24 +424,17 @@ function __normalizeVisualStyle(call, args) {
       ) {
         colorAt(1);
       }
-      if (normalizedCall === 'line.new') {
-        colorAt(6);
-        linewidth = numberAt(8);
-      } else if (normalizedCall === 'linefill.new') {
-        colorAt(2);
-      } else if (normalizedCall === 'box.new') {
-        colorAt(4);
-        colorAt(9);
-        linewidth = numberAt(5);
-      } else if (normalizedCall === 'label.new') {
-        colorAt(5);
-        colorAt(7);
-      } else if (normalizedCall === 'table.cell') {
-        colorAt(4);
-        colorAt(5);
-        colorAt(7);
+      const drawingStyleSlots = __DRAWING_VISUAL_STYLE_SLOTS[normalizedCall];
+      if (drawingStyleSlots) {
+        for (const index of drawingStyleSlots.colorIndices) {
+          colorAt(index);
+        }
+        if (drawingStyleSlots.linewidthIndex !== null) {
+          linewidth = numberAt(drawingStyleSlots.linewidthIndex);
+        }
       }
       break;
+    }
   }
 
   const normalizedColors = [...new Set(colors)].sort((a, b) =>
@@ -2316,7 +1907,7 @@ function normalizeVisualStyle(
       transp = numberAt(1);
       display = displayAt(2) ?? displayAt(4) ?? displayAt(3);
       break;
-    default:
+    default: {
       if (
         normalizedCall.endsWith('.set_width') ||
         normalizedCall.endsWith('.set_border_width')
@@ -2331,24 +1922,17 @@ function normalizeVisualStyle(
       ) {
         colorAt(1);
       }
-      if (normalizedCall === 'line.new') {
-        colorAt(6);
-        linewidth = numberAt(8);
-      } else if (normalizedCall === 'linefill.new') {
-        colorAt(2);
-      } else if (normalizedCall === 'box.new') {
-        colorAt(4);
-        colorAt(9);
-        linewidth = numberAt(5);
-      } else if (normalizedCall === 'label.new') {
-        colorAt(5);
-        colorAt(7);
-      } else if (normalizedCall === 'table.cell') {
-        colorAt(4);
-        colorAt(5);
-        colorAt(7);
+      const drawingStyleSlots = DRAWING_VISUAL_STYLE_SLOTS[normalizedCall];
+      if (drawingStyleSlots) {
+        for (const index of drawingStyleSlots.colorIndices) {
+          colorAt(index);
+        }
+        if (drawingStyleSlots.linewidthIndex !== null) {
+          linewidth = numberAt(drawingStyleSlots.linewidthIndex);
+        }
       }
       break;
+    }
   }
 
   const normalizedColors = [...new Set(colors)].sort((a, b) =>
@@ -4807,7 +4391,7 @@ export function generateStandaloneFactory(
  *   // Register with Chart Host chart
  */
 
-${hasTranspiledMainBody ? STANDALONE_RUNTIME_HELPERS : ''}
+${hasTranspiledMainBody ? `${STANDALONE_DRAWING_BUNDLE}\n\n${STANDALONE_RUNTIME_HELPERS}` : ''}
 
 function createIndicator(PineJS) {
   const Std = PineJS.Std;
