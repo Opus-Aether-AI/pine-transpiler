@@ -1,38 +1,13 @@
-/**
- * Runtime Namespaces for Compatibility Features
- *
- * Provides compatibility implementations for Pine Script namespaces
- * used by real-world scripts. Drawing/table namespaces are stateful
- * no-op objects (runtime-compatible but no visual rendering).
- */
-/** Generic drawing handle object */
-interface DrawingHandle {
-    __id: number;
-    __deleted: boolean;
-    [key: string]: unknown;
-}
-/** Cell payload stored on a table handle */
-interface TableCellData {
-    text?: unknown;
-    textColor?: unknown;
-    textHalign?: unknown;
-    textSize?: unknown;
-    bgcolor?: unknown;
-    tooltip?: unknown;
-    textValign?: unknown;
-}
-/** Table handle object */
-interface TableHandle extends DrawingHandle {
-    position: unknown;
-    columns: number;
-    rows: number;
-    cells: Map<string, TableCellData>;
-    merges: Array<[number, number, number, number]>;
-}
+import { DrawingHandle as SharedDrawingHandle, DrawingTableHandle as SharedDrawingTableHandle } from './drawing';
+type DrawingHandle = SharedDrawingHandle;
+type TableHandle = SharedDrawingTableHandle;
 /** Namespace for box drawing functions */
 export interface BoxStub {
     new: (...args: unknown[]) => DrawingHandle;
     delete: (boxObj: unknown) => void;
+    __hasHandle: (value: unknown) => boolean;
+    __setBarTime: (time: unknown) => void;
+    __getActiveBgcolor: () => unknown;
     set_left: (boxObj: unknown, left: unknown) => void;
     set_right: (boxObj: unknown, right: unknown) => void;
     set_top: (boxObj: unknown, top: unknown) => void;
@@ -52,6 +27,7 @@ export interface BoxStub {
 export interface LineStub {
     new: (...args: unknown[]) => DrawingHandle;
     delete: (lineObj: unknown) => void;
+    __hasHandle: (value: unknown) => boolean;
     set_x2: (lineObj: unknown, x2: unknown) => void;
     set_xy1: (lineObj: unknown, x1: unknown, y1: unknown) => void;
     set_xy2: (lineObj: unknown, x2: unknown, y2: unknown) => void;
@@ -65,6 +41,7 @@ export interface LineStub {
 export interface LinefillStub {
     new: (...args: unknown[]) => DrawingHandle;
     delete: (linefillObj: unknown) => void;
+    __hasHandle: (value: unknown) => boolean;
     set_color: (linefillObj: unknown, color: unknown) => void;
     get_line1: (linefillObj: unknown) => unknown;
     get_line2: (linefillObj: unknown) => unknown;
@@ -74,6 +51,7 @@ export interface LinefillStub {
 export interface LabelStub {
     new: (...args: unknown[]) => DrawingHandle;
     delete: (labelObj: unknown) => void;
+    __hasHandle: (value: unknown) => boolean;
     set_text: (labelObj: unknown, text: unknown) => void;
     get_text: (labelObj: unknown) => string;
     set_tooltip: (labelObj: unknown, tooltip: unknown) => void;
@@ -88,6 +66,7 @@ export interface LabelStub {
 /** Namespace for table functions */
 export interface TableStub {
     new: (...args: unknown[]) => TableHandle;
+    __hasHandle: (value: unknown) => boolean;
     cell: (...args: unknown[]) => void;
     clear: (...args: unknown[]) => void;
     merge_cells: (...args: unknown[]) => void;

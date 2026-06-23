@@ -2682,6 +2682,526 @@ function getMappingStats() {
 	};
 }
 //#endregion
+//#region src/registry/drawing.ts
+var BOX_NEW_ARGS = [
+	"left",
+	"top",
+	"right",
+	"bottom",
+	"border_color",
+	"border_width",
+	"border_style",
+	"extend",
+	"xloc",
+	"bgcolor",
+	"text",
+	"text_size",
+	"text_color",
+	"text_halign",
+	"text_valign",
+	"text_wrap",
+	"force_overlay",
+	"text_font_family"
+];
+var LINE_NEW_ARGS = [
+	"x1",
+	"y1",
+	"x2",
+	"y2",
+	"xloc",
+	"extend",
+	"color",
+	"style",
+	"width",
+	"force_overlay"
+];
+var LABEL_NEW_ARGS = [
+	"x",
+	"y",
+	"text",
+	"xloc",
+	"yloc",
+	"color",
+	"style",
+	"textcolor",
+	"size",
+	"textalign",
+	"tooltip",
+	"text_font_family",
+	"force_overlay",
+	"text_formatting"
+];
+var LINEFILL_NEW_ARGS = [
+	"line1",
+	"line2",
+	"color"
+];
+var TABLE_NEW_ARGS = [
+	"position",
+	"columns",
+	"rows",
+	"bgcolor",
+	"frame_color",
+	"frame_width",
+	"border_color",
+	"border_width",
+	"force_overlay"
+];
+var TABLE_CELL_ARGS = [
+	"table_id",
+	"column",
+	"row",
+	"text",
+	"width",
+	"height",
+	"text_color",
+	"text_halign",
+	"text_valign",
+	"text_size",
+	"bgcolor",
+	"tooltip",
+	"text_font_family",
+	"text_formatting"
+];
+var DRAWING_REGISTRY = {
+	box: {
+		name: "box",
+		functions: {
+			new: {
+				canonicalArgs: BOX_NEW_ARGS,
+				handleFields: {
+					left: "left",
+					top: "top",
+					right: "right",
+					bottom: "bottom",
+					border_color: "border_color",
+					border_width: "border_width",
+					border_style: "border_style",
+					extend: "extend",
+					xloc: "xloc",
+					bgcolor: "bgcolor",
+					text: "text",
+					text_size: "text_size",
+					text_color: "text_color",
+					text_halign: "text_halign",
+					text_valign: "text_valign",
+					text_wrap: "text_wrap",
+					force_overlay: "force_overlay",
+					text_font_family: "text_font_family"
+				},
+				visualEventArgs: BOX_NEW_ARGS
+			},
+			delete: { canonicalArgs: ["id"] },
+			set_left: { canonicalArgs: ["id", "left"] },
+			set_right: { canonicalArgs: ["id", "right"] },
+			set_top: { canonicalArgs: ["id", "top"] },
+			set_bottom: { canonicalArgs: ["id", "bottom"] },
+			set_extend: { canonicalArgs: ["id", "extend"] },
+			set_bgcolor: { canonicalArgs: ["id", "color"] },
+			set_border_color: { canonicalArgs: ["id", "color"] },
+			set_border_width: { canonicalArgs: ["id", "width"] },
+			set_text_color: { canonicalArgs: ["id", "color"] },
+			get_left: { canonicalArgs: ["id"] },
+			get_right: { canonicalArgs: ["id"] },
+			get_top: { canonicalArgs: ["id"] },
+			get_bottom: { canonicalArgs: ["id"] }
+		},
+		constants: []
+	},
+	line: {
+		name: "line",
+		functions: {
+			new: {
+				canonicalArgs: LINE_NEW_ARGS,
+				handleFields: {
+					x1: "x1",
+					y1: "y1",
+					x2: "x2",
+					y2: "y2",
+					xloc: "xloc",
+					extend: "extend",
+					color: "color",
+					style: "style",
+					width: "width",
+					force_overlay: "force_overlay"
+				},
+				visualEventArgs: LINE_NEW_ARGS
+			},
+			delete: { canonicalArgs: ["id"] },
+			set_x2: { canonicalArgs: ["id", "x2"] },
+			set_xy1: { canonicalArgs: [
+				"id",
+				"x",
+				"y"
+			] },
+			set_xy2: { canonicalArgs: [
+				"id",
+				"x",
+				"y"
+			] },
+			set_color: { canonicalArgs: ["id", "color"] },
+			get_x2: { canonicalArgs: ["id"] },
+			get_y1: { canonicalArgs: ["id"] },
+			get_y2: { canonicalArgs: ["id"] }
+		},
+		constants: [
+			{
+				name: "style_solid",
+				value: "solid"
+			},
+			{
+				name: "style_dashed",
+				value: "dashed"
+			},
+			{
+				name: "style_dotted",
+				value: "dotted"
+			},
+			{
+				name: "style_arrow_left",
+				value: "arrow_left"
+			},
+			{
+				name: "style_arrow_right",
+				value: "arrow_right"
+			},
+			{
+				name: "style_arrow_both",
+				value: "arrow_both"
+			}
+		]
+	},
+	label: {
+		name: "label",
+		functions: {
+			new: {
+				canonicalArgs: LABEL_NEW_ARGS,
+				handleFields: {
+					x: "x",
+					y: "y",
+					text: "text",
+					xloc: "xloc",
+					yloc: "yloc",
+					color: "color",
+					style: "style",
+					textcolor: "textcolor",
+					size: "size",
+					textalign: "textalign",
+					tooltip: "tooltip",
+					text_font_family: "text_font_family",
+					force_overlay: "force_overlay",
+					text_formatting: "text_formatting"
+				},
+				visualEventArgs: LABEL_NEW_ARGS
+			},
+			delete: { canonicalArgs: ["id"] },
+			set_text: { canonicalArgs: ["id", "text"] },
+			get_text: { canonicalArgs: ["id"] },
+			set_tooltip: { canonicalArgs: ["id", "tooltip"] },
+			set_textcolor: { canonicalArgs: ["id", "color"] },
+			set_style: { canonicalArgs: ["id", "style"] },
+			set_xy: { canonicalArgs: [
+				"id",
+				"x",
+				"y"
+			] },
+			set_x: { canonicalArgs: ["id", "x"] },
+			set_y: { canonicalArgs: ["id", "y"] },
+			get_y: { canonicalArgs: ["id"] }
+		},
+		constants: [
+			{
+				name: "style_none",
+				value: "none"
+			},
+			{
+				name: "style_xcross",
+				value: "xcross"
+			},
+			{
+				name: "style_cross",
+				value: "cross"
+			},
+			{
+				name: "style_triangleup",
+				value: "triangleup"
+			},
+			{
+				name: "style_triangledown",
+				value: "triangledown"
+			},
+			{
+				name: "style_flag",
+				value: "flag"
+			},
+			{
+				name: "style_circle",
+				value: "circle"
+			},
+			{
+				name: "style_arrowup",
+				value: "arrowup"
+			},
+			{
+				name: "style_arrowdown",
+				value: "arrowdown"
+			},
+			{
+				name: "style_square",
+				value: "square"
+			},
+			{
+				name: "style_diamond",
+				value: "diamond"
+			},
+			{
+				name: "style_label_up",
+				value: "label_up"
+			},
+			{
+				name: "style_label_down",
+				value: "label_down"
+			},
+			{
+				name: "style_label_left",
+				value: "label_left"
+			},
+			{
+				name: "style_label_right",
+				value: "label_right"
+			},
+			{
+				name: "style_label_lower_left",
+				value: "label_lower_left"
+			},
+			{
+				name: "style_label_lower_right",
+				value: "label_lower_right"
+			},
+			{
+				name: "style_label_upper_left",
+				value: "label_upper_left"
+			},
+			{
+				name: "style_label_upper_right",
+				value: "label_upper_right"
+			},
+			{
+				name: "style_label_center",
+				value: "label_center"
+			}
+		]
+	},
+	linefill: {
+		name: "linefill",
+		functions: {
+			new: {
+				canonicalArgs: LINEFILL_NEW_ARGS,
+				handleFields: {
+					line1: "line1",
+					line2: "line2",
+					color: "color"
+				},
+				visualEventArgs: LINEFILL_NEW_ARGS
+			},
+			delete: { canonicalArgs: ["id"] },
+			set_color: { canonicalArgs: ["id", "color"] },
+			get_line1: { canonicalArgs: ["id"] },
+			get_line2: { canonicalArgs: ["id"] }
+		},
+		constants: []
+	},
+	table: {
+		name: "table",
+		functions: {
+			new: {
+				canonicalArgs: TABLE_NEW_ARGS,
+				handleFields: {
+					position: "position",
+					columns: "columns",
+					rows: "rows",
+					bgcolor: "bgcolor",
+					frame_color: "frame_color",
+					frame_width: "frame_width",
+					border_color: "border_color",
+					border_width: "border_width",
+					force_overlay: "force_overlay"
+				},
+				visualEventArgs: TABLE_NEW_ARGS
+			},
+			cell: {
+				canonicalArgs: TABLE_CELL_ARGS,
+				visualEventArgs: TABLE_CELL_ARGS
+			},
+			clear: { canonicalArgs: [
+				"table_id",
+				"start_column",
+				"start_row",
+				"end_column",
+				"end_row"
+			] },
+			merge_cells: { canonicalArgs: [
+				"table_id",
+				"start_column",
+				"start_row",
+				"end_column",
+				"end_row"
+			] }
+		},
+		constants: []
+	}
+};
+//#endregion
+//#region src/registry/inputs.ts
+var INPUT_REGISTRY = {
+	input: { canonicalArgs: [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm",
+		"options",
+		"minval",
+		"maxval",
+		"step"
+	] },
+	"input.int": { canonicalArgs: [
+		"defval",
+		"title",
+		"minval",
+		"maxval",
+		"step",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm",
+		"options"
+	] },
+	"input.float": { canonicalArgs: [
+		"defval",
+		"title",
+		"minval",
+		"maxval",
+		"step",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm",
+		"options"
+	] },
+	"input.bool": { canonicalArgs: [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	] },
+	"input.string": { canonicalArgs: [
+		"defval",
+		"title",
+		"options",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	] },
+	"input.source": { canonicalArgs: [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	] },
+	"input.color": { canonicalArgs: [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	] },
+	"input.timeframe": { canonicalArgs: [
+		"defval",
+		"title",
+		"options",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	] },
+	"input.session": { canonicalArgs: [
+		"defval",
+		"title",
+		"options",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	] },
+	"input.time": { canonicalArgs: [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	] },
+	"input.symbol": { canonicalArgs: [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	] },
+	"input.text_area": { canonicalArgs: [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	] },
+	"input.price": { canonicalArgs: [
+		"defval",
+		"title",
+		"minval",
+		"maxval",
+		"step",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	] }
+};
+//#endregion
+//#region src/registry/index.ts
+function getDrawingNamespace(namespace) {
+	return DRAWING_REGISTRY[namespace];
+}
+function getDrawingFn(namespace, fn) {
+	return getDrawingNamespace(namespace)?.functions[fn];
+}
+function getInputFn(name) {
+	return INPUT_REGISTRY[name];
+}
+//#endregion
 //#region src/generator/generator-utils.ts
 /** Maximum iterations allowed in while/for loops to prevent infinite loops */
 var MAX_LOOP_ITERATIONS = 1e4;
@@ -2888,245 +3408,6 @@ var HelperUsage = class HelperUsage {
 function isNamedArgument(arg) {
 	return arg.type === "AssignmentExpression" && arg.operator === "=" && !Array.isArray(arg.left) && arg.left.type === "Identifier";
 }
-/**
-* Pine v6 canonical positional-arg order for drawing-namespace
-* constructors and table.cell. When a user calls these with named
-* args (`box.new(time, high, time, low, bgcolor = c, text = t)`),
-* the parser preserves the source order — but downstream consumers
-* (runtime stubs, the host VisualEventsRenderer that reads
-* `__visualEvents[*].args`) need a deterministic layout. We reorder
-* named args into these slots and pad missing slots with `na` so
-* `args[i]` always means the same Pine parameter.
-*
-* Order taken directly from Pine v6 reference signatures.
-*/
-var DRAWING_CANONICAL_ARG_ORDER = {
-	"box.new": [
-		"left",
-		"top",
-		"right",
-		"bottom",
-		"border_color",
-		"border_width",
-		"border_style",
-		"extend",
-		"xloc",
-		"bgcolor",
-		"text",
-		"text_size",
-		"text_color",
-		"text_halign",
-		"text_valign",
-		"text_wrap",
-		"force_overlay",
-		"text_font_family"
-	],
-	"line.new": [
-		"x1",
-		"y1",
-		"x2",
-		"y2",
-		"xloc",
-		"extend",
-		"color",
-		"style",
-		"width",
-		"force_overlay"
-	],
-	"label.new": [
-		"x",
-		"y",
-		"text",
-		"xloc",
-		"yloc",
-		"color",
-		"style",
-		"textcolor",
-		"size",
-		"textalign",
-		"tooltip",
-		"text_font_family",
-		"force_overlay",
-		"text_formatting"
-	],
-	"linefill.new": [
-		"line1",
-		"line2",
-		"color"
-	],
-	"table.new": [
-		"position",
-		"columns",
-		"rows",
-		"bgcolor",
-		"frame_color",
-		"frame_width",
-		"border_color",
-		"border_width",
-		"force_overlay"
-	],
-	"table.cell": [
-		"table_id",
-		"column",
-		"row",
-		"text",
-		"width",
-		"height",
-		"text_color",
-		"text_halign",
-		"text_valign",
-		"text_size",
-		"bgcolor",
-		"tooltip",
-		"text_font_family",
-		"text_formatting"
-	]
-};
-/**
-* Canonical positional order for typed input helpers.
-*
-* Pine allows named args (`input.int(title="Len", defval=14)`), but our
-* runtime input mock only treats the first argument as the default value.
-* If named args are emitted in source order, `title` can incorrectly land
-* in slot 0 and coerce the runtime value to a string.
-*/
-var INPUT_CANONICAL_ARG_ORDER = {
-	input: [
-		"defval",
-		"title",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm",
-		"options",
-		"minval",
-		"maxval",
-		"step"
-	],
-	"input.int": [
-		"defval",
-		"title",
-		"minval",
-		"maxval",
-		"step",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm",
-		"options"
-	],
-	"input.float": [
-		"defval",
-		"title",
-		"minval",
-		"maxval",
-		"step",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm",
-		"options"
-	],
-	"input.bool": [
-		"defval",
-		"title",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	],
-	"input.string": [
-		"defval",
-		"title",
-		"options",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	],
-	"input.source": [
-		"defval",
-		"title",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	],
-	"input.color": [
-		"defval",
-		"title",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	],
-	"input.timeframe": [
-		"defval",
-		"title",
-		"options",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	],
-	"input.session": [
-		"defval",
-		"title",
-		"options",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	],
-	"input.time": [
-		"defval",
-		"title",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	],
-	"input.symbol": [
-		"defval",
-		"title",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	],
-	"input.text_area": [
-		"defval",
-		"title",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	],
-	"input.price": [
-		"defval",
-		"title",
-		"minval",
-		"maxval",
-		"step",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	]
-};
 var BUILTIN_SERIES_IDENTIFIERS = new Set([
 	"open",
 	"high",
@@ -3269,10 +3550,12 @@ var ExpressionGenerator = class {
 	*/
 	normalizeCallArguments(pineCallee, args) {
 		if (pineCallee === "request.security") return this.normalizeRequestSecurityArgs(args);
-		const inputCanonicalOrder = INPUT_CANONICAL_ARG_ORDER[pineCallee];
+		const inputCanonicalOrder = getInputFn(pineCallee)?.canonicalArgs;
 		if (inputCanonicalOrder) return this.normalizeByCanonicalOrder(args, inputCanonicalOrder);
-		const canonicalOrder = DRAWING_CANONICAL_ARG_ORDER[pineCallee];
-		if (canonicalOrder) return this.normalizeByCanonicalOrder(args, canonicalOrder);
+		const [namespace, fn] = pineCallee.split(".");
+		const drawingSpec = namespace && fn ? getDrawingFn(namespace, fn) : void 0;
+		const drawingCanonicalOrder = drawingSpec?.visualEventArgs ? drawingSpec.canonicalArgs : void 0;
+		if (drawingCanonicalOrder) return this.normalizeByCanonicalOrder(args, drawingCanonicalOrder);
 		return args;
 	}
 	normalizeRequestSecurityArgs(args) {
@@ -3854,6 +4137,321 @@ var ASTGenerator = class {
 	}
 };
 //#endregion
+//#region src/runtime/drawing/index.ts
+var NUMBER_VALUE_NAMES = new Set([
+	"x",
+	"y",
+	"x1",
+	"y1",
+	"x2",
+	"y2",
+	"left",
+	"top",
+	"right",
+	"bottom"
+]);
+var INTEGER_VALUE_NAMES = new Set([
+	"width",
+	"height",
+	"border_width",
+	"frame_width",
+	"column",
+	"row",
+	"start_column",
+	"start_row",
+	"end_column",
+	"end_row"
+]);
+var NONNEGATIVE_INTEGER_VALUE_NAMES = new Set(["columns", "rows"]);
+var STRING_VALUE_NAMES = new Set(["text", "tooltip"]);
+var HANDLE_OWNER = Symbol("drawingHandleOwner");
+var ONE_DEFAULT_INTEGER_NAMES = new Set([
+	"width",
+	"border_width",
+	"frame_width"
+]);
+function toFiniteNumber(value, fallback = NaN) {
+	const candidate = Number(value);
+	return Number.isFinite(candidate) ? candidate : fallback;
+}
+function toInteger(value, fallback = 0) {
+	const candidate = Number(value);
+	return Number.isFinite(candidate) ? Math.trunc(candidate) : fallback;
+}
+function isColorLike(value) {
+	if (typeof value !== "string" || value.length === 0) return false;
+	if (value === "NaN" || value === "na") return false;
+	return value.startsWith("#") || value.startsWith("rgb") || value.startsWith("hsl");
+}
+function asHandle(value) {
+	if (typeof value !== "object" || value === null) return void 0;
+	const candidate = value;
+	if (typeof candidate.__id !== "number") return void 0;
+	return candidate;
+}
+function withConstantFallback(base, prefix) {
+	return new Proxy(base, { get(target, prop, receiver) {
+		const value = Reflect.get(target, prop, receiver);
+		if (value !== void 0 || typeof prop !== "string") return value;
+		return `${prefix}.${prop}`;
+	} });
+}
+function resolveHandle(value, store, ownerToken) {
+	const handle = asHandle(value);
+	if (!handle) return void 0;
+	if (handle[HANDLE_OWNER] !== ownerToken) return;
+	const resolved = store.get(handle.__id);
+	if (!resolved || resolved.__deleted) return void 0;
+	return resolved;
+}
+function normalizeValue(name, value) {
+	if (STRING_VALUE_NAMES.has(name)) return value == null ? "" : String(value);
+	if (NONNEGATIVE_INTEGER_VALUE_NAMES.has(name)) return Math.max(0, toInteger(value, 0));
+	if (INTEGER_VALUE_NAMES.has(name)) return toInteger(value, value == null && ONE_DEFAULT_INTEGER_NAMES.has(name) ? 1 : 0);
+	if (NUMBER_VALUE_NAMES.has(name)) return toFiniteNumber(value);
+	return value;
+}
+function getterFallback(name) {
+	if (STRING_VALUE_NAMES.has(name)) return "";
+	if (NUMBER_VALUE_NAMES.has(name) || INTEGER_VALUE_NAMES.has(name) || NONNEGATIVE_INTEGER_VALUE_NAMES.has(name)) return NaN;
+}
+function keyForCell(column, row) {
+	return `${column}:${row}`;
+}
+function parseAccessorFields(fnName) {
+	const suffix = fnName.replace(/^(set|get)_/, "");
+	if (suffix === "xy") return ["x", "y"];
+	const xyMatch = /^xy(\d+)$/.exec(suffix);
+	if (xyMatch) return [`x${xyMatch[1]}`, `y${xyMatch[1]}`];
+	return [suffix];
+}
+function buildProjectedArgs(projection, valuesByName, length) {
+	const projected = [];
+	const cappedLength = Math.min(length, projection.length);
+	for (let index = 0; index < cappedLength; index++) projected.push(valuesByName[projection[index] ?? ""]);
+	return projected;
+}
+function createTableCellData(valuesByName) {
+	return {
+		text: valuesByName.text,
+		width: valuesByName.width,
+		height: valuesByName.height,
+		textColor: valuesByName.text_color,
+		textHalign: valuesByName.text_halign,
+		textValign: valuesByName.text_valign,
+		textSize: valuesByName.text_size,
+		bgcolor: valuesByName.bgcolor,
+		tooltip: valuesByName.tooltip,
+		textFontFamily: valuesByName.text_font_family,
+		textFormatting: valuesByName.text_formatting
+	};
+}
+function createDrawingNamespace(descriptor, sink) {
+	let nextId = 1;
+	const ownerToken = {};
+	const store = /* @__PURE__ */ new Map();
+	const base = {};
+	const emit = (call, pineHandleId, args) => {
+		sink.pushEvent({
+			call,
+			args,
+			barIndex: sink.barIndex,
+			pineHandleId
+		});
+	};
+	const hasHandle = (value) => resolveHandle(value, store, ownerToken) !== void 0;
+	const attachHandleMethods = (handle) => {
+		for (const fnName of Object.keys(descriptor.functions)) {
+			if (fnName === "new") continue;
+			if (typeof handle[fnName] === "function") continue;
+			handle[fnName] = (...args) => {
+				const method = base[fnName];
+				if (typeof method !== "function") return void 0;
+				return method(handle, ...args);
+			};
+		}
+	};
+	const createHandle = (...args) => {
+		const newSpec = descriptor.functions.new;
+		const canonicalArgs = newSpec.canonicalArgs;
+		const handleFields = newSpec.handleFields ?? {};
+		const normalizedArgsByName = {};
+		for (let index = 0; index < args.length && index < canonicalArgs.length; index++) {
+			const argName = canonicalArgs[index];
+			if (!argName) continue;
+			normalizedArgsByName[argName] = normalizeValue(handleFields[argName] ?? argName, args[index]);
+		}
+		const handle = {
+			__id: nextId++,
+			__deleted: false
+		};
+		Object.defineProperty(handle, HANDLE_OWNER, {
+			value: ownerToken,
+			enumerable: false,
+			configurable: false,
+			writable: false
+		});
+		for (const [argName, fieldName] of Object.entries(handleFields)) handle[fieldName] = normalizedArgsByName[argName];
+		if (descriptor.name === "table") {
+			const tableHandle = handle;
+			tableHandle.cells = /* @__PURE__ */ new Map();
+			tableHandle.merges = [];
+		}
+		attachHandleMethods(handle);
+		store.set(handle.__id, handle);
+		if (newSpec.visualEventArgs) emit(`${descriptor.name}.new`, handle.__id, buildProjectedArgs(newSpec.visualEventArgs, normalizedArgsByName, args.length));
+		return handle;
+	};
+	const getValue = (handle, fieldName) => {
+		const value = handle[fieldName];
+		if (value === void 0) return getterFallback(fieldName);
+		if (NUMBER_VALUE_NAMES.has(fieldName) || INTEGER_VALUE_NAMES.has(fieldName) || NONNEGATIVE_INTEGER_VALUE_NAMES.has(fieldName)) return toFiniteNumber(value);
+		if (STRING_VALUE_NAMES.has(fieldName)) return value == null ? "" : String(value);
+		return value;
+	};
+	for (const [fnName, fnSpec] of Object.entries(descriptor.functions)) {
+		if (fnName === "new") {
+			base.new = createHandle;
+			continue;
+		}
+		if (fnName === "delete") {
+			base.delete = (handleLike) => {
+				const handle = resolveHandle(handleLike, store, ownerToken);
+				if (!handle) return;
+				handle.__deleted = true;
+				store.delete(handle.__id);
+				emit(`${descriptor.name}.delete`, handle.__id, []);
+			};
+			continue;
+		}
+		if (fnName.startsWith("get_")) {
+			const [fieldName = ""] = parseAccessorFields(fnName);
+			base[fnName] = (handleLike) => {
+				const handle = resolveHandle(handleLike, store, ownerToken);
+				if (!handle) return getterFallback(fieldName);
+				return getValue(handle, fieldName);
+			};
+			continue;
+		}
+		if (descriptor.name === "table" && fnName === "cell") {
+			base.cell = (...args) => {
+				const table = resolveHandle(args[0], store, ownerToken);
+				if (!table) return;
+				const normalizedArgsByName = { table_id: table };
+				for (let index = 1; index < args.length && index < fnSpec.canonicalArgs.length; index++) {
+					const argName = fnSpec.canonicalArgs[index];
+					if (!argName) continue;
+					normalizedArgsByName[argName] = normalizeValue(argName, args[index]);
+				}
+				const column = normalizedArgsByName.column;
+				const row = normalizedArgsByName.row;
+				table.cells.set(keyForCell(column, row), createTableCellData(normalizedArgsByName));
+				const projection = fnSpec.visualEventArgs ?? fnSpec.canonicalArgs;
+				emit("table.cell", table.__id, buildProjectedArgs(projection, normalizedArgsByName, args.length));
+			};
+			continue;
+		}
+		if (descriptor.name === "table" && fnName === "clear") {
+			base.clear = (...args) => {
+				const table = resolveHandle(args[0], store, ownerToken);
+				if (!table) return;
+				const normalizedArgsByName = {};
+				for (let index = 1; index < args.length && index < fnSpec.canonicalArgs.length; index++) {
+					const argName = fnSpec.canonicalArgs[index];
+					if (!argName) continue;
+					normalizedArgsByName[argName] = normalizeValue(argName, args[index]);
+				}
+				if (args.length <= 1) {
+					table.cells.clear();
+					table.merges = [];
+				} else {
+					const startColumn = normalizedArgsByName.start_column;
+					const startRow = normalizedArgsByName.start_row;
+					const endColumn = typeof normalizedArgsByName.end_column === "number" ? normalizedArgsByName.end_column : table.columns - 1;
+					const endRow = typeof normalizedArgsByName.end_row === "number" ? normalizedArgsByName.end_row : table.rows - 1;
+					for (const key of [...table.cells.keys()]) {
+						const [columnText = "", rowText = ""] = key.split(":");
+						const column = Number(columnText);
+						const row = Number(rowText);
+						if (column >= startColumn && column <= endColumn && row >= startRow && row <= endRow) table.cells.delete(key);
+					}
+				}
+				emit("table.clear", table.__id, buildProjectedArgs(fnSpec.canonicalArgs.slice(1), normalizedArgsByName, Math.max(0, args.length - 1)));
+			};
+			continue;
+		}
+		if (descriptor.name === "table" && fnName === "merge_cells") {
+			base.merge_cells = (...args) => {
+				const table = resolveHandle(args[0], store, ownerToken);
+				if (!table) return;
+				const normalizedArgsByName = {};
+				for (let index = 1; index < args.length && index < fnSpec.canonicalArgs.length; index++) {
+					const argName = fnSpec.canonicalArgs[index];
+					if (!argName) continue;
+					normalizedArgsByName[argName] = normalizeValue(argName, args[index]);
+				}
+				const startColumn = normalizedArgsByName.start_column;
+				const startRow = normalizedArgsByName.start_row;
+				const endColumn = typeof normalizedArgsByName.end_column === "number" ? normalizedArgsByName.end_column : startColumn;
+				const endRow = typeof normalizedArgsByName.end_row === "number" ? normalizedArgsByName.end_row : startRow;
+				table.merges.push([
+					startColumn,
+					startRow,
+					endColumn,
+					endRow
+				]);
+				emit("table.merge_cells", table.__id, buildProjectedArgs(fnSpec.canonicalArgs.slice(1), normalizedArgsByName, Math.max(0, args.length - 1)));
+			};
+			continue;
+		}
+		if (fnName.startsWith("set_")) {
+			const fieldNames = parseAccessorFields(fnName);
+			base[fnName] = (...args) => {
+				const handle = resolveHandle(args[0], store, ownerToken);
+				if (!handle) return;
+				const normalizedArgsByName = {};
+				for (let index = 1; index < args.length && index < fnSpec.canonicalArgs.length; index++) {
+					const argName = fnSpec.canonicalArgs[index];
+					const fieldName = fieldNames[index - 1] ?? argName ?? "";
+					if (!argName) continue;
+					const normalizedValue = normalizeValue(fieldName, args[index]);
+					normalizedArgsByName[argName] = normalizedValue;
+					handle[fieldName] = normalizedValue;
+				}
+				emit(`${descriptor.name}.${fnName}`, handle.__id, buildProjectedArgs(fnSpec.canonicalArgs.slice(1), normalizedArgsByName, Math.max(0, args.length - 1)));
+			};
+		}
+	}
+	base.__hasHandle = hasHandle;
+	if (descriptor.name === "box") {
+		let currentBarTime = NaN;
+		base.__setBarTime = (time) => {
+			const value = Number(time);
+			if (Number.isFinite(value)) currentBarTime = value;
+		};
+		base.__getActiveBgcolor = () => {
+			if (!Number.isFinite(currentBarTime)) return null;
+			let active = null;
+			for (const handle of store.values()) if (typeof handle.right === "number" && handle.right === currentBarTime) active = handle;
+			if (!active) return null;
+			if (isColorLike(active.bgcolor)) return active.bgcolor;
+			if (isColorLike(active.border_color)) return active.border_color;
+			return null;
+		};
+	}
+	for (const constant of descriptor.constants) base[constant.name] = constant.value;
+	return withConstantFallback(base, descriptor.name);
+}
+function createDrawingRuntime(sink) {
+	return {
+		line: createDrawingNamespace(DRAWING_REGISTRY.line, sink),
+		box: createDrawingNamespace(DRAWING_REGISTRY.box, sink),
+		label: createDrawingNamespace(DRAWING_REGISTRY.label, sink),
+		linefill: createDrawingNamespace(DRAWING_REGISTRY.linefill, sink),
+		table: createDrawingNamespace(DRAWING_REGISTRY.table, sink)
+	};
+}
+//#endregion
 //#region src/runtime/mock-factories.ts
 /**
 * Create the input function mock for runtime
@@ -4012,528 +4610,31 @@ function createPriceSources(Std, context) {
 }
 //#endregion
 //#region src/runtime/stub-namespaces.ts
-function toNumber(value, fallback = NaN) {
-	const n = Number(value);
-	return Number.isFinite(n) ? n : fallback;
-}
-function toInteger(value, fallback = 0) {
-	const n = Number(value);
-	return Number.isFinite(n) ? Math.trunc(n) : fallback;
-}
-function asHandle(value) {
-	if (typeof value !== "object" || value === null) return void 0;
-	const candidate = value;
-	if (typeof candidate.__id !== "number") return void 0;
-	return candidate;
-}
-function withConstantFallback(base, prefix) {
-	return new Proxy(base, { get(target, prop) {
-		if (typeof prop !== "string") return void 0;
-		if (prop in target) return target[prop];
-		return `${prefix}.${prop}`;
-	} });
-}
-function resolveHandle(value, store) {
-	const handle = asHandle(value);
-	if (!handle) return void 0;
-	const resolved = store.get(handle.__id);
-	if (!resolved || resolved.__deleted) return void 0;
-	return resolved;
-}
-function makeLineNamespace() {
-	let nextId = 1;
-	const lineStore = /* @__PURE__ */ new Map();
-	const deleteLine = (lineObj) => {
-		const h = resolveHandle(lineObj, lineStore);
-		if (!h) return;
-		h.__deleted = true;
-		lineStore.delete(h.__id);
+/**
+* Runtime Namespaces for Compatibility Features
+*
+* Provides compatibility implementations for Pine Script namespaces
+* used by real-world scripts. Drawing/table namespaces are stateful
+* no-op objects (runtime-compatible but no visual rendering).
+*/
+function createNoopDrawingSink() {
+	return {
+		barIndex: -1,
+		pushEvent: () => void 0
 	};
-	const setX2 = (lineObj, x2) => {
-		const h = resolveHandle(lineObj, lineStore);
-		if (!h) return;
-		h.x2 = toNumber(x2);
-	};
-	const setXY1 = (lineObj, x1, y1) => {
-		const h = resolveHandle(lineObj, lineStore);
-		if (!h) return;
-		h.x1 = toNumber(x1);
-		h.y1 = toNumber(y1);
-	};
-	const setXY2 = (lineObj, x2, y2) => {
-		const h = resolveHandle(lineObj, lineStore);
-		if (!h) return;
-		h.x2 = toNumber(x2);
-		h.y2 = toNumber(y2);
-	};
-	const setColor = (lineObj, color) => {
-		const h = resolveHandle(lineObj, lineStore);
-		if (!h) return;
-		h.color = color;
-	};
-	const getX2 = (lineObj) => {
-		const h = resolveHandle(lineObj, lineStore);
-		return h ? toNumber(h.x2) : NaN;
-	};
-	const getY1 = (lineObj) => {
-		const h = resolveHandle(lineObj, lineStore);
-		return h ? toNumber(h.y1) : NaN;
-	};
-	const getY2 = (lineObj) => {
-		const h = resolveHandle(lineObj, lineStore);
-		return h ? toNumber(h.y2) : NaN;
-	};
-	const hasHandle = (lineObj) => resolveHandle(lineObj, lineStore) !== void 0;
-	const attachLineMethods = (h) => {
-		if (typeof h.delete !== "function") h.delete = () => deleteLine(h);
-		if (typeof h.set_x2 !== "function") h.set_x2 = (x2) => setX2(h, x2);
-		if (typeof h.set_xy1 !== "function") h.set_xy1 = (x1, y1) => setXY1(h, x1, y1);
-		if (typeof h.set_xy2 !== "function") h.set_xy2 = (x2, y2) => setXY2(h, x2, y2);
-		if (typeof h.set_color !== "function") h.set_color = (color) => setColor(h, color);
-		if (typeof h.get_x2 !== "function") h.get_x2 = () => getX2(h);
-		if (typeof h.get_y1 !== "function") h.get_y1 = () => getY1(h);
-		if (typeof h.get_y2 !== "function") h.get_y2 = () => getY2(h);
-	};
-	return withConstantFallback({
-		new: (...args) => {
-			const h = {
-				__id: nextId++,
-				__deleted: false,
-				x1: toNumber(args[0]),
-				y1: toNumber(args[1]),
-				x2: toNumber(args[2]),
-				y2: toNumber(args[3]),
-				color: args[4],
-				style: args[5],
-				width: toInteger(args[6], 1)
-			};
-			attachLineMethods(h);
-			lineStore.set(h.__id, h);
-			return h;
-		},
-		delete: deleteLine,
-		set_x2: setX2,
-		set_xy1: setXY1,
-		set_xy2: setXY2,
-		set_color: setColor,
-		get_x2: getX2,
-		get_y1: getY1,
-		get_y2: getY2,
-		__hasHandle: hasHandle,
-		style_solid: "solid",
-		style_dashed: "dashed",
-		style_dotted: "dotted",
-		style_arrow_left: "arrow_left",
-		style_arrow_right: "arrow_right",
-		style_arrow_both: "arrow_both"
-	}, "line");
-}
-function makeLinefillNamespace() {
-	let nextId = 1;
-	const linefillStore = /* @__PURE__ */ new Map();
-	const deleteLinefill = (linefillObj) => {
-		const h = resolveHandle(linefillObj, linefillStore);
-		if (!h) return;
-		h.__deleted = true;
-		linefillStore.delete(h.__id);
-	};
-	const setColor = (linefillObj, color) => {
-		const h = resolveHandle(linefillObj, linefillStore);
-		if (!h) return;
-		h.color = color;
-	};
-	const getLine1 = (linefillObj) => {
-		return resolveHandle(linefillObj, linefillStore)?.line1;
-	};
-	const getLine2 = (linefillObj) => {
-		return resolveHandle(linefillObj, linefillStore)?.line2;
-	};
-	const hasHandle = (linefillObj) => resolveHandle(linefillObj, linefillStore) !== void 0;
-	const attachLinefillMethods = (h) => {
-		if (typeof h.delete !== "function") h.delete = () => deleteLinefill(h);
-		if (typeof h.set_color !== "function") h.set_color = (color) => setColor(h, color);
-		if (typeof h.get_line1 !== "function") h.get_line1 = () => getLine1(h);
-		if (typeof h.get_line2 !== "function") h.get_line2 = () => getLine2(h);
-	};
-	return withConstantFallback({
-		new: (...args) => {
-			const h = {
-				__id: nextId++,
-				__deleted: false,
-				line1: args[0],
-				line2: args[1],
-				color: args[2]
-			};
-			attachLinefillMethods(h);
-			linefillStore.set(h.__id, h);
-			return h;
-		},
-		delete: deleteLinefill,
-		set_color: setColor,
-		get_line1: getLine1,
-		get_line2: getLine2,
-		__hasHandle: hasHandle
-	}, "linefill");
-}
-function isColorLike(v) {
-	if (typeof v !== "string" || v.length === 0) return false;
-	if (v === "NaN" || v === "na") return false;
-	return v.startsWith("#") || v.startsWith("rgb") || v.startsWith("hsl");
-}
-function makeBoxNamespace() {
-	let nextId = 1;
-	const boxStore = /* @__PURE__ */ new Map();
-	let currentBarTime = NaN;
-	const deleteBox = (boxObj) => {
-		const h = resolveHandle(boxObj, boxStore);
-		if (!h) return;
-		h.__deleted = true;
-		boxStore.delete(h.__id);
-	};
-	const setLeft = (boxObj, left) => {
-		const h = resolveHandle(boxObj, boxStore);
-		if (!h) return;
-		h.left = toNumber(left);
-	};
-	const setRight = (boxObj, right) => {
-		const h = resolveHandle(boxObj, boxStore);
-		if (!h) return;
-		h.right = toNumber(right);
-	};
-	const setTop = (boxObj, top) => {
-		const h = resolveHandle(boxObj, boxStore);
-		if (!h) return;
-		h.top = toNumber(top);
-	};
-	const setBottom = (boxObj, bottom) => {
-		const h = resolveHandle(boxObj, boxStore);
-		if (!h) return;
-		h.bottom = toNumber(bottom);
-	};
-	const setExtend = (boxObj, extend) => {
-		const h = resolveHandle(boxObj, boxStore);
-		if (!h) return;
-		h.extend = extend;
-	};
-	const setBgcolor = (boxObj, color) => {
-		const h = resolveHandle(boxObj, boxStore);
-		if (!h) return;
-		h.bgcolor = color;
-	};
-	const setBorderColor = (boxObj, color) => {
-		const h = resolveHandle(boxObj, boxStore);
-		if (!h) return;
-		h.border_color = color;
-	};
-	const setBorderWidth = (boxObj, width) => {
-		const h = resolveHandle(boxObj, boxStore);
-		if (!h) return;
-		h.border_width = toInteger(width, 1);
-	};
-	const setTextColor = (boxObj, color) => {
-		const h = resolveHandle(boxObj, boxStore);
-		if (!h) return;
-		h.text_color = color;
-	};
-	const getTop = (boxObj) => {
-		const h = resolveHandle(boxObj, boxStore);
-		return h ? toNumber(h.top) : NaN;
-	};
-	const getBottom = (boxObj) => {
-		const h = resolveHandle(boxObj, boxStore);
-		return h ? toNumber(h.bottom) : NaN;
-	};
-	const getLeft = (boxObj) => {
-		const h = resolveHandle(boxObj, boxStore);
-		return h ? toNumber(h.left) : NaN;
-	};
-	const getRight = (boxObj) => {
-		const h = resolveHandle(boxObj, boxStore);
-		return h ? toNumber(h.right) : NaN;
-	};
-	const hasHandle = (boxObj) => resolveHandle(boxObj, boxStore) !== void 0;
-	const attachBoxMethods = (h) => {
-		if (typeof h.delete !== "function") h.delete = () => deleteBox(h);
-		if (typeof h.set_left !== "function") h.set_left = (left) => setLeft(h, left);
-		if (typeof h.set_right !== "function") h.set_right = (right) => setRight(h, right);
-		if (typeof h.set_top !== "function") h.set_top = (top) => setTop(h, top);
-		if (typeof h.set_bottom !== "function") h.set_bottom = (bottom) => setBottom(h, bottom);
-		if (typeof h.set_extend !== "function") h.set_extend = (extend) => setExtend(h, extend);
-		if (typeof h.set_bgcolor !== "function") h.set_bgcolor = (color) => setBgcolor(h, color);
-		if (typeof h.set_border_color !== "function") h.set_border_color = (color) => setBorderColor(h, color);
-		if (typeof h.set_border_width !== "function") h.set_border_width = (width) => setBorderWidth(h, width);
-		if (typeof h.set_text_color !== "function") h.set_text_color = (color) => setTextColor(h, color);
-		if (typeof h.get_top !== "function") h.get_top = () => getTop(h);
-		if (typeof h.get_bottom !== "function") h.get_bottom = () => getBottom(h);
-		if (typeof h.get_left !== "function") h.get_left = () => getLeft(h);
-		if (typeof h.get_right !== "function") h.get_right = () => getRight(h);
-	};
-	return withConstantFallback({
-		new: (...args) => {
-			const h = {
-				__id: nextId++,
-				__deleted: false,
-				left: toNumber(args[0]),
-				top: toNumber(args[1]),
-				right: toNumber(args[2]),
-				bottom: toNumber(args[3]),
-				border_color: args[4],
-				border_width: toInteger(args[5], 1),
-				border_style: args[6],
-				extend: args[7],
-				xloc: args[8],
-				bgcolor: args[9],
-				text: args[10],
-				text_size: args[11],
-				text_color: args[12],
-				text_halign: args[13],
-				text_valign: args[14]
-			};
-			attachBoxMethods(h);
-			boxStore.set(h.__id, h);
-			return h;
-		},
-		delete: deleteBox,
-		set_left: setLeft,
-		set_right: setRight,
-		set_top: setTop,
-		set_bottom: setBottom,
-		set_extend: setExtend,
-		set_bgcolor: setBgcolor,
-		set_border_color: setBorderColor,
-		set_border_width: setBorderWidth,
-		set_text_color: setTextColor,
-		get_left: getLeft,
-		get_right: getRight,
-		get_top: getTop,
-		get_bottom: getBottom,
-		__hasHandle: hasHandle,
-		__setBarTime: (t) => {
-			const n = Number(t);
-			if (Number.isFinite(n)) currentBarTime = n;
-		},
-		__getActiveBgcolor: () => {
-			if (!Number.isFinite(currentBarTime)) return null;
-			let active = null;
-			for (const h of boxStore.values()) if (typeof h.right === "number" && h.right === currentBarTime) active = h;
-			if (!active) return null;
-			if (isColorLike(active.bgcolor)) return active.bgcolor;
-			if (isColorLike(active.border_color)) return active.border_color;
-			return null;
-		}
-	}, "box");
-}
-function makeLabelNamespace() {
-	let nextId = 1;
-	const labelStore = /* @__PURE__ */ new Map();
-	const deleteLabel = (labelObj) => {
-		const h = resolveHandle(labelObj, labelStore);
-		if (!h) return;
-		h.__deleted = true;
-		labelStore.delete(h.__id);
-	};
-	const setText = (labelObj, text) => {
-		const h = resolveHandle(labelObj, labelStore);
-		if (!h) return;
-		h.text = text == null ? "" : String(text);
-	};
-	const getText = (labelObj) => {
-		const h = resolveHandle(labelObj, labelStore);
-		if (!h) return "";
-		return h.text == null ? "" : String(h.text);
-	};
-	const setTooltip = (labelObj, tooltip) => {
-		const h = resolveHandle(labelObj, labelStore);
-		if (!h) return;
-		h.tooltip = tooltip == null ? "" : String(tooltip);
-	};
-	const setTextcolor = (labelObj, color) => {
-		const h = resolveHandle(labelObj, labelStore);
-		if (!h) return;
-		h.textcolor = color;
-	};
-	const setStyle = (labelObj, style) => {
-		const h = resolveHandle(labelObj, labelStore);
-		if (!h) return;
-		h.style = style;
-	};
-	const setXY = (labelObj, x, y) => {
-		const h = resolveHandle(labelObj, labelStore);
-		if (!h) return;
-		h.x = toNumber(x);
-		h.y = toNumber(y);
-	};
-	const setX = (labelObj, x) => {
-		const h = resolveHandle(labelObj, labelStore);
-		if (!h) return;
-		h.x = toNumber(x);
-	};
-	const setY = (labelObj, y) => {
-		const h = resolveHandle(labelObj, labelStore);
-		if (!h) return;
-		h.y = toNumber(y);
-	};
-	const getY = (labelObj) => {
-		const h = resolveHandle(labelObj, labelStore);
-		return h ? toNumber(h.y) : NaN;
-	};
-	const hasHandle = (labelObj) => resolveHandle(labelObj, labelStore) !== void 0;
-	const attachLabelMethods = (h) => {
-		if (typeof h.delete !== "function") h.delete = () => deleteLabel(h);
-		if (typeof h.set_text !== "function") h.set_text = (text) => setText(h, text);
-		if (typeof h.get_text !== "function") h.get_text = () => getText(h);
-		if (typeof h.set_tooltip !== "function") h.set_tooltip = (tooltip) => setTooltip(h, tooltip);
-		if (typeof h.set_textcolor !== "function") h.set_textcolor = (color) => setTextcolor(h, color);
-		if (typeof h.set_style !== "function") h.set_style = (style) => setStyle(h, style);
-		if (typeof h.set_xy !== "function") h.set_xy = (x, y) => setXY(h, x, y);
-		if (typeof h.set_x !== "function") h.set_x = (x) => setX(h, x);
-		if (typeof h.set_y !== "function") h.set_y = (y) => setY(h, y);
-		if (typeof h.get_y !== "function") h.get_y = () => getY(h);
-	};
-	return withConstantFallback({
-		new: (...args) => {
-			const h = {
-				__id: nextId++,
-				__deleted: false,
-				x: toNumber(args[0]),
-				y: toNumber(args[1]),
-				text: args[2] == null ? "" : String(args[2]),
-				xloc: args[3],
-				yloc: args[4],
-				color: args[5],
-				style: args[6],
-				textcolor: args[7],
-				size: args[8],
-				textalign: args[9],
-				tooltip: args[10]
-			};
-			attachLabelMethods(h);
-			labelStore.set(h.__id, h);
-			return h;
-		},
-		delete: deleteLabel,
-		set_text: setText,
-		get_text: getText,
-		set_tooltip: setTooltip,
-		set_textcolor: setTextcolor,
-		set_style: setStyle,
-		set_xy: setXY,
-		set_x: setX,
-		set_y: setY,
-		get_y: getY,
-		__hasHandle: hasHandle,
-		style_none: "none",
-		style_xcross: "xcross",
-		style_cross: "cross",
-		style_triangleup: "triangleup",
-		style_triangledown: "triangledown",
-		style_flag: "flag",
-		style_circle: "circle",
-		style_arrowup: "arrowup",
-		style_arrowdown: "arrowdown",
-		style_square: "square",
-		style_diamond: "diamond",
-		style_label_up: "label_up",
-		style_label_down: "label_down",
-		style_label_left: "label_left",
-		style_label_right: "label_right",
-		style_label_lower_left: "label_lower_left",
-		style_label_lower_right: "label_lower_right",
-		style_label_upper_left: "label_upper_left",
-		style_label_upper_right: "label_upper_right",
-		style_label_center: "label_center"
-	}, "label");
-}
-function makeTableNamespace() {
-	let nextId = 1;
-	const tableStore = /* @__PURE__ */ new Map();
-	const keyFor = (col, row) => `${col}:${row}`;
-	const tableCell = (...args) => {
-		const t = resolveHandle(args[0], tableStore);
-		if (!t) return;
-		const col = toInteger(args[1], 0);
-		const row = toInteger(args[2], 0);
-		t.cells.set(keyFor(col, row), {
-			text: args[3],
-			textColor: args[4],
-			textHalign: args[5],
-			textSize: args[6],
-			bgcolor: args[7],
-			tooltip: args[8],
-			textValign: args[9]
-		});
-	};
-	const tableClear = (...args) => {
-		const t = resolveHandle(args[0], tableStore);
-		if (!t) return;
-		if (args.length <= 1) {
-			t.cells.clear();
-			t.merges = [];
-			return;
-		}
-		const startCol = toInteger(args[1], 0);
-		const startRow = toInteger(args[2], 0);
-		const endCol = toInteger(args[3], t.columns - 1);
-		const endRow = toInteger(args[4], t.rows - 1);
-		for (const key of t.cells.keys()) {
-			const [cStr, rStr] = key.split(":");
-			const c = Number(cStr);
-			const r = Number(rStr);
-			if (c >= startCol && c <= endCol && r >= startRow && r <= endRow) t.cells.delete(key);
-		}
-	};
-	const tableMergeCells = (...args) => {
-		const t = resolveHandle(args[0], tableStore);
-		if (!t) return;
-		const startCol = toInteger(args[1], 0);
-		const startRow = toInteger(args[2], 0);
-		const endCol = toInteger(args[3], startCol);
-		const endRow = toInteger(args[4], startRow);
-		t.merges.push([
-			startCol,
-			startRow,
-			endCol,
-			endRow
-		]);
-	};
-	const hasHandle = (tableObj) => resolveHandle(tableObj, tableStore) !== void 0;
-	const attachTableMethods = (t) => {
-		if (typeof t.cell !== "function") t.cell = (...args) => tableCell(t, ...args);
-		if (typeof t.clear !== "function") t.clear = (...args) => tableClear(t, ...args);
-		if (typeof t.merge_cells !== "function") t.merge_cells = (...args) => tableMergeCells(t, ...args);
-	};
-	return withConstantFallback({
-		new: (...args) => {
-			const t = {
-				__id: nextId++,
-				__deleted: false,
-				position: args[0],
-				columns: Math.max(0, toInteger(args[1], 0)),
-				rows: Math.max(0, toInteger(args[2], 0)),
-				cells: /* @__PURE__ */ new Map(),
-				merges: []
-			};
-			attachTableMethods(t);
-			tableStore.set(t.__id, t);
-			return t;
-		},
-		cell: tableCell,
-		clear: tableClear,
-		merge_cells: tableMergeCells,
-		__hasHandle: hasHandle
-	}, "table");
 }
 /**
 * Create runtime compatibility namespaces.
 * Drawing/table namespaces are stateful no-op objects.
 */
 function createStubNamespaces() {
+	const drawing = createDrawingRuntime(createNoopDrawingSink());
 	return {
-		box: makeBoxNamespace(),
-		line: makeLineNamespace(),
-		linefill: makeLinefillNamespace(),
-		label: makeLabelNamespace(),
-		table: makeTableNamespace(),
+		box: drawing.box,
+		line: drawing.line,
+		linefill: drawing.linefill,
+		label: drawing.label,
+		table: drawing.table,
 		str: (() => {
 			const c = (v) => v == null ? "" : String(v);
 			const two = (n) => String(Math.trunc(n)).padStart(2, "0");
@@ -4666,6 +4767,9 @@ function createBarstate(ctx = {
 	};
 }
 //#endregion
+//#region src/runtime/drawing/standalone-bundle.generated.ts
+var STANDALONE_DRAWING_BUNDLE = "// src/registry/drawing.ts\nvar BOX_NEW_ARGS = [\n  \"left\",\n  \"top\",\n  \"right\",\n  \"bottom\",\n  \"border_color\",\n  \"border_width\",\n  \"border_style\",\n  \"extend\",\n  \"xloc\",\n  \"bgcolor\",\n  \"text\",\n  \"text_size\",\n  \"text_color\",\n  \"text_halign\",\n  \"text_valign\",\n  \"text_wrap\",\n  \"force_overlay\",\n  \"text_font_family\"\n];\nvar LINE_NEW_ARGS = [\n  \"x1\",\n  \"y1\",\n  \"x2\",\n  \"y2\",\n  \"xloc\",\n  \"extend\",\n  \"color\",\n  \"style\",\n  \"width\",\n  \"force_overlay\"\n];\nvar LABEL_NEW_ARGS = [\n  \"x\",\n  \"y\",\n  \"text\",\n  \"xloc\",\n  \"yloc\",\n  \"color\",\n  \"style\",\n  \"textcolor\",\n  \"size\",\n  \"textalign\",\n  \"tooltip\",\n  \"text_font_family\",\n  \"force_overlay\",\n  \"text_formatting\"\n];\nvar LINEFILL_NEW_ARGS = [\"line1\", \"line2\", \"color\"];\nvar TABLE_NEW_ARGS = [\n  \"position\",\n  \"columns\",\n  \"rows\",\n  \"bgcolor\",\n  \"frame_color\",\n  \"frame_width\",\n  \"border_color\",\n  \"border_width\",\n  \"force_overlay\"\n];\nvar TABLE_CELL_ARGS = [\n  \"table_id\",\n  \"column\",\n  \"row\",\n  \"text\",\n  \"width\",\n  \"height\",\n  \"text_color\",\n  \"text_halign\",\n  \"text_valign\",\n  \"text_size\",\n  \"bgcolor\",\n  \"tooltip\",\n  \"text_font_family\",\n  \"text_formatting\"\n];\nvar DRAWING_REGISTRY = {\n  box: {\n    name: \"box\",\n    functions: {\n      new: {\n        canonicalArgs: BOX_NEW_ARGS,\n        handleFields: {\n          left: \"left\",\n          top: \"top\",\n          right: \"right\",\n          bottom: \"bottom\",\n          border_color: \"border_color\",\n          border_width: \"border_width\",\n          border_style: \"border_style\",\n          extend: \"extend\",\n          xloc: \"xloc\",\n          bgcolor: \"bgcolor\",\n          text: \"text\",\n          text_size: \"text_size\",\n          text_color: \"text_color\",\n          text_halign: \"text_halign\",\n          text_valign: \"text_valign\",\n          text_wrap: \"text_wrap\",\n          force_overlay: \"force_overlay\",\n          text_font_family: \"text_font_family\"\n        },\n        visualEventArgs: BOX_NEW_ARGS\n      },\n      delete: { canonicalArgs: [\"id\"] },\n      set_left: { canonicalArgs: [\"id\", \"left\"] },\n      set_right: { canonicalArgs: [\"id\", \"right\"] },\n      set_top: { canonicalArgs: [\"id\", \"top\"] },\n      set_bottom: { canonicalArgs: [\"id\", \"bottom\"] },\n      set_extend: { canonicalArgs: [\"id\", \"extend\"] },\n      set_bgcolor: { canonicalArgs: [\"id\", \"color\"] },\n      set_border_color: { canonicalArgs: [\"id\", \"color\"] },\n      set_border_width: { canonicalArgs: [\"id\", \"width\"] },\n      set_text_color: { canonicalArgs: [\"id\", \"color\"] },\n      get_left: { canonicalArgs: [\"id\"] },\n      get_right: { canonicalArgs: [\"id\"] },\n      get_top: { canonicalArgs: [\"id\"] },\n      get_bottom: { canonicalArgs: [\"id\"] }\n    },\n    constants: []\n  },\n  line: {\n    name: \"line\",\n    functions: {\n      new: {\n        canonicalArgs: LINE_NEW_ARGS,\n        handleFields: {\n          x1: \"x1\",\n          y1: \"y1\",\n          x2: \"x2\",\n          y2: \"y2\",\n          xloc: \"xloc\",\n          extend: \"extend\",\n          color: \"color\",\n          style: \"style\",\n          width: \"width\",\n          force_overlay: \"force_overlay\"\n        },\n        visualEventArgs: LINE_NEW_ARGS\n      },\n      delete: { canonicalArgs: [\"id\"] },\n      set_x2: { canonicalArgs: [\"id\", \"x2\"] },\n      set_xy1: { canonicalArgs: [\"id\", \"x\", \"y\"] },\n      set_xy2: { canonicalArgs: [\"id\", \"x\", \"y\"] },\n      set_color: { canonicalArgs: [\"id\", \"color\"] },\n      get_x2: { canonicalArgs: [\"id\"] },\n      get_y1: { canonicalArgs: [\"id\"] },\n      get_y2: { canonicalArgs: [\"id\"] }\n    },\n    constants: [\n      { name: \"style_solid\", value: \"solid\" },\n      { name: \"style_dashed\", value: \"dashed\" },\n      { name: \"style_dotted\", value: \"dotted\" },\n      { name: \"style_arrow_left\", value: \"arrow_left\" },\n      { name: \"style_arrow_right\", value: \"arrow_right\" },\n      { name: \"style_arrow_both\", value: \"arrow_both\" }\n    ]\n  },\n  label: {\n    name: \"label\",\n    functions: {\n      new: {\n        canonicalArgs: LABEL_NEW_ARGS,\n        handleFields: {\n          x: \"x\",\n          y: \"y\",\n          text: \"text\",\n          xloc: \"xloc\",\n          yloc: \"yloc\",\n          color: \"color\",\n          style: \"style\",\n          textcolor: \"textcolor\",\n          size: \"size\",\n          textalign: \"textalign\",\n          tooltip: \"tooltip\",\n          text_font_family: \"text_font_family\",\n          force_overlay: \"force_overlay\",\n          text_formatting: \"text_formatting\"\n        },\n        visualEventArgs: LABEL_NEW_ARGS\n      },\n      delete: { canonicalArgs: [\"id\"] },\n      set_text: { canonicalArgs: [\"id\", \"text\"] },\n      get_text: { canonicalArgs: [\"id\"] },\n      set_tooltip: { canonicalArgs: [\"id\", \"tooltip\"] },\n      set_textcolor: { canonicalArgs: [\"id\", \"color\"] },\n      set_style: { canonicalArgs: [\"id\", \"style\"] },\n      set_xy: { canonicalArgs: [\"id\", \"x\", \"y\"] },\n      set_x: { canonicalArgs: [\"id\", \"x\"] },\n      set_y: { canonicalArgs: [\"id\", \"y\"] },\n      get_y: { canonicalArgs: [\"id\"] }\n    },\n    constants: [\n      { name: \"style_none\", value: \"none\" },\n      { name: \"style_xcross\", value: \"xcross\" },\n      { name: \"style_cross\", value: \"cross\" },\n      { name: \"style_triangleup\", value: \"triangleup\" },\n      { name: \"style_triangledown\", value: \"triangledown\" },\n      { name: \"style_flag\", value: \"flag\" },\n      { name: \"style_circle\", value: \"circle\" },\n      { name: \"style_arrowup\", value: \"arrowup\" },\n      { name: \"style_arrowdown\", value: \"arrowdown\" },\n      { name: \"style_square\", value: \"square\" },\n      { name: \"style_diamond\", value: \"diamond\" },\n      { name: \"style_label_up\", value: \"label_up\" },\n      { name: \"style_label_down\", value: \"label_down\" },\n      { name: \"style_label_left\", value: \"label_left\" },\n      { name: \"style_label_right\", value: \"label_right\" },\n      { name: \"style_label_lower_left\", value: \"label_lower_left\" },\n      { name: \"style_label_lower_right\", value: \"label_lower_right\" },\n      { name: \"style_label_upper_left\", value: \"label_upper_left\" },\n      { name: \"style_label_upper_right\", value: \"label_upper_right\" },\n      { name: \"style_label_center\", value: \"label_center\" }\n    ]\n  },\n  linefill: {\n    name: \"linefill\",\n    functions: {\n      new: {\n        canonicalArgs: LINEFILL_NEW_ARGS,\n        handleFields: {\n          line1: \"line1\",\n          line2: \"line2\",\n          color: \"color\"\n        },\n        visualEventArgs: LINEFILL_NEW_ARGS\n      },\n      delete: { canonicalArgs: [\"id\"] },\n      set_color: { canonicalArgs: [\"id\", \"color\"] },\n      get_line1: { canonicalArgs: [\"id\"] },\n      get_line2: { canonicalArgs: [\"id\"] }\n    },\n    constants: []\n  },\n  table: {\n    name: \"table\",\n    functions: {\n      new: {\n        canonicalArgs: TABLE_NEW_ARGS,\n        handleFields: {\n          position: \"position\",\n          columns: \"columns\",\n          rows: \"rows\",\n          bgcolor: \"bgcolor\",\n          frame_color: \"frame_color\",\n          frame_width: \"frame_width\",\n          border_color: \"border_color\",\n          border_width: \"border_width\",\n          force_overlay: \"force_overlay\"\n        },\n        visualEventArgs: TABLE_NEW_ARGS\n      },\n      cell: {\n        canonicalArgs: TABLE_CELL_ARGS,\n        visualEventArgs: TABLE_CELL_ARGS\n      },\n      clear: {\n        canonicalArgs: [\n          \"table_id\",\n          \"start_column\",\n          \"start_row\",\n          \"end_column\",\n          \"end_row\"\n        ]\n      },\n      merge_cells: {\n        canonicalArgs: [\n          \"table_id\",\n          \"start_column\",\n          \"start_row\",\n          \"end_column\",\n          \"end_row\"\n        ]\n      }\n    },\n    constants: []\n  }\n};\n// src/runtime/drawing/index.ts\nvar NUMBER_VALUE_NAMES = new Set([\n  \"x\",\n  \"y\",\n  \"x1\",\n  \"y1\",\n  \"x2\",\n  \"y2\",\n  \"left\",\n  \"top\",\n  \"right\",\n  \"bottom\"\n]);\nvar INTEGER_VALUE_NAMES = new Set([\n  \"width\",\n  \"height\",\n  \"border_width\",\n  \"frame_width\",\n  \"column\",\n  \"row\",\n  \"start_column\",\n  \"start_row\",\n  \"end_column\",\n  \"end_row\"\n]);\nvar NONNEGATIVE_INTEGER_VALUE_NAMES = new Set([\"columns\", \"rows\"]);\nvar STRING_VALUE_NAMES = new Set([\"text\", \"tooltip\"]);\nvar HANDLE_OWNER = Symbol(\"drawingHandleOwner\");\nvar ONE_DEFAULT_INTEGER_NAMES = new Set([\n  \"width\",\n  \"border_width\",\n  \"frame_width\"\n]);\nfunction toFiniteNumber(value, fallback = Number.NaN) {\n  const candidate = Number(value);\n  return Number.isFinite(candidate) ? candidate : fallback;\n}\nfunction toInteger(value, fallback = 0) {\n  const candidate = Number(value);\n  return Number.isFinite(candidate) ? Math.trunc(candidate) : fallback;\n}\nfunction isColorLike(value) {\n  if (typeof value !== \"string\" || value.length === 0)\n    return false;\n  if (value === \"NaN\" || value === \"na\")\n    return false;\n  return value.startsWith(\"#\") || value.startsWith(\"rgb\") || value.startsWith(\"hsl\");\n}\nfunction asHandle(value) {\n  if (typeof value !== \"object\" || value === null)\n    return;\n  const candidate = value;\n  if (typeof candidate.__id !== \"number\")\n    return;\n  return candidate;\n}\nfunction withConstantFallback(base, prefix) {\n  return new Proxy(base, {\n    get(target, prop, receiver) {\n      const value = Reflect.get(target, prop, receiver);\n      if (value !== undefined || typeof prop !== \"string\")\n        return value;\n      return `${prefix}.${prop}`;\n    }\n  });\n}\nfunction resolveHandle(value, store, ownerToken) {\n  const handle = asHandle(value);\n  if (!handle)\n    return;\n  const handleOwner = handle[HANDLE_OWNER];\n  if (handleOwner !== ownerToken) {\n    return;\n  }\n  const resolved = store.get(handle.__id);\n  if (!resolved || resolved.__deleted)\n    return;\n  return resolved;\n}\nfunction normalizeValue(name, value) {\n  if (STRING_VALUE_NAMES.has(name)) {\n    return value == null ? \"\" : String(value);\n  }\n  if (NONNEGATIVE_INTEGER_VALUE_NAMES.has(name)) {\n    return Math.max(0, toInteger(value, 0));\n  }\n  if (INTEGER_VALUE_NAMES.has(name)) {\n    const fallback = value == null && ONE_DEFAULT_INTEGER_NAMES.has(name) ? 1 : 0;\n    return toInteger(value, fallback);\n  }\n  if (NUMBER_VALUE_NAMES.has(name)) {\n    return toFiniteNumber(value);\n  }\n  return value;\n}\nfunction getterFallback(name) {\n  if (STRING_VALUE_NAMES.has(name))\n    return \"\";\n  if (NUMBER_VALUE_NAMES.has(name) || INTEGER_VALUE_NAMES.has(name) || NONNEGATIVE_INTEGER_VALUE_NAMES.has(name)) {\n    return Number.NaN;\n  }\n  return;\n}\nfunction keyForCell(column, row) {\n  return `${column}:${row}`;\n}\nfunction parseAccessorFields(fnName) {\n  const suffix = fnName.replace(/^(set|get)_/, \"\");\n  if (suffix === \"xy\")\n    return [\"x\", \"y\"];\n  const xyMatch = /^xy(\\d+)$/.exec(suffix);\n  if (xyMatch) {\n    return [`x${xyMatch[1]}`, `y${xyMatch[1]}`];\n  }\n  return [suffix];\n}\nfunction buildProjectedArgs(projection, valuesByName, length) {\n  const projected = [];\n  const cappedLength = Math.min(length, projection.length);\n  for (let index = 0;index < cappedLength; index++) {\n    projected.push(valuesByName[projection[index] ?? \"\"]);\n  }\n  return projected;\n}\nfunction createTableCellData(valuesByName) {\n  return {\n    text: valuesByName.text,\n    width: valuesByName.width,\n    height: valuesByName.height,\n    textColor: valuesByName.text_color,\n    textHalign: valuesByName.text_halign,\n    textValign: valuesByName.text_valign,\n    textSize: valuesByName.text_size,\n    bgcolor: valuesByName.bgcolor,\n    tooltip: valuesByName.tooltip,\n    textFontFamily: valuesByName.text_font_family,\n    textFormatting: valuesByName.text_formatting\n  };\n}\nfunction createDrawingNamespace(descriptor, sink) {\n  let nextId = 1;\n  const ownerToken = {};\n  const store = new Map;\n  const base = {};\n  const emit = (call, pineHandleId, args) => {\n    sink.pushEvent({\n      call,\n      args,\n      barIndex: sink.barIndex,\n      pineHandleId\n    });\n  };\n  const hasHandle = (value) => resolveHandle(value, store, ownerToken) !== undefined;\n  const attachHandleMethods = (handle) => {\n    for (const fnName of Object.keys(descriptor.functions)) {\n      if (fnName === \"new\")\n        continue;\n      if (typeof handle[fnName] === \"function\")\n        continue;\n      handle[fnName] = (...args) => {\n        const method = base[fnName];\n        if (typeof method !== \"function\")\n          return;\n        return method(handle, ...args);\n      };\n    }\n  };\n  const createHandle = (...args) => {\n    const newSpec = descriptor.functions.new;\n    const canonicalArgs = newSpec.canonicalArgs;\n    const handleFields = newSpec.handleFields ?? {};\n    const normalizedArgsByName = {};\n    for (let index = 0;index < args.length && index < canonicalArgs.length; index++) {\n      const argName = canonicalArgs[index];\n      if (!argName)\n        continue;\n      const fieldName = handleFields[argName] ?? argName;\n      normalizedArgsByName[argName] = normalizeValue(fieldName, args[index]);\n    }\n    const handle = {\n      __id: nextId++,\n      __deleted: false\n    };\n    Object.defineProperty(handle, HANDLE_OWNER, {\n      value: ownerToken,\n      enumerable: false,\n      configurable: false,\n      writable: false\n    });\n    for (const [argName, fieldName] of Object.entries(handleFields)) {\n      handle[fieldName] = normalizedArgsByName[argName];\n    }\n    if (descriptor.name === \"table\") {\n      const tableHandle = handle;\n      tableHandle.cells = new Map;\n      tableHandle.merges = [];\n    }\n    attachHandleMethods(handle);\n    store.set(handle.__id, handle);\n    if (newSpec.visualEventArgs) {\n      emit(`${descriptor.name}.new`, handle.__id, buildProjectedArgs(newSpec.visualEventArgs, normalizedArgsByName, args.length));\n    }\n    return handle;\n  };\n  const getValue = (handle, fieldName) => {\n    const value = handle[fieldName];\n    if (value === undefined)\n      return getterFallback(fieldName);\n    if (NUMBER_VALUE_NAMES.has(fieldName) || INTEGER_VALUE_NAMES.has(fieldName) || NONNEGATIVE_INTEGER_VALUE_NAMES.has(fieldName)) {\n      return toFiniteNumber(value);\n    }\n    if (STRING_VALUE_NAMES.has(fieldName)) {\n      return value == null ? \"\" : String(value);\n    }\n    return value;\n  };\n  for (const [fnName, fnSpec] of Object.entries(descriptor.functions)) {\n    if (fnName === \"new\") {\n      base.new = createHandle;\n      continue;\n    }\n    if (fnName === \"delete\") {\n      base.delete = (handleLike) => {\n        const handle = resolveHandle(handleLike, store, ownerToken);\n        if (!handle)\n          return;\n        handle.__deleted = true;\n        store.delete(handle.__id);\n        emit(`${descriptor.name}.delete`, handle.__id, []);\n      };\n      continue;\n    }\n    if (fnName.startsWith(\"get_\")) {\n      const [fieldName = \"\"] = parseAccessorFields(fnName);\n      base[fnName] = (handleLike) => {\n        const handle = resolveHandle(handleLike, store, ownerToken);\n        if (!handle)\n          return getterFallback(fieldName);\n        return getValue(handle, fieldName);\n      };\n      continue;\n    }\n    if (descriptor.name === \"table\" && fnName === \"cell\") {\n      base.cell = (...args) => {\n        const table = resolveHandle(args[0], store, ownerToken);\n        if (!table)\n          return;\n        const normalizedArgsByName = {\n          table_id: table\n        };\n        for (let index = 1;index < args.length && index < fnSpec.canonicalArgs.length; index++) {\n          const argName = fnSpec.canonicalArgs[index];\n          if (!argName)\n            continue;\n          normalizedArgsByName[argName] = normalizeValue(argName, args[index]);\n        }\n        const column = normalizedArgsByName.column;\n        const row = normalizedArgsByName.row;\n        table.cells.set(keyForCell(column, row), createTableCellData(normalizedArgsByName));\n        const projection = fnSpec.visualEventArgs ?? fnSpec.canonicalArgs;\n        emit(\"table.cell\", table.__id, buildProjectedArgs(projection, normalizedArgsByName, args.length));\n      };\n      continue;\n    }\n    if (descriptor.name === \"table\" && fnName === \"clear\") {\n      base.clear = (...args) => {\n        const table = resolveHandle(args[0], store, ownerToken);\n        if (!table)\n          return;\n        const normalizedArgsByName = {};\n        for (let index = 1;index < args.length && index < fnSpec.canonicalArgs.length; index++) {\n          const argName = fnSpec.canonicalArgs[index];\n          if (!argName)\n            continue;\n          normalizedArgsByName[argName] = normalizeValue(argName, args[index]);\n        }\n        if (args.length <= 1) {\n          table.cells.clear();\n          table.merges = [];\n        } else {\n          const startColumn = normalizedArgsByName.start_column;\n          const startRow = normalizedArgsByName.start_row;\n          const endColumn = typeof normalizedArgsByName.end_column === \"number\" ? normalizedArgsByName.end_column : table.columns - 1;\n          const endRow = typeof normalizedArgsByName.end_row === \"number\" ? normalizedArgsByName.end_row : table.rows - 1;\n          for (const key of [...table.cells.keys()]) {\n            const [columnText = \"\", rowText = \"\"] = key.split(\":\");\n            const column = Number(columnText);\n            const row = Number(rowText);\n            if (column >= startColumn && column <= endColumn && row >= startRow && row <= endRow) {\n              table.cells.delete(key);\n            }\n          }\n        }\n        emit(\"table.clear\", table.__id, buildProjectedArgs(fnSpec.canonicalArgs.slice(1), normalizedArgsByName, Math.max(0, args.length - 1)));\n      };\n      continue;\n    }\n    if (descriptor.name === \"table\" && fnName === \"merge_cells\") {\n      base.merge_cells = (...args) => {\n        const table = resolveHandle(args[0], store, ownerToken);\n        if (!table)\n          return;\n        const normalizedArgsByName = {};\n        for (let index = 1;index < args.length && index < fnSpec.canonicalArgs.length; index++) {\n          const argName = fnSpec.canonicalArgs[index];\n          if (!argName)\n            continue;\n          normalizedArgsByName[argName] = normalizeValue(argName, args[index]);\n        }\n        const startColumn = normalizedArgsByName.start_column;\n        const startRow = normalizedArgsByName.start_row;\n        const endColumn = typeof normalizedArgsByName.end_column === \"number\" ? normalizedArgsByName.end_column : startColumn;\n        const endRow = typeof normalizedArgsByName.end_row === \"number\" ? normalizedArgsByName.end_row : startRow;\n        table.merges.push([startColumn, startRow, endColumn, endRow]);\n        emit(\"table.merge_cells\", table.__id, buildProjectedArgs(fnSpec.canonicalArgs.slice(1), normalizedArgsByName, Math.max(0, args.length - 1)));\n      };\n      continue;\n    }\n    if (fnName.startsWith(\"set_\")) {\n      const fieldNames = parseAccessorFields(fnName);\n      base[fnName] = (...args) => {\n        const handle = resolveHandle(args[0], store, ownerToken);\n        if (!handle)\n          return;\n        const normalizedArgsByName = {};\n        for (let index = 1;index < args.length && index < fnSpec.canonicalArgs.length; index++) {\n          const argName = fnSpec.canonicalArgs[index];\n          const fieldName = fieldNames[index - 1] ?? argName ?? \"\";\n          if (!argName)\n            continue;\n          const normalizedValue = normalizeValue(fieldName, args[index]);\n          normalizedArgsByName[argName] = normalizedValue;\n          handle[fieldName] = normalizedValue;\n        }\n        emit(`${descriptor.name}.${fnName}`, handle.__id, buildProjectedArgs(fnSpec.canonicalArgs.slice(1), normalizedArgsByName, Math.max(0, args.length - 1)));\n      };\n    }\n  }\n  base.__hasHandle = hasHandle;\n  if (descriptor.name === \"box\") {\n    let currentBarTime = Number.NaN;\n    base.__setBarTime = (time) => {\n      const value = Number(time);\n      if (Number.isFinite(value)) {\n        currentBarTime = value;\n      }\n    };\n    base.__getActiveBgcolor = () => {\n      if (!Number.isFinite(currentBarTime))\n        return null;\n      let active = null;\n      for (const handle of store.values()) {\n        if (typeof handle.right === \"number\" && handle.right === currentBarTime) {\n          active = handle;\n        }\n      }\n      if (!active)\n        return null;\n      if (isColorLike(active.bgcolor))\n        return active.bgcolor;\n      if (isColorLike(active.border_color))\n        return active.border_color;\n      return null;\n    };\n  }\n  for (const constant of descriptor.constants) {\n    base[constant.name] = constant.value;\n  }\n  return withConstantFallback(base, descriptor.name);\n}\nfunction createDrawingRuntime(sink) {\n  return {\n    line: createDrawingNamespace(DRAWING_REGISTRY.line, sink),\n    box: createDrawingNamespace(DRAWING_REGISTRY.box, sink),\n    label: createDrawingNamespace(DRAWING_REGISTRY.label, sink),\n    linefill: createDrawingNamespace(DRAWING_REGISTRY.linefill, sink),\n    table: createDrawingNamespace(DRAWING_REGISTRY.table, sink)\n  };\n}\n\n// src/runtime/drawing/standalone-bundle.constants.ts\nvar STANDALONE_DRAWING_BUNDLE_GLOBAL = \"__PINE_TRANSPILER_STANDALONE_DRAWING_BUNDLE__\";\n\n// src/runtime/drawing/standalone-bundle.entry.ts\nfunction createNoopDrawingSink() {\n  return {\n    barIndex: -1,\n    pushEvent: () => {\n      return;\n    }\n  };\n}\nfunction createDrawingStubNamespaces() {\n  return createDrawingRuntime(createNoopDrawingSink());\n}\nvar standaloneDrawingBundle = {\n  createDrawingRuntime,\n  createDrawingStubNamespaces\n};\nvar standaloneDrawingGlobal = globalThis;\nstandaloneDrawingGlobal[STANDALONE_DRAWING_BUNDLE_GLOBAL] = standaloneDrawingBundle;\n\nvar __createDrawingRuntime =\n  globalThis.__PINE_TRANSPILER_STANDALONE_DRAWING_BUNDLE__.createDrawingRuntime;\nvar __createDrawingStubNamespaces =\n  globalThis.__PINE_TRANSPILER_STANDALONE_DRAWING_BUNDLE__.createDrawingStubNamespaces;";
+//#endregion
 //#region src/types/index.ts
 /**
 * Color map for Pine Script color constants
@@ -4717,6 +4821,35 @@ function indentCode(code, spaces) {
 	const pad = " ".repeat(spaces);
 	return code.split("\n").map((line) => `${pad}${line}`).join("\n");
 }
+var DRAWING_VISUAL_STYLE_PROJECTIONS = {
+	"box.new": {
+		colors: ["border_color", "bgcolor"],
+		linewidth: "border_width"
+	},
+	"label.new": { colors: ["color", "textcolor"] },
+	"line.new": {
+		colors: ["color"],
+		linewidth: "width"
+	},
+	"linefill.new": { colors: ["color"] },
+	"table.cell": { colors: ["text_color", "bgcolor"] }
+};
+function buildDrawingVisualStyleSlots() {
+	const slots = {};
+	for (const [call, projection] of Object.entries(DRAWING_VISUAL_STYLE_PROJECTIONS)) {
+		const [namespace, fn] = call.split(".");
+		const visualEventArgs = namespace && fn ? getDrawingFn(namespace, fn)?.visualEventArgs : void 0;
+		if (!visualEventArgs) continue;
+		const colorIndices = projection.colors.map((name) => visualEventArgs.indexOf(name)).filter((index) => index >= 0);
+		const linewidthIndex = projection.linewidth === void 0 ? null : visualEventArgs.indexOf(projection.linewidth);
+		slots[call] = {
+			colorIndices,
+			linewidthIndex: typeof linewidthIndex === "number" && linewidthIndex >= 0 ? linewidthIndex : null
+		};
+	}
+	return slots;
+}
+var DRAWING_VISUAL_STYLE_SLOTS = buildDrawingVisualStyleSlots();
 var STANDALONE_RUNTIME_HELPERS = `
 function __toNumber(value, fallback) {
   const n = Number(value);
@@ -4746,480 +4879,6 @@ function __coerceShapePlotValue(value) {
   const n = __coercePlotValue(value);
   if (!Number.isFinite(n)) return Number.NaN;
   return n === 0 ? Number.NaN : n;
-}
-
-function __asHandle(value) {
-  if (typeof value !== 'object' || value === null) return undefined;
-  if (typeof value.__id !== 'number') return undefined;
-  return value;
-}
-
-function __resolveHandle(value, store) {
-  const handle = __asHandle(value);
-  if (!handle) return undefined;
-  const resolved = store.get(handle.__id);
-  if (!resolved || resolved.__deleted) return undefined;
-  return resolved;
-}
-
-function __withConstantFallback(base, prefix) {
-  return new Proxy(base, {
-    get(target, prop) {
-      if (typeof prop !== 'string') return undefined;
-      if (prop in target) return target[prop];
-      return prefix + '.' + prop;
-    },
-  });
-}
-
-function __createLineNamespace() {
-  let nextId = 1;
-  const lineStore = new Map();
-  const remove = (lineObj) => {
-    const h = __resolveHandle(lineObj, lineStore);
-    if (!h) return;
-    h.__deleted = true;
-    lineStore.delete(h.__id);
-  };
-  const setX2 = (lineObj, x2) => {
-    const h = __resolveHandle(lineObj, lineStore);
-    if (!h) return;
-    h.x2 = __toNumber(x2);
-  };
-  const setXY1 = (lineObj, x1, y1) => {
-    const h = __resolveHandle(lineObj, lineStore);
-    if (!h) return;
-    h.x1 = __toNumber(x1);
-    h.y1 = __toNumber(y1);
-  };
-  const setXY2 = (lineObj, x2, y2) => {
-    const h = __resolveHandle(lineObj, lineStore);
-    if (!h) return;
-    h.x2 = __toNumber(x2);
-    h.y2 = __toNumber(y2);
-  };
-  const setColor = (lineObj, color) => {
-    const h = __resolveHandle(lineObj, lineStore);
-    if (!h) return;
-    h.color = color;
-  };
-  const getX2 = (lineObj) => {
-    const h = __resolveHandle(lineObj, lineStore);
-    return h ? __toNumber(h.x2) : Number.NaN;
-  };
-  const getY1 = (lineObj) => {
-    const h = __resolveHandle(lineObj, lineStore);
-    return h ? __toNumber(h.y1) : Number.NaN;
-  };
-  const getY2 = (lineObj) => {
-    const h = __resolveHandle(lineObj, lineStore);
-    return h ? __toNumber(h.y2) : Number.NaN;
-  };
-  const hasHandle = (lineObj) => __resolveHandle(lineObj, lineStore) !== undefined;
-  const attachMethods = (h) => {
-    if (typeof h.delete !== 'function') h.delete = () => remove(h);
-    if (typeof h.set_x2 !== 'function') h.set_x2 = (x2) => setX2(h, x2);
-    if (typeof h.set_xy1 !== 'function') h.set_xy1 = (x1, y1) => setXY1(h, x1, y1);
-    if (typeof h.set_xy2 !== 'function') h.set_xy2 = (x2, y2) => setXY2(h, x2, y2);
-    if (typeof h.set_color !== 'function') h.set_color = (color) => setColor(h, color);
-    if (typeof h.get_x2 !== 'function') h.get_x2 = () => getX2(h);
-    if (typeof h.get_y1 !== 'function') h.get_y1 = () => getY1(h);
-    if (typeof h.get_y2 !== 'function') h.get_y2 = () => getY2(h);
-  };
-
-  const line = {
-    new: (...args) => {
-      const h = {
-        __id: nextId++,
-        __deleted: false,
-        x1: __toNumber(args[0]),
-        y1: __toNumber(args[1]),
-        x2: __toNumber(args[2]),
-        y2: __toNumber(args[3]),
-        xloc: args[4],
-        extend: args[5],
-        color: args[6],
-        style: args[7],
-        width: __toInteger(args[8], 1),
-      };
-      attachMethods(h);
-      lineStore.set(h.__id, h);
-      return h;
-    },
-    delete: remove,
-    set_x2: setX2,
-    set_xy1: setXY1,
-    set_xy2: setXY2,
-    set_color: setColor,
-    get_x2: getX2,
-    get_y1: getY1,
-    get_y2: getY2,
-    __hasHandle: hasHandle,
-    style_solid: 'solid',
-    style_dotted: 'dotted',
-    style_dashed: 'dashed',
-  };
-  return __withConstantFallback(line, 'line');
-}
-
-function __createLinefillNamespace() {
-  let nextId = 1;
-  const linefillStore = new Map();
-  const remove = (linefillObj) => {
-    const h = __resolveHandle(linefillObj, linefillStore);
-    if (!h) return;
-    h.__deleted = true;
-    linefillStore.delete(h.__id);
-  };
-  const setColor = (linefillObj, color) => {
-    const h = __resolveHandle(linefillObj, linefillStore);
-    if (!h) return;
-    h.color = color;
-  };
-  const getLine1 = (linefillObj) => {
-    const h = __resolveHandle(linefillObj, linefillStore);
-    return h ? h.line1 : undefined;
-  };
-  const getLine2 = (linefillObj) => {
-    const h = __resolveHandle(linefillObj, linefillStore);
-    return h ? h.line2 : undefined;
-  };
-  const hasHandle = (linefillObj) =>
-    __resolveHandle(linefillObj, linefillStore) !== undefined;
-  const attachMethods = (h) => {
-    if (typeof h.delete !== 'function') h.delete = () => remove(h);
-    if (typeof h.set_color !== 'function') h.set_color = (color) => setColor(h, color);
-    if (typeof h.get_line1 !== 'function') h.get_line1 = () => getLine1(h);
-    if (typeof h.get_line2 !== 'function') h.get_line2 = () => getLine2(h);
-  };
-  const linefill = {
-    new: (...args) => {
-      const h = {
-        __id: nextId++,
-        __deleted: false,
-        line1: args[0],
-        line2: args[1],
-        color: args[2],
-      };
-      attachMethods(h);
-      linefillStore.set(h.__id, h);
-      return h;
-    },
-    delete: remove,
-    set_color: setColor,
-    get_line1: getLine1,
-    get_line2: getLine2,
-    __hasHandle: hasHandle,
-  };
-  return __withConstantFallback(linefill, 'linefill');
-}
-
-function __createBoxNamespace() {
-  let nextId = 1;
-  const boxStore = new Map();
-  let currentBarTime = Number.NaN;
-  const remove = (boxObj) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.__deleted = true;
-    boxStore.delete(h.__id);
-  };
-  const setLeft = (boxObj, left) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.left = __toNumber(left);
-  };
-  const setRight = (boxObj, right) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.right = __toNumber(right);
-  };
-  const setTop = (boxObj, top) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.top = __toNumber(top);
-  };
-  const setBottom = (boxObj, bottom) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.bottom = __toNumber(bottom);
-  };
-  const setExtend = (boxObj, extend) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.extend = extend;
-  };
-  const setBgcolor = (boxObj, color) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.bgcolor = color;
-  };
-  const setBorderColor = (boxObj, color) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.border_color = color;
-  };
-  const setBorderWidth = (boxObj, width) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.border_width = __toInteger(width, 1);
-  };
-  const setTextColor = (boxObj, color) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.text_color = color;
-  };
-  const getLeft = (boxObj) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    return h ? __toNumber(h.left) : Number.NaN;
-  };
-  const getRight = (boxObj) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    return h ? __toNumber(h.right) : Number.NaN;
-  };
-  const getTop = (boxObj) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    return h ? __toNumber(h.top) : Number.NaN;
-  };
-  const getBottom = (boxObj) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    return h ? __toNumber(h.bottom) : Number.NaN;
-  };
-  const hasHandle = (boxObj) => __resolveHandle(boxObj, boxStore) !== undefined;
-  const attachMethods = (h) => {
-    if (typeof h.delete !== 'function') h.delete = () => remove(h);
-    if (typeof h.set_left !== 'function') h.set_left = (left) => setLeft(h, left);
-    if (typeof h.set_right !== 'function') h.set_right = (right) => setRight(h, right);
-    if (typeof h.set_top !== 'function') h.set_top = (top) => setTop(h, top);
-    if (typeof h.set_bottom !== 'function') h.set_bottom = (bottom) => setBottom(h, bottom);
-    if (typeof h.set_extend !== 'function') h.set_extend = (extend) => setExtend(h, extend);
-    if (typeof h.set_bgcolor !== 'function') h.set_bgcolor = (color) => setBgcolor(h, color);
-    if (typeof h.set_border_color !== 'function') h.set_border_color = (color) => setBorderColor(h, color);
-    if (typeof h.set_border_width !== 'function') h.set_border_width = (width) => setBorderWidth(h, width);
-    if (typeof h.set_text_color !== 'function') h.set_text_color = (color) => setTextColor(h, color);
-    if (typeof h.get_left !== 'function') h.get_left = () => getLeft(h);
-    if (typeof h.get_right !== 'function') h.get_right = () => getRight(h);
-    if (typeof h.get_top !== 'function') h.get_top = () => getTop(h);
-    if (typeof h.get_bottom !== 'function') h.get_bottom = () => getBottom(h);
-  };
-  const box = {
-    new: (...args) => {
-      const h = {
-        __id: nextId++,
-        __deleted: false,
-        left: __toNumber(args[0]),
-        top: __toNumber(args[1]),
-        right: __toNumber(args[2]),
-        bottom: __toNumber(args[3]),
-        border_color: args[4],
-        border_width: __toInteger(args[5], 1),
-        border_style: args[6],
-        extend: args[7],
-        xloc: args[8],
-        bgcolor: args[9],
-        text: args[10],
-        text_size: args[11],
-        text_color: args[12],
-      };
-      attachMethods(h);
-      boxStore.set(h.__id, h);
-      return h;
-    },
-    delete: remove,
-    set_left: setLeft,
-    set_right: setRight,
-    set_top: setTop,
-    set_bottom: setBottom,
-    set_extend: setExtend,
-    set_bgcolor: setBgcolor,
-    set_border_color: setBorderColor,
-    set_border_width: setBorderWidth,
-    set_text_color: setTextColor,
-    get_left: getLeft,
-    get_right: getRight,
-    get_top: getTop,
-    get_bottom: getBottom,
-    __hasHandle: hasHandle,
-    __setBarTime: (t) => {
-      const n = Number(t);
-      if (Number.isFinite(n)) currentBarTime = n;
-    },
-    __getActiveBgcolor: () => {
-      if (!Number.isFinite(currentBarTime)) return null;
-      let active = null;
-      for (const h of boxStore.values()) {
-        if (__toNumber(h.right) === currentBarTime) active = h;
-      }
-      if (!active) return null;
-      return active.bgcolor || active.border_color || null;
-    },
-  };
-  return __withConstantFallback(box, 'box');
-}
-
-function __createLabelNamespace() {
-  let nextId = 1;
-  const labelStore = new Map();
-  const remove = (labelObj) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    if (!h) return;
-    h.__deleted = true;
-    labelStore.delete(h.__id);
-  };
-  const setText = (labelObj, text) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    if (!h) return;
-    h.text = text == null ? '' : String(text);
-  };
-  const getText = (labelObj) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    return h ? String(h.text == null ? '' : h.text) : '';
-  };
-  const setTooltip = (labelObj, tooltip) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    if (!h) return;
-    h.tooltip = tooltip == null ? '' : String(tooltip);
-  };
-  const setTextcolor = (labelObj, color) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    if (!h) return;
-    h.textcolor = color;
-  };
-  const setStyle = (labelObj, style) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    if (!h) return;
-    h.style = style;
-  };
-  const setXY = (labelObj, x, y) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    if (!h) return;
-    h.x = __toNumber(x);
-    h.y = __toNumber(y);
-  };
-  const setX = (labelObj, x) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    if (!h) return;
-    h.x = __toNumber(x);
-  };
-  const setY = (labelObj, y) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    if (!h) return;
-    h.y = __toNumber(y);
-  };
-  const getY = (labelObj) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    return h ? __toNumber(h.y) : Number.NaN;
-  };
-  const hasHandle = (labelObj) =>
-    __resolveHandle(labelObj, labelStore) !== undefined;
-  const attachMethods = (h) => {
-    if (typeof h.delete !== 'function') h.delete = () => remove(h);
-    if (typeof h.set_text !== 'function') h.set_text = (text) => setText(h, text);
-    if (typeof h.get_text !== 'function') h.get_text = () => getText(h);
-    if (typeof h.set_tooltip !== 'function') h.set_tooltip = (tooltip) => setTooltip(h, tooltip);
-    if (typeof h.set_textcolor !== 'function') h.set_textcolor = (color) => setTextcolor(h, color);
-    if (typeof h.set_style !== 'function') h.set_style = (style) => setStyle(h, style);
-    if (typeof h.set_xy !== 'function') h.set_xy = (x, y) => setXY(h, x, y);
-    if (typeof h.set_x !== 'function') h.set_x = (x) => setX(h, x);
-    if (typeof h.set_y !== 'function') h.set_y = (y) => setY(h, y);
-    if (typeof h.get_y !== 'function') h.get_y = () => getY(h);
-  };
-  const label = {
-    new: (...args) => {
-      const h = {
-        __id: nextId++,
-        __deleted: false,
-        x: __toNumber(args[0]),
-        y: __toNumber(args[1]),
-        text: args[2] == null ? '' : String(args[2]),
-        xloc: args[3],
-        yloc: args[4],
-        color: args[5],
-        style: args[6],
-        textcolor: args[7],
-        size: args[8],
-      };
-      attachMethods(h);
-      labelStore.set(h.__id, h);
-      return h;
-    },
-    delete: remove,
-    set_text: setText,
-    get_text: getText,
-    set_tooltip: setTooltip,
-    set_textcolor: setTextcolor,
-    set_style: setStyle,
-    set_xy: setXY,
-    set_x: setX,
-    set_y: setY,
-    get_y: getY,
-    __hasHandle: hasHandle,
-    style_label_up: 'label_up',
-    style_label_down: 'label_down',
-    style_label_left: 'label_left',
-    style_label_right: 'label_right',
-  };
-  return __withConstantFallback(label, 'label');
-}
-
-function __createTableNamespace() {
-  let nextId = 1;
-  const tableStore = new Map();
-  const keyFor = (col, row) => String(col) + ':' + String(row);
-  const cell = (...args) => {
-    const t = __resolveHandle(args[0], tableStore);
-    if (!t) return;
-    const col = __toInteger(args[1], 0);
-    const row = __toInteger(args[2], 0);
-    t.cells.set(keyFor(col, row), {
-      text: args[3],
-      textColor: args[6],
-      textSize: args[9],
-      bgcolor: args[10],
-      tooltip: args[11],
-    });
-  };
-  const clear = (...args) => {
-    const t = __resolveHandle(args[0], tableStore);
-    if (!t) return;
-    t.cells.clear();
-    t.merges = [];
-  };
-  const merge_cells = (...args) => {
-    const t = __resolveHandle(args[0], tableStore);
-    if (!t) return;
-    t.merges.push([
-      __toInteger(args[1], 0),
-      __toInteger(args[2], 0),
-      __toInteger(args[3], 0),
-      __toInteger(args[4], 0),
-    ]);
-  };
-  const hasHandle = (tableObj) =>
-    __resolveHandle(tableObj, tableStore) !== undefined;
-  const table = {
-    new: (...args) => {
-      const t = {
-        __id: nextId++,
-        __deleted: false,
-        position: args[0],
-        columns: Math.max(0, __toInteger(args[1], 0)),
-        rows: Math.max(0, __toInteger(args[2], 0)),
-        cells: new Map(),
-        merges: [],
-      };
-      t.cell = (...inner) => cell(t, ...inner);
-      t.clear = (...inner) => clear(t, ...inner);
-      t.merge_cells = (...inner) => merge_cells(t, ...inner);
-      tableStore.set(t.__id, t);
-      return t;
-    },
-    cell,
-    clear,
-    merge_cells,
-    __hasHandle: hasHandle,
-  };
-  return __withConstantFallback(table, 'table');
 }
 
 function __createStrNamespace() {
@@ -5275,14 +4934,9 @@ function __createStrNamespace() {
 }
 
 function __createStubNamespaces() {
-  return {
-    box: __createBoxNamespace(),
-    line: __createLineNamespace(),
-    linefill: __createLinefillNamespace(),
-    label: __createLabelNamespace(),
-    table: __createTableNamespace(),
+  return Object.assign({}, __createDrawingStubNamespaces(), {
     str: __createStrNamespace(),
-  };
+  });
 }
 
 function __extractHandleId(value) {
@@ -5347,6 +5001,8 @@ function __readTranspFromColor(color) {
   const clamped = Math.min(1, Math.max(0, alpha));
   return Math.round((1 - clamped) * 100);
 }
+
+const __DRAWING_VISUAL_STYLE_SLOTS = ${JSON.stringify(DRAWING_VISUAL_STYLE_SLOTS)};
 
 function __normalizeVisualStyle(call, args) {
   const colors = [];
@@ -5418,7 +5074,7 @@ function __normalizeVisualStyle(call, args) {
       transp = numberAt(1);
       display = displayAt(2) ?? displayAt(4) ?? displayAt(3);
       break;
-    default:
+    default: {
       if (
         normalizedCall.endsWith('.set_width') ||
         normalizedCall.endsWith('.set_border_width')
@@ -5433,24 +5089,17 @@ function __normalizeVisualStyle(call, args) {
       ) {
         colorAt(1);
       }
-      if (normalizedCall === 'line.new') {
-        colorAt(6);
-        linewidth = numberAt(8);
-      } else if (normalizedCall === 'linefill.new') {
-        colorAt(2);
-      } else if (normalizedCall === 'box.new') {
-        colorAt(4);
-        colorAt(9);
-        linewidth = numberAt(5);
-      } else if (normalizedCall === 'label.new') {
-        colorAt(5);
-        colorAt(7);
-      } else if (normalizedCall === 'table.cell') {
-        colorAt(4);
-        colorAt(5);
-        colorAt(7);
+      const drawingStyleSlots = __DRAWING_VISUAL_STYLE_SLOTS[normalizedCall];
+      if (drawingStyleSlots) {
+        for (const index of drawingStyleSlots.colorIndices) {
+          colorAt(index);
+        }
+        if (drawingStyleSlots.linewidthIndex !== null) {
+          linewidth = numberAt(drawingStyleSlots.linewidthIndex);
+        }
       }
       break;
+    }
   }
 
   const normalizedColors = [...new Set(colors)].sort((a, b) =>
@@ -6583,11 +6232,34 @@ ${indentCode(runtimeBody, 10)}
         _markProcessedBar();
         __previousBarTime = _barTime;
         const _result = _plotValues.slice();
-${hasBgcolors ? `        if (_latestBgColor !== null && _latestBgColor !== undefined) {
-          if (!__bgColorToSlot.has(_latestBgColor)) {
-            __bgColorToSlot.set(_latestBgColor, (__bgColorToSlot.size % 7) + 1);
+${hasBgcolors ? `        // Auto bg_colorer slot. Resolve the active box's bgcolor via the
+        // drawing stub (the box whose right edge sits on the current bar),
+        // matching the runtime \`buildIndicatorFactory\` path. Boxes are
+        // extended with \`box.set_right(bar_index)\`, so we drive the stub
+        // with the bar INDEX (not Std.time) — that is the coordinate space
+        // \`box.right\` lives in. Fall back to the latest \`bgcolor()\` call,
+        // then to slot 0 (transparent / "None").
+        let _autoBgColor = null;
+        try {
+          const _rawBox = __stubsRaw && __stubsRaw.box;
+          if (_rawBox && typeof _rawBox.__setBarTime === 'function') {
+            _rawBox.__setBarTime(_resolvedBarIndex);
           }
-          _result.push(__bgColorToSlot.get(_latestBgColor));
+          if (_rawBox && typeof _rawBox.__getActiveBgcolor === 'function') {
+            const _active = _rawBox.__getActiveBgcolor();
+            if (typeof _active === 'string' && _active) _autoBgColor = _active;
+          }
+        } catch (_bgErr) {
+          _autoBgColor = null;
+        }
+        if (_autoBgColor === null && typeof _latestBgColor === 'string' && _latestBgColor) {
+          _autoBgColor = _latestBgColor;
+        }
+        if (_autoBgColor !== null && _autoBgColor !== undefined) {
+          if (!__bgColorToSlot.has(_autoBgColor)) {
+            __bgColorToSlot.set(_autoBgColor, (__bgColorToSlot.size % 7) + 1);
+          }
+          _result.push(__bgColorToSlot.get(_autoBgColor));
         } else {
           _result.push(0);
         }
@@ -6811,26 +6483,16 @@ function normalizeVisualStyle(call, args) {
 			transp = numberAt(1);
 			display = displayAt(2) ?? displayAt(4) ?? displayAt(3);
 			break;
-		default:
+		default: {
 			if (normalizedCall.endsWith(".set_width") || normalizedCall.endsWith(".set_border_width")) linewidth = numberAt(1);
 			if (normalizedCall.endsWith(".set_color") || normalizedCall.endsWith(".set_textcolor") || normalizedCall.endsWith(".set_bgcolor") || normalizedCall.endsWith(".set_border_color")) colorAt(1);
-			if (normalizedCall === "line.new") {
-				colorAt(6);
-				linewidth = numberAt(8);
-			} else if (normalizedCall === "linefill.new") colorAt(2);
-			else if (normalizedCall === "box.new") {
-				colorAt(4);
-				colorAt(9);
-				linewidth = numberAt(5);
-			} else if (normalizedCall === "label.new") {
-				colorAt(5);
-				colorAt(7);
-			} else if (normalizedCall === "table.cell") {
-				colorAt(4);
-				colorAt(5);
-				colorAt(7);
+			const drawingStyleSlots = DRAWING_VISUAL_STYLE_SLOTS[normalizedCall];
+			if (drawingStyleSlots) {
+				for (const index of drawingStyleSlots.colorIndices) colorAt(index);
+				if (drawingStyleSlots.linewidthIndex !== null) linewidth = numberAt(drawingStyleSlots.linewidthIndex);
 			}
 			break;
+		}
 	}
 	const normalizedColors = [...new Set(colors)].sort((a, b) => a.localeCompare(b));
 	if (transp === null) for (const color of normalizedColors) {
@@ -8062,6 +7724,39 @@ function generateStandaloneFactory(options) {
 	const safeId = sanitizeIndicatorId(indicatorId);
 	const hasTranspiledMainBody = typeof mainBody === "string" && mainBody.trim().length > 0;
 	const useSessionBgMetadata = bgcolors && bgcolors.length > 0 && !hasTranspiledMainBody;
+	const hasAutoBgColorer = (options.autoBgColorerForBoxes ?? false) && hasTranspiledMainBody && typeof mainBody === "string" && mainBody.includes("box.new(");
+	const AUTO_BG_PLOT_ID = "__auto_bg__";
+	const AUTO_BG_PALETTE_ID = "__auto_bg_palette__";
+	const AUTO_BG_PALETTE_COLORS = {
+		0: { name: "None" },
+		1: { name: "Session 1" },
+		2: { name: "Session 2" },
+		3: { name: "Session 3" },
+		4: { name: "Session 4" },
+		5: { name: "Session 5" },
+		6: { name: "Session 6" },
+		7: { name: "Session 7" }
+	};
+	const AUTO_BG_PALETTE_DEFAULTS = {
+		0: { color: "rgba(0, 0, 0, 0)" },
+		1: { color: "rgba(33, 150, 243, 0.08)" },
+		2: { color: "rgba(244, 67, 54, 0.08)" },
+		3: { color: "rgba(76, 175, 80, 0.08)" },
+		4: { color: "rgba(255, 235, 59, 0.08)" },
+		5: { color: "rgba(156, 39, 176, 0.08)" },
+		6: { color: "rgba(255, 152, 0, 0.08)" },
+		7: { color: "rgba(0, 188, 212, 0.08)" }
+	};
+	const AUTO_BG_VAL_TO_INDEX = {
+		0: 0,
+		1: 1,
+		2: 2,
+		3: 3,
+		4: 4,
+		5: 5,
+		6: 6,
+		7: 7
+	};
 	const nativePlots = [];
 	for (const plot of plots) nativePlots.push({
 		id: plot.id,
@@ -8072,16 +7767,29 @@ function generateStandaloneFactory(options) {
 		type: "bg_colorer",
 		palette: "bgPalette"
 	});
+	else if (hasAutoBgColorer) nativePlots.push({
+		id: AUTO_BG_PLOT_ID,
+		type: "bg_colorer",
+		palette: AUTO_BG_PALETTE_ID
+	});
 	const palettes = useSessionBgMetadata ? { bgPalette: {
 		colors: buildPaletteColors(bgcolors),
 		valToIndex: buildValToIndex(bgcolors)
+	} } : hasAutoBgColorer ? { [AUTO_BG_PALETTE_ID]: {
+		colors: AUTO_BG_PALETTE_COLORS,
+		valToIndex: AUTO_BG_VAL_TO_INDEX
 	} } : {};
-	const paletteDefaults = useSessionBgMetadata ? { bgPalette: { colors: buildPaletteDefaults(bgcolors) } } : {};
+	const paletteDefaults = useSessionBgMetadata ? { bgPalette: { colors: buildPaletteDefaults(bgcolors) } } : hasAutoBgColorer ? { [AUTO_BG_PALETTE_ID]: { colors: AUTO_BG_PALETTE_DEFAULTS } } : {};
 	const styleDefaults = {};
 	if (useSessionBgMetadata) {
 		const avgTransparency = bgcolors.reduce((sum, bg) => sum + bg.transparency, 0) / bgcolors.length;
 		styleDefaults.sessionBg = { transparency: Math.round(avgTransparency) };
-	}
+	} else if (hasAutoBgColorer) styleDefaults[AUTO_BG_PLOT_ID] = {
+		plottype: "bg_colorer",
+		transparency: 85,
+		color: "rgba(0, 0, 0, 0)",
+		trackPrice: false
+	};
 	for (const plot of plots) if (plot.type === "line" || plot.type === "histogram" || plot.type === "area") styleDefaults[plot.id] = {
 		linestyle: 0,
 		linewidth: plot.linewidth || 1,
@@ -8101,6 +7809,7 @@ function generateStandaloneFactory(options) {
 	for (const input of inputs) inputDefaults[input.id] = input.defval;
 	const stylesMetadata = {};
 	if (useSessionBgMetadata) stylesMetadata.sessionBg = { title: "Session Background" };
+	else if (hasAutoBgColorer) stylesMetadata[AUTO_BG_PLOT_ID] = { title: "Session Background" };
 	for (const plot of plots) {
 		const location = plot.type === "shape" || plot.type === "char" ? plot.location === "belowbar" ? "BelowBar" : plot.location === "top" ? "Top" : plot.location === "bottom" ? "Bottom" : plot.location === "absolute" ? "Absolute" : "AboveBar" : void 0;
 		stylesMetadata[plot.id] = {
@@ -8120,7 +7829,7 @@ function generateStandaloneFactory(options) {
 	}));
 	const runtimePreamble = hasTranspiledMainBody ? generatePreamble(usedSources, historicalAccess, mainBody, helperUsage) : "";
 	const runtimeBody = hasTranspiledMainBody ? runtimePreamble + mainBody : "";
-	const mainBodyCode = hasTranspiledMainBody ? generateStandaloneRuntimeMainBody(runtimeBody, nativePlots.length, useSessionBgMetadata) : generateNativeMainBody(inputs, plots, bgcolors, sessionVariables, derivedSessionVariables, booleanInputMap, computedVariables, inputVariableMap, userDeclarationCode, userDeclarationSymbolNames);
+	const mainBodyCode = hasTranspiledMainBody ? generateStandaloneRuntimeMainBody(runtimeBody, nativePlots.length, useSessionBgMetadata || hasAutoBgColorer) : generateNativeMainBody(inputs, plots, bgcolors, sessionVariables, derivedSessionVariables, booleanInputMap, computedVariables, inputVariableMap, userDeclarationCode, userDeclarationSymbolNames);
 	const colorMapLiteral = JSON.stringify(COLOR_MAP, null, 8).replace(/\n/g, "\n      ");
 	return `/**
  * PineJS Indicator Factory
@@ -8133,7 +7842,7 @@ function generateStandaloneFactory(options) {
  *   // Register with Chart Host chart
  */
 
-${hasTranspiledMainBody ? STANDALONE_RUNTIME_HELPERS : ""}
+${hasTranspiledMainBody ? `${STANDALONE_DRAWING_BUNDLE}\n\n${STANDALONE_RUNTIME_HELPERS}` : ""}
 
 function createIndicator(PineJS) {
   const Std = PineJS.Std;
@@ -8151,11 +7860,11 @@ function createIndicator(PineJS) {
       format: { type: 'inherit' },
 
       plots: ${JSON.stringify(nativePlots, null, 8).replace(/\n/g, "\n      ")},
-${useSessionBgMetadata ? `
+${useSessionBgMetadata || hasAutoBgColorer ? `
       palettes: ${JSON.stringify(palettes, null, 8).replace(/\n/g, "\n      ")},
 ` : ""}
       defaults: {
-${useSessionBgMetadata ? `        palettes: ${JSON.stringify(paletteDefaults, null, 10).replace(/\n/g, "\n        ")},
+${useSessionBgMetadata || hasAutoBgColorer ? `        palettes: ${JSON.stringify(paletteDefaults, null, 10).replace(/\n/g, "\n        ")},
 ` : ""}        styles: ${JSON.stringify(styleDefaults, null, 10).replace(/\n/g, "\n        ")},
         inputs: ${JSON.stringify(inputDefaults, null, 10).replace(/\n/g, "\n        ")},
       },
@@ -8176,6 +7885,7 @@ ${hasTranspiledMainBody ? `      const __stubsRaw = __createStubNamespaces();
       let __processedBarKey = null;
       const __requestSecurityState = new Map();
       let __requestSecurityCallCounter = 0;
+      const __bgColorToSlot = new Map();
 ` : ""}
       this.main = function(context, inputCallback) {
 ${mainBodyCode}
@@ -11414,4 +11124,4 @@ function executePineJS(code, indicatorId, indicatorName) {
 //#endregion
 export { MATH_FUNCTION_MAPPINGS as S, getAllPineFunctionNames as _, transpileToStandaloneFactory as a, MULTI_OUTPUT_MAPPINGS as b, compile as c, parse as d, validateInputSize as f, HelperUsage as g, PRICE_SOURCES as h, transpileToPineJS as i, extractMetadata as l, COLOR_MAP as m, executePineJS as n, MAX_INPUT_SIZE as o, generateStandaloneFactory as p, transpile as r, buildFactory as s, canTranspilePineScript as t, generateBody as u, getMappingStats as v, TA_FUNCTION_MAPPINGS as x, TIME_FUNCTION_MAPPINGS as y };
 
-//# sourceMappingURL=src-D12ljUL0.js.map
+//# sourceMappingURL=src-CDOVA01W.js.map

@@ -1576,11 +1576,34 @@ ${compiledScriptBody}
         const _result = _plotValues.slice();
 ${
   hasBgcolors
-    ? `        if (_latestBgColor !== null && _latestBgColor !== undefined) {
-          if (!__bgColorToSlot.has(_latestBgColor)) {
-            __bgColorToSlot.set(_latestBgColor, (__bgColorToSlot.size % 7) + 1);
+    ? `        // Auto bg_colorer slot. Resolve the active box's bgcolor via the
+        // drawing stub (the box whose right edge sits on the current bar),
+        // matching the runtime \`buildIndicatorFactory\` path. Boxes are
+        // extended with \`box.set_right(bar_index)\`, so we drive the stub
+        // with the bar INDEX (not Std.time) — that is the coordinate space
+        // \`box.right\` lives in. Fall back to the latest \`bgcolor()\` call,
+        // then to slot 0 (transparent / "None").
+        let _autoBgColor = null;
+        try {
+          const _rawBox = __stubsRaw && __stubsRaw.box;
+          if (_rawBox && typeof _rawBox.__setBarTime === 'function') {
+            _rawBox.__setBarTime(_resolvedBarIndex);
           }
-          _result.push(__bgColorToSlot.get(_latestBgColor));
+          if (_rawBox && typeof _rawBox.__getActiveBgcolor === 'function') {
+            const _active = _rawBox.__getActiveBgcolor();
+            if (typeof _active === 'string' && _active) _autoBgColor = _active;
+          }
+        } catch (_bgErr) {
+          _autoBgColor = null;
+        }
+        if (_autoBgColor === null && typeof _latestBgColor === 'string' && _latestBgColor) {
+          _autoBgColor = _latestBgColor;
+        }
+        if (_autoBgColor !== null && _autoBgColor !== undefined) {
+          if (!__bgColorToSlot.has(_autoBgColor)) {
+            __bgColorToSlot.set(_autoBgColor, (__bgColorToSlot.size % 7) + 1);
+          }
+          _result.push(__bgColorToSlot.get(_autoBgColor));
         } else {
           _result.push(0);
         }
@@ -4199,6 +4222,53 @@ export function generateStandaloneFactory(
   const hasBgcolors = bgcolors && bgcolors.length > 0;
   const useSessionBgMetadata = hasBgcolors && !hasTranspiledMainBody;
 
+  // Auto bg_colorer for transpiled drawing scripts. Mirrors the runtime
+  // `buildIndicatorFactory` path (see `hasAutoBgColorer` there): scripts
+  // that draw `box.new(..., bgcolor=...)` highlight bands have NO `plot()`
+  // output, so without this the standalone metainfo declares ZERO plots —
+  // TradingView then never calls `main()`, the `__visualEvents` side
+  // channel never drains to the host renderer, and nothing paints. Adding
+  // a single bg_colorer plot gives TV a real plot to run + a session-tint
+  // fallback band. Gated on the same `autoBgColorerForBoxes` option the
+  // runtime path honors so behavior is symmetric across both compile paths.
+  const hasAutoBgColorer =
+    (options.autoBgColorerForBoxes ?? false) &&
+    hasTranspiledMainBody &&
+    typeof mainBody === 'string' &&
+    mainBody.includes('box.new(');
+  const AUTO_BG_PLOT_ID = '__auto_bg__';
+  const AUTO_BG_PALETTE_ID = '__auto_bg_palette__';
+  const AUTO_BG_PALETTE_COLORS: Record<number, { name: string }> = {
+    0: { name: 'None' },
+    1: { name: 'Session 1' },
+    2: { name: 'Session 2' },
+    3: { name: 'Session 3' },
+    4: { name: 'Session 4' },
+    5: { name: 'Session 5' },
+    6: { name: 'Session 6' },
+    7: { name: 'Session 7' },
+  };
+  const AUTO_BG_PALETTE_DEFAULTS: Record<number, { color: string }> = {
+    0: { color: 'rgba(0, 0, 0, 0)' },
+    1: { color: 'rgba(33, 150, 243, 0.08)' },
+    2: { color: 'rgba(244, 67, 54, 0.08)' },
+    3: { color: 'rgba(76, 175, 80, 0.08)' },
+    4: { color: 'rgba(255, 235, 59, 0.08)' },
+    5: { color: 'rgba(156, 39, 176, 0.08)' },
+    6: { color: 'rgba(255, 152, 0, 0.08)' },
+    7: { color: 'rgba(0, 188, 212, 0.08)' },
+  };
+  const AUTO_BG_VAL_TO_INDEX: Record<number, number> = {
+    0: 0,
+    1: 1,
+    2: 2,
+    3: 3,
+    4: 4,
+    5: 5,
+    6: 6,
+    7: 7,
+  };
+
   // Build plots array - include bg_colorer if we have bgcolors
   const nativePlots: Array<{ id: string; type: string; palette?: string }> = [];
 
@@ -4217,6 +4287,12 @@ export function generateStandaloneFactory(
       type: 'bg_colorer',
       palette: 'bgPalette',
     });
+  } else if (hasAutoBgColorer) {
+    nativePlots.push({
+      id: AUTO_BG_PLOT_ID,
+      type: 'bg_colorer',
+      palette: AUTO_BG_PALETTE_ID,
+    });
   }
 
   // Build palettes
@@ -4227,7 +4303,14 @@ export function generateStandaloneFactory(
           valToIndex: buildValToIndex(bgcolors),
         },
       }
-    : {};
+    : hasAutoBgColorer
+      ? {
+          [AUTO_BG_PALETTE_ID]: {
+            colors: AUTO_BG_PALETTE_COLORS,
+            valToIndex: AUTO_BG_VAL_TO_INDEX,
+          },
+        }
+      : {};
 
   // Build palette defaults
   const paletteDefaults = useSessionBgMetadata
@@ -4236,7 +4319,13 @@ export function generateStandaloneFactory(
           colors: buildPaletteDefaults(bgcolors),
         },
       }
-    : {};
+    : hasAutoBgColorer
+      ? {
+          [AUTO_BG_PALETTE_ID]: {
+            colors: AUTO_BG_PALETTE_DEFAULTS,
+          },
+        }
+      : {};
 
   // Build style defaults
   const styleDefaults: Record<string, Record<string, unknown>> = {};
@@ -4245,6 +4334,13 @@ export function generateStandaloneFactory(
     const avgTransparency =
       bgcolors.reduce((sum, bg) => sum + bg.transparency, 0) / bgcolors.length;
     styleDefaults.sessionBg = { transparency: Math.round(avgTransparency) };
+  } else if (hasAutoBgColorer) {
+    styleDefaults[AUTO_BG_PLOT_ID] = {
+      plottype: 'bg_colorer',
+      transparency: 85,
+      color: 'rgba(0, 0, 0, 0)',
+      trackPrice: false,
+    };
   }
 
   // Add plot styles for regular plots
@@ -4301,6 +4397,8 @@ export function generateStandaloneFactory(
   > = {};
   if (useSessionBgMetadata) {
     stylesMetadata.sessionBg = { title: 'Session Background' };
+  } else if (hasAutoBgColorer) {
+    stylesMetadata[AUTO_BG_PLOT_ID] = { title: 'Session Background' };
   }
 
   // Add plot style metadata
@@ -4360,7 +4458,7 @@ export function generateStandaloneFactory(
     ? generateStandaloneRuntimeMainBody(
         runtimeBody,
         nativePlots.length,
-        useSessionBgMetadata,
+        useSessionBgMetadata || hasAutoBgColorer,
       )
     : generateNativeMainBody(
         inputs,
@@ -4410,7 +4508,7 @@ function createIndicator(PineJS) {
 
       plots: ${JSON.stringify(nativePlots, null, 8).replace(/\n/g, '\n      ')},
 ${
-  useSessionBgMetadata
+  useSessionBgMetadata || hasAutoBgColorer
     ? `
       palettes: ${JSON.stringify(palettes, null, 8).replace(/\n/g, '\n      ')},
 `
@@ -4418,7 +4516,7 @@ ${
 }
       defaults: {
 ${
-  useSessionBgMetadata
+  useSessionBgMetadata || hasAutoBgColorer
     ? `        palettes: ${JSON.stringify(paletteDefaults, null, 10).replace(/\n/g, '\n        ')},
 `
     : ''
@@ -4444,6 +4542,7 @@ ${
       let __processedBarKey = null;
       const __requestSecurityState = new Map();
       let __requestSecurityCallCounter = 0;
+      const __bgColorToSlot = new Map();
 `
     : ''
 }
