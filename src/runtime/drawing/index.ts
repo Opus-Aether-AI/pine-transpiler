@@ -45,9 +45,14 @@ export interface DrawingNamespaceInstance extends Record<string, unknown> {
   __hasHandle: (value: unknown) => boolean;
 }
 
+export interface DrawingBoxNamespaceInstance extends DrawingNamespaceInstance {
+  __setBarTime: (time: unknown) => void;
+  __getActiveBgcolor: () => unknown;
+}
+
 export interface DrawingRuntime {
   line: DrawingNamespaceInstance;
-  box: DrawingNamespaceInstance;
+  box: DrawingBoxNamespaceInstance;
   label: DrawingNamespaceInstance;
   linefill: DrawingNamespaceInstance;
   table: DrawingNamespaceInstance;
@@ -97,6 +102,14 @@ function toFiniteNumber(value: unknown, fallback = Number.NaN): number {
 function toInteger(value: unknown, fallback = 0): number {
   const candidate = Number(value);
   return Number.isFinite(candidate) ? Math.trunc(candidate) : fallback;
+}
+
+function isColorLike(value: unknown): boolean {
+  if (typeof value !== 'string' || value.length === 0) return false;
+  if (value === 'NaN' || value === 'na') return false;
+  return (
+    value.startsWith('#') || value.startsWith('rgb') || value.startsWith('hsl')
+  );
 }
 
 function asHandle(value: unknown): DrawingHandle | undefined {
@@ -527,6 +540,32 @@ export function createDrawingNamespace(
 
   base.__hasHandle = hasHandle;
 
+  if (descriptor.name === 'box') {
+    let currentBarTime = Number.NaN;
+    base.__setBarTime = (time: unknown) => {
+      const value = Number(time);
+      if (Number.isFinite(value)) {
+        currentBarTime = value;
+      }
+    };
+    base.__getActiveBgcolor = (): unknown => {
+      if (!Number.isFinite(currentBarTime)) return null;
+      let active: DrawingHandle | null = null;
+      for (const handle of store.values()) {
+        if (
+          typeof handle.right === 'number' &&
+          handle.right === currentBarTime
+        ) {
+          active = handle;
+        }
+      }
+      if (!active) return null;
+      if (isColorLike(active.bgcolor)) return active.bgcolor;
+      if (isColorLike(active.border_color)) return active.border_color;
+      return null;
+    };
+  }
+
   for (const constant of descriptor.constants) {
     base[constant.name] = constant.value;
   }
@@ -540,7 +579,10 @@ export function createDrawingNamespace(
 export function createDrawingRuntime(sink: DrawingEventSink): DrawingRuntime {
   return {
     line: createDrawingNamespace(DRAWING_REGISTRY.line, sink),
-    box: createDrawingNamespace(DRAWING_REGISTRY.box, sink),
+    box: createDrawingNamespace(
+      DRAWING_REGISTRY.box,
+      sink,
+    ) as DrawingBoxNamespaceInstance,
     label: createDrawingNamespace(DRAWING_REGISTRY.label, sink),
     linefill: createDrawingNamespace(DRAWING_REGISTRY.linefill, sink),
     table: createDrawingNamespace(DRAWING_REGISTRY.table, sink),
