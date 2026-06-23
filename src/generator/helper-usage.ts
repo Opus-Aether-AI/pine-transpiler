@@ -163,7 +163,7 @@ const BODY_SCAN_PATTERNS: Record<HelperCategory, RegExp> = {
   string: /\b_str[A-Z]/,
   utility: /_pineNa\(|_pineNz\(|_pineFixnan\(/,
   state:
-    /_pineVar\(|_pineVarip\(|_pineSetVar\(|_pineSetVarip\(|_pineScopeKey\(/,
+    /_pineVar\(|_pineVarip\(|_pineSetVar\(|_pineSetVarip\(|_pineScopeKey\(|_pineState\.methodImpls/,
 };
 
 /**

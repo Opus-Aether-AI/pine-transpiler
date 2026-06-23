@@ -173,12 +173,14 @@ export function transpileToStandaloneFactory(
   try {
     const ast = parse(code);
     const metadata = extractMetadata(ast);
-    const mainBody = generateBody(ast, metadata.historicalAccess);
+    const helperUsage = new HelperUsage();
+    const mainBody = generateBody(ast, metadata.historicalAccess, helperUsage);
     const factoryCode = buildStandaloneFactoryCode(metadata, mainBody, {
       indicatorId,
       indicatorName,
       autoBgColorerForBoxes: options?.autoBgColorerForBoxes ?? false,
       ast,
+      helperUsage,
     });
     return { success: true, factoryCode };
   } catch (error) {

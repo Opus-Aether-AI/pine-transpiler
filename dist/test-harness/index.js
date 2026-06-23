@@ -1,4 +1,4 @@
-import { i as transpileToPineJS } from "../src-CXMTIVyB.js";
+import { i as transpileToPineJS } from "../src-sXiG9d9L.js";
 //#region src/test-harness/descriptor.ts
 function toMessage$1(error) {
 	if (error instanceof Error) return error.message;
@@ -342,7 +342,7 @@ function createHarnessRuntime(options) {
 			sma: (series, length, _ctx) => sma(series, length),
 			ema: (series, length, _ctx) => ema(series, length),
 			rsi: (series, length, _ctx) => rsi(series, length),
-			tr: (_ctx) => {
+			tr: (..._args) => {
 				const b = currentBar();
 				return b ? b.high - b.low : NaN;
 			},

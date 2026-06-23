@@ -830,8 +830,14 @@ function vline(_pine_this) {
   }
 }
 const _pineMethodProto_13 = (typeof ts_helper === 'function' && ts_helper.prototype) ? ts_helper.prototype : null;
+const _pineMethodKey_13 = "ts_helper.vline";
+if (!_pineState.methodImpls) _pineState.methodImpls = Object.create(null);
+_pineState.methodImpls[_pineMethodKey_13] = vline;
 if (_pineMethodProto_13 && typeof _pineMethodProto_13.vline !== 'function') {
-  _pineMethodProto_13.vline = function() { return vline(this); };
+  _pineMethodProto_13.vline = function() {
+    const _pineImpl = _pineState.methodImpls[_pineMethodKey_13];
+    return typeof _pineImpl === 'function' ? _pineImpl(this) : undefined;
+  };
 }
 function vlines() {
   if (tf_limit_is_equal_or_more_chart_tf) {
@@ -867,8 +873,14 @@ function hz_line(_pine_this) {
   }
 }
 const _pineMethodProto_15 = (typeof lines_helper === 'function' && lines_helper.prototype) ? lines_helper.prototype : null;
+const _pineMethodKey_15 = "lines_helper.hz_line";
+if (!_pineState.methodImpls) _pineState.methodImpls = Object.create(null);
+_pineState.methodImpls[_pineMethodKey_15] = hz_line;
 if (_pineMethodProto_15 && typeof _pineMethodProto_15.hz_line !== 'function') {
-  _pineMethodProto_15.hz_line = function() { return hz_line(this); };
+  _pineMethodProto_15.hz_line = function() {
+    const _pineImpl = _pineState.methodImpls[_pineMethodKey_15];
+    return typeof _pineImpl === 'function' ? _pineImpl(this) : undefined;
+  };
 }
 function hz_lines() {
   if (tf_limit_is_equal_or_more_chart_tf) {
@@ -1061,8 +1073,14 @@ function manage_kz(_pine_this) {
   }
 }
 const _pineMethodProto_21 = (typeof kz_helper === 'function' && kz_helper.prototype) ? kz_helper.prototype : null;
+const _pineMethodKey_21 = "kz_helper.manage_kz";
+if (!_pineState.methodImpls) _pineState.methodImpls = Object.create(null);
+_pineState.methodImpls[_pineMethodKey_21] = manage_kz;
 if (_pineMethodProto_21 && typeof _pineMethodProto_21.manage_kz !== 'function') {
-  _pineMethodProto_21.manage_kz = function() { return manage_kz(this); };
+  _pineMethodProto_21.manage_kz = function() {
+    const _pineImpl = _pineState.methodImpls[_pineMethodKey_21];
+    return typeof _pineImpl === 'function' ? _pineImpl(this) : undefined;
+  };
 }
 for (const [_, value] of _kz.entries()) {
   manage_kz(value);
@@ -1105,8 +1123,14 @@ function set_table(tbl, kz, row, txt, t, col) {
   }
 }
 const _pineMethodProto_23 = (typeof table === 'function' && table.prototype) ? table.prototype : null;
+const _pineMethodKey_23 = "table.set_table";
+if (!_pineState.methodImpls) _pineState.methodImpls = Object.create(null);
+_pineState.methodImpls[_pineMethodKey_23] = set_table;
 if (_pineMethodProto_23 && typeof _pineMethodProto_23.set_table !== 'function') {
-  _pineMethodProto_23.set_table = function(kz, row, txt, t, col) { return set_table(this, kz, row, txt, t, col); };
+  _pineMethodProto_23.set_table = function(kz, row, txt, t, col) {
+    const _pineImpl = _pineState.methodImpls[_pineMethodKey_23];
+    return typeof _pineImpl === 'function' ? _pineImpl(this, kz, row, txt, t, col) : undefined;
+  };
 }
 if ((show_range && barstate.islast)) {
   var tbl = _pineVar("tbl", () => (table.new(range_pos, 10, 10, chart.bg_color, chart.fg_color, 2, chart.fg_color, 1)));
