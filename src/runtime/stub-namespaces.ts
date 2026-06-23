@@ -71,6 +71,16 @@ export interface LineStub {
   [key: string]: unknown;
 }
 
+/** Namespace for linefill drawing functions */
+export interface LinefillStub {
+  new: (...args: unknown[]) => DrawingHandle;
+  delete: (linefillObj: unknown) => void;
+  set_color: (linefillObj: unknown, color: unknown) => void;
+  get_line1: (linefillObj: unknown) => unknown;
+  get_line2: (linefillObj: unknown) => unknown;
+  [key: string]: unknown;
+}
+
 /** Namespace for label functions */
 export interface LabelStub {
   new: (...args: unknown[]) => DrawingHandle;
@@ -148,6 +158,7 @@ export interface BarstateContext {
 export interface StubNamespaces {
   box: BoxStub;
   line: LineStub;
+  linefill: LinefillStub;
   label: LabelStub;
   table: TableStub;
   str: StrStub;
@@ -250,6 +261,8 @@ function makeLineNamespace(): LineStub {
     const h = resolveHandle(lineObj, lineStore);
     return h ? toNumber(h.y2) : Number.NaN;
   };
+  const hasHandle = (lineObj: unknown): boolean =>
+    resolveHandle(lineObj, lineStore) !== undefined;
 
   const attachLineMethods = (h: DrawingHandle): void => {
     if (typeof h.delete !== 'function') {
@@ -303,6 +316,7 @@ function makeLineNamespace(): LineStub {
     get_x2: getX2,
     get_y1: getY1,
     get_y2: getY2,
+    __hasHandle: hasHandle,
     // Pine v6 line style constants. Emitted as bare suffix strings
     // (without the `line.style_` prefix) so host renderers can switch
     // on them directly. Equality with `line.style_solid` etc. in the
@@ -317,6 +331,73 @@ function makeLineNamespace(): LineStub {
   };
 
   return withConstantFallback(line, 'line') as LineStub;
+}
+
+function makeLinefillNamespace(): LinefillStub {
+  let nextId = 1;
+  const linefillStore = new Map<number, DrawingHandle>();
+
+  const deleteLinefill = (linefillObj: unknown) => {
+    const h = resolveHandle(linefillObj, linefillStore);
+    if (!h) return;
+    h.__deleted = true;
+    linefillStore.delete(h.__id);
+  };
+
+  const setColor = (linefillObj: unknown, color: unknown) => {
+    const h = resolveHandle(linefillObj, linefillStore);
+    if (!h) return;
+    h.color = color;
+  };
+
+  const getLine1 = (linefillObj: unknown): unknown => {
+    const h = resolveHandle(linefillObj, linefillStore);
+    return h?.line1;
+  };
+
+  const getLine2 = (linefillObj: unknown): unknown => {
+    const h = resolveHandle(linefillObj, linefillStore);
+    return h?.line2;
+  };
+  const hasHandle = (linefillObj: unknown): boolean =>
+    resolveHandle(linefillObj, linefillStore) !== undefined;
+
+  const attachLinefillMethods = (h: DrawingHandle): void => {
+    if (typeof h.delete !== 'function') {
+      h.delete = () => deleteLinefill(h);
+    }
+    if (typeof h.set_color !== 'function') {
+      h.set_color = (color: unknown) => setColor(h, color);
+    }
+    if (typeof h.get_line1 !== 'function') {
+      h.get_line1 = () => getLine1(h);
+    }
+    if (typeof h.get_line2 !== 'function') {
+      h.get_line2 = () => getLine2(h);
+    }
+  };
+
+  const linefill: Record<string, unknown> = {
+    new: (...args: unknown[]) => {
+      const h: DrawingHandle = {
+        __id: nextId++,
+        __deleted: false,
+        line1: args[0],
+        line2: args[1],
+        color: args[2],
+      };
+      attachLinefillMethods(h);
+      linefillStore.set(h.__id, h);
+      return h;
+    },
+    delete: deleteLinefill,
+    set_color: setColor,
+    get_line1: getLine1,
+    get_line2: getLine2,
+    __hasHandle: hasHandle,
+  };
+
+  return withConstantFallback(linefill, 'linefill') as LinefillStub;
 }
 
 function isColorLike(v: unknown): boolean {
@@ -410,6 +491,8 @@ function makeBoxNamespace(): BoxStub {
     const h = resolveHandle(boxObj, boxStore);
     return h ? toNumber(h.right) : Number.NaN;
   };
+  const hasHandle = (boxObj: unknown): boolean =>
+    resolveHandle(boxObj, boxStore) !== undefined;
 
   const attachBoxMethods = (h: DrawingHandle): void => {
     if (typeof h.delete !== 'function') {
@@ -498,6 +581,7 @@ function makeBoxNamespace(): BoxStub {
     get_right: getRight,
     get_top: getTop,
     get_bottom: getBottom,
+    __hasHandle: hasHandle,
     // Introspection used by the factory to drive an auto-generated
     // bg_colorer plot. Not part of Pine's public box API; consumers
     // outside the factory should ignore these.
@@ -587,6 +671,8 @@ function makeLabelNamespace(): LabelStub {
     const h = resolveHandle(labelObj, labelStore);
     return h ? toNumber(h.y) : Number.NaN;
   };
+  const hasHandle = (labelObj: unknown): boolean =>
+    resolveHandle(labelObj, labelStore) !== undefined;
 
   const attachLabelMethods = (h: DrawingHandle): void => {
     if (typeof h.delete !== 'function') {
@@ -652,6 +738,7 @@ function makeLabelNamespace(): LabelStub {
     set_x: setX,
     set_y: setY,
     get_y: getY,
+    __hasHandle: hasHandle,
     // Pine v6 label style constants. Emitted as bare suffix strings
     // (without the `label.style_` prefix) so host renderers can map
     // them directly to shape/position overrides. Position-style values
@@ -738,6 +825,8 @@ function makeTableNamespace(): TableStub {
     const endRow = toInteger(args[4], startRow);
     t.merges.push([startCol, startRow, endCol, endRow]);
   };
+  const hasHandle = (tableObj: unknown): boolean =>
+    resolveHandle(tableObj, tableStore) !== undefined;
 
   const attachTableMethods = (t: TableHandle): void => {
     if (typeof t.cell !== 'function') {
@@ -769,6 +858,7 @@ function makeTableNamespace(): TableStub {
     cell: tableCell,
     clear: tableClear,
     merge_cells: tableMergeCells,
+    __hasHandle: hasHandle,
   };
 
   return withConstantFallback(table, 'table') as TableStub;
@@ -796,6 +886,7 @@ export function createStubNamespaces(): StubNamespaces {
   return {
     box: makeBoxNamespace(),
     line: makeLineNamespace(),
+    linefill: makeLinefillNamespace(),
     label: makeLabelNamespace(),
     table: makeTableNamespace(),
     str: ((): StrStub => {

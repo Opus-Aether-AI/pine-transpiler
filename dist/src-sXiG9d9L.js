@@ -626,20 +626,8 @@ const StdPlus = {
      * Cleanup cached series to free memory
      */
     cleanup: function(ctx) {
-        if (ctx._hma_diff_series) {
-            ctx._hma_diff_series.clear();
-        }
-        if (ctx._macd_series) {
-            ctx._macd_series.clear();
-        }
-        if (ctx._wpr_series) {
-            ctx._wpr_series = null;
-        }
         if (ctx._cmo_series) {
             ctx._cmo_series.clear();
-        }
-        if (ctx._ao_series) {
-            ctx._ao_series = null;
         }
     }
 };
@@ -2652,7 +2640,7 @@ var BODY_SCAN_PATTERNS = {
 	color: /\b_color[A-Z]/,
 	string: /\b_str[A-Z]/,
 	utility: /_pineNa\(|_pineNz\(|_pineFixnan\(/,
-	state: /_pineVar\(|_pineVarip\(|_pineSetVar\(|_pineSetVarip\(|_pineScopeKey\(/
+	state: /_pineVar\(|_pineVarip\(|_pineSetVar\(|_pineSetVarip\(|_pineScopeKey\(|_pineState\.methodImpls/
 };
 /**
 * Accumulating set of helper categories used during code generation.
@@ -2808,6 +2796,11 @@ var DRAWING_CANONICAL_ARG_ORDER = {
 		"text_font_family",
 		"force_overlay",
 		"text_formatting"
+	],
+	"linefill.new": [
+		"line1",
+		"line2",
+		"color"
 	],
 	"table.new": [
 		"position",
@@ -3640,9 +3633,15 @@ var StatementGenerator = class {
 				const methodParamsDecl = methodParams.join(", ");
 				const callArgs = methodParams.length > 0 ? `, ${methodParamsDecl}` : "";
 				const receiverProtoVar = `_pineMethodProto_${scopeOrdinal}`;
+				const methodKeyVar = `_pineMethodKey_${scopeOrdinal}`;
+				const methodRegistryKey = `${receiverName}.${originalName}`;
+				this.expressionGen.helperUsage.mark("state");
 				out += `\n${indent(this.indentLevel)}const ${receiverProtoVar} = (typeof ${receiverName} === 'function' && ${receiverName}.prototype) ? ${receiverName}.prototype : null;`;
-				out += `\n${indent(this.indentLevel)}if (${receiverProtoVar} && typeof ${receiverProtoVar}.${name} !== 'function') {\n${indent(this.indentLevel, 1)}${receiverProtoVar}.${name} = function(${methodParamsDecl}) { return ${name}(this${callArgs}); };\n${indent(this.indentLevel)}}`;
-				if (originalName !== name) out += `\n${indent(this.indentLevel)}if (${receiverProtoVar} && typeof ${receiverProtoVar}[${JSON.stringify(originalName)}] !== 'function') {\n${indent(this.indentLevel, 1)}${receiverProtoVar}[${JSON.stringify(originalName)}] = function(${methodParamsDecl}) { return ${name}(this${callArgs}); };\n${indent(this.indentLevel)}}`;
+				out += `\n${indent(this.indentLevel)}const ${methodKeyVar} = ${JSON.stringify(methodRegistryKey)};`;
+				out += `\n${indent(this.indentLevel)}if (!_pineState.methodImpls) _pineState.methodImpls = Object.create(null);`;
+				out += `\n${indent(this.indentLevel)}_pineState.methodImpls[${methodKeyVar}] = ${name};`;
+				out += `\n${indent(this.indentLevel)}if (${receiverProtoVar} && typeof ${receiverProtoVar}.${name} !== 'function') {\n${indent(this.indentLevel, 1)}${receiverProtoVar}.${name} = function(${methodParamsDecl}) {\n${indent(this.indentLevel, 2)}const _pineImpl = _pineState.methodImpls[${methodKeyVar}];\n${indent(this.indentLevel, 2)}return typeof _pineImpl === 'function' ? _pineImpl(this${callArgs}) : undefined;\n${indent(this.indentLevel, 1)}};\n${indent(this.indentLevel)}}`;
+				if (originalName !== name) out += `\n${indent(this.indentLevel)}if (${receiverProtoVar} && typeof ${receiverProtoVar}[${JSON.stringify(originalName)}] !== 'function') {\n${indent(this.indentLevel, 1)}${receiverProtoVar}[${JSON.stringify(originalName)}] = function(${methodParamsDecl}) {\n${indent(this.indentLevel, 2)}const _pineImpl = _pineState.methodImpls[${methodKeyVar}];\n${indent(this.indentLevel, 2)}return typeof _pineImpl === 'function' ? _pineImpl(this${callArgs}) : undefined;\n${indent(this.indentLevel, 1)}};\n${indent(this.indentLevel)}}`;
 			}
 		}
 		return out;
@@ -3931,6 +3930,7 @@ function makeLineNamespace() {
 		const h = resolveHandle(lineObj, lineStore);
 		return h ? toNumber(h.y2) : NaN;
 	};
+	const hasHandle = (lineObj) => resolveHandle(lineObj, lineStore) !== void 0;
 	const attachLineMethods = (h) => {
 		if (typeof h.delete !== "function") h.delete = () => deleteLine(h);
 		if (typeof h.set_x2 !== "function") h.set_x2 = (x2) => setX2(h, x2);
@@ -3966,6 +3966,7 @@ function makeLineNamespace() {
 		get_x2: getX2,
 		get_y1: getY1,
 		get_y2: getY2,
+		__hasHandle: hasHandle,
 		style_solid: "solid",
 		style_dashed: "dashed",
 		style_dotted: "dotted",
@@ -3973,6 +3974,53 @@ function makeLineNamespace() {
 		style_arrow_right: "arrow_right",
 		style_arrow_both: "arrow_both"
 	}, "line");
+}
+function makeLinefillNamespace() {
+	let nextId = 1;
+	const linefillStore = /* @__PURE__ */ new Map();
+	const deleteLinefill = (linefillObj) => {
+		const h = resolveHandle(linefillObj, linefillStore);
+		if (!h) return;
+		h.__deleted = true;
+		linefillStore.delete(h.__id);
+	};
+	const setColor = (linefillObj, color) => {
+		const h = resolveHandle(linefillObj, linefillStore);
+		if (!h) return;
+		h.color = color;
+	};
+	const getLine1 = (linefillObj) => {
+		return resolveHandle(linefillObj, linefillStore)?.line1;
+	};
+	const getLine2 = (linefillObj) => {
+		return resolveHandle(linefillObj, linefillStore)?.line2;
+	};
+	const hasHandle = (linefillObj) => resolveHandle(linefillObj, linefillStore) !== void 0;
+	const attachLinefillMethods = (h) => {
+		if (typeof h.delete !== "function") h.delete = () => deleteLinefill(h);
+		if (typeof h.set_color !== "function") h.set_color = (color) => setColor(h, color);
+		if (typeof h.get_line1 !== "function") h.get_line1 = () => getLine1(h);
+		if (typeof h.get_line2 !== "function") h.get_line2 = () => getLine2(h);
+	};
+	return withConstantFallback({
+		new: (...args) => {
+			const h = {
+				__id: nextId++,
+				__deleted: false,
+				line1: args[0],
+				line2: args[1],
+				color: args[2]
+			};
+			attachLinefillMethods(h);
+			linefillStore.set(h.__id, h);
+			return h;
+		},
+		delete: deleteLinefill,
+		set_color: setColor,
+		get_line1: getLine1,
+		get_line2: getLine2,
+		__hasHandle: hasHandle
+	}, "linefill");
 }
 function isColorLike(v) {
 	if (typeof v !== "string" || v.length === 0) return false;
@@ -4050,6 +4098,7 @@ function makeBoxNamespace() {
 		const h = resolveHandle(boxObj, boxStore);
 		return h ? toNumber(h.right) : NaN;
 	};
+	const hasHandle = (boxObj) => resolveHandle(boxObj, boxStore) !== void 0;
 	const attachBoxMethods = (h) => {
 		if (typeof h.delete !== "function") h.delete = () => deleteBox(h);
 		if (typeof h.set_left !== "function") h.set_left = (left) => setLeft(h, left);
@@ -4105,6 +4154,7 @@ function makeBoxNamespace() {
 		get_right: getRight,
 		get_top: getTop,
 		get_bottom: getBottom,
+		__hasHandle: hasHandle,
 		__setBarTime: (t) => {
 			const n = Number(t);
 			if (Number.isFinite(n)) currentBarTime = n;
@@ -4174,6 +4224,7 @@ function makeLabelNamespace() {
 		const h = resolveHandle(labelObj, labelStore);
 		return h ? toNumber(h.y) : NaN;
 	};
+	const hasHandle = (labelObj) => resolveHandle(labelObj, labelStore) !== void 0;
 	const attachLabelMethods = (h) => {
 		if (typeof h.delete !== "function") h.delete = () => deleteLabel(h);
 		if (typeof h.set_text !== "function") h.set_text = (text) => setText(h, text);
@@ -4217,6 +4268,7 @@ function makeLabelNamespace() {
 		set_x: setX,
 		set_y: setY,
 		get_y: getY,
+		__hasHandle: hasHandle,
 		style_none: "none",
 		style_xcross: "xcross",
 		style_cross: "cross",
@@ -4291,6 +4343,7 @@ function makeTableNamespace() {
 			endRow
 		]);
 	};
+	const hasHandle = (tableObj) => resolveHandle(tableObj, tableStore) !== void 0;
 	const attachTableMethods = (t) => {
 		if (typeof t.cell !== "function") t.cell = (...args) => tableCell(t, ...args);
 		if (typeof t.clear !== "function") t.clear = (...args) => tableClear(t, ...args);
@@ -4313,7 +4366,8 @@ function makeTableNamespace() {
 		},
 		cell: tableCell,
 		clear: tableClear,
-		merge_cells: tableMergeCells
+		merge_cells: tableMergeCells,
+		__hasHandle: hasHandle
 	}, "table");
 }
 /**
@@ -4324,6 +4378,7 @@ function createStubNamespaces() {
 	return {
 		box: makeBoxNamespace(),
 		line: makeLineNamespace(),
+		linefill: makeLinefillNamespace(),
 		label: makeLabelNamespace(),
 		table: makeTableNamespace(),
 		str: (() => {
@@ -4607,6 +4662,7 @@ function __createLineNamespace() {
     const h = __resolveHandle(lineObj, lineStore);
     return h ? __toNumber(h.y2) : Number.NaN;
   };
+  const hasHandle = (lineObj) => __resolveHandle(lineObj, lineStore) !== undefined;
   const attachMethods = (h) => {
     if (typeof h.delete !== 'function') h.delete = () => remove(h);
     if (typeof h.set_x2 !== 'function') h.set_x2 = (x2) => setX2(h, x2);
@@ -4645,11 +4701,64 @@ function __createLineNamespace() {
     get_x2: getX2,
     get_y1: getY1,
     get_y2: getY2,
+    __hasHandle: hasHandle,
     style_solid: 'solid',
     style_dotted: 'dotted',
     style_dashed: 'dashed',
   };
   return __withConstantFallback(line, 'line');
+}
+
+function __createLinefillNamespace() {
+  let nextId = 1;
+  const linefillStore = new Map();
+  const remove = (linefillObj) => {
+    const h = __resolveHandle(linefillObj, linefillStore);
+    if (!h) return;
+    h.__deleted = true;
+    linefillStore.delete(h.__id);
+  };
+  const setColor = (linefillObj, color) => {
+    const h = __resolveHandle(linefillObj, linefillStore);
+    if (!h) return;
+    h.color = color;
+  };
+  const getLine1 = (linefillObj) => {
+    const h = __resolveHandle(linefillObj, linefillStore);
+    return h ? h.line1 : undefined;
+  };
+  const getLine2 = (linefillObj) => {
+    const h = __resolveHandle(linefillObj, linefillStore);
+    return h ? h.line2 : undefined;
+  };
+  const hasHandle = (linefillObj) =>
+    __resolveHandle(linefillObj, linefillStore) !== undefined;
+  const attachMethods = (h) => {
+    if (typeof h.delete !== 'function') h.delete = () => remove(h);
+    if (typeof h.set_color !== 'function') h.set_color = (color) => setColor(h, color);
+    if (typeof h.get_line1 !== 'function') h.get_line1 = () => getLine1(h);
+    if (typeof h.get_line2 !== 'function') h.get_line2 = () => getLine2(h);
+  };
+  const linefill = {
+    new: (...args) => {
+      const h = {
+        __id: nextId++,
+        __deleted: false,
+        line1: args[0],
+        line2: args[1],
+        color: args[2],
+      };
+      attachMethods(h);
+      linefillStore.set(h.__id, h);
+      return h;
+    },
+    delete: remove,
+    set_color: setColor,
+    get_line1: getLine1,
+    get_line2: getLine2,
+    __hasHandle: hasHandle,
+  };
+  return __withConstantFallback(linefill, 'linefill');
 }
 
 function __createBoxNamespace() {
@@ -4723,6 +4832,7 @@ function __createBoxNamespace() {
     const h = __resolveHandle(boxObj, boxStore);
     return h ? __toNumber(h.bottom) : Number.NaN;
   };
+  const hasHandle = (boxObj) => __resolveHandle(boxObj, boxStore) !== undefined;
   const attachMethods = (h) => {
     if (typeof h.delete !== 'function') h.delete = () => remove(h);
     if (typeof h.set_left !== 'function') h.set_left = (left) => setLeft(h, left);
@@ -4776,6 +4886,7 @@ function __createBoxNamespace() {
     get_right: getRight,
     get_top: getTop,
     get_bottom: getBottom,
+    __hasHandle: hasHandle,
     __setBarTime: (t) => {
       const n = Number(t);
       if (Number.isFinite(n)) currentBarTime = n;
@@ -4846,6 +4957,8 @@ function __createLabelNamespace() {
     const h = __resolveHandle(labelObj, labelStore);
     return h ? __toNumber(h.y) : Number.NaN;
   };
+  const hasHandle = (labelObj) =>
+    __resolveHandle(labelObj, labelStore) !== undefined;
   const attachMethods = (h) => {
     if (typeof h.delete !== 'function') h.delete = () => remove(h);
     if (typeof h.set_text !== 'function') h.set_text = (text) => setText(h, text);
@@ -4887,6 +5000,7 @@ function __createLabelNamespace() {
     set_x: setX,
     set_y: setY,
     get_y: getY,
+    __hasHandle: hasHandle,
     style_label_up: 'label_up',
     style_label_down: 'label_down',
     style_label_left: 'label_left',
@@ -4928,6 +5042,8 @@ function __createTableNamespace() {
       __toInteger(args[4], 0),
     ]);
   };
+  const hasHandle = (tableObj) =>
+    __resolveHandle(tableObj, tableStore) !== undefined;
   const table = {
     new: (...args) => {
       const t = {
@@ -4948,6 +5064,7 @@ function __createTableNamespace() {
     cell,
     clear,
     merge_cells,
+    __hasHandle: hasHandle,
   };
   return __withConstantFallback(table, 'table');
 }
@@ -5008,6 +5125,7 @@ function __createStubNamespaces() {
   return {
     box: __createBoxNamespace(),
     line: __createLineNamespace(),
+    linefill: __createLinefillNamespace(),
     label: __createLabelNamespace(),
     table: __createTableNamespace(),
     str: __createStrNamespace(),
@@ -5165,6 +5283,8 @@ function __normalizeVisualStyle(call, args) {
       if (normalizedCall === 'line.new') {
         colorAt(6);
         linewidth = numberAt(8);
+      } else if (normalizedCall === 'linefill.new') {
+        colorAt(2);
       } else if (normalizedCall === 'box.new') {
         colorAt(4);
         colorAt(9);
@@ -5213,7 +5333,7 @@ function __normalizeVisualStyle(call, args) {
   };
 }
 
-function __wrapVisualHandle(namespace, handle, ctx) {
+function __wrapVisualHandle(namespace, handle, ctx, isLiveHandle) {
   if (typeof handle !== 'object' || handle === null) return handle;
   const handleId = __extractHandleId(handle);
   return new Proxy(handle, {
@@ -5222,7 +5342,12 @@ function __wrapVisualHandle(namespace, handle, ctx) {
       if (typeof prop !== 'string') return value;
       if (typeof value !== 'function') return value;
       return (...args) => {
-        if (handleId !== undefined) {
+        const shouldEmit =
+          handleId !== undefined &&
+          (typeof isLiveHandle === 'function'
+            ? Boolean(isLiveHandle(target))
+            : true);
+        if (shouldEmit) {
           ctx.pushEvent({
             call: namespace + '.' + prop,
             args,
@@ -5243,10 +5368,23 @@ function __createVisualNamespaceProxy(namespace, ns, ctx) {
       if (typeof prop !== 'string') return value;
       if (typeof value !== 'function') return value;
       return (...args) => {
+        const hasLiveHandle =
+          typeof target.__hasHandle === 'function'
+            ? (valueToCheck) => Boolean(target.__hasHandle(valueToCheck))
+            : undefined;
+        const pendingHandle =
+          prop === 'new' ? undefined : __extractHandleId(args[0]);
+        const shouldEmit =
+          prop === 'new'
+            ? false
+            : pendingHandle !== undefined &&
+              (typeof hasLiveHandle === 'function'
+                ? hasLiveHandle(args[0])
+                : true);
         const result = value.apply(target, args);
         const handleId =
           prop === 'new' ? __extractHandleId(result) : __extractHandleId(args[0]);
-        if (handleId !== undefined) {
+        if ((prop === 'new' && handleId !== undefined) || shouldEmit) {
           ctx.pushEvent({
             call: namespace + '.' + prop,
             args,
@@ -5255,7 +5393,7 @@ function __createVisualNamespaceProxy(namespace, ns, ctx) {
           });
         }
         if (prop === 'new') {
-          return __wrapVisualHandle(namespace, result, ctx);
+          return __wrapVisualHandle(namespace, result, ctx, hasLiveHandle);
         }
         return result;
       };
@@ -5267,6 +5405,7 @@ function __createVisualStubs(raw, ctx) {
   return {
     ...raw,
     line: __createVisualNamespaceProxy('line', raw.line, ctx),
+    linefill: __createVisualNamespaceProxy('linefill', raw.linefill, ctx),
     box: __createVisualNamespaceProxy('box', raw.box, ctx),
     label: __createVisualNamespaceProxy('label', raw.label, ctx),
     table: __createVisualNamespaceProxy('table', raw.table, ctx),
@@ -5854,9 +5993,10 @@ function generateStandaloneRuntimeMainBody(runtimeBody, totalPlotCount, hasBgcol
         const timeframe = __createTimeframe(_stdWithCompat, context);
         const math = __createMathNamespace();
         const ta = _stdWithCompat;
-        const color = __colorMap;
+        const color = Object.assign((value) => value, __colorMap);
         const box = __stubs.box;
         const line = __stubs.line;
+        const linefill = __stubs.linefill;
         const label = __stubs.label;
         const table = __stubs.table;
         const str = __stubs.str;
@@ -6166,6 +6306,7 @@ function generateStandaloneRuntimeMainBody(runtimeBody, totalPlotCount, hasBgcol
           barcolor,
           box,
           line,
+          linefill,
           label,
           table,
           str,
@@ -6237,6 +6378,7 @@ ${indentCode(runtimeBody, 10)}
           barcolor,
           box,
           line,
+          linefill,
           label,
           table,
           str,
@@ -6522,7 +6664,8 @@ function normalizeVisualStyle(call, args) {
 			if (normalizedCall === "line.new") {
 				colorAt(6);
 				linewidth = numberAt(8);
-			} else if (normalizedCall === "box.new") {
+			} else if (normalizedCall === "linefill.new") colorAt(2);
+			else if (normalizedCall === "box.new") {
 				colorAt(4);
 				colorAt(9);
 				linewidth = numberAt(5);
@@ -6573,7 +6716,7 @@ function createVisualStdProxy(std, pushEvent, barIndex, options = {}) {
 		};
 	} });
 }
-function wrapVisualHandle(namespace, handle, ctx) {
+function wrapVisualHandle(namespace, handle, ctx, isLiveHandle) {
 	if (typeof handle !== "object" || handle === null) return handle;
 	const handleId = extractHandleId(handle);
 	return new Proxy(handle, { get(target, prop, receiver) {
@@ -6581,7 +6724,7 @@ function wrapVisualHandle(namespace, handle, ctx) {
 		if (typeof prop !== "string") return value;
 		if (typeof value !== "function") return value;
 		return (...args) => {
-			if (handleId !== void 0) ctx.pushEvent({
+			if (handleId !== void 0 && (typeof isLiveHandle === "function" ? isLiveHandle(target) : true)) ctx.pushEvent({
 				call: `${namespace}.${prop}`,
 				args,
 				barIndex: ctx.barIndex,
@@ -6597,15 +6740,18 @@ function createVisualNamespaceProxy(namespace, ns, ctx) {
 		if (typeof prop !== "string") return value;
 		if (typeof value !== "function") return value;
 		return (...args) => {
+			const hasLiveHandle = typeof target.__hasHandle === "function" ? (valueToCheck) => Boolean(target.__hasHandle(valueToCheck)) : void 0;
+			const pendingHandle = prop === "new" ? void 0 : extractHandleId(args[0]);
+			const shouldEmit = prop === "new" ? false : pendingHandle !== void 0 && (typeof hasLiveHandle === "function" ? hasLiveHandle(args[0]) : true);
 			const result = value.apply(target, args);
 			const handleId = prop === "new" ? extractHandleId(result) : extractHandleId(args[0]);
-			if (handleId !== void 0) ctx.pushEvent({
+			if (prop === "new" && handleId !== void 0 || shouldEmit) ctx.pushEvent({
 				call: `${namespace}.${prop}`,
 				args,
 				barIndex: ctx.barIndex,
 				pineHandleId: handleId
 			});
-			if (prop === "new") return wrapVisualHandle(namespace, result, ctx);
+			if (prop === "new") return wrapVisualHandle(namespace, result, ctx, hasLiveHandle);
 			return result;
 		};
 	} });
@@ -6869,7 +7015,7 @@ function buildIndicatorFactory(options) {
 				const _requestSecurityDiagnosticsSeen = /* @__PURE__ */ new Set();
 				let compiledScript;
 				try {
-					compiledScript = new Function("Std", "context", "input", "plot", "indicator", "study", "strategy", "color", "ta", "math", "timeframe", "plotshape", "plotchar", "plotarrow", "hline", "bgcolor", "fill", "barcolor", "box", "line", "label", "table", "str", "syminfo", "barstate", "shape", "location", "size", "alertcondition", "alert", "request", "session", "array", "time", "time_close", "time_tradingday", "bar_index", "hour", "minute", "second", "year", "month", "dayofmonth", "dayofweek", "timestamp", "chart", "format", "string", "log", "xloc", "yloc", "extend", "position", "order", "text", "display", "ticker", "barmerge", "close", "open", "high", "low", "volume", "hl2", "hlc3", "ohlc4", body);
+					compiledScript = new Function("Std", "context", "input", "plot", "indicator", "study", "strategy", "color", "ta", "math", "timeframe", "plotshape", "plotchar", "plotarrow", "hline", "bgcolor", "fill", "barcolor", "box", "line", "linefill", "label", "table", "str", "syminfo", "barstate", "shape", "location", "size", "alertcondition", "alert", "request", "session", "array", "time", "time_close", "time_tradingday", "bar_index", "hour", "minute", "second", "year", "month", "dayofmonth", "dayofweek", "timestamp", "chart", "format", "string", "log", "xloc", "yloc", "extend", "position", "order", "text", "display", "ticker", "barmerge", "close", "open", "high", "low", "volume", "hl2", "hlc3", "ohlc4", body);
 				} catch (e) {
 					console.error("Compilation error", e);
 					const compileErr = appendCspHint(e instanceof Error ? e : new Error(String(e)));
@@ -6891,6 +7037,7 @@ function buildIndicatorFactory(options) {
 				const stubs = {
 					...stubsRaw,
 					line: createVisualNamespaceProxy("line", stubsRaw.line, visualCtx),
+					linefill: createVisualNamespaceProxy("linefill", stubsRaw.linefill, visualCtx),
 					box: createVisualNamespaceProxy("box", stubsRaw.box, visualCtx),
 					label: createVisualNamespaceProxy("label", stubsRaw.label, visualCtx),
 					table: createVisualNamespaceProxy("table", stubsRaw.table, visualCtx)
@@ -7262,7 +7409,7 @@ function buildIndicatorFactory(options) {
 							barIndex: resolvedBarIndex
 						});
 					};
-					const color = COLOR_MAP;
+					const color = Object.assign((value) => value, COLOR_MAP);
 					const shape = {
 						triangleup: "shape_triangle_up",
 						triangledown: "shape_triangle_down",
@@ -7602,7 +7749,7 @@ function buildIndicatorFactory(options) {
 						}
 					};
 					try {
-						compiledScript(stdWithCompatTime, context, input, plot, indicator, study, strategy, color, ta, math, timeframe, plotshape, plotchar, plotarrow, hline, bgcolor, fill, barcolor, stubs.box, stubs.line, stubs.label, stubs.table, stubs.str, syminfo, barstate, shape, location, size, alertcondition, alert, request, session, array, time, time_close, time_tradingday, bar_index, hour, minute, second, year, month, dayofmonth, dayofweek, timestamp, chart, format, string, log, xloc, yloc, extend, position, order, text, display, ticker, barmerge, sources.close, sources.open, sources.high, sources.low, sources.volume, sources.hl2, sources.hlc3, sources.ohlc4);
+						compiledScript(stdWithCompatTime, context, input, plot, indicator, study, strategy, color, ta, math, timeframe, plotshape, plotchar, plotarrow, hline, bgcolor, fill, barcolor, stubs.box, stubs.line, stubs.linefill, stubs.label, stubs.table, stubs.str, syminfo, barstate, shape, location, size, alertcondition, alert, request, session, array, time, time_close, time_tradingday, bar_index, hour, minute, second, year, month, dayofmonth, dayofweek, timestamp, chart, format, string, log, xloc, yloc, extend, position, order, text, display, ticker, barmerge, sources.close, sources.open, sources.high, sources.low, sources.volume, sources.hl2, sources.hlc3, sources.ohlc4);
 						let autoBgSlot = 0;
 						if (hasAutoBgColorer) {
 							const getActive = stubsRaw.box.__getActiveBgcolor;
@@ -10944,6 +11091,7 @@ function buildFactory(metadata, mainBody, options) {
 * with the same metadata-plumbing convention as {@link buildFactory}.
 */
 function buildStandaloneFactoryCode(metadata, mainBody, options) {
+	const helperUsageRecord = options.helperUsage instanceof HelperUsage ? options.helperUsage.toRecord() : options.helperUsage;
 	return generateStandaloneFactory({
 		indicatorId: options.indicatorId,
 		indicatorName: options.indicatorName,
@@ -10956,6 +11104,7 @@ function buildStandaloneFactoryCode(metadata, mainBody, options) {
 		usedSources: metadata.usedSources,
 		historicalAccess: metadata.historicalAccess,
 		mainBody,
+		helperUsage: helperUsageRecord,
 		autoBgColorerForBoxes: options.autoBgColorerForBoxes ?? false,
 		sessionVariables: metadata.sessionVariables,
 		derivedSessionVariables: metadata.derivedSessionVariables,
@@ -11041,13 +11190,15 @@ function transpileToStandaloneFactory(code, indicatorId, indicatorName, options)
 	try {
 		const ast = parse(code);
 		const metadata = extractMetadata(ast);
+		const helperUsage = new HelperUsage();
 		return {
 			success: true,
-			factoryCode: buildStandaloneFactoryCode(metadata, generateBody(ast, metadata.historicalAccess), {
+			factoryCode: buildStandaloneFactoryCode(metadata, generateBody(ast, metadata.historicalAccess, helperUsage), {
 				indicatorId,
 				indicatorName,
 				autoBgColorerForBoxes: options?.autoBgColorerForBoxes ?? false,
-				ast
+				ast,
+				helperUsage
 			})
 		};
 	} catch (error) {
@@ -11114,137 +11265,6 @@ function executePineJS(code, indicatorId, indicatorName) {
 	}
 }
 //#endregion
-Object.defineProperty(exports, "COLOR_MAP", {
-	enumerable: true,
-	get: function() {
-		return COLOR_MAP;
-	}
-});
-Object.defineProperty(exports, "HelperUsage", {
-	enumerable: true,
-	get: function() {
-		return HelperUsage;
-	}
-});
-Object.defineProperty(exports, "MATH_FUNCTION_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return MATH_FUNCTION_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "MAX_INPUT_SIZE", {
-	enumerable: true,
-	get: function() {
-		return MAX_INPUT_SIZE;
-	}
-});
-Object.defineProperty(exports, "MULTI_OUTPUT_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return MULTI_OUTPUT_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "PRICE_SOURCES", {
-	enumerable: true,
-	get: function() {
-		return PRICE_SOURCES;
-	}
-});
-Object.defineProperty(exports, "TA_FUNCTION_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return TA_FUNCTION_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "TIME_FUNCTION_MAPPINGS", {
-	enumerable: true,
-	get: function() {
-		return TIME_FUNCTION_MAPPINGS;
-	}
-});
-Object.defineProperty(exports, "buildFactory", {
-	enumerable: true,
-	get: function() {
-		return buildFactory;
-	}
-});
-Object.defineProperty(exports, "canTranspilePineScript", {
-	enumerable: true,
-	get: function() {
-		return canTranspilePineScript;
-	}
-});
-Object.defineProperty(exports, "compile", {
-	enumerable: true,
-	get: function() {
-		return compile;
-	}
-});
-Object.defineProperty(exports, "executePineJS", {
-	enumerable: true,
-	get: function() {
-		return executePineJS;
-	}
-});
-Object.defineProperty(exports, "extractMetadata", {
-	enumerable: true,
-	get: function() {
-		return extractMetadata;
-	}
-});
-Object.defineProperty(exports, "generateBody", {
-	enumerable: true,
-	get: function() {
-		return generateBody;
-	}
-});
-Object.defineProperty(exports, "generateStandaloneFactory", {
-	enumerable: true,
-	get: function() {
-		return generateStandaloneFactory;
-	}
-});
-Object.defineProperty(exports, "getAllPineFunctionNames", {
-	enumerable: true,
-	get: function() {
-		return getAllPineFunctionNames;
-	}
-});
-Object.defineProperty(exports, "getMappingStats", {
-	enumerable: true,
-	get: function() {
-		return getMappingStats;
-	}
-});
-Object.defineProperty(exports, "parse", {
-	enumerable: true,
-	get: function() {
-		return parse;
-	}
-});
-Object.defineProperty(exports, "transpile", {
-	enumerable: true,
-	get: function() {
-		return transpile;
-	}
-});
-Object.defineProperty(exports, "transpileToPineJS", {
-	enumerable: true,
-	get: function() {
-		return transpileToPineJS;
-	}
-});
-Object.defineProperty(exports, "transpileToStandaloneFactory", {
-	enumerable: true,
-	get: function() {
-		return transpileToStandaloneFactory;
-	}
-});
-Object.defineProperty(exports, "validateInputSize", {
-	enumerable: true,
-	get: function() {
-		return validateInputSize;
-	}
-});
+export { MATH_FUNCTION_MAPPINGS as S, getAllPineFunctionNames as _, transpileToStandaloneFactory as a, MULTI_OUTPUT_MAPPINGS as b, compile as c, parse as d, validateInputSize as f, HelperUsage as g, PRICE_SOURCES as h, transpileToPineJS as i, extractMetadata as l, COLOR_MAP as m, executePineJS as n, MAX_INPUT_SIZE as o, generateStandaloneFactory as p, transpile as r, buildFactory as s, canTranspilePineScript as t, generateBody as u, getMappingStats as v, TA_FUNCTION_MAPPINGS as x, TIME_FUNCTION_MAPPINGS as y };
 
-//# sourceMappingURL=src-Cjh1D7xF.cjs.map
+//# sourceMappingURL=src-sXiG9d9L.js.map
