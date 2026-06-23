@@ -12,6 +12,19 @@ docs/RELEASING.md for the flow and `.github/release-please-config.json`
 for the commit-type → section mapping.
 -->
 
+## [0.4.11](https://github.com/Opus-Aether-AI/pine-transpiler/compare/v0.4.10...v0.4.11) (2026-06-23)
+
+
+### Fixed
+
+* **color:** emit rgba() for transparent colors, not 8-digit hex ([#40](https://github.com/Opus-Aether-AI/pine-transpiler/issues/40) settings + render) ([#54](https://github.com/Opus-Aether-AI/pine-transpiler/issues/54)) ([4912900](https://github.com/Opus-Aether-AI/pine-transpiler/commit/49129002a769ff31d9529cff3767a295617c24da))
+* implement linefill runtime so drawing scripts render ([#40](https://github.com/Opus-Aether-AI/pine-transpiler/issues/40)) ([#49](https://github.com/Opus-Aether-AI/pine-transpiler/issues/49)) ([facf0f6](https://github.com/Opus-Aether-AI/pine-transpiler/commit/facf0f6974e5da425f61a6c2c67f41f4e88a0934))
+
+
+### Changed
+
+* collapse duplicate Pine runtimes into one registry-derived shared runtime (ADR-0001/0002/0003) ([#55](https://github.com/Opus-Aether-AI/pine-transpiler/issues/55)) ([7cb3ca1](https://github.com/Opus-Aether-AI/pine-transpiler/commit/7cb3ca10b8c1c532d4bb34ce97151d76c1461df3))
+
 ## [0.4.10](https://github.com/Opus-Aether-AI/pine-transpiler/compare/v0.4.9...v0.4.10) (2026-06-21)
 
 
