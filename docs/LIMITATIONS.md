@@ -38,6 +38,23 @@ The transpiler targets indicators. Strategy execution is not implemented:
 
 ## Partially Supported Features
 
+### Timeframe opens and exchange calendars
+
+`time(timeframe)` and `timeframe.change(timeframe)` use timezone-aware
+calendar/session boundaries. The runtime reads `context.symbol.timezone`
+and `session_regular` (or a time-based `session` string); explicit Pine
+session/timezone arguments take precedence. Without session metadata, higher
+timeframes use local midnight; without timezone metadata, they use UTC.
+Default chart-time calls retain the host's bar timestamp. Positive `bars_back`
+uses actual processed chart bars, including gaps, and returns `na` when the
+requested history has not been processed.
+
+The host must supply an exchange calendar to resolve holidays, special
+sessions, historical schedule changes, and exchange-specific alignment of
+multi-day/multi-week bars exactly. The fallback calendar cannot infer them.
+Negative `bars_back` and `timeframe_bars_back` projections are not implemented.
+Nonexistent local session opens during a DST clock jump return `na`.
+
 ### `request.security` (MTF subset)
 
 Current behavior supports practical subset semantics:
@@ -61,7 +78,10 @@ Drawing namespaces are stateful, persist across bars (Pine `var` semantics), and
 
 Direct rendering inside the transpiler:
 
-- **`box.new(..., bgcolor=...)`** — auto-emits a `bg_colorer` plot driven by an 8-slot palette. Session-highlighting scripts (ICT-style killzones, FX sessions) get colored backgrounds with no host work. Palette colors are a fixed rainbow set; slot assignment is first-seen at runtime.
+- **`box.new(..., bgcolor=...)`** — callers can opt into a `bg_colorer` plot
+  with `autoBgColorerForBoxes: true` (default: false). This fallback draws
+  background bands, not box geometry, labels, lines, or linefills. Palette
+  colors are fixed; slot assignment is first-seen at runtime.
 
 Tracked-but-not-rendered (host renderer must consume `__visualEvents`):
 
@@ -72,8 +92,8 @@ Tracked-but-not-rendered (host renderer must consume `__visualEvents`):
 
 Supported method subsets:
 
-- `line`: `new`, `delete`, `set_x2`, `set_xy1`, `set_xy2`, `set_color`, `get_x2`, `get_y1`, `get_y2`
-- `box`: `new`, `delete`, `set_left`, `set_right`, `set_top`, `set_bottom`, `set_extend`, `set_bgcolor`, `set_border_color`, `set_border_width`, `set_text_color`, `get_left`, `get_right`, `get_top`, `get_bottom`
+- `line`: `new`, `delete`, `set_x2`, `set_y1`, `set_y2`, `set_xy1`, `set_xy2`, `set_color`, `get_x2`, `get_y1`, `get_y2`
+- `box`: `new`, `delete`, `set_left`, `set_right`, `set_top`, `set_bottom`, `set_lefttop`, `set_rightbottom`, `set_extend`, `set_bgcolor`, `set_border_color`, `set_border_width`, `set_text_color`, `get_left`, `get_right`, `get_top`, `get_bottom`
 - `label`: `new`, `delete`, `set_text`, `set_tooltip`, `set_textcolor`, `set_style`, `set_xy`, `set_x`, `set_y`, `get_text`, `get_y`
 - `table`: `new`, `cell`, `clear`, `merge_cells`
 

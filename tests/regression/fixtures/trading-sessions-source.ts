@@ -24,7 +24,7 @@ secondSessionTZ    = input.string("Europe/London", "Session timezone", group = S
 secondSessionColor = input.color(color.new(#FF9800, 85), "Session color", group = SECOND_SESSION_GROUP, active = showSecond)
 
 const string THIRD_SESSION_GROUP = "Third session"
-showThird         = input.bool(true, "Show session", group = THIRD_SESSION_GROUP, display = display.none, active = showThird)
+showThird         = input.bool(true, "Show session", group = THIRD_SESSION_GROUP, display = display.none)
 thirdSessionName  = input.string("New York", "Displayed name", group = THIRD_SESSION_GROUP, display = display.none, active = showThird)
 thirdSessionTime  = input.session("0930-1600", "Session time", group = THIRD_SESSION_GROUP, display = display.none, active = showThird)
 thirdSessionTZ    = input.string("America/New_York", "Session timezone", group = THIRD_SESSION_GROUP, display = display.none, tooltip = TZ_TOOLTIP_TEXT, active = showThird)

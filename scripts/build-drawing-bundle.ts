@@ -77,7 +77,9 @@ function appendAliasLayer(bundle: string): string {
 var __createDrawingRuntime =
   globalThis.${STANDALONE_DRAWING_BUNDLE_GLOBAL}.createDrawingRuntime;
 var __createDrawingStubNamespaces =
-  globalThis.${STANDALONE_DRAWING_BUNDLE_GLOBAL}.createDrawingStubNamespaces;`.trim();
+  globalThis.${STANDALONE_DRAWING_BUNDLE_GLOBAL}.createDrawingStubNamespaces;
+var __resolveTime =
+  globalThis.${STANDALONE_DRAWING_BUNDLE_GLOBAL}.resolveTime;`.trim();
 }
 
 export function buildStandaloneDrawingBundle(): string {

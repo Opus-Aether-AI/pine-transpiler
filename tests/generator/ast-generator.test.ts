@@ -131,14 +131,9 @@ for i = 0 to 10
     sum := sum + i
 `;
         const js = generateCode(code);
-        // Pine `for i = 0 to 10` parses with init as AssignmentExpression
-        // (`i = 0`); previously this emitted `for (i = 0; …; )` with NO
-        // increment, leaving the loop guarded only by the iteration
-        // ceiling. The generator now promotes it to `for (let i = 0; …;
-        // i++)` so the loop both terminates naturally AND keeps `i`
-        // scoped to the loop.
+        // The loop counter stays local and advances without relying on the guard.
         expect(js).toContain('for (let i = 0');
-        expect(js).toContain('i++');
+        expect(new Function(`var sum = 0; ${js}; return sum;`)()).toBe(55);
         expect(js).toContain('Loop limit exceeded');
       });
 
@@ -148,16 +143,16 @@ for i = 0 to 10 by 2
     sum := sum + i
 `;
         const js = generateCode(code);
-        expect(js).toContain('i += 2');
+        expect(new Function(`var sum = 0; ${js}; return sum;`)()).toBe(30);
       });
 
-      it('should generate for-to loop with negative step', () => {
+      it('should reject a negative step instead of running away from the end bound', () => {
         const code = `
 for i = 10 to 0 by -1
     sum := sum + i
 `;
         const js = generateCode(code);
-        expect(js).toContain('i += -1');
+        expect(() => new Function(`var sum = 0; ${js}`)()).toThrow('For loop step must be positive');
       });
     });
 

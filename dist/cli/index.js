@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { a as transpileToStandaloneFactory, i as transpileToPineJS, r as transpile, t as canTranspilePineScript, v as getMappingStats } from "../src-D12ljUL0.js";
+import { a as transpileToStandaloneFactory, i as transpileToPineJS, r as transpile, t as canTranspilePineScript, v as getMappingStats } from "../src-C4OoJ1MK.js";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,7 +16,8 @@ var cachedVersion = null;
 */
 function getVersion() {
 	if (cachedVersion) return cachedVersion;
-	const packageJsonPath = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "package.json");
+	const __dirname = dirname(fileURLToPath(import.meta.url));
+	const packageJsonPath = join(__dirname, "..", "..", "package.json");
 	let version = "0.1.3";
 	try {
 		version = JSON.parse(readFileSync(packageJsonPath, "utf-8")).version || version;
@@ -272,7 +273,8 @@ function commandValidate(file, _options) {
 		console.error("Usage: pine-transpiler validate <file>");
 		process.exit(1);
 	}
-	const result = canTranspilePineScript(readInput(file));
+	const code = readInput(file);
+	const result = canTranspilePineScript(code);
 	if (result.valid) {
 		console.log(`✓ ${file} is valid Pine Script`);
 		process.exit(0);

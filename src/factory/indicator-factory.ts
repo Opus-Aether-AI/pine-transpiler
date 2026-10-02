@@ -39,6 +39,7 @@ import {
   type StdLibraryInternal,
 } from '../runtime';
 import { STANDALONE_DRAWING_BUNDLE } from '../runtime/drawing/standalone-bundle.generated';
+import { resolveTime } from '../runtime/helpers/timeframe-time';
 import { STD_PLUS_LIBRARY } from '../stdlib';
 import type {
   IndicatorConstructor,
@@ -791,24 +792,6 @@ function __isInSessionAt(timestamp, sessionRaw, timezone) {
   return false;
 }
 
-function __compatTime(currentBarTime, priorProcessedBars, chartPeriod, timeframeArg, sessionArg, timezoneArg, barsBackArg) {
-  let tzArg = timezoneArg;
-  let backArg = barsBackArg;
-  if (backArg === undefined && typeof tzArg === 'number' && Number.isFinite(tzArg)) {
-    backArg = tzArg;
-    tzArg = undefined;
-  }
-  const backRaw = Number(backArg == null ? 0 : backArg);
-  const barsBack = Number.isFinite(backRaw) && backRaw > 0 ? Math.trunc(backRaw) : 0;
-  if (barsBack > priorProcessedBars) return Number.NaN;
-  const timeframeSeconds = __timeframeToSeconds(timeframeArg, chartPeriod);
-  const timestamp = currentBarTime - barsBack * timeframeSeconds * 1000;
-  if (!Number.isFinite(timestamp)) return Number.NaN;
-  const sessionStr = typeof sessionArg === 'string' ? sessionArg.trim() : '';
-  if (!sessionStr) return timestamp;
-  return __isInSessionAt(timestamp, sessionStr, tzArg) ? timestamp : Number.NaN;
-}
-
 function __compatDatePart(part, currentBarTime, args, hostFn) {
   const first = args[0];
   if (first !== undefined && typeof first !== 'object') {
@@ -993,6 +976,7 @@ function generateStandaloneRuntimeMainBody(
           if (__processedBarKey !== _currentBarKey) {
             __processedBarKey = _currentBarKey;
             __processedBars += 1;
+            __barTimes.push(_barTime);
           }
         };
         const _pushVisualEvent = (event) => {
@@ -1006,12 +990,20 @@ function generateStandaloneRuntimeMainBody(
         const _chartPeriod = typeof Std.period === 'function' ? String(Std.period(context) || '1') : '1';
         const _stdCompatBase = new Proxy(Std, {
           get(target, prop, receiver) {
+            // Host Std.na is numeric; Pine reference types are represented by
+            // live JS objects in this Runtime and are never numeric NaN.
+            if (prop === 'na') {
+              return (value) => value !== null && typeof value === 'object' ? false :
+                typeof target.na === 'function' ? target.na(value) : value == null || Number.isNaN(value);
+            }
             if (prop === 'time') {
               return (timeframeArg, sessionArg, timezoneArg, barsBackArg) =>
-                __compatTime(
+                __resolveTime(
                   _barTime,
                   _priorProcessedBars,
+                  __barTimes,
                   _chartPeriod,
+                  context.symbol,
                   timeframeArg,
                   sessionArg,
                   timezoneArg,
@@ -1135,6 +1127,11 @@ function generateStandaloneRuntimeMainBody(
         strategy.short = -1;
 
         const timeframe = __createTimeframe(_stdWithCompat, context);
+        timeframe.change = (tf) => {
+          const current = _stdWithCompat.time(tf);
+          const previous = _stdWithCompat.time(tf, '', undefined, 1);
+          return Number.isFinite(current) && Number.isFinite(previous) && current !== previous;
+        };
         const math = __createMathNamespace();
         const ta = _stdWithCompat;
         const color = Object.assign((value) => value, __colorMap);
@@ -2489,6 +2486,7 @@ export function buildIndicatorFactory(
         // processed so `time(..., bars_back=N)` can gate history access
         // by local execution history rather than absolute chart index.
         let _processedBars = 0;
+        const barTimes: number[] = [];
         let _processedBarKey: string | null = null;
         // Persistent per-call-site state for request.security() MTF
         // aggregation. Lives for the lifetime of one indicator instance.
@@ -2723,6 +2721,7 @@ export function buildIndicatorFactory(
             if (_processedBarKey !== currentBarKey) {
               _processedBarKey = currentBarKey;
               _processedBars += 1;
+              barTimes.push(currentBarTime);
             }
           };
           const pushVisualEvent = (event: VisualEvent) => {
@@ -2897,99 +2896,25 @@ export function buildIndicatorFactory(
               dayOfWeek: d.getUTCDay() + 1,
             };
           };
-          const isInSessionAt = (
-            timestamp: number,
-            sessionRaw: string,
-            timezone: unknown,
-          ): boolean => {
-            const [timeRangeRaw, daysRaw] = sessionRaw.split(':');
-            const [startRaw = '', endRaw = ''] = (timeRangeRaw ?? '').split(
-              '-',
-            );
-            if (startRaw.length < 4 || endRaw.length < 4) return false;
-            const startHour = Number(startRaw.slice(0, 2));
-            const startMinute = Number(startRaw.slice(2, 4));
-            const endHour = Number(endRaw.slice(0, 2));
-            const endMinute = Number(endRaw.slice(2, 4));
-            if (
-              !Number.isFinite(startHour) ||
-              !Number.isFinite(startMinute) ||
-              !Number.isFinite(endHour) ||
-              !Number.isFinite(endMinute)
-            ) {
-              return false;
-            }
-
-            const { hour, minute, dayOfWeek } = readClockAt(
-              timestamp,
-              timezone,
-            );
-            const days = (daysRaw ?? '1234567').trim();
-            const current = hour * 60 + minute;
-            const start = startHour * 60 + startMinute;
-            const end = endHour * 60 + endMinute;
-            if (start <= end) {
-              if (days && !days.includes(String(dayOfWeek))) return false;
-              return current >= start && current < end;
-            }
-            if (current >= start) {
-              if (days && !days.includes(String(dayOfWeek))) return false;
-              return true;
-            }
-            if (current < end) {
-              const prevDay = dayOfWeek === 1 ? 7 : dayOfWeek - 1;
-              if (days && !days.includes(String(prevDay))) return false;
-              return true;
-            }
-            return false;
-          };
           const chartTimeframeMs =
             parseTimeframeToMs(timeframe.period) ?? 60_000;
-          const resolveBarsBackTime = (
-            timeframeArg: unknown,
-            barsBackArg: unknown,
-          ): number => {
-            const barsBackValue = Number(barsBackArg ?? 0);
-            const barsBack =
-              Number.isFinite(barsBackValue) && barsBackValue > 0
-                ? Math.trunc(barsBackValue)
-                : 0;
-            if (barsBack > priorProcessedBars) return Number.NaN;
-            if (!Number.isFinite(currentBarTime)) return Number.NaN;
-            if (barsBack === 0) return currentBarTime;
-            const timeframeMs =
-              parseTimeframeToMs(timeframeArg) ?? chartTimeframeMs;
-            if (!Number.isFinite(timeframeMs) || timeframeMs <= 0) {
-              return Number.NaN;
-            }
-            return currentBarTime - barsBack * timeframeMs;
-          };
-          const compatTime = (...args: unknown[]): number => {
-            const timeframeArg = args[0];
-            const sessionArg = args[1];
-            let timezoneArg = args[2];
-            let barsBackArg = args[3];
-            // Pine allows omitting timezone while still passing
-            // bars_back: `time(tf, session, bars_back = 1)`. In that
-            // form transpiled positional args can arrive as
-            // `time(tf, session, 1)`, so treat numeric arg#3 as
-            // bars_back when arg#4 is absent.
-            if (
-              barsBackArg === undefined &&
-              typeof timezoneArg === 'number' &&
-              Number.isFinite(timezoneArg)
-            ) {
-              barsBackArg = timezoneArg;
-              timezoneArg = undefined;
-            }
-            const timestamp = resolveBarsBackTime(timeframeArg, barsBackArg);
-            if (!Number.isFinite(timestamp)) return Number.NaN;
-            const sessionStr =
-              typeof sessionArg === 'string' ? sessionArg.trim() : '';
-            if (!sessionStr) return timestamp;
-            return isInSessionAt(timestamp, sessionStr, timezoneArg)
-              ? timestamp
-              : Number.NaN;
+          const compatTime = (...args: unknown[]): number =>
+            resolveTime(
+              currentBarTime,
+              priorProcessedBars,
+              barTimes,
+              timeframe.period,
+              ctx.symbol,
+              ...(args as [unknown, unknown?, unknown?, unknown?]),
+            );
+          timeframe.change = (tf: string): boolean => {
+            const current = compatTime(tf);
+            const previous = compatTime(tf, '', undefined, 1);
+            return (
+              Number.isFinite(current) &&
+              Number.isFinite(previous) &&
+              current !== previous
+            );
           };
           const isContextLike = (
             value: unknown,
@@ -3106,6 +3031,14 @@ export function buildIndicatorFactory(
             stdWithVisual as Record<string, unknown>,
             {
               get(target, prop, receiver) {
+                if (prop === 'na') {
+                  return (value: unknown) =>
+                    value !== null && typeof value === 'object'
+                      ? false
+                      : typeof target.na === 'function'
+                        ? target.na(value)
+                        : value == null || Number.isNaN(value);
+                }
                 if (prop === 'time') return compatTime;
                 if (prop === 'dayofweek') return compatDayOfWeek;
                 if (prop === 'hour') return compatHour;
@@ -4441,6 +4374,7 @@ ${
       let __previousBarTime = Number.NaN;
       let __fallbackBarIndex = -1;
       let __processedBars = 0;
+      const __barTimes = [];
       let __processedBarKey = null;
       const __requestSecurityState = new Map();
       let __requestSecurityCallCounter = 0;

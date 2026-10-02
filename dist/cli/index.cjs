@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const require_src = require("../src-BJunxCjS.cjs");
+const require_src = require("../src-BNUGDVoJ.cjs");
 let node_fs = require("node:fs");
 let node_path = require("node:path");
 let node_url = require("node:url");
@@ -16,7 +16,8 @@ var cachedVersion = null;
 */
 function getVersion() {
 	if (cachedVersion) return cachedVersion;
-	const packageJsonPath = (0, node_path.join)((0, node_path.dirname)((0, node_url.fileURLToPath)({}.url)), "..", "..", "package.json");
+	const __dirname$1 = (0, node_path.dirname)((0, node_url.fileURLToPath)({}.url));
+	const packageJsonPath = (0, node_path.join)(__dirname$1, "..", "..", "package.json");
 	let version = "0.1.3";
 	try {
 		version = JSON.parse((0, node_fs.readFileSync)(packageJsonPath, "utf-8")).version || version;
@@ -272,7 +273,8 @@ function commandValidate(file, _options) {
 		console.error("Usage: pine-transpiler validate <file>");
 		process.exit(1);
 	}
-	const result = require_src.canTranspilePineScript(readInput(file));
+	const code = readInput(file);
+	const result = require_src.canTranspilePineScript(code);
 	if (result.valid) {
 		console.log(`✓ ${file} is valid Pine Script`);
 		process.exit(0);

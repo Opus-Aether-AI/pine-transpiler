@@ -19,7 +19,9 @@ for i = 0 to 10 by 2
     plot(i)
 `;
     const result = transpile(code);
-    expect(result).toContain('i += 2');
+    const visited: number[] = [];
+    new Function('Std', result)({ plot: (value: number) => visited.push(value) });
+    expect(visited).toEqual([0, 2, 4, 6, 8, 10]);
   });
 
   it('should parse MemberExpressions correctly (obj.prop)', () => {

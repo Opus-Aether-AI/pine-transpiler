@@ -90,6 +90,7 @@ export interface ExpressionGeneratorInterface {
   generateExpression(expr: Expression): string;
   generateMemberExpression(expr: MemberExpression): string;
   generateAssignmentExpression(expr: AssignmentExpression): string;
+  markHistoricalIdentifier(identifier: string, series: string | null): void;
   markPersistentIdentifier(
     identifier: string,
     kind: 'var' | 'varip',
@@ -134,6 +135,7 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
   private persistentScopes: Array<
     Map<string, { kind: 'var' | 'varip'; keyExpr: string }>
   > = [new Map()];
+  private historicalScopes: Array<Map<string, string | null>> = [new Map()];
   /**
    * Helper-usage tracker — recorded as the generator emits mapping-driven
    * helper identifiers (math, session, StdPlus, array, map, matrix,
@@ -177,12 +179,41 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
 
   public pushPersistentScope(): void {
     this.persistentScopes.push(new Map());
+    this.historicalScopes.push(new Map());
   }
 
   public popPersistentScope(): void {
     if (this.persistentScopes.length > 1) {
       this.persistentScopes.pop();
+      this.historicalScopes.pop();
     }
+  }
+
+  public markHistoricalIdentifier(
+    identifier: string,
+    series: string | null,
+  ): void {
+    this.historicalScopes[this.historicalScopes.length - 1].set(
+      identifier,
+      series,
+    );
+  }
+
+  private updateHistoricalValue(
+    identifier: string,
+    assignment: string,
+  ): string {
+    for (let i = this.historicalScopes.length - 1; i >= 0; i--) {
+      const scope = this.historicalScopes[i];
+      if (!scope.has(identifier)) continue;
+      const series = scope.get(identifier);
+      // Update the current slot only after the RHS has read prior bars. This
+      // also records the final value after multiple assignments on one bar.
+      return series
+        ? `(${assignment}, ${series}.set(${identifier}), ${identifier})`
+        : assignment;
+    }
+    return assignment;
   }
 
   private resolvePersistentIdentifier(
@@ -320,6 +351,14 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
     if (pineCallee === 'request.security') {
       return this.normalizeRequestSecurityArgs(args);
     }
+    if (pineCallee === 'time') {
+      return this.normalizeByCanonicalOrder(args, [
+        'timeframe',
+        'session',
+        'timezone',
+        'bars_back',
+      ]);
+    }
     const inputCanonicalOrder = getInputFn(pineCallee)?.canonicalArgs;
     if (inputCanonicalOrder) {
       return this.normalizeByCanonicalOrder(args, inputCanonicalOrder);
@@ -327,11 +366,14 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
     const [namespace, fn] = pineCallee.split('.');
     const drawingSpec =
       namespace && fn ? getDrawingFn(namespace, fn) : undefined;
-    const drawingCanonicalOrder = drawingSpec?.visualEventArgs
-      ? drawingSpec.canonicalArgs
-      : undefined;
+    const drawingCanonicalOrder = drawingSpec?.canonicalArgs;
     if (drawingCanonicalOrder) {
       return this.normalizeByCanonicalOrder(args, drawingCanonicalOrder);
+    }
+    const method = pineCallee.slice(pineCallee.lastIndexOf('.') + 1);
+    if (method === 'set_lefttop' || method === 'set_rightbottom') {
+      const order = getDrawingFn('box', method)?.canonicalArgs;
+      if (order) return this.normalizeByCanonicalOrder(args, order.slice(1));
     }
     return args;
   }
@@ -550,7 +592,10 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
       this.helperUsage.markByName(setter);
       const keyExpr = persistentBinding.keyExpr;
       if (op === '=') {
-        return `(${left} = ${setter}(${keyExpr}, ${right}))`;
+        return this.updateHistoricalValue(
+          left,
+          `(${left} = ${setter}(${keyExpr}, ${right}))`,
+        );
       }
       const compoundToBinary: Record<string, string> = {
         '+=': '+',
@@ -561,11 +606,17 @@ export class ExpressionGenerator implements ExpressionGeneratorInterface {
       };
       const binaryOp = compoundToBinary[op];
       if (binaryOp) {
-        return `(${left} = ${setter}(${keyExpr}, (${left} ${binaryOp} ${right})))`;
+        return this.updateHistoricalValue(
+          left,
+          `(${left} = ${setter}(${keyExpr}, (${left} ${binaryOp} ${right})))`,
+        );
       }
     }
 
-    return `${left} ${op} ${right}`;
+    const assignment = `${left} ${op} ${right}`;
+    return isIdentifierLeft
+      ? this.updateHistoricalValue(left, assignment)
+      : assignment;
   }
 
   private generateLiteral(expr: Literal): string {

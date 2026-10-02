@@ -191,6 +191,8 @@ function keyForCell(column: number, row: number): string {
 function parseAccessorFields(fnName: string): string[] {
   const suffix = fnName.replace(/^(set|get)_/, '');
   if (suffix === 'xy') return ['x', 'y'];
+  if (suffix === 'lefttop') return ['left', 'top'];
+  if (suffix === 'rightbottom') return ['right', 'bottom'];
 
   const xyMatch = /^xy(\d+)$/.exec(suffix);
   if (xyMatch) {

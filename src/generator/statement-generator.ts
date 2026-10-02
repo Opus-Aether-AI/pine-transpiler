@@ -340,7 +340,7 @@ export class StatementGenerator implements StatementGeneratorInterface {
       );
     }
 
-    const testStr = this.expressionGen.generateExpression(stmt.test);
+    let testStr = this.expressionGen.generateExpression(stmt.test);
     let updateStr = '';
     if (stmt.update) {
       if (loopVarName) {
@@ -353,6 +353,19 @@ export class StatementGenerator implements StatementGeneratorInterface {
     }
 
     const loopVar = `_loop_${this.loopCounter++}`;
+    let stepGuard = '';
+    if (loopVarName && stmt.test.type === 'BinaryExpression') {
+      const end = this.expressionGen.generateExpression(stmt.test.right);
+      const step = stmt.update
+        ? this.expressionGen.generateExpression(stmt.update)
+        : '1';
+      // Direction and step are fixed at entry, but Pine v6 reevaluates the
+      // end bound before each subsequent iteration (including continue).
+      initStr += `, ${loopVar}_end = ${end}, ${loopVar}_step = ${step}, ${loopVar}_down = ${loopVarName} > ${loopVar}_end`;
+      testStr = `(${loopVar}_down ? ${loopVarName} >= ${loopVar}_end : ${loopVarName} <= ${loopVar}_end)`;
+      updateStr = `${loopVarName} += (${loopVar}_down ? -${loopVar}_step : ${loopVar}_step), ${loopVar}_end = ${end}`;
+      stepGuard = `${indent(this.indentLevel, 1)}if (!(${loopVar}_step > 0)) throw new Error("For loop step must be positive");\n`;
+    }
 
     let bodyContent = this.generateStatementOrBlock(stmt.body);
     const lines = bodyContent.split('\n');
@@ -366,7 +379,7 @@ export class StatementGenerator implements StatementGeneratorInterface {
     const guard = `${indent(this.indentLevel)}if (++${loopVar} > ${MAX_LOOP_ITERATIONS}) throw new Error("Loop limit exceeded (max ${MAX_LOOP_ITERATIONS} iterations)");`;
     this.indentLevel--;
 
-    return `${indent(this.indentLevel)}let ${loopVar} = 0;\n${indent(this.indentLevel)}for (${initStr}; ${testStr}; ${updateStr}) {\n${guard}\n${bodyContent}\n${indent(this.indentLevel)}}`;
+    return `${indent(this.indentLevel)}let ${loopVar} = 0;\n${indent(this.indentLevel)}for (${initStr}; ${testStr}; ${updateStr}) {\n${stepGuard}${guard}\n${bodyContent}\n${indent(this.indentLevel)}}`;
   }
 
   private generateForInStatement(stmt: ForInStatement): string {
@@ -415,6 +428,10 @@ export class StatementGenerator implements StatementGeneratorInterface {
 
       for (const id of stmt.id) {
         const safeName = sanitizeIdentifier(id.name);
+        this.expressionGen.markHistoricalIdentifier(
+          safeName,
+          this.historicalVars.has(id.name) ? `_series_${safeName}` : null,
+        );
         if (this.historicalVars.has(id.name)) {
           code += `\n${indent(this.indentLevel)}const _series_${safeName} = context.new_var(${safeName});`;
           code += `\n${indent(this.indentLevel)}_getHistorical_${safeName} = (offset) => _series_${safeName}.get(offset);`;
@@ -422,6 +439,10 @@ export class StatementGenerator implements StatementGeneratorInterface {
       }
     } else {
       const safeName = sanitizeIdentifier(stmt.id.name);
+      this.expressionGen.markHistoricalIdentifier(
+        safeName,
+        this.historicalVars.has(stmt.id.name) ? `_series_${safeName}` : null,
+      );
       if (isPersistent) {
         const helper = isVarip ? '_pineVarip' : '_pineVar';
         this.expressionGen.helperUsage.markByName(helper);
@@ -464,7 +485,13 @@ export class StatementGenerator implements StatementGeneratorInterface {
     let body = '';
     if (needsPersistentScope) {
       this.functionScopeStack.push({ id: scopeId, keyVar: scopeKeyVar });
-      this.expressionGen.pushPersistentScope();
+    }
+    this.expressionGen.pushPersistentScope();
+    for (const param of stmt.params) {
+      this.expressionGen.markHistoricalIdentifier(
+        sanitizeIdentifier(param.name),
+        null,
+      );
     }
     try {
       if (stmt.body.type === 'BlockStatement') {
@@ -478,8 +505,8 @@ export class StatementGenerator implements StatementGeneratorInterface {
         body = `{\n${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(stmt.body as Expression)};\n${indent(this.indentLevel, -1)}}`;
       }
     } finally {
+      this.expressionGen.popPersistentScope();
       if (needsPersistentScope) {
-        this.expressionGen.popPersistentScope();
         this.functionScopeStack.pop();
       }
     }

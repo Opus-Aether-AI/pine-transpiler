@@ -31,6 +31,8 @@ export interface BoxStub {
   set_right: (boxObj: unknown, right: unknown) => void;
   set_top: (boxObj: unknown, top: unknown) => void;
   set_bottom: (boxObj: unknown, bottom: unknown) => void;
+  set_lefttop: (boxObj: unknown, left: unknown, top: unknown) => void;
+  set_rightbottom: (boxObj: unknown, right: unknown, bottom: unknown) => void;
   set_extend: (boxObj: unknown, extend: unknown) => void;
   set_bgcolor: (boxObj: unknown, color: unknown) => void;
   set_border_color: (boxObj: unknown, color: unknown) => void;
@@ -49,6 +51,8 @@ export interface LineStub {
   delete: (lineObj: unknown) => void;
   __hasHandle: (value: unknown) => boolean;
   set_x2: (lineObj: unknown, x2: unknown) => void;
+  set_y1: (lineObj: unknown, y1: unknown) => void;
+  set_y2: (lineObj: unknown, y2: unknown) => void;
   set_xy1: (lineObj: unknown, x1: unknown, y1: unknown) => void;
   set_xy2: (lineObj: unknown, x2: unknown, y2: unknown) => void;
   set_color: (lineObj: unknown, color: unknown) => void;

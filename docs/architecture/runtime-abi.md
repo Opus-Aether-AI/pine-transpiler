@@ -24,7 +24,7 @@ The transpiled-main standalone path emits `STANDALONE_RUNTIME_HELPERS` verbatim 
 | `__timeframeToSeconds` | `indicator-factory.ts:970-989` | `:1600-1601`, `:1674` | Used by `request.security` and `time_close`. |
 | `__readClockAt` | `indicator-factory.ts:1018-1057` | `:559-579`, `:1569-1584`, `:1696` | Timezone-aware clock extraction. |
 | `__isInSessionAt` | `indicator-factory.ts:1079-1117` | `:1677-1690` | Powers the `session.*` getters. |
-| `__compatTime` | `indicator-factory.ts:1119-1135` | `:1335-1344` | Overrides `Std.time` for Pine-compatible calls. |
+| `__resolveTime` | `runtime/helpers/timeframe-time.ts`, bundled by `standalone-bundle.entry.ts` | `generateStandaloneRuntimeMainBody` | Shared calendar/session time resolver; overrides `Std.time` in both Factory paths. |
 | `__compatDatePart` | `indicator-factory.ts:1137-1157` | `:1346-1373` | Overrides `Std.dayofweek/hour/...` compatibility calls. |
 | `__coercePlotValue` / `__coerceShapePlotValue` | `indicator-factory.ts:124-142` | `:1384-1413` | Plot-value coercion for standalone `plot*` wrappers. |
 
@@ -42,6 +42,7 @@ For transpiled-main standalone factories, the constructor creates these symbols 
 | `__fallbackBarIndex` | `indicator-factory.ts:4737` | constructor-local | Bar-index fallback when runtime context lacks one. |
 | `__processedBars` | `indicator-factory.ts:4738` | constructor-local | `time(..., bars_back=...)` gating. |
 | `__processedBarKey` | `indicator-factory.ts:4739` | constructor-local | Dedupes repeated execution on the same bar. |
+| `__barTimes` | constructor-local | timestamp array | Stores each processed chart bar once for positive `bars_back`, including gaps and repeated realtime executions. |
 | `__requestSecurityState` | `indicator-factory.ts:4740` | constructor-local | Per-call-site `request.security` bucket state. |
 | `__requestSecurityCallCounter` | `indicator-factory.ts:4741`, reset at `:1301` | constructor-local mutable counter | Reassigned to `0` each bar so call-site keys remain ordinal-by-bar. |
 
