@@ -19,7 +19,9 @@ Functions:
 - `box.set_bottom(id, bottom)`
 - `box.set_extend(id, extend)`
 - `box.set_left(id, left)`
+- `box.set_lefttop(id, left, top)`
 - `box.set_right(id, right)`
+- `box.set_rightbottom(id, right, bottom)`
 - `box.set_text_color(id, color)`
 - `box.set_top(id, top)`
 
@@ -75,6 +77,8 @@ Functions:
 - `line.set_x2(id, x2)`
 - `line.set_xy1(id, x, y)`
 - `line.set_xy2(id, x, y)`
+- `line.set_y1(id, y1)`
+- `line.set_y2(id, y2)`
 
 Constants:
 - `line.style_arrow_both` = `arrow_both`

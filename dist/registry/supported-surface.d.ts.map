@@ -1,0 +1,1 @@
+{"version":3,"file":"supported-surface.d.ts","sourceRoot":"","sources":["../../src/registry/supported-surface.ts"],"names":[],"mappings":"AAeA,eAAO,MAAM,0BAA0B,QAItC,CAAC;AA6CF,wBAAgB,yBAAyB,IAAI,MAAM,CA0BlD;AAED,wBAAgB,wBAAwB,IAAI;IAC1C,OAAO,EAAE,OAAO,CAAC;IACjB,OAAO,EAAE,MAAM,CAAC;IAChB,IAAI,EAAE,MAAM,CAAC;CACd,CAaA"}

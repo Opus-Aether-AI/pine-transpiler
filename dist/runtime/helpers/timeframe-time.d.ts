@@ -1,0 +1,3 @@
+/** barsBack indexes processed chart bars, never fabricated fixed-duration bars. */
+export declare function resolveTime(currentBarTime: number, priorProcessedBars: number, barTimes: readonly number[], chartPeriod: string, symbol: Record<string, unknown> | undefined, timeframeArg: unknown, sessionArg?: unknown, timezoneArg?: unknown, barsBackArg?: unknown): number;
+//# sourceMappingURL=timeframe-time.d.ts.map

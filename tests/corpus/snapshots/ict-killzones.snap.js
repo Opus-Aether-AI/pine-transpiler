@@ -111,6 +111,14 @@ const _arrayEnsurePineMethods = (arr) => {
       enumerable: false,
     });
   }
+  // JS inherits a non-mutating concat; Pine's attached method must use the
+  // same in-place operation as array.concat().
+  if (!Object.prototype.hasOwnProperty.call(arr, 'concat')) {
+    Object.defineProperty(arr, 'concat', {
+      value: function(other) { return _arrayConcat(this, other); },
+      enumerable: false,
+    });
+  }
   return arr;
 };
 const _arrayAsArray = (arr) => Array.isArray(arr) ? arr : [];
@@ -197,7 +205,15 @@ const _arrayReverse = (arr) => {
   return arr;
 };
 const _arraySlice = (arr, start, end) => _arrayEnsurePineMethods(_arrayAsArray(arr).slice(start, end));
-const _arrayConcat = (arr1, arr2) => _arrayEnsurePineMethods(_arrayAsArray(arr1).concat(_arrayAsArray(arr2)));
+const _arrayConcat = (arr1, arr2) => {
+  const destination = _arrayAsArray(arr1);
+  const source = _arrayAsArray(arr2);
+  // Capture length before appending so self-concat terminates. Avoid spread
+  // arguments, which overflow the JS call stack for large Pine arrays.
+  const length = source.length;
+  for (let i = 0; i < length; i++) destination.push(source[i]);
+  return _arrayEnsurePineMethods(destination);
+};
 const _arrayCopy = (arr) => _arrayEnsurePineMethods([..._arrayAsArray(arr)]);
 const _arrayClear = (arr) => {
   if (Array.isArray(arr)) arr.length = 0;
@@ -1046,7 +1062,8 @@ function adjust_out_kz(kz, t, t_prev) {
   }
   if ((show_pivots && (boxCount > 0))) {
     let _loop_0 = 0;
-    for (let i = 0; (i <= (boxCount - 1)); i += 1) {
+    for (let i = 0, _loop_0_end = (boxCount - 1), _loop_0_step = 1, _loop_0_down = i > _loop_0_end; (_loop_0_down ? i >= _loop_0_end : i <= _loop_0_end); i += (_loop_0_down ? -_loop_0_step : _loop_0_step), _loop_0_end = (boxCount - 1)) {
+      if (!(_loop_0_step > 0)) throw new Error("For loop step must be positive");
       if (++_loop_0 > 10000) throw new Error("Loop limit exceeded (max 10000 iterations)");
       if ((!ext_current || (i === 0))) {
         var kzHiValid = kz._hi_valid.get(i);

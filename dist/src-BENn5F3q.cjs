@@ -1917,6 +1917,14 @@ const _arrayEnsurePineMethods = (arr) => {
       enumerable: false,
     });
   }
+  // JS inherits a non-mutating concat; Pine's attached method must use the
+  // same in-place operation as array.concat().
+  if (!Object.prototype.hasOwnProperty.call(arr, 'concat')) {
+    Object.defineProperty(arr, 'concat', {
+      value: function(other) { return _arrayConcat(this, other); },
+      enumerable: false,
+    });
+  }
   return arr;
 };
 const _arrayAsArray = (arr) => Array.isArray(arr) ? arr : [];
@@ -2003,7 +2011,15 @@ const _arrayReverse = (arr) => {
   return arr;
 };
 const _arraySlice = (arr, start, end) => _arrayEnsurePineMethods(_arrayAsArray(arr).slice(start, end));
-const _arrayConcat = (arr1, arr2) => _arrayEnsurePineMethods(_arrayAsArray(arr1).concat(_arrayAsArray(arr2)));
+const _arrayConcat = (arr1, arr2) => {
+  const destination = _arrayAsArray(arr1);
+  const source = _arrayAsArray(arr2);
+  // Capture length before appending so self-concat terminates. Avoid spread
+  // arguments, which overflow the JS call stack for large Pine arrays.
+  const length = source.length;
+  for (let i = 0; i < length; i++) destination.push(source[i]);
+  return _arrayEnsurePineMethods(destination);
+};
 const _arrayCopy = (arr) => _arrayEnsurePineMethods([..._arrayAsArray(arr)]);
 const _arrayClear = (arr) => {
   if (Array.isArray(arr)) arr.length = 0;
@@ -2682,6 +2698,538 @@ function getMappingStats() {
 	};
 }
 //#endregion
+//#region src/registry/drawing.ts
+var BOX_NEW_ARGS = [
+	"left",
+	"top",
+	"right",
+	"bottom",
+	"border_color",
+	"border_width",
+	"border_style",
+	"extend",
+	"xloc",
+	"bgcolor",
+	"text",
+	"text_size",
+	"text_color",
+	"text_halign",
+	"text_valign",
+	"text_wrap",
+	"force_overlay",
+	"text_font_family"
+];
+var LINE_NEW_ARGS = [
+	"x1",
+	"y1",
+	"x2",
+	"y2",
+	"xloc",
+	"extend",
+	"color",
+	"style",
+	"width",
+	"force_overlay"
+];
+var LABEL_NEW_ARGS = [
+	"x",
+	"y",
+	"text",
+	"xloc",
+	"yloc",
+	"color",
+	"style",
+	"textcolor",
+	"size",
+	"textalign",
+	"tooltip",
+	"text_font_family",
+	"force_overlay",
+	"text_formatting"
+];
+var LINEFILL_NEW_ARGS = [
+	"line1",
+	"line2",
+	"color"
+];
+var TABLE_NEW_ARGS = [
+	"position",
+	"columns",
+	"rows",
+	"bgcolor",
+	"frame_color",
+	"frame_width",
+	"border_color",
+	"border_width",
+	"force_overlay"
+];
+var TABLE_CELL_ARGS = [
+	"table_id",
+	"column",
+	"row",
+	"text",
+	"width",
+	"height",
+	"text_color",
+	"text_halign",
+	"text_valign",
+	"text_size",
+	"bgcolor",
+	"tooltip",
+	"text_font_family",
+	"text_formatting"
+];
+var DRAWING_REGISTRY = {
+	box: {
+		name: "box",
+		functions: {
+			new: {
+				canonicalArgs: BOX_NEW_ARGS,
+				handleFields: {
+					left: "left",
+					top: "top",
+					right: "right",
+					bottom: "bottom",
+					border_color: "border_color",
+					border_width: "border_width",
+					border_style: "border_style",
+					extend: "extend",
+					xloc: "xloc",
+					bgcolor: "bgcolor",
+					text: "text",
+					text_size: "text_size",
+					text_color: "text_color",
+					text_halign: "text_halign",
+					text_valign: "text_valign",
+					text_wrap: "text_wrap",
+					force_overlay: "force_overlay",
+					text_font_family: "text_font_family"
+				},
+				visualEventArgs: BOX_NEW_ARGS
+			},
+			delete: { canonicalArgs: ["id"] },
+			set_left: { canonicalArgs: ["id", "left"] },
+			set_right: { canonicalArgs: ["id", "right"] },
+			set_top: { canonicalArgs: ["id", "top"] },
+			set_bottom: { canonicalArgs: ["id", "bottom"] },
+			set_lefttop: { canonicalArgs: [
+				"id",
+				"left",
+				"top"
+			] },
+			set_rightbottom: { canonicalArgs: [
+				"id",
+				"right",
+				"bottom"
+			] },
+			set_extend: { canonicalArgs: ["id", "extend"] },
+			set_bgcolor: { canonicalArgs: ["id", "color"] },
+			set_border_color: { canonicalArgs: ["id", "color"] },
+			set_border_width: { canonicalArgs: ["id", "width"] },
+			set_text_color: { canonicalArgs: ["id", "color"] },
+			get_left: { canonicalArgs: ["id"] },
+			get_right: { canonicalArgs: ["id"] },
+			get_top: { canonicalArgs: ["id"] },
+			get_bottom: { canonicalArgs: ["id"] }
+		},
+		constants: []
+	},
+	line: {
+		name: "line",
+		functions: {
+			new: {
+				canonicalArgs: LINE_NEW_ARGS,
+				handleFields: {
+					x1: "x1",
+					y1: "y1",
+					x2: "x2",
+					y2: "y2",
+					xloc: "xloc",
+					extend: "extend",
+					color: "color",
+					style: "style",
+					width: "width",
+					force_overlay: "force_overlay"
+				},
+				visualEventArgs: LINE_NEW_ARGS
+			},
+			delete: { canonicalArgs: ["id"] },
+			set_x2: { canonicalArgs: ["id", "x2"] },
+			set_y1: { canonicalArgs: ["id", "y1"] },
+			set_y2: { canonicalArgs: ["id", "y2"] },
+			set_xy1: { canonicalArgs: [
+				"id",
+				"x",
+				"y"
+			] },
+			set_xy2: { canonicalArgs: [
+				"id",
+				"x",
+				"y"
+			] },
+			set_color: { canonicalArgs: ["id", "color"] },
+			get_x2: { canonicalArgs: ["id"] },
+			get_y1: { canonicalArgs: ["id"] },
+			get_y2: { canonicalArgs: ["id"] }
+		},
+		constants: [
+			{
+				name: "style_solid",
+				value: "solid"
+			},
+			{
+				name: "style_dashed",
+				value: "dashed"
+			},
+			{
+				name: "style_dotted",
+				value: "dotted"
+			},
+			{
+				name: "style_arrow_left",
+				value: "arrow_left"
+			},
+			{
+				name: "style_arrow_right",
+				value: "arrow_right"
+			},
+			{
+				name: "style_arrow_both",
+				value: "arrow_both"
+			}
+		]
+	},
+	label: {
+		name: "label",
+		functions: {
+			new: {
+				canonicalArgs: LABEL_NEW_ARGS,
+				handleFields: {
+					x: "x",
+					y: "y",
+					text: "text",
+					xloc: "xloc",
+					yloc: "yloc",
+					color: "color",
+					style: "style",
+					textcolor: "textcolor",
+					size: "size",
+					textalign: "textalign",
+					tooltip: "tooltip",
+					text_font_family: "text_font_family",
+					force_overlay: "force_overlay",
+					text_formatting: "text_formatting"
+				},
+				visualEventArgs: LABEL_NEW_ARGS
+			},
+			delete: { canonicalArgs: ["id"] },
+			set_text: { canonicalArgs: ["id", "text"] },
+			get_text: { canonicalArgs: ["id"] },
+			set_tooltip: { canonicalArgs: ["id", "tooltip"] },
+			set_textcolor: { canonicalArgs: ["id", "color"] },
+			set_style: { canonicalArgs: ["id", "style"] },
+			set_xy: { canonicalArgs: [
+				"id",
+				"x",
+				"y"
+			] },
+			set_x: { canonicalArgs: ["id", "x"] },
+			set_y: { canonicalArgs: ["id", "y"] },
+			get_y: { canonicalArgs: ["id"] }
+		},
+		constants: [
+			{
+				name: "style_none",
+				value: "none"
+			},
+			{
+				name: "style_xcross",
+				value: "xcross"
+			},
+			{
+				name: "style_cross",
+				value: "cross"
+			},
+			{
+				name: "style_triangleup",
+				value: "triangleup"
+			},
+			{
+				name: "style_triangledown",
+				value: "triangledown"
+			},
+			{
+				name: "style_flag",
+				value: "flag"
+			},
+			{
+				name: "style_circle",
+				value: "circle"
+			},
+			{
+				name: "style_arrowup",
+				value: "arrowup"
+			},
+			{
+				name: "style_arrowdown",
+				value: "arrowdown"
+			},
+			{
+				name: "style_square",
+				value: "square"
+			},
+			{
+				name: "style_diamond",
+				value: "diamond"
+			},
+			{
+				name: "style_label_up",
+				value: "label_up"
+			},
+			{
+				name: "style_label_down",
+				value: "label_down"
+			},
+			{
+				name: "style_label_left",
+				value: "label_left"
+			},
+			{
+				name: "style_label_right",
+				value: "label_right"
+			},
+			{
+				name: "style_label_lower_left",
+				value: "label_lower_left"
+			},
+			{
+				name: "style_label_lower_right",
+				value: "label_lower_right"
+			},
+			{
+				name: "style_label_upper_left",
+				value: "label_upper_left"
+			},
+			{
+				name: "style_label_upper_right",
+				value: "label_upper_right"
+			},
+			{
+				name: "style_label_center",
+				value: "label_center"
+			}
+		]
+	},
+	linefill: {
+		name: "linefill",
+		functions: {
+			new: {
+				canonicalArgs: LINEFILL_NEW_ARGS,
+				handleFields: {
+					line1: "line1",
+					line2: "line2",
+					color: "color"
+				},
+				visualEventArgs: LINEFILL_NEW_ARGS
+			},
+			delete: { canonicalArgs: ["id"] },
+			set_color: { canonicalArgs: ["id", "color"] },
+			get_line1: { canonicalArgs: ["id"] },
+			get_line2: { canonicalArgs: ["id"] }
+		},
+		constants: []
+	},
+	table: {
+		name: "table",
+		functions: {
+			new: {
+				canonicalArgs: TABLE_NEW_ARGS,
+				handleFields: {
+					position: "position",
+					columns: "columns",
+					rows: "rows",
+					bgcolor: "bgcolor",
+					frame_color: "frame_color",
+					frame_width: "frame_width",
+					border_color: "border_color",
+					border_width: "border_width",
+					force_overlay: "force_overlay"
+				},
+				visualEventArgs: TABLE_NEW_ARGS
+			},
+			cell: {
+				canonicalArgs: TABLE_CELL_ARGS,
+				visualEventArgs: TABLE_CELL_ARGS
+			},
+			clear: { canonicalArgs: [
+				"table_id",
+				"start_column",
+				"start_row",
+				"end_column",
+				"end_row"
+			] },
+			merge_cells: { canonicalArgs: [
+				"table_id",
+				"start_column",
+				"start_row",
+				"end_column",
+				"end_row"
+			] }
+		},
+		constants: []
+	}
+};
+//#endregion
+//#region src/registry/inputs.ts
+var INPUT_REGISTRY = {
+	input: { canonicalArgs: [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm",
+		"options",
+		"minval",
+		"maxval",
+		"step"
+	] },
+	"input.int": { canonicalArgs: [
+		"defval",
+		"title",
+		"minval",
+		"maxval",
+		"step",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm",
+		"options"
+	] },
+	"input.float": { canonicalArgs: [
+		"defval",
+		"title",
+		"minval",
+		"maxval",
+		"step",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm",
+		"options"
+	] },
+	"input.bool": { canonicalArgs: [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	] },
+	"input.string": { canonicalArgs: [
+		"defval",
+		"title",
+		"options",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	] },
+	"input.source": { canonicalArgs: [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	] },
+	"input.color": { canonicalArgs: [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	] },
+	"input.timeframe": { canonicalArgs: [
+		"defval",
+		"title",
+		"options",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	] },
+	"input.session": { canonicalArgs: [
+		"defval",
+		"title",
+		"options",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	] },
+	"input.time": { canonicalArgs: [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	] },
+	"input.symbol": { canonicalArgs: [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	] },
+	"input.text_area": { canonicalArgs: [
+		"defval",
+		"title",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	] },
+	"input.price": { canonicalArgs: [
+		"defval",
+		"title",
+		"minval",
+		"maxval",
+		"step",
+		"tooltip",
+		"inline",
+		"group",
+		"display",
+		"confirm"
+	] }
+};
+//#endregion
+//#region src/registry/index.ts
+function getDrawingNamespace(namespace) {
+	return DRAWING_REGISTRY[namespace];
+}
+function getDrawingFn(namespace, fn) {
+	return getDrawingNamespace(namespace)?.functions[fn];
+}
+function getInputFn(name) {
+	return INPUT_REGISTRY[name];
+}
+//#endregion
 //#region src/generator/generator-utils.ts
 /** Maximum iterations allowed in while/for loops to prevent infinite loops */
 var MAX_LOOP_ITERATIONS = 1e4;
@@ -2689,7 +3237,7 @@ var MAX_LOOP_ITERATIONS = 1e4;
 * Reserved/dangerous identifier names that could cause security issues or conflicts
 * These are sanitized by prefixing with '_pine_' when used as variable names
 */
-var DANGEROUS_IDENTIFIERS = new Set([
+var DANGEROUS_IDENTIFIERS = /* @__PURE__ */ new Set([
 	"__proto__",
 	"constructor",
 	"prototype",
@@ -2888,246 +3436,7 @@ var HelperUsage = class HelperUsage {
 function isNamedArgument(arg) {
 	return arg.type === "AssignmentExpression" && arg.operator === "=" && !Array.isArray(arg.left) && arg.left.type === "Identifier";
 }
-/**
-* Pine v6 canonical positional-arg order for drawing-namespace
-* constructors and table.cell. When a user calls these with named
-* args (`box.new(time, high, time, low, bgcolor = c, text = t)`),
-* the parser preserves the source order — but downstream consumers
-* (runtime stubs, the host VisualEventsRenderer that reads
-* `__visualEvents[*].args`) need a deterministic layout. We reorder
-* named args into these slots and pad missing slots with `na` so
-* `args[i]` always means the same Pine parameter.
-*
-* Order taken directly from Pine v6 reference signatures.
-*/
-var DRAWING_CANONICAL_ARG_ORDER = {
-	"box.new": [
-		"left",
-		"top",
-		"right",
-		"bottom",
-		"border_color",
-		"border_width",
-		"border_style",
-		"extend",
-		"xloc",
-		"bgcolor",
-		"text",
-		"text_size",
-		"text_color",
-		"text_halign",
-		"text_valign",
-		"text_wrap",
-		"force_overlay",
-		"text_font_family"
-	],
-	"line.new": [
-		"x1",
-		"y1",
-		"x2",
-		"y2",
-		"xloc",
-		"extend",
-		"color",
-		"style",
-		"width",
-		"force_overlay"
-	],
-	"label.new": [
-		"x",
-		"y",
-		"text",
-		"xloc",
-		"yloc",
-		"color",
-		"style",
-		"textcolor",
-		"size",
-		"textalign",
-		"tooltip",
-		"text_font_family",
-		"force_overlay",
-		"text_formatting"
-	],
-	"linefill.new": [
-		"line1",
-		"line2",
-		"color"
-	],
-	"table.new": [
-		"position",
-		"columns",
-		"rows",
-		"bgcolor",
-		"frame_color",
-		"frame_width",
-		"border_color",
-		"border_width",
-		"force_overlay"
-	],
-	"table.cell": [
-		"table_id",
-		"column",
-		"row",
-		"text",
-		"width",
-		"height",
-		"text_color",
-		"text_halign",
-		"text_valign",
-		"text_size",
-		"bgcolor",
-		"tooltip",
-		"text_font_family",
-		"text_formatting"
-	]
-};
-/**
-* Canonical positional order for typed input helpers.
-*
-* Pine allows named args (`input.int(title="Len", defval=14)`), but our
-* runtime input mock only treats the first argument as the default value.
-* If named args are emitted in source order, `title` can incorrectly land
-* in slot 0 and coerce the runtime value to a string.
-*/
-var INPUT_CANONICAL_ARG_ORDER = {
-	input: [
-		"defval",
-		"title",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm",
-		"options",
-		"minval",
-		"maxval",
-		"step"
-	],
-	"input.int": [
-		"defval",
-		"title",
-		"minval",
-		"maxval",
-		"step",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm",
-		"options"
-	],
-	"input.float": [
-		"defval",
-		"title",
-		"minval",
-		"maxval",
-		"step",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm",
-		"options"
-	],
-	"input.bool": [
-		"defval",
-		"title",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	],
-	"input.string": [
-		"defval",
-		"title",
-		"options",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	],
-	"input.source": [
-		"defval",
-		"title",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	],
-	"input.color": [
-		"defval",
-		"title",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	],
-	"input.timeframe": [
-		"defval",
-		"title",
-		"options",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	],
-	"input.session": [
-		"defval",
-		"title",
-		"options",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	],
-	"input.time": [
-		"defval",
-		"title",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	],
-	"input.symbol": [
-		"defval",
-		"title",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	],
-	"input.text_area": [
-		"defval",
-		"title",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	],
-	"input.price": [
-		"defval",
-		"title",
-		"minval",
-		"maxval",
-		"step",
-		"tooltip",
-		"inline",
-		"group",
-		"display",
-		"confirm"
-	]
-};
-var BUILTIN_SERIES_IDENTIFIERS = new Set([
+var BUILTIN_SERIES_IDENTIFIERS = /* @__PURE__ */ new Set([
 	"open",
 	"high",
 	"low",
@@ -3168,6 +3477,7 @@ var ExpressionGenerator = class {
 		this.indentLevel = 0;
 		this.statementGen = null;
 		this.persistentScopes = [/* @__PURE__ */ new Map()];
+		this.historicalScopes = [/* @__PURE__ */ new Map()];
 		this.helperUsage = helperUsage;
 	}
 	setIndentLevel(level) {
@@ -3191,9 +3501,25 @@ var ExpressionGenerator = class {
 	}
 	pushPersistentScope() {
 		this.persistentScopes.push(/* @__PURE__ */ new Map());
+		this.historicalScopes.push(/* @__PURE__ */ new Map());
 	}
 	popPersistentScope() {
-		if (this.persistentScopes.length > 1) this.persistentScopes.pop();
+		if (this.persistentScopes.length > 1) {
+			this.persistentScopes.pop();
+			this.historicalScopes.pop();
+		}
+	}
+	markHistoricalIdentifier(identifier, series) {
+		this.historicalScopes[this.historicalScopes.length - 1].set(identifier, series);
+	}
+	updateHistoricalValue(identifier, assignment) {
+		for (let i = this.historicalScopes.length - 1; i >= 0; i--) {
+			const scope = this.historicalScopes[i];
+			if (!scope.has(identifier)) continue;
+			const series = scope.get(identifier);
+			return series ? `(${assignment}, ${series}.set(${identifier}), ${identifier})` : assignment;
+		}
+		return assignment;
 	}
 	resolvePersistentIdentifier(identifier) {
 		for (let i = this.persistentScopes.length - 1; i >= 0; i--) {
@@ -3245,8 +3571,10 @@ var ExpressionGenerator = class {
 				if (implicitSeries) args.unshift(implicitSeries);
 				else args[0] = this.wrapSeriesArgument(runtimeArgExprs[0], args[0]);
 			}
-			if (mapping.contextArg) if (callee.startsWith("StdPlus.")) args.unshift("context");
-			else args.push("context");
+			if (mapping.contextArg) {
+				if (callee.startsWith("StdPlus.")) args.unshift("context");
+				else args.push("context");
+			}
 		}
 		return `${callee}(${args.join(", ")})`;
 	}
@@ -3269,10 +3597,22 @@ var ExpressionGenerator = class {
 	*/
 	normalizeCallArguments(pineCallee, args) {
 		if (pineCallee === "request.security") return this.normalizeRequestSecurityArgs(args);
-		const inputCanonicalOrder = INPUT_CANONICAL_ARG_ORDER[pineCallee];
+		if (pineCallee === "time") return this.normalizeByCanonicalOrder(args, [
+			"timeframe",
+			"session",
+			"timezone",
+			"bars_back"
+		]);
+		const inputCanonicalOrder = getInputFn(pineCallee)?.canonicalArgs;
 		if (inputCanonicalOrder) return this.normalizeByCanonicalOrder(args, inputCanonicalOrder);
-		const canonicalOrder = DRAWING_CANONICAL_ARG_ORDER[pineCallee];
-		if (canonicalOrder) return this.normalizeByCanonicalOrder(args, canonicalOrder);
+		const [namespace, fn] = pineCallee.split(".");
+		const drawingCanonicalOrder = (namespace && fn ? getDrawingFn(namespace, fn) : void 0)?.canonicalArgs;
+		if (drawingCanonicalOrder) return this.normalizeByCanonicalOrder(args, drawingCanonicalOrder);
+		const method = pineCallee.slice(pineCallee.lastIndexOf(".") + 1);
+		if (method === "set_lefttop" || method === "set_rightbottom") {
+			const order = getDrawingFn("box", method)?.canonicalArgs;
+			if (order) return this.normalizeByCanonicalOrder(args, order.slice(1));
+		}
 		return args;
 	}
 	normalizeRequestSecurityArgs(args) {
@@ -3403,7 +3743,7 @@ var ExpressionGenerator = class {
 			const setter = persistentBinding.kind === "varip" ? "_pineSetVarip" : "_pineSetVar";
 			this.helperUsage.markByName(setter);
 			const keyExpr = persistentBinding.keyExpr;
-			if (op === "=") return `(${left} = ${setter}(${keyExpr}, ${right}))`;
+			if (op === "=") return this.updateHistoricalValue(left, `(${left} = ${setter}(${keyExpr}, ${right}))`);
 			const binaryOp = {
 				"+=": "+",
 				"-=": "-",
@@ -3411,9 +3751,10 @@ var ExpressionGenerator = class {
 				"/=": "/",
 				"%=": "%"
 			}[op];
-			if (binaryOp) return `(${left} = ${setter}(${keyExpr}, (${left} ${binaryOp} ${right})))`;
+			if (binaryOp) return this.updateHistoricalValue(left, `(${left} = ${setter}(${keyExpr}, (${left} ${binaryOp} ${right})))`);
 		}
-		return `${left} ${op} ${right}`;
+		const assignment = `${left} ${op} ${right}`;
+		return isIdentifierLeft ? this.updateHistoricalValue(left, assignment) : assignment;
 	}
 	generateLiteral(expr) {
 		if (expr.kind === "string") return JSON.stringify(expr.value);
@@ -3490,24 +3831,26 @@ var ExpressionGenerator = class {
 			this.indentLevel--;
 		}
 		result += `${indent(this.indentLevel)}}`;
-		if (stmt.alternate) if (stmt.alternate.type === "IfStatement") result += ` else ${this.generateIfExpressionWithImplicitReturn(stmt.alternate).trim()}`;
-		else if (stmt.alternate.type === "BlockStatement") {
-			result += ` else {\n`;
-			result += this.generateBlockExpressionWithImplicitReturn(stmt.alternate);
-			result += `${indent(this.indentLevel)}}`;
-		} else if (isStatement(stmt.alternate)) {
-			result += ` else {\n`;
-			this.indentLevel++;
-			if (stmt.alternate.type === "ExpressionStatement") result += `${indent(this.indentLevel)}return ${this.generateExpression(stmt.alternate.expression)};\n`;
-			else if (this.statementGen) result += `${this.statementGen.generateStatement(stmt.alternate)}\n`;
-			this.indentLevel--;
-			result += `${indent(this.indentLevel)}}`;
-		} else {
-			result += ` else {\n`;
-			this.indentLevel++;
-			result += `${indent(this.indentLevel)}return ${this.generateExpression(stmt.alternate)};\n`;
-			this.indentLevel--;
-			result += `${indent(this.indentLevel)}}`;
+		if (stmt.alternate) {
+			if (stmt.alternate.type === "IfStatement") result += ` else ${this.generateIfExpressionWithImplicitReturn(stmt.alternate).trim()}`;
+			else if (stmt.alternate.type === "BlockStatement") {
+				result += ` else {\n`;
+				result += this.generateBlockExpressionWithImplicitReturn(stmt.alternate);
+				result += `${indent(this.indentLevel)}}`;
+			} else if (isStatement(stmt.alternate)) {
+				result += ` else {\n`;
+				this.indentLevel++;
+				if (stmt.alternate.type === "ExpressionStatement") result += `${indent(this.indentLevel)}return ${this.generateExpression(stmt.alternate.expression)};\n`;
+				else if (this.statementGen) result += `${this.statementGen.generateStatement(stmt.alternate)}\n`;
+				this.indentLevel--;
+				result += `${indent(this.indentLevel)}}`;
+			} else {
+				result += ` else {\n`;
+				this.indentLevel++;
+				result += `${indent(this.indentLevel)}return ${this.generateExpression(stmt.alternate)};\n`;
+				this.indentLevel--;
+				result += `${indent(this.indentLevel)}}`;
+			}
 		}
 		return result;
 	}
@@ -3620,9 +3963,10 @@ var StatementGenerator = class {
 			let result = "";
 			for (let i = 0; i < stmt.cases.length; i++) {
 				const c = stmt.cases[i];
-				if (i === 0) if (c.test) result += `${indent(this.indentLevel)}if (${this.expressionGen.generateExpression(c.test)}) ${this.generateStatementOrBlock(c.consequent)}`;
-				else result += this.generateStatementOrBlock(c.consequent);
-				else if (c.test) result += ` else if (${this.expressionGen.generateExpression(c.test)}) ${this.generateStatementOrBlock(c.consequent)}`;
+				if (i === 0) {
+					if (c.test) result += `${indent(this.indentLevel)}if (${this.expressionGen.generateExpression(c.test)}) ${this.generateStatementOrBlock(c.consequent)}`;
+					else result += this.generateStatementOrBlock(c.consequent);
+				} else if (c.test) result += ` else if (${this.expressionGen.generateExpression(c.test)}) ${this.generateStatementOrBlock(c.consequent)}`;
 				else result += ` else ${this.generateStatementOrBlock(c.consequent)}`;
 			}
 			return result;
@@ -3685,12 +4029,22 @@ var StatementGenerator = class {
 			const assign = stmt.init;
 			initStr = `let ${loopVarName} = ${this.expressionGen.generateExpression(assign.right)}`;
 		} else initStr = this.expressionGen.generateAssignmentExpression(stmt.init);
-		const testStr = this.expressionGen.generateExpression(stmt.test);
+		let testStr = this.expressionGen.generateExpression(stmt.test);
 		let updateStr = "";
-		if (stmt.update) if (loopVarName) updateStr = `${loopVarName} += ${this.expressionGen.generateExpression(stmt.update)}`;
-		else updateStr = this.expressionGen.generateExpression(stmt.update);
-		else if (loopVarName) updateStr = `${loopVarName}++`;
+		if (stmt.update) {
+			if (loopVarName) updateStr = `${loopVarName} += ${this.expressionGen.generateExpression(stmt.update)}`;
+			else updateStr = this.expressionGen.generateExpression(stmt.update);
+		} else if (loopVarName) updateStr = `${loopVarName}++`;
 		const loopVar = `_loop_${this.loopCounter++}`;
+		let stepGuard = "";
+		if (loopVarName && stmt.test.type === "BinaryExpression") {
+			const end = this.expressionGen.generateExpression(stmt.test.right);
+			const step = stmt.update ? this.expressionGen.generateExpression(stmt.update) : "1";
+			initStr += `, ${loopVar}_end = ${end}, ${loopVar}_step = ${step}, ${loopVar}_down = ${loopVarName} > ${loopVar}_end`;
+			testStr = `(${loopVar}_down ? ${loopVarName} >= ${loopVar}_end : ${loopVarName} <= ${loopVar}_end)`;
+			updateStr = `${loopVarName} += (${loopVar}_down ? -${loopVar}_step : ${loopVar}_step), ${loopVar}_end = ${end}`;
+			stepGuard = `${indent(this.indentLevel, 1)}if (!(${loopVar}_step > 0)) throw new Error("For loop step must be positive");\n`;
+		}
 		let bodyContent = this.generateStatementOrBlock(stmt.body);
 		const lines = bodyContent.split("\n");
 		if (lines.length >= 2) {
@@ -3701,7 +4055,7 @@ var StatementGenerator = class {
 		this.indentLevel++;
 		const guard = `${indent(this.indentLevel)}if (++${loopVar} > ${MAX_LOOP_ITERATIONS}) throw new Error("Loop limit exceeded (max ${MAX_LOOP_ITERATIONS} iterations)");`;
 		this.indentLevel--;
-		return `${indent(this.indentLevel)}let ${loopVar} = 0;\n${indent(this.indentLevel)}for (${initStr}; ${testStr}; ${updateStr}) {\n${guard}\n${bodyContent}\n${indent(this.indentLevel)}}`;
+		return `${indent(this.indentLevel)}let ${loopVar} = 0;\n${indent(this.indentLevel)}for (${initStr}; ${testStr}; ${updateStr}) {\n${stepGuard}${guard}\n${bodyContent}\n${indent(this.indentLevel)}}`;
 	}
 	generateForInStatement(stmt) {
 		const right = this.expressionGen.generateExpression(stmt.right);
@@ -3726,6 +4080,7 @@ var StatementGenerator = class {
 			code = `${indent(this.indentLevel)}${prefix}${kind} [${ids}]${init};`;
 			for (const id of stmt.id) {
 				const safeName = sanitizeIdentifier(id.name);
+				this.expressionGen.markHistoricalIdentifier(safeName, this.historicalVars.has(id.name) ? `_series_${safeName}` : null);
 				if (this.historicalVars.has(id.name)) {
 					code += `\n${indent(this.indentLevel)}const _series_${safeName} = context.new_var(${safeName});`;
 					code += `\n${indent(this.indentLevel)}_getHistorical_${safeName} = (offset) => _series_${safeName}.get(offset);`;
@@ -3733,6 +4088,7 @@ var StatementGenerator = class {
 			}
 		} else {
 			const safeName = sanitizeIdentifier(stmt.id.name);
+			this.expressionGen.markHistoricalIdentifier(safeName, this.historicalVars.has(stmt.id.name) ? `_series_${safeName}` : null);
 			if (isPersistent) {
 				const helper = isVarip ? "_pineVarip" : "_pineVar";
 				this.expressionGen.helperUsage.markByName(helper);
@@ -3758,13 +4114,12 @@ var StatementGenerator = class {
 		const scopeKeyVar = `_pineFnScope_${scopeOrdinal}`;
 		const needsPersistentScope = stmt.body.type === "BlockStatement" && this.blockContainsPersistentDecl(stmt.body);
 		let body = "";
-		if (needsPersistentScope) {
-			this.functionScopeStack.push({
-				id: scopeId,
-				keyVar: scopeKeyVar
-			});
-			this.expressionGen.pushPersistentScope();
-		}
+		if (needsPersistentScope) this.functionScopeStack.push({
+			id: scopeId,
+			keyVar: scopeKeyVar
+		});
+		this.expressionGen.pushPersistentScope();
+		for (const param of stmt.params) this.expressionGen.markHistoricalIdentifier(sanitizeIdentifier(param.name), null);
 		try {
 			if (stmt.body.type === "BlockStatement") body = this.generateFunctionBody(stmt.body, needsPersistentScope ? scopeId : void 0, needsPersistentScope ? scopeKeyVar : void 0);
 			else {
@@ -3772,10 +4127,8 @@ var StatementGenerator = class {
 				body = `{\n${indent(this.indentLevel)}return ${this.expressionGen.generateExpression(stmt.body)};\n${indent(this.indentLevel, -1)}}`;
 			}
 		} finally {
-			if (needsPersistentScope) {
-				this.expressionGen.popPersistentScope();
-				this.functionScopeStack.pop();
-			}
+			this.expressionGen.popPersistentScope();
+			if (needsPersistentScope) this.functionScopeStack.pop();
 		}
 		let out = `${indent(this.indentLevel)}${prefix}function ${name}(${paramNames}) ${body}`;
 		if (stmt.isMethod && stmt.params.length > 0) {
@@ -3853,6 +4206,323 @@ var ASTGenerator = class {
 		return node.body.map((stmt) => this.statementGen.generateStatement(stmt)).join("\n");
 	}
 };
+//#endregion
+//#region src/runtime/drawing/index.ts
+var NUMBER_VALUE_NAMES = /* @__PURE__ */ new Set([
+	"x",
+	"y",
+	"x1",
+	"y1",
+	"x2",
+	"y2",
+	"left",
+	"top",
+	"right",
+	"bottom"
+]);
+var INTEGER_VALUE_NAMES = /* @__PURE__ */ new Set([
+	"width",
+	"height",
+	"border_width",
+	"frame_width",
+	"column",
+	"row",
+	"start_column",
+	"start_row",
+	"end_column",
+	"end_row"
+]);
+var NONNEGATIVE_INTEGER_VALUE_NAMES = /* @__PURE__ */ new Set(["columns", "rows"]);
+var STRING_VALUE_NAMES = /* @__PURE__ */ new Set(["text", "tooltip"]);
+var HANDLE_OWNER = Symbol("drawingHandleOwner");
+var ONE_DEFAULT_INTEGER_NAMES = /* @__PURE__ */ new Set([
+	"width",
+	"border_width",
+	"frame_width"
+]);
+function toFiniteNumber(value, fallback = NaN) {
+	const candidate = Number(value);
+	return Number.isFinite(candidate) ? candidate : fallback;
+}
+function toInteger(value, fallback = 0) {
+	const candidate = Number(value);
+	return Number.isFinite(candidate) ? Math.trunc(candidate) : fallback;
+}
+function isColorLike(value) {
+	if (typeof value !== "string" || value.length === 0) return false;
+	if (value === "NaN" || value === "na") return false;
+	return value.startsWith("#") || value.startsWith("rgb") || value.startsWith("hsl");
+}
+function asHandle(value) {
+	if (typeof value !== "object" || value === null) return void 0;
+	const candidate = value;
+	if (typeof candidate.__id !== "number") return void 0;
+	return candidate;
+}
+function withConstantFallback(base, prefix) {
+	return new Proxy(base, { get(target, prop, receiver) {
+		const value = Reflect.get(target, prop, receiver);
+		if (value !== void 0 || typeof prop !== "string") return value;
+		return `${prefix}.${prop}`;
+	} });
+}
+function resolveHandle(value, store, ownerToken) {
+	const handle = asHandle(value);
+	if (!handle) return void 0;
+	if (handle[HANDLE_OWNER] !== ownerToken) return;
+	const resolved = store.get(handle.__id);
+	if (!resolved || resolved.__deleted) return void 0;
+	return resolved;
+}
+function normalizeValue(name, value) {
+	if (STRING_VALUE_NAMES.has(name)) return value == null ? "" : String(value);
+	if (NONNEGATIVE_INTEGER_VALUE_NAMES.has(name)) return Math.max(0, toInteger(value, 0));
+	if (INTEGER_VALUE_NAMES.has(name)) return toInteger(value, value == null && ONE_DEFAULT_INTEGER_NAMES.has(name) ? 1 : 0);
+	if (NUMBER_VALUE_NAMES.has(name)) return toFiniteNumber(value);
+	return value;
+}
+function getterFallback(name) {
+	if (STRING_VALUE_NAMES.has(name)) return "";
+	if (NUMBER_VALUE_NAMES.has(name) || INTEGER_VALUE_NAMES.has(name) || NONNEGATIVE_INTEGER_VALUE_NAMES.has(name)) return NaN;
+}
+function keyForCell(column, row) {
+	return `${column}:${row}`;
+}
+function parseAccessorFields(fnName) {
+	const suffix = fnName.replace(/^(set|get)_/, "");
+	if (suffix === "xy") return ["x", "y"];
+	if (suffix === "lefttop") return ["left", "top"];
+	if (suffix === "rightbottom") return ["right", "bottom"];
+	const xyMatch = /^xy(\d+)$/.exec(suffix);
+	if (xyMatch) return [`x${xyMatch[1]}`, `y${xyMatch[1]}`];
+	return [suffix];
+}
+function buildProjectedArgs(projection, valuesByName, length) {
+	const projected = [];
+	const cappedLength = Math.min(length, projection.length);
+	for (let index = 0; index < cappedLength; index++) projected.push(valuesByName[projection[index] ?? ""]);
+	return projected;
+}
+function createTableCellData(valuesByName) {
+	return {
+		text: valuesByName.text,
+		width: valuesByName.width,
+		height: valuesByName.height,
+		textColor: valuesByName.text_color,
+		textHalign: valuesByName.text_halign,
+		textValign: valuesByName.text_valign,
+		textSize: valuesByName.text_size,
+		bgcolor: valuesByName.bgcolor,
+		tooltip: valuesByName.tooltip,
+		textFontFamily: valuesByName.text_font_family,
+		textFormatting: valuesByName.text_formatting
+	};
+}
+function createDrawingNamespace(descriptor, sink) {
+	let nextId = 1;
+	const ownerToken = {};
+	const store = /* @__PURE__ */ new Map();
+	const base = {};
+	const emit = (call, pineHandleId, args) => {
+		sink.pushEvent({
+			call,
+			args,
+			barIndex: sink.barIndex,
+			pineHandleId
+		});
+	};
+	const hasHandle = (value) => resolveHandle(value, store, ownerToken) !== void 0;
+	const attachHandleMethods = (handle) => {
+		for (const fnName of Object.keys(descriptor.functions)) {
+			if (fnName === "new") continue;
+			if (typeof handle[fnName] === "function") continue;
+			handle[fnName] = (...args) => {
+				const method = base[fnName];
+				if (typeof method !== "function") return void 0;
+				return method(handle, ...args);
+			};
+		}
+	};
+	const createHandle = (...args) => {
+		const newSpec = descriptor.functions.new;
+		const canonicalArgs = newSpec.canonicalArgs;
+		const handleFields = newSpec.handleFields ?? {};
+		const normalizedArgsByName = {};
+		for (let index = 0; index < args.length && index < canonicalArgs.length; index++) {
+			const argName = canonicalArgs[index];
+			if (!argName) continue;
+			normalizedArgsByName[argName] = normalizeValue(handleFields[argName] ?? argName, args[index]);
+		}
+		const handle = {
+			__id: nextId++,
+			__deleted: false
+		};
+		Object.defineProperty(handle, HANDLE_OWNER, {
+			value: ownerToken,
+			enumerable: false,
+			configurable: false,
+			writable: false
+		});
+		for (const [argName, fieldName] of Object.entries(handleFields)) handle[fieldName] = normalizedArgsByName[argName];
+		if (descriptor.name === "table") {
+			const tableHandle = handle;
+			tableHandle.cells = /* @__PURE__ */ new Map();
+			tableHandle.merges = [];
+		}
+		attachHandleMethods(handle);
+		store.set(handle.__id, handle);
+		if (newSpec.visualEventArgs) emit(`${descriptor.name}.new`, handle.__id, buildProjectedArgs(newSpec.visualEventArgs, normalizedArgsByName, args.length));
+		return handle;
+	};
+	const getValue = (handle, fieldName) => {
+		const value = handle[fieldName];
+		if (value === void 0) return getterFallback(fieldName);
+		if (NUMBER_VALUE_NAMES.has(fieldName) || INTEGER_VALUE_NAMES.has(fieldName) || NONNEGATIVE_INTEGER_VALUE_NAMES.has(fieldName)) return toFiniteNumber(value);
+		if (STRING_VALUE_NAMES.has(fieldName)) return value == null ? "" : String(value);
+		return value;
+	};
+	for (const [fnName, fnSpec] of Object.entries(descriptor.functions)) {
+		if (fnName === "new") {
+			base.new = createHandle;
+			continue;
+		}
+		if (fnName === "delete") {
+			base.delete = (handleLike) => {
+				const handle = resolveHandle(handleLike, store, ownerToken);
+				if (!handle) return;
+				handle.__deleted = true;
+				store.delete(handle.__id);
+				emit(`${descriptor.name}.delete`, handle.__id, []);
+			};
+			continue;
+		}
+		if (fnName.startsWith("get_")) {
+			const [fieldName = ""] = parseAccessorFields(fnName);
+			base[fnName] = (handleLike) => {
+				const handle = resolveHandle(handleLike, store, ownerToken);
+				if (!handle) return getterFallback(fieldName);
+				return getValue(handle, fieldName);
+			};
+			continue;
+		}
+		if (descriptor.name === "table" && fnName === "cell") {
+			base.cell = (...args) => {
+				const table = resolveHandle(args[0], store, ownerToken);
+				if (!table) return;
+				const normalizedArgsByName = { table_id: table };
+				for (let index = 1; index < args.length && index < fnSpec.canonicalArgs.length; index++) {
+					const argName = fnSpec.canonicalArgs[index];
+					if (!argName) continue;
+					normalizedArgsByName[argName] = normalizeValue(argName, args[index]);
+				}
+				const column = normalizedArgsByName.column;
+				const row = normalizedArgsByName.row;
+				table.cells.set(keyForCell(column, row), createTableCellData(normalizedArgsByName));
+				const projection = fnSpec.visualEventArgs ?? fnSpec.canonicalArgs;
+				emit("table.cell", table.__id, buildProjectedArgs(projection, normalizedArgsByName, args.length));
+			};
+			continue;
+		}
+		if (descriptor.name === "table" && fnName === "clear") {
+			base.clear = (...args) => {
+				const table = resolveHandle(args[0], store, ownerToken);
+				if (!table) return;
+				const normalizedArgsByName = {};
+				for (let index = 1; index < args.length && index < fnSpec.canonicalArgs.length; index++) {
+					const argName = fnSpec.canonicalArgs[index];
+					if (!argName) continue;
+					normalizedArgsByName[argName] = normalizeValue(argName, args[index]);
+				}
+				if (args.length <= 1) {
+					table.cells.clear();
+					table.merges = [];
+				} else {
+					const startColumn = normalizedArgsByName.start_column;
+					const startRow = normalizedArgsByName.start_row;
+					const endColumn = typeof normalizedArgsByName.end_column === "number" ? normalizedArgsByName.end_column : table.columns - 1;
+					const endRow = typeof normalizedArgsByName.end_row === "number" ? normalizedArgsByName.end_row : table.rows - 1;
+					for (const key of [...table.cells.keys()]) {
+						const [columnText = "", rowText = ""] = key.split(":");
+						const column = Number(columnText);
+						const row = Number(rowText);
+						if (column >= startColumn && column <= endColumn && row >= startRow && row <= endRow) table.cells.delete(key);
+					}
+				}
+				emit("table.clear", table.__id, buildProjectedArgs(fnSpec.canonicalArgs.slice(1), normalizedArgsByName, Math.max(0, args.length - 1)));
+			};
+			continue;
+		}
+		if (descriptor.name === "table" && fnName === "merge_cells") {
+			base.merge_cells = (...args) => {
+				const table = resolveHandle(args[0], store, ownerToken);
+				if (!table) return;
+				const normalizedArgsByName = {};
+				for (let index = 1; index < args.length && index < fnSpec.canonicalArgs.length; index++) {
+					const argName = fnSpec.canonicalArgs[index];
+					if (!argName) continue;
+					normalizedArgsByName[argName] = normalizeValue(argName, args[index]);
+				}
+				const startColumn = normalizedArgsByName.start_column;
+				const startRow = normalizedArgsByName.start_row;
+				const endColumn = typeof normalizedArgsByName.end_column === "number" ? normalizedArgsByName.end_column : startColumn;
+				const endRow = typeof normalizedArgsByName.end_row === "number" ? normalizedArgsByName.end_row : startRow;
+				table.merges.push([
+					startColumn,
+					startRow,
+					endColumn,
+					endRow
+				]);
+				emit("table.merge_cells", table.__id, buildProjectedArgs(fnSpec.canonicalArgs.slice(1), normalizedArgsByName, Math.max(0, args.length - 1)));
+			};
+			continue;
+		}
+		if (fnName.startsWith("set_")) {
+			const fieldNames = parseAccessorFields(fnName);
+			base[fnName] = (...args) => {
+				const handle = resolveHandle(args[0], store, ownerToken);
+				if (!handle) return;
+				const normalizedArgsByName = {};
+				for (let index = 1; index < args.length && index < fnSpec.canonicalArgs.length; index++) {
+					const argName = fnSpec.canonicalArgs[index];
+					const fieldName = fieldNames[index - 1] ?? argName ?? "";
+					if (!argName) continue;
+					const normalizedValue = normalizeValue(fieldName, args[index]);
+					normalizedArgsByName[argName] = normalizedValue;
+					handle[fieldName] = normalizedValue;
+				}
+				emit(`${descriptor.name}.${fnName}`, handle.__id, buildProjectedArgs(fnSpec.canonicalArgs.slice(1), normalizedArgsByName, Math.max(0, args.length - 1)));
+			};
+		}
+	}
+	base.__hasHandle = hasHandle;
+	if (descriptor.name === "box") {
+		let currentBarTime = NaN;
+		base.__setBarTime = (time) => {
+			const value = Number(time);
+			if (Number.isFinite(value)) currentBarTime = value;
+		};
+		base.__getActiveBgcolor = () => {
+			if (!Number.isFinite(currentBarTime)) return null;
+			let active = null;
+			for (const handle of store.values()) if (typeof handle.right === "number" && handle.right === currentBarTime) active = handle;
+			if (!active) return null;
+			if (isColorLike(active.bgcolor)) return active.bgcolor;
+			if (isColorLike(active.border_color)) return active.border_color;
+			return null;
+		};
+	}
+	for (const constant of descriptor.constants) base[constant.name] = constant.value;
+	return withConstantFallback(base, descriptor.name);
+}
+function createDrawingRuntime(sink) {
+	return {
+		line: createDrawingNamespace(DRAWING_REGISTRY.line, sink),
+		box: createDrawingNamespace(DRAWING_REGISTRY.box, sink),
+		label: createDrawingNamespace(DRAWING_REGISTRY.label, sink),
+		linefill: createDrawingNamespace(DRAWING_REGISTRY.linefill, sink),
+		table: createDrawingNamespace(DRAWING_REGISTRY.table, sink)
+	};
+}
 //#endregion
 //#region src/runtime/mock-factories.ts
 /**
@@ -4012,528 +4682,31 @@ function createPriceSources(Std, context) {
 }
 //#endregion
 //#region src/runtime/stub-namespaces.ts
-function toNumber(value, fallback = NaN) {
-	const n = Number(value);
-	return Number.isFinite(n) ? n : fallback;
-}
-function toInteger(value, fallback = 0) {
-	const n = Number(value);
-	return Number.isFinite(n) ? Math.trunc(n) : fallback;
-}
-function asHandle(value) {
-	if (typeof value !== "object" || value === null) return void 0;
-	const candidate = value;
-	if (typeof candidate.__id !== "number") return void 0;
-	return candidate;
-}
-function withConstantFallback(base, prefix) {
-	return new Proxy(base, { get(target, prop) {
-		if (typeof prop !== "string") return void 0;
-		if (prop in target) return target[prop];
-		return `${prefix}.${prop}`;
-	} });
-}
-function resolveHandle(value, store) {
-	const handle = asHandle(value);
-	if (!handle) return void 0;
-	const resolved = store.get(handle.__id);
-	if (!resolved || resolved.__deleted) return void 0;
-	return resolved;
-}
-function makeLineNamespace() {
-	let nextId = 1;
-	const lineStore = /* @__PURE__ */ new Map();
-	const deleteLine = (lineObj) => {
-		const h = resolveHandle(lineObj, lineStore);
-		if (!h) return;
-		h.__deleted = true;
-		lineStore.delete(h.__id);
+/**
+* Runtime Namespaces for Compatibility Features
+*
+* Provides compatibility implementations for Pine Script namespaces
+* used by real-world scripts. Drawing/table namespaces are stateful
+* no-op objects (runtime-compatible but no visual rendering).
+*/
+function createNoopDrawingSink() {
+	return {
+		barIndex: -1,
+		pushEvent: () => void 0
 	};
-	const setX2 = (lineObj, x2) => {
-		const h = resolveHandle(lineObj, lineStore);
-		if (!h) return;
-		h.x2 = toNumber(x2);
-	};
-	const setXY1 = (lineObj, x1, y1) => {
-		const h = resolveHandle(lineObj, lineStore);
-		if (!h) return;
-		h.x1 = toNumber(x1);
-		h.y1 = toNumber(y1);
-	};
-	const setXY2 = (lineObj, x2, y2) => {
-		const h = resolveHandle(lineObj, lineStore);
-		if (!h) return;
-		h.x2 = toNumber(x2);
-		h.y2 = toNumber(y2);
-	};
-	const setColor = (lineObj, color) => {
-		const h = resolveHandle(lineObj, lineStore);
-		if (!h) return;
-		h.color = color;
-	};
-	const getX2 = (lineObj) => {
-		const h = resolveHandle(lineObj, lineStore);
-		return h ? toNumber(h.x2) : NaN;
-	};
-	const getY1 = (lineObj) => {
-		const h = resolveHandle(lineObj, lineStore);
-		return h ? toNumber(h.y1) : NaN;
-	};
-	const getY2 = (lineObj) => {
-		const h = resolveHandle(lineObj, lineStore);
-		return h ? toNumber(h.y2) : NaN;
-	};
-	const hasHandle = (lineObj) => resolveHandle(lineObj, lineStore) !== void 0;
-	const attachLineMethods = (h) => {
-		if (typeof h.delete !== "function") h.delete = () => deleteLine(h);
-		if (typeof h.set_x2 !== "function") h.set_x2 = (x2) => setX2(h, x2);
-		if (typeof h.set_xy1 !== "function") h.set_xy1 = (x1, y1) => setXY1(h, x1, y1);
-		if (typeof h.set_xy2 !== "function") h.set_xy2 = (x2, y2) => setXY2(h, x2, y2);
-		if (typeof h.set_color !== "function") h.set_color = (color) => setColor(h, color);
-		if (typeof h.get_x2 !== "function") h.get_x2 = () => getX2(h);
-		if (typeof h.get_y1 !== "function") h.get_y1 = () => getY1(h);
-		if (typeof h.get_y2 !== "function") h.get_y2 = () => getY2(h);
-	};
-	return withConstantFallback({
-		new: (...args) => {
-			const h = {
-				__id: nextId++,
-				__deleted: false,
-				x1: toNumber(args[0]),
-				y1: toNumber(args[1]),
-				x2: toNumber(args[2]),
-				y2: toNumber(args[3]),
-				color: args[4],
-				style: args[5],
-				width: toInteger(args[6], 1)
-			};
-			attachLineMethods(h);
-			lineStore.set(h.__id, h);
-			return h;
-		},
-		delete: deleteLine,
-		set_x2: setX2,
-		set_xy1: setXY1,
-		set_xy2: setXY2,
-		set_color: setColor,
-		get_x2: getX2,
-		get_y1: getY1,
-		get_y2: getY2,
-		__hasHandle: hasHandle,
-		style_solid: "solid",
-		style_dashed: "dashed",
-		style_dotted: "dotted",
-		style_arrow_left: "arrow_left",
-		style_arrow_right: "arrow_right",
-		style_arrow_both: "arrow_both"
-	}, "line");
-}
-function makeLinefillNamespace() {
-	let nextId = 1;
-	const linefillStore = /* @__PURE__ */ new Map();
-	const deleteLinefill = (linefillObj) => {
-		const h = resolveHandle(linefillObj, linefillStore);
-		if (!h) return;
-		h.__deleted = true;
-		linefillStore.delete(h.__id);
-	};
-	const setColor = (linefillObj, color) => {
-		const h = resolveHandle(linefillObj, linefillStore);
-		if (!h) return;
-		h.color = color;
-	};
-	const getLine1 = (linefillObj) => {
-		return resolveHandle(linefillObj, linefillStore)?.line1;
-	};
-	const getLine2 = (linefillObj) => {
-		return resolveHandle(linefillObj, linefillStore)?.line2;
-	};
-	const hasHandle = (linefillObj) => resolveHandle(linefillObj, linefillStore) !== void 0;
-	const attachLinefillMethods = (h) => {
-		if (typeof h.delete !== "function") h.delete = () => deleteLinefill(h);
-		if (typeof h.set_color !== "function") h.set_color = (color) => setColor(h, color);
-		if (typeof h.get_line1 !== "function") h.get_line1 = () => getLine1(h);
-		if (typeof h.get_line2 !== "function") h.get_line2 = () => getLine2(h);
-	};
-	return withConstantFallback({
-		new: (...args) => {
-			const h = {
-				__id: nextId++,
-				__deleted: false,
-				line1: args[0],
-				line2: args[1],
-				color: args[2]
-			};
-			attachLinefillMethods(h);
-			linefillStore.set(h.__id, h);
-			return h;
-		},
-		delete: deleteLinefill,
-		set_color: setColor,
-		get_line1: getLine1,
-		get_line2: getLine2,
-		__hasHandle: hasHandle
-	}, "linefill");
-}
-function isColorLike(v) {
-	if (typeof v !== "string" || v.length === 0) return false;
-	if (v === "NaN" || v === "na") return false;
-	return v.startsWith("#") || v.startsWith("rgb") || v.startsWith("hsl");
-}
-function makeBoxNamespace() {
-	let nextId = 1;
-	const boxStore = /* @__PURE__ */ new Map();
-	let currentBarTime = NaN;
-	const deleteBox = (boxObj) => {
-		const h = resolveHandle(boxObj, boxStore);
-		if (!h) return;
-		h.__deleted = true;
-		boxStore.delete(h.__id);
-	};
-	const setLeft = (boxObj, left) => {
-		const h = resolveHandle(boxObj, boxStore);
-		if (!h) return;
-		h.left = toNumber(left);
-	};
-	const setRight = (boxObj, right) => {
-		const h = resolveHandle(boxObj, boxStore);
-		if (!h) return;
-		h.right = toNumber(right);
-	};
-	const setTop = (boxObj, top) => {
-		const h = resolveHandle(boxObj, boxStore);
-		if (!h) return;
-		h.top = toNumber(top);
-	};
-	const setBottom = (boxObj, bottom) => {
-		const h = resolveHandle(boxObj, boxStore);
-		if (!h) return;
-		h.bottom = toNumber(bottom);
-	};
-	const setExtend = (boxObj, extend) => {
-		const h = resolveHandle(boxObj, boxStore);
-		if (!h) return;
-		h.extend = extend;
-	};
-	const setBgcolor = (boxObj, color) => {
-		const h = resolveHandle(boxObj, boxStore);
-		if (!h) return;
-		h.bgcolor = color;
-	};
-	const setBorderColor = (boxObj, color) => {
-		const h = resolveHandle(boxObj, boxStore);
-		if (!h) return;
-		h.border_color = color;
-	};
-	const setBorderWidth = (boxObj, width) => {
-		const h = resolveHandle(boxObj, boxStore);
-		if (!h) return;
-		h.border_width = toInteger(width, 1);
-	};
-	const setTextColor = (boxObj, color) => {
-		const h = resolveHandle(boxObj, boxStore);
-		if (!h) return;
-		h.text_color = color;
-	};
-	const getTop = (boxObj) => {
-		const h = resolveHandle(boxObj, boxStore);
-		return h ? toNumber(h.top) : NaN;
-	};
-	const getBottom = (boxObj) => {
-		const h = resolveHandle(boxObj, boxStore);
-		return h ? toNumber(h.bottom) : NaN;
-	};
-	const getLeft = (boxObj) => {
-		const h = resolveHandle(boxObj, boxStore);
-		return h ? toNumber(h.left) : NaN;
-	};
-	const getRight = (boxObj) => {
-		const h = resolveHandle(boxObj, boxStore);
-		return h ? toNumber(h.right) : NaN;
-	};
-	const hasHandle = (boxObj) => resolveHandle(boxObj, boxStore) !== void 0;
-	const attachBoxMethods = (h) => {
-		if (typeof h.delete !== "function") h.delete = () => deleteBox(h);
-		if (typeof h.set_left !== "function") h.set_left = (left) => setLeft(h, left);
-		if (typeof h.set_right !== "function") h.set_right = (right) => setRight(h, right);
-		if (typeof h.set_top !== "function") h.set_top = (top) => setTop(h, top);
-		if (typeof h.set_bottom !== "function") h.set_bottom = (bottom) => setBottom(h, bottom);
-		if (typeof h.set_extend !== "function") h.set_extend = (extend) => setExtend(h, extend);
-		if (typeof h.set_bgcolor !== "function") h.set_bgcolor = (color) => setBgcolor(h, color);
-		if (typeof h.set_border_color !== "function") h.set_border_color = (color) => setBorderColor(h, color);
-		if (typeof h.set_border_width !== "function") h.set_border_width = (width) => setBorderWidth(h, width);
-		if (typeof h.set_text_color !== "function") h.set_text_color = (color) => setTextColor(h, color);
-		if (typeof h.get_top !== "function") h.get_top = () => getTop(h);
-		if (typeof h.get_bottom !== "function") h.get_bottom = () => getBottom(h);
-		if (typeof h.get_left !== "function") h.get_left = () => getLeft(h);
-		if (typeof h.get_right !== "function") h.get_right = () => getRight(h);
-	};
-	return withConstantFallback({
-		new: (...args) => {
-			const h = {
-				__id: nextId++,
-				__deleted: false,
-				left: toNumber(args[0]),
-				top: toNumber(args[1]),
-				right: toNumber(args[2]),
-				bottom: toNumber(args[3]),
-				border_color: args[4],
-				border_width: toInteger(args[5], 1),
-				border_style: args[6],
-				extend: args[7],
-				xloc: args[8],
-				bgcolor: args[9],
-				text: args[10],
-				text_size: args[11],
-				text_color: args[12],
-				text_halign: args[13],
-				text_valign: args[14]
-			};
-			attachBoxMethods(h);
-			boxStore.set(h.__id, h);
-			return h;
-		},
-		delete: deleteBox,
-		set_left: setLeft,
-		set_right: setRight,
-		set_top: setTop,
-		set_bottom: setBottom,
-		set_extend: setExtend,
-		set_bgcolor: setBgcolor,
-		set_border_color: setBorderColor,
-		set_border_width: setBorderWidth,
-		set_text_color: setTextColor,
-		get_left: getLeft,
-		get_right: getRight,
-		get_top: getTop,
-		get_bottom: getBottom,
-		__hasHandle: hasHandle,
-		__setBarTime: (t) => {
-			const n = Number(t);
-			if (Number.isFinite(n)) currentBarTime = n;
-		},
-		__getActiveBgcolor: () => {
-			if (!Number.isFinite(currentBarTime)) return null;
-			let active = null;
-			for (const h of boxStore.values()) if (typeof h.right === "number" && h.right === currentBarTime) active = h;
-			if (!active) return null;
-			if (isColorLike(active.bgcolor)) return active.bgcolor;
-			if (isColorLike(active.border_color)) return active.border_color;
-			return null;
-		}
-	}, "box");
-}
-function makeLabelNamespace() {
-	let nextId = 1;
-	const labelStore = /* @__PURE__ */ new Map();
-	const deleteLabel = (labelObj) => {
-		const h = resolveHandle(labelObj, labelStore);
-		if (!h) return;
-		h.__deleted = true;
-		labelStore.delete(h.__id);
-	};
-	const setText = (labelObj, text) => {
-		const h = resolveHandle(labelObj, labelStore);
-		if (!h) return;
-		h.text = text == null ? "" : String(text);
-	};
-	const getText = (labelObj) => {
-		const h = resolveHandle(labelObj, labelStore);
-		if (!h) return "";
-		return h.text == null ? "" : String(h.text);
-	};
-	const setTooltip = (labelObj, tooltip) => {
-		const h = resolveHandle(labelObj, labelStore);
-		if (!h) return;
-		h.tooltip = tooltip == null ? "" : String(tooltip);
-	};
-	const setTextcolor = (labelObj, color) => {
-		const h = resolveHandle(labelObj, labelStore);
-		if (!h) return;
-		h.textcolor = color;
-	};
-	const setStyle = (labelObj, style) => {
-		const h = resolveHandle(labelObj, labelStore);
-		if (!h) return;
-		h.style = style;
-	};
-	const setXY = (labelObj, x, y) => {
-		const h = resolveHandle(labelObj, labelStore);
-		if (!h) return;
-		h.x = toNumber(x);
-		h.y = toNumber(y);
-	};
-	const setX = (labelObj, x) => {
-		const h = resolveHandle(labelObj, labelStore);
-		if (!h) return;
-		h.x = toNumber(x);
-	};
-	const setY = (labelObj, y) => {
-		const h = resolveHandle(labelObj, labelStore);
-		if (!h) return;
-		h.y = toNumber(y);
-	};
-	const getY = (labelObj) => {
-		const h = resolveHandle(labelObj, labelStore);
-		return h ? toNumber(h.y) : NaN;
-	};
-	const hasHandle = (labelObj) => resolveHandle(labelObj, labelStore) !== void 0;
-	const attachLabelMethods = (h) => {
-		if (typeof h.delete !== "function") h.delete = () => deleteLabel(h);
-		if (typeof h.set_text !== "function") h.set_text = (text) => setText(h, text);
-		if (typeof h.get_text !== "function") h.get_text = () => getText(h);
-		if (typeof h.set_tooltip !== "function") h.set_tooltip = (tooltip) => setTooltip(h, tooltip);
-		if (typeof h.set_textcolor !== "function") h.set_textcolor = (color) => setTextcolor(h, color);
-		if (typeof h.set_style !== "function") h.set_style = (style) => setStyle(h, style);
-		if (typeof h.set_xy !== "function") h.set_xy = (x, y) => setXY(h, x, y);
-		if (typeof h.set_x !== "function") h.set_x = (x) => setX(h, x);
-		if (typeof h.set_y !== "function") h.set_y = (y) => setY(h, y);
-		if (typeof h.get_y !== "function") h.get_y = () => getY(h);
-	};
-	return withConstantFallback({
-		new: (...args) => {
-			const h = {
-				__id: nextId++,
-				__deleted: false,
-				x: toNumber(args[0]),
-				y: toNumber(args[1]),
-				text: args[2] == null ? "" : String(args[2]),
-				xloc: args[3],
-				yloc: args[4],
-				color: args[5],
-				style: args[6],
-				textcolor: args[7],
-				size: args[8],
-				textalign: args[9],
-				tooltip: args[10]
-			};
-			attachLabelMethods(h);
-			labelStore.set(h.__id, h);
-			return h;
-		},
-		delete: deleteLabel,
-		set_text: setText,
-		get_text: getText,
-		set_tooltip: setTooltip,
-		set_textcolor: setTextcolor,
-		set_style: setStyle,
-		set_xy: setXY,
-		set_x: setX,
-		set_y: setY,
-		get_y: getY,
-		__hasHandle: hasHandle,
-		style_none: "none",
-		style_xcross: "xcross",
-		style_cross: "cross",
-		style_triangleup: "triangleup",
-		style_triangledown: "triangledown",
-		style_flag: "flag",
-		style_circle: "circle",
-		style_arrowup: "arrowup",
-		style_arrowdown: "arrowdown",
-		style_square: "square",
-		style_diamond: "diamond",
-		style_label_up: "label_up",
-		style_label_down: "label_down",
-		style_label_left: "label_left",
-		style_label_right: "label_right",
-		style_label_lower_left: "label_lower_left",
-		style_label_lower_right: "label_lower_right",
-		style_label_upper_left: "label_upper_left",
-		style_label_upper_right: "label_upper_right",
-		style_label_center: "label_center"
-	}, "label");
-}
-function makeTableNamespace() {
-	let nextId = 1;
-	const tableStore = /* @__PURE__ */ new Map();
-	const keyFor = (col, row) => `${col}:${row}`;
-	const tableCell = (...args) => {
-		const t = resolveHandle(args[0], tableStore);
-		if (!t) return;
-		const col = toInteger(args[1], 0);
-		const row = toInteger(args[2], 0);
-		t.cells.set(keyFor(col, row), {
-			text: args[3],
-			textColor: args[4],
-			textHalign: args[5],
-			textSize: args[6],
-			bgcolor: args[7],
-			tooltip: args[8],
-			textValign: args[9]
-		});
-	};
-	const tableClear = (...args) => {
-		const t = resolveHandle(args[0], tableStore);
-		if (!t) return;
-		if (args.length <= 1) {
-			t.cells.clear();
-			t.merges = [];
-			return;
-		}
-		const startCol = toInteger(args[1], 0);
-		const startRow = toInteger(args[2], 0);
-		const endCol = toInteger(args[3], t.columns - 1);
-		const endRow = toInteger(args[4], t.rows - 1);
-		for (const key of t.cells.keys()) {
-			const [cStr, rStr] = key.split(":");
-			const c = Number(cStr);
-			const r = Number(rStr);
-			if (c >= startCol && c <= endCol && r >= startRow && r <= endRow) t.cells.delete(key);
-		}
-	};
-	const tableMergeCells = (...args) => {
-		const t = resolveHandle(args[0], tableStore);
-		if (!t) return;
-		const startCol = toInteger(args[1], 0);
-		const startRow = toInteger(args[2], 0);
-		const endCol = toInteger(args[3], startCol);
-		const endRow = toInteger(args[4], startRow);
-		t.merges.push([
-			startCol,
-			startRow,
-			endCol,
-			endRow
-		]);
-	};
-	const hasHandle = (tableObj) => resolveHandle(tableObj, tableStore) !== void 0;
-	const attachTableMethods = (t) => {
-		if (typeof t.cell !== "function") t.cell = (...args) => tableCell(t, ...args);
-		if (typeof t.clear !== "function") t.clear = (...args) => tableClear(t, ...args);
-		if (typeof t.merge_cells !== "function") t.merge_cells = (...args) => tableMergeCells(t, ...args);
-	};
-	return withConstantFallback({
-		new: (...args) => {
-			const t = {
-				__id: nextId++,
-				__deleted: false,
-				position: args[0],
-				columns: Math.max(0, toInteger(args[1], 0)),
-				rows: Math.max(0, toInteger(args[2], 0)),
-				cells: /* @__PURE__ */ new Map(),
-				merges: []
-			};
-			attachTableMethods(t);
-			tableStore.set(t.__id, t);
-			return t;
-		},
-		cell: tableCell,
-		clear: tableClear,
-		merge_cells: tableMergeCells,
-		__hasHandle: hasHandle
-	}, "table");
 }
 /**
 * Create runtime compatibility namespaces.
 * Drawing/table namespaces are stateful no-op objects.
 */
 function createStubNamespaces() {
+	const drawing = createDrawingRuntime(createNoopDrawingSink());
 	return {
-		box: makeBoxNamespace(),
-		line: makeLineNamespace(),
-		linefill: makeLinefillNamespace(),
-		label: makeLabelNamespace(),
-		table: makeTableNamespace(),
+		box: drawing.box,
+		line: drawing.line,
+		linefill: drawing.linefill,
+		label: drawing.label,
+		table: drawing.table,
 		str: (() => {
 			const c = (v) => v == null ? "" : String(v);
 			const two = (n) => String(Math.trunc(n)).padStart(2, "0");
@@ -4666,6 +4839,137 @@ function createBarstate(ctx = {
 	};
 }
 //#endregion
+//#region src/runtime/drawing/standalone-bundle.generated.ts
+var STANDALONE_DRAWING_BUNDLE = "// src/runtime/helpers/timeframe-time.ts\nvar DAY = 86400000;\nvar formatters = new Map;\nfunction localTime(timestamp, timezone) {\n  const offset = /^(?:GMT|UTC)(?:([+-])(\\d{1,2})(?::?(\\d{2}))?)?$/i.exec(timezone);\n  if (offset) {\n    const minutes = Number(offset[2] ?? 0) * 60 + Number(offset[3] ?? 0);\n    return timestamp + (offset[1] === \"-\" ? -minutes : minutes) * 60000;\n  }\n  try {\n    let formatter = formatters.get(timezone);\n    if (!formatter) {\n      formatter = new Intl.DateTimeFormat(\"en-US\", {\n        timeZone: timezone,\n        hourCycle: \"h23\",\n        year: \"numeric\",\n        month: \"numeric\",\n        day: \"numeric\",\n        hour: \"numeric\",\n        minute: \"numeric\",\n        second: \"numeric\"\n      });\n      formatters.set(timezone, formatter);\n    }\n    const parts = formatter.formatToParts(timestamp);\n    const part = (name) => Number(parts.find((p) => p.type === name)?.value);\n    return Date.UTC(part(\"year\"), part(\"month\") - 1, part(\"day\"), part(\"hour\"), part(\"minute\"), part(\"second\")) + timestamp % 1000;\n  } catch {\n    return timestamp;\n  }\n}\nfunction utcTime(local, timezone) {\n  const matches = [];\n  for (const probe of [local - DAY, local, local + DAY]) {\n    const candidate = local - (localTime(probe, timezone) - probe);\n    if (localTime(candidate, timezone) === local)\n      matches.push(candidate);\n  }\n  return matches.length ? Math.min(...matches) : Number.NaN;\n}\nfunction sessionWindows(raw) {\n  if (raw === \"24x7\" || !raw)\n    return [{ start: 0, end: 0, days: \"1234567\" }];\n  const [ranges, days = \"1234567\"] = raw.split(\":\");\n  const windows = [];\n  for (const range of ranges.split(\",\")) {\n    const match = /^(\\d{2})(\\d{2})-(\\d{2})(\\d{2})$/.exec(range);\n    if (!match)\n      continue;\n    const [, sh, sm, eh, em] = match.map(Number);\n    if (sh > 23 || eh > 23 || sm > 59 || em > 59)\n      continue;\n    windows.push({ start: sh * 60 + sm, end: eh * 60 + em, days });\n  }\n  return windows;\n}\nfunction resolveTime(currentBarTime, priorProcessedBars, barTimes, chartPeriod, symbol, timeframeArg, sessionArg, timezoneArg, barsBackArg) {\n  if (barsBackArg === undefined && typeof timezoneArg === \"number\") {\n    barsBackArg = timezoneArg;\n    timezoneArg = undefined;\n  }\n  const rawBack = Number(barsBackArg ?? 0);\n  const back = Number.isFinite(rawBack) && rawBack > 0 ? Math.trunc(rawBack) : 0;\n  if (back > priorProcessedBars)\n    return Number.NaN;\n  const timestamp = back ? barTimes[priorProcessedBars - back] : currentBarTime;\n  if (!Number.isFinite(timestamp))\n    return Number.NaN;\n  const requested = typeof timeframeArg === \"string\" ? timeframeArg.trim() : \"\";\n  const explicitSession = typeof sessionArg === \"string\" ? sessionArg.trim() : \"\";\n  if ((!requested || requested === chartPeriod) && !explicitSession)\n    return timestamp;\n  const timezone = typeof timezoneArg === \"string\" && timezoneArg.trim() ? timezoneArg : String(symbol?.timezone || \"UTC\");\n  const session = explicitSession || String(symbol?.session_regular || symbol?.session || \"\");\n  const local = localTime(timestamp, timezone);\n  const date = Math.floor(local / DAY) * DAY;\n  const minute = (local - date) / 60000;\n  let window;\n  let sessionDate = date;\n  let tradingDate = date;\n  for (const candidate of sessionWindows(session)) {\n    const overnight2 = candidate.start >= candidate.end && candidate.start !== 0;\n    const startDate = date - (minute < candidate.start ? DAY : 0);\n    const tradeDate = startDate + (overnight2 ? DAY : 0);\n    const inHours = candidate.start === candidate.end || (candidate.start < candidate.end ? minute >= candidate.start && minute < candidate.end : minute >= candidate.start || minute < candidate.end);\n    if (inHours && candidate.days.includes(String(new Date(tradeDate).getUTCDay() + 1))) {\n      window = candidate;\n      sessionDate = startDate;\n      tradingDate = tradeDate;\n      break;\n    }\n  }\n  if (!window)\n    return Number.NaN;\n  if (!requested || requested === chartPeriod)\n    return timestamp;\n  const match = /^(\\d+)?([SMHDWY])?$/.exec(requested.toUpperCase());\n  if (!match)\n    return timestamp;\n  const count = Number(match[1] || 1);\n  if (!Number.isFinite(count) || count <= 0)\n    return Number.NaN;\n  const unit = match[2] || \"\";\n  const sessionOpen = utcTime(sessionDate + window.start * 60000, timezone);\n  if (unit === \"\" || unit === \"S\" || unit === \"H\") {\n    const duration = count * (unit === \"S\" ? 1000 : unit === \"H\" ? 3600000 : 60000);\n    return sessionOpen + Math.floor((timestamp - sessionOpen) / duration) * duration;\n  }\n  let periodDate = tradingDate;\n  if (unit === \"D\") {\n    periodDate = Math.floor(tradingDate / (DAY * count)) * DAY * count;\n  } else if (unit === \"W\") {\n    const monday = 4 * DAY;\n    periodDate = monday + Math.floor((tradingDate - monday) / (7 * DAY * count)) * 7 * DAY * count;\n  } else {\n    const d = new Date(tradingDate);\n    const months = unit === \"Y\" ? count * 12 : count;\n    const month = Math.floor((d.getUTCFullYear() * 12 + d.getUTCMonth()) / months) * months;\n    periodDate = Date.UTC(Math.floor(month / 12), month % 12, 1);\n  }\n  for (let day = 0;day < 7 && !window.days.includes(String(new Date(periodDate).getUTCDay() + 1)); day++) {\n    periodDate += DAY;\n  }\n  const overnight = window.start >= window.end && window.start !== 0;\n  return utcTime(periodDate - (overnight ? DAY : 0) + window.start * 60000, timezone);\n}\n\n// src/registry/drawing.ts\nvar BOX_NEW_ARGS = [\n  \"left\",\n  \"top\",\n  \"right\",\n  \"bottom\",\n  \"border_color\",\n  \"border_width\",\n  \"border_style\",\n  \"extend\",\n  \"xloc\",\n  \"bgcolor\",\n  \"text\",\n  \"text_size\",\n  \"text_color\",\n  \"text_halign\",\n  \"text_valign\",\n  \"text_wrap\",\n  \"force_overlay\",\n  \"text_font_family\"\n];\nvar LINE_NEW_ARGS = [\n  \"x1\",\n  \"y1\",\n  \"x2\",\n  \"y2\",\n  \"xloc\",\n  \"extend\",\n  \"color\",\n  \"style\",\n  \"width\",\n  \"force_overlay\"\n];\nvar LABEL_NEW_ARGS = [\n  \"x\",\n  \"y\",\n  \"text\",\n  \"xloc\",\n  \"yloc\",\n  \"color\",\n  \"style\",\n  \"textcolor\",\n  \"size\",\n  \"textalign\",\n  \"tooltip\",\n  \"text_font_family\",\n  \"force_overlay\",\n  \"text_formatting\"\n];\nvar LINEFILL_NEW_ARGS = [\"line1\", \"line2\", \"color\"];\nvar TABLE_NEW_ARGS = [\n  \"position\",\n  \"columns\",\n  \"rows\",\n  \"bgcolor\",\n  \"frame_color\",\n  \"frame_width\",\n  \"border_color\",\n  \"border_width\",\n  \"force_overlay\"\n];\nvar TABLE_CELL_ARGS = [\n  \"table_id\",\n  \"column\",\n  \"row\",\n  \"text\",\n  \"width\",\n  \"height\",\n  \"text_color\",\n  \"text_halign\",\n  \"text_valign\",\n  \"text_size\",\n  \"bgcolor\",\n  \"tooltip\",\n  \"text_font_family\",\n  \"text_formatting\"\n];\nvar DRAWING_REGISTRY = {\n  box: {\n    name: \"box\",\n    functions: {\n      new: {\n        canonicalArgs: BOX_NEW_ARGS,\n        handleFields: {\n          left: \"left\",\n          top: \"top\",\n          right: \"right\",\n          bottom: \"bottom\",\n          border_color: \"border_color\",\n          border_width: \"border_width\",\n          border_style: \"border_style\",\n          extend: \"extend\",\n          xloc: \"xloc\",\n          bgcolor: \"bgcolor\",\n          text: \"text\",\n          text_size: \"text_size\",\n          text_color: \"text_color\",\n          text_halign: \"text_halign\",\n          text_valign: \"text_valign\",\n          text_wrap: \"text_wrap\",\n          force_overlay: \"force_overlay\",\n          text_font_family: \"text_font_family\"\n        },\n        visualEventArgs: BOX_NEW_ARGS\n      },\n      delete: { canonicalArgs: [\"id\"] },\n      set_left: { canonicalArgs: [\"id\", \"left\"] },\n      set_right: { canonicalArgs: [\"id\", \"right\"] },\n      set_top: { canonicalArgs: [\"id\", \"top\"] },\n      set_bottom: { canonicalArgs: [\"id\", \"bottom\"] },\n      set_lefttop: { canonicalArgs: [\"id\", \"left\", \"top\"] },\n      set_rightbottom: { canonicalArgs: [\"id\", \"right\", \"bottom\"] },\n      set_extend: { canonicalArgs: [\"id\", \"extend\"] },\n      set_bgcolor: { canonicalArgs: [\"id\", \"color\"] },\n      set_border_color: { canonicalArgs: [\"id\", \"color\"] },\n      set_border_width: { canonicalArgs: [\"id\", \"width\"] },\n      set_text_color: { canonicalArgs: [\"id\", \"color\"] },\n      get_left: { canonicalArgs: [\"id\"] },\n      get_right: { canonicalArgs: [\"id\"] },\n      get_top: { canonicalArgs: [\"id\"] },\n      get_bottom: { canonicalArgs: [\"id\"] }\n    },\n    constants: []\n  },\n  line: {\n    name: \"line\",\n    functions: {\n      new: {\n        canonicalArgs: LINE_NEW_ARGS,\n        handleFields: {\n          x1: \"x1\",\n          y1: \"y1\",\n          x2: \"x2\",\n          y2: \"y2\",\n          xloc: \"xloc\",\n          extend: \"extend\",\n          color: \"color\",\n          style: \"style\",\n          width: \"width\",\n          force_overlay: \"force_overlay\"\n        },\n        visualEventArgs: LINE_NEW_ARGS\n      },\n      delete: { canonicalArgs: [\"id\"] },\n      set_x2: { canonicalArgs: [\"id\", \"x2\"] },\n      set_y1: { canonicalArgs: [\"id\", \"y1\"] },\n      set_y2: { canonicalArgs: [\"id\", \"y2\"] },\n      set_xy1: { canonicalArgs: [\"id\", \"x\", \"y\"] },\n      set_xy2: { canonicalArgs: [\"id\", \"x\", \"y\"] },\n      set_color: { canonicalArgs: [\"id\", \"color\"] },\n      get_x2: { canonicalArgs: [\"id\"] },\n      get_y1: { canonicalArgs: [\"id\"] },\n      get_y2: { canonicalArgs: [\"id\"] }\n    },\n    constants: [\n      { name: \"style_solid\", value: \"solid\" },\n      { name: \"style_dashed\", value: \"dashed\" },\n      { name: \"style_dotted\", value: \"dotted\" },\n      { name: \"style_arrow_left\", value: \"arrow_left\" },\n      { name: \"style_arrow_right\", value: \"arrow_right\" },\n      { name: \"style_arrow_both\", value: \"arrow_both\" }\n    ]\n  },\n  label: {\n    name: \"label\",\n    functions: {\n      new: {\n        canonicalArgs: LABEL_NEW_ARGS,\n        handleFields: {\n          x: \"x\",\n          y: \"y\",\n          text: \"text\",\n          xloc: \"xloc\",\n          yloc: \"yloc\",\n          color: \"color\",\n          style: \"style\",\n          textcolor: \"textcolor\",\n          size: \"size\",\n          textalign: \"textalign\",\n          tooltip: \"tooltip\",\n          text_font_family: \"text_font_family\",\n          force_overlay: \"force_overlay\",\n          text_formatting: \"text_formatting\"\n        },\n        visualEventArgs: LABEL_NEW_ARGS\n      },\n      delete: { canonicalArgs: [\"id\"] },\n      set_text: { canonicalArgs: [\"id\", \"text\"] },\n      get_text: { canonicalArgs: [\"id\"] },\n      set_tooltip: { canonicalArgs: [\"id\", \"tooltip\"] },\n      set_textcolor: { canonicalArgs: [\"id\", \"color\"] },\n      set_style: { canonicalArgs: [\"id\", \"style\"] },\n      set_xy: { canonicalArgs: [\"id\", \"x\", \"y\"] },\n      set_x: { canonicalArgs: [\"id\", \"x\"] },\n      set_y: { canonicalArgs: [\"id\", \"y\"] },\n      get_y: { canonicalArgs: [\"id\"] }\n    },\n    constants: [\n      { name: \"style_none\", value: \"none\" },\n      { name: \"style_xcross\", value: \"xcross\" },\n      { name: \"style_cross\", value: \"cross\" },\n      { name: \"style_triangleup\", value: \"triangleup\" },\n      { name: \"style_triangledown\", value: \"triangledown\" },\n      { name: \"style_flag\", value: \"flag\" },\n      { name: \"style_circle\", value: \"circle\" },\n      { name: \"style_arrowup\", value: \"arrowup\" },\n      { name: \"style_arrowdown\", value: \"arrowdown\" },\n      { name: \"style_square\", value: \"square\" },\n      { name: \"style_diamond\", value: \"diamond\" },\n      { name: \"style_label_up\", value: \"label_up\" },\n      { name: \"style_label_down\", value: \"label_down\" },\n      { name: \"style_label_left\", value: \"label_left\" },\n      { name: \"style_label_right\", value: \"label_right\" },\n      { name: \"style_label_lower_left\", value: \"label_lower_left\" },\n      { name: \"style_label_lower_right\", value: \"label_lower_right\" },\n      { name: \"style_label_upper_left\", value: \"label_upper_left\" },\n      { name: \"style_label_upper_right\", value: \"label_upper_right\" },\n      { name: \"style_label_center\", value: \"label_center\" }\n    ]\n  },\n  linefill: {\n    name: \"linefill\",\n    functions: {\n      new: {\n        canonicalArgs: LINEFILL_NEW_ARGS,\n        handleFields: {\n          line1: \"line1\",\n          line2: \"line2\",\n          color: \"color\"\n        },\n        visualEventArgs: LINEFILL_NEW_ARGS\n      },\n      delete: { canonicalArgs: [\"id\"] },\n      set_color: { canonicalArgs: [\"id\", \"color\"] },\n      get_line1: { canonicalArgs: [\"id\"] },\n      get_line2: { canonicalArgs: [\"id\"] }\n    },\n    constants: []\n  },\n  table: {\n    name: \"table\",\n    functions: {\n      new: {\n        canonicalArgs: TABLE_NEW_ARGS,\n        handleFields: {\n          position: \"position\",\n          columns: \"columns\",\n          rows: \"rows\",\n          bgcolor: \"bgcolor\",\n          frame_color: \"frame_color\",\n          frame_width: \"frame_width\",\n          border_color: \"border_color\",\n          border_width: \"border_width\",\n          force_overlay: \"force_overlay\"\n        },\n        visualEventArgs: TABLE_NEW_ARGS\n      },\n      cell: {\n        canonicalArgs: TABLE_CELL_ARGS,\n        visualEventArgs: TABLE_CELL_ARGS\n      },\n      clear: {\n        canonicalArgs: [\n          \"table_id\",\n          \"start_column\",\n          \"start_row\",\n          \"end_column\",\n          \"end_row\"\n        ]\n      },\n      merge_cells: {\n        canonicalArgs: [\n          \"table_id\",\n          \"start_column\",\n          \"start_row\",\n          \"end_column\",\n          \"end_row\"\n        ]\n      }\n    },\n    constants: []\n  }\n};\n// src/runtime/drawing/index.ts\nvar NUMBER_VALUE_NAMES = new Set([\n  \"x\",\n  \"y\",\n  \"x1\",\n  \"y1\",\n  \"x2\",\n  \"y2\",\n  \"left\",\n  \"top\",\n  \"right\",\n  \"bottom\"\n]);\nvar INTEGER_VALUE_NAMES = new Set([\n  \"width\",\n  \"height\",\n  \"border_width\",\n  \"frame_width\",\n  \"column\",\n  \"row\",\n  \"start_column\",\n  \"start_row\",\n  \"end_column\",\n  \"end_row\"\n]);\nvar NONNEGATIVE_INTEGER_VALUE_NAMES = new Set([\"columns\", \"rows\"]);\nvar STRING_VALUE_NAMES = new Set([\"text\", \"tooltip\"]);\nvar HANDLE_OWNER = Symbol(\"drawingHandleOwner\");\nvar ONE_DEFAULT_INTEGER_NAMES = new Set([\n  \"width\",\n  \"border_width\",\n  \"frame_width\"\n]);\nfunction toFiniteNumber(value, fallback = Number.NaN) {\n  const candidate = Number(value);\n  return Number.isFinite(candidate) ? candidate : fallback;\n}\nfunction toInteger(value, fallback = 0) {\n  const candidate = Number(value);\n  return Number.isFinite(candidate) ? Math.trunc(candidate) : fallback;\n}\nfunction isColorLike(value) {\n  if (typeof value !== \"string\" || value.length === 0)\n    return false;\n  if (value === \"NaN\" || value === \"na\")\n    return false;\n  return value.startsWith(\"#\") || value.startsWith(\"rgb\") || value.startsWith(\"hsl\");\n}\nfunction asHandle(value) {\n  if (typeof value !== \"object\" || value === null)\n    return;\n  const candidate = value;\n  if (typeof candidate.__id !== \"number\")\n    return;\n  return candidate;\n}\nfunction withConstantFallback(base, prefix) {\n  return new Proxy(base, {\n    get(target, prop, receiver) {\n      const value = Reflect.get(target, prop, receiver);\n      if (value !== undefined || typeof prop !== \"string\")\n        return value;\n      return `${prefix}.${prop}`;\n    }\n  });\n}\nfunction resolveHandle(value, store, ownerToken) {\n  const handle = asHandle(value);\n  if (!handle)\n    return;\n  const handleOwner = handle[HANDLE_OWNER];\n  if (handleOwner !== ownerToken) {\n    return;\n  }\n  const resolved = store.get(handle.__id);\n  if (!resolved || resolved.__deleted)\n    return;\n  return resolved;\n}\nfunction normalizeValue(name, value) {\n  if (STRING_VALUE_NAMES.has(name)) {\n    return value == null ? \"\" : String(value);\n  }\n  if (NONNEGATIVE_INTEGER_VALUE_NAMES.has(name)) {\n    return Math.max(0, toInteger(value, 0));\n  }\n  if (INTEGER_VALUE_NAMES.has(name)) {\n    const fallback = value == null && ONE_DEFAULT_INTEGER_NAMES.has(name) ? 1 : 0;\n    return toInteger(value, fallback);\n  }\n  if (NUMBER_VALUE_NAMES.has(name)) {\n    return toFiniteNumber(value);\n  }\n  return value;\n}\nfunction getterFallback(name) {\n  if (STRING_VALUE_NAMES.has(name))\n    return \"\";\n  if (NUMBER_VALUE_NAMES.has(name) || INTEGER_VALUE_NAMES.has(name) || NONNEGATIVE_INTEGER_VALUE_NAMES.has(name)) {\n    return Number.NaN;\n  }\n  return;\n}\nfunction keyForCell(column, row) {\n  return `${column}:${row}`;\n}\nfunction parseAccessorFields(fnName) {\n  const suffix = fnName.replace(/^(set|get)_/, \"\");\n  if (suffix === \"xy\")\n    return [\"x\", \"y\"];\n  if (suffix === \"lefttop\")\n    return [\"left\", \"top\"];\n  if (suffix === \"rightbottom\")\n    return [\"right\", \"bottom\"];\n  const xyMatch = /^xy(\\d+)$/.exec(suffix);\n  if (xyMatch) {\n    return [`x${xyMatch[1]}`, `y${xyMatch[1]}`];\n  }\n  return [suffix];\n}\nfunction buildProjectedArgs(projection, valuesByName, length) {\n  const projected = [];\n  const cappedLength = Math.min(length, projection.length);\n  for (let index = 0;index < cappedLength; index++) {\n    projected.push(valuesByName[projection[index] ?? \"\"]);\n  }\n  return projected;\n}\nfunction createTableCellData(valuesByName) {\n  return {\n    text: valuesByName.text,\n    width: valuesByName.width,\n    height: valuesByName.height,\n    textColor: valuesByName.text_color,\n    textHalign: valuesByName.text_halign,\n    textValign: valuesByName.text_valign,\n    textSize: valuesByName.text_size,\n    bgcolor: valuesByName.bgcolor,\n    tooltip: valuesByName.tooltip,\n    textFontFamily: valuesByName.text_font_family,\n    textFormatting: valuesByName.text_formatting\n  };\n}\nfunction createDrawingNamespace(descriptor, sink) {\n  let nextId = 1;\n  const ownerToken = {};\n  const store = new Map;\n  const base = {};\n  const emit = (call, pineHandleId, args) => {\n    sink.pushEvent({\n      call,\n      args,\n      barIndex: sink.barIndex,\n      pineHandleId\n    });\n  };\n  const hasHandle = (value) => resolveHandle(value, store, ownerToken) !== undefined;\n  const attachHandleMethods = (handle) => {\n    for (const fnName of Object.keys(descriptor.functions)) {\n      if (fnName === \"new\")\n        continue;\n      if (typeof handle[fnName] === \"function\")\n        continue;\n      handle[fnName] = (...args) => {\n        const method = base[fnName];\n        if (typeof method !== \"function\")\n          return;\n        return method(handle, ...args);\n      };\n    }\n  };\n  const createHandle = (...args) => {\n    const newSpec = descriptor.functions.new;\n    const canonicalArgs = newSpec.canonicalArgs;\n    const handleFields = newSpec.handleFields ?? {};\n    const normalizedArgsByName = {};\n    for (let index = 0;index < args.length && index < canonicalArgs.length; index++) {\n      const argName = canonicalArgs[index];\n      if (!argName)\n        continue;\n      const fieldName = handleFields[argName] ?? argName;\n      normalizedArgsByName[argName] = normalizeValue(fieldName, args[index]);\n    }\n    const handle = {\n      __id: nextId++,\n      __deleted: false\n    };\n    Object.defineProperty(handle, HANDLE_OWNER, {\n      value: ownerToken,\n      enumerable: false,\n      configurable: false,\n      writable: false\n    });\n    for (const [argName, fieldName] of Object.entries(handleFields)) {\n      handle[fieldName] = normalizedArgsByName[argName];\n    }\n    if (descriptor.name === \"table\") {\n      const tableHandle = handle;\n      tableHandle.cells = new Map;\n      tableHandle.merges = [];\n    }\n    attachHandleMethods(handle);\n    store.set(handle.__id, handle);\n    if (newSpec.visualEventArgs) {\n      emit(`${descriptor.name}.new`, handle.__id, buildProjectedArgs(newSpec.visualEventArgs, normalizedArgsByName, args.length));\n    }\n    return handle;\n  };\n  const getValue = (handle, fieldName) => {\n    const value = handle[fieldName];\n    if (value === undefined)\n      return getterFallback(fieldName);\n    if (NUMBER_VALUE_NAMES.has(fieldName) || INTEGER_VALUE_NAMES.has(fieldName) || NONNEGATIVE_INTEGER_VALUE_NAMES.has(fieldName)) {\n      return toFiniteNumber(value);\n    }\n    if (STRING_VALUE_NAMES.has(fieldName)) {\n      return value == null ? \"\" : String(value);\n    }\n    return value;\n  };\n  for (const [fnName, fnSpec] of Object.entries(descriptor.functions)) {\n    if (fnName === \"new\") {\n      base.new = createHandle;\n      continue;\n    }\n    if (fnName === \"delete\") {\n      base.delete = (handleLike) => {\n        const handle = resolveHandle(handleLike, store, ownerToken);\n        if (!handle)\n          return;\n        handle.__deleted = true;\n        store.delete(handle.__id);\n        emit(`${descriptor.name}.delete`, handle.__id, []);\n      };\n      continue;\n    }\n    if (fnName.startsWith(\"get_\")) {\n      const [fieldName = \"\"] = parseAccessorFields(fnName);\n      base[fnName] = (handleLike) => {\n        const handle = resolveHandle(handleLike, store, ownerToken);\n        if (!handle)\n          return getterFallback(fieldName);\n        return getValue(handle, fieldName);\n      };\n      continue;\n    }\n    if (descriptor.name === \"table\" && fnName === \"cell\") {\n      base.cell = (...args) => {\n        const table = resolveHandle(args[0], store, ownerToken);\n        if (!table)\n          return;\n        const normalizedArgsByName = {\n          table_id: table\n        };\n        for (let index = 1;index < args.length && index < fnSpec.canonicalArgs.length; index++) {\n          const argName = fnSpec.canonicalArgs[index];\n          if (!argName)\n            continue;\n          normalizedArgsByName[argName] = normalizeValue(argName, args[index]);\n        }\n        const column = normalizedArgsByName.column;\n        const row = normalizedArgsByName.row;\n        table.cells.set(keyForCell(column, row), createTableCellData(normalizedArgsByName));\n        const projection = fnSpec.visualEventArgs ?? fnSpec.canonicalArgs;\n        emit(\"table.cell\", table.__id, buildProjectedArgs(projection, normalizedArgsByName, args.length));\n      };\n      continue;\n    }\n    if (descriptor.name === \"table\" && fnName === \"clear\") {\n      base.clear = (...args) => {\n        const table = resolveHandle(args[0], store, ownerToken);\n        if (!table)\n          return;\n        const normalizedArgsByName = {};\n        for (let index = 1;index < args.length && index < fnSpec.canonicalArgs.length; index++) {\n          const argName = fnSpec.canonicalArgs[index];\n          if (!argName)\n            continue;\n          normalizedArgsByName[argName] = normalizeValue(argName, args[index]);\n        }\n        if (args.length <= 1) {\n          table.cells.clear();\n          table.merges = [];\n        } else {\n          const startColumn = normalizedArgsByName.start_column;\n          const startRow = normalizedArgsByName.start_row;\n          const endColumn = typeof normalizedArgsByName.end_column === \"number\" ? normalizedArgsByName.end_column : table.columns - 1;\n          const endRow = typeof normalizedArgsByName.end_row === \"number\" ? normalizedArgsByName.end_row : table.rows - 1;\n          for (const key of [...table.cells.keys()]) {\n            const [columnText = \"\", rowText = \"\"] = key.split(\":\");\n            const column = Number(columnText);\n            const row = Number(rowText);\n            if (column >= startColumn && column <= endColumn && row >= startRow && row <= endRow) {\n              table.cells.delete(key);\n            }\n          }\n        }\n        emit(\"table.clear\", table.__id, buildProjectedArgs(fnSpec.canonicalArgs.slice(1), normalizedArgsByName, Math.max(0, args.length - 1)));\n      };\n      continue;\n    }\n    if (descriptor.name === \"table\" && fnName === \"merge_cells\") {\n      base.merge_cells = (...args) => {\n        const table = resolveHandle(args[0], store, ownerToken);\n        if (!table)\n          return;\n        const normalizedArgsByName = {};\n        for (let index = 1;index < args.length && index < fnSpec.canonicalArgs.length; index++) {\n          const argName = fnSpec.canonicalArgs[index];\n          if (!argName)\n            continue;\n          normalizedArgsByName[argName] = normalizeValue(argName, args[index]);\n        }\n        const startColumn = normalizedArgsByName.start_column;\n        const startRow = normalizedArgsByName.start_row;\n        const endColumn = typeof normalizedArgsByName.end_column === \"number\" ? normalizedArgsByName.end_column : startColumn;\n        const endRow = typeof normalizedArgsByName.end_row === \"number\" ? normalizedArgsByName.end_row : startRow;\n        table.merges.push([startColumn, startRow, endColumn, endRow]);\n        emit(\"table.merge_cells\", table.__id, buildProjectedArgs(fnSpec.canonicalArgs.slice(1), normalizedArgsByName, Math.max(0, args.length - 1)));\n      };\n      continue;\n    }\n    if (fnName.startsWith(\"set_\")) {\n      const fieldNames = parseAccessorFields(fnName);\n      base[fnName] = (...args) => {\n        const handle = resolveHandle(args[0], store, ownerToken);\n        if (!handle)\n          return;\n        const normalizedArgsByName = {};\n        for (let index = 1;index < args.length && index < fnSpec.canonicalArgs.length; index++) {\n          const argName = fnSpec.canonicalArgs[index];\n          const fieldName = fieldNames[index - 1] ?? argName ?? \"\";\n          if (!argName)\n            continue;\n          const normalizedValue = normalizeValue(fieldName, args[index]);\n          normalizedArgsByName[argName] = normalizedValue;\n          handle[fieldName] = normalizedValue;\n        }\n        emit(`${descriptor.name}.${fnName}`, handle.__id, buildProjectedArgs(fnSpec.canonicalArgs.slice(1), normalizedArgsByName, Math.max(0, args.length - 1)));\n      };\n    }\n  }\n  base.__hasHandle = hasHandle;\n  if (descriptor.name === \"box\") {\n    let currentBarTime = Number.NaN;\n    base.__setBarTime = (time) => {\n      const value = Number(time);\n      if (Number.isFinite(value)) {\n        currentBarTime = value;\n      }\n    };\n    base.__getActiveBgcolor = () => {\n      if (!Number.isFinite(currentBarTime))\n        return null;\n      let active = null;\n      for (const handle of store.values()) {\n        if (typeof handle.right === \"number\" && handle.right === currentBarTime) {\n          active = handle;\n        }\n      }\n      if (!active)\n        return null;\n      if (isColorLike(active.bgcolor))\n        return active.bgcolor;\n      if (isColorLike(active.border_color))\n        return active.border_color;\n      return null;\n    };\n  }\n  for (const constant of descriptor.constants) {\n    base[constant.name] = constant.value;\n  }\n  return withConstantFallback(base, descriptor.name);\n}\nfunction createDrawingRuntime(sink) {\n  return {\n    line: createDrawingNamespace(DRAWING_REGISTRY.line, sink),\n    box: createDrawingNamespace(DRAWING_REGISTRY.box, sink),\n    label: createDrawingNamespace(DRAWING_REGISTRY.label, sink),\n    linefill: createDrawingNamespace(DRAWING_REGISTRY.linefill, sink),\n    table: createDrawingNamespace(DRAWING_REGISTRY.table, sink)\n  };\n}\n\n// src/runtime/drawing/standalone-bundle.constants.ts\nvar STANDALONE_DRAWING_BUNDLE_GLOBAL = \"__PINE_TRANSPILER_STANDALONE_DRAWING_BUNDLE__\";\n\n// src/runtime/drawing/standalone-bundle.entry.ts\nfunction createNoopDrawingSink() {\n  return {\n    barIndex: -1,\n    pushEvent: () => {\n      return;\n    }\n  };\n}\nfunction createDrawingStubNamespaces() {\n  return createDrawingRuntime(createNoopDrawingSink());\n}\nvar standaloneDrawingBundle = {\n  createDrawingRuntime,\n  resolveTime,\n  createDrawingStubNamespaces\n};\nvar standaloneDrawingGlobal = globalThis;\nstandaloneDrawingGlobal[STANDALONE_DRAWING_BUNDLE_GLOBAL] = standaloneDrawingBundle;\n\nvar __createDrawingRuntime =\n  globalThis.__PINE_TRANSPILER_STANDALONE_DRAWING_BUNDLE__.createDrawingRuntime;\nvar __createDrawingStubNamespaces =\n  globalThis.__PINE_TRANSPILER_STANDALONE_DRAWING_BUNDLE__.createDrawingStubNamespaces;\nvar __resolveTime =\n  globalThis.__PINE_TRANSPILER_STANDALONE_DRAWING_BUNDLE__.resolveTime;";
+//#endregion
+//#region src/runtime/helpers/timeframe-time.ts
+/** Calendar/session arithmetic shared by both Factory paths. Host timestamps
+* are authoritative for chart bars; higher timeframes use the supplied symbol
+* calendar. Exchange holidays/exceptional sessions require host calendar data. */
+var DAY = 864e5;
+var formatters = /* @__PURE__ */ new Map();
+function localTime(timestamp, timezone) {
+	const offset = /^(?:GMT|UTC)(?:([+-])(\d{1,2})(?::?(\d{2}))?)?$/i.exec(timezone);
+	if (offset) {
+		const minutes = Number(offset[2] ?? 0) * 60 + Number(offset[3] ?? 0);
+		return timestamp + (offset[1] === "-" ? -minutes : minutes) * 6e4;
+	}
+	try {
+		let formatter = formatters.get(timezone);
+		if (!formatter) {
+			formatter = new Intl.DateTimeFormat("en-US", {
+				timeZone: timezone,
+				hourCycle: "h23",
+				year: "numeric",
+				month: "numeric",
+				day: "numeric",
+				hour: "numeric",
+				minute: "numeric",
+				second: "numeric"
+			});
+			formatters.set(timezone, formatter);
+		}
+		const parts = formatter.formatToParts(timestamp);
+		const part = (name) => Number(parts.find((p) => p.type === name)?.value);
+		return Date.UTC(part("year"), part("month") - 1, part("day"), part("hour"), part("minute"), part("second")) + timestamp % 1e3;
+	} catch {
+		return timestamp;
+	}
+}
+function utcTime(local, timezone) {
+	const matches = [];
+	for (const probe of [
+		local - DAY,
+		local,
+		local + DAY
+	]) {
+		const candidate = local - (localTime(probe, timezone) - probe);
+		if (localTime(candidate, timezone) === local) matches.push(candidate);
+	}
+	return matches.length ? Math.min(...matches) : NaN;
+}
+function sessionWindows(raw) {
+	if (raw === "24x7" || !raw) return [{
+		start: 0,
+		end: 0,
+		days: "1234567"
+	}];
+	const [ranges, days = "1234567"] = raw.split(":");
+	const windows = [];
+	for (const range of ranges.split(",")) {
+		const match = /^(\d{2})(\d{2})-(\d{2})(\d{2})$/.exec(range);
+		if (!match) continue;
+		const [, sh, sm, eh, em] = match.map(Number);
+		if (sh > 23 || eh > 23 || sm > 59 || em > 59) continue;
+		windows.push({
+			start: sh * 60 + sm,
+			end: eh * 60 + em,
+			days
+		});
+	}
+	return windows;
+}
+/** barsBack indexes processed chart bars, never fabricated fixed-duration bars. */
+function resolveTime(currentBarTime, priorProcessedBars, barTimes, chartPeriod, symbol, timeframeArg, sessionArg, timezoneArg, barsBackArg) {
+	if (barsBackArg === void 0 && typeof timezoneArg === "number") {
+		barsBackArg = timezoneArg;
+		timezoneArg = void 0;
+	}
+	const rawBack = Number(barsBackArg ?? 0);
+	const back = Number.isFinite(rawBack) && rawBack > 0 ? Math.trunc(rawBack) : 0;
+	if (back > priorProcessedBars) return NaN;
+	const timestamp = back ? barTimes[priorProcessedBars - back] : currentBarTime;
+	if (!Number.isFinite(timestamp)) return NaN;
+	const requested = typeof timeframeArg === "string" ? timeframeArg.trim() : "";
+	const explicitSession = typeof sessionArg === "string" ? sessionArg.trim() : "";
+	if ((!requested || requested === chartPeriod) && !explicitSession) return timestamp;
+	const timezone = typeof timezoneArg === "string" && timezoneArg.trim() ? timezoneArg : String(symbol?.timezone || "UTC");
+	const session = explicitSession || String(symbol?.session_regular || symbol?.session || "");
+	const local = localTime(timestamp, timezone);
+	const date = Math.floor(local / DAY) * DAY;
+	const minute = (local - date) / 6e4;
+	let window;
+	let sessionDate = date;
+	let tradingDate = date;
+	for (const candidate of sessionWindows(session)) {
+		const overnight = candidate.start >= candidate.end && candidate.start !== 0;
+		const startDate = date - (minute < candidate.start ? DAY : 0);
+		const tradeDate = startDate + (overnight ? DAY : 0);
+		if ((candidate.start === candidate.end || (candidate.start < candidate.end ? minute >= candidate.start && minute < candidate.end : minute >= candidate.start || minute < candidate.end)) && candidate.days.includes(String(new Date(tradeDate).getUTCDay() + 1))) {
+			window = candidate;
+			sessionDate = startDate;
+			tradingDate = tradeDate;
+			break;
+		}
+	}
+	if (!window) return NaN;
+	if (!requested || requested === chartPeriod) return timestamp;
+	const match = /^(\d+)?([SMHDWY])?$/.exec(requested.toUpperCase());
+	if (!match) return timestamp;
+	const count = Number(match[1] || 1);
+	if (!Number.isFinite(count) || count <= 0) return NaN;
+	const unit = match[2] || "";
+	const sessionOpen = utcTime(sessionDate + window.start * 6e4, timezone);
+	if (unit === "" || unit === "S" || unit === "H") {
+		const duration = count * (unit === "S" ? 1e3 : unit === "H" ? 36e5 : 6e4);
+		return sessionOpen + Math.floor((timestamp - sessionOpen) / duration) * duration;
+	}
+	let periodDate = tradingDate;
+	if (unit === "D") periodDate = Math.floor(tradingDate / (DAY * count)) * DAY * count;
+	else if (unit === "W") {
+		const monday = 4 * DAY;
+		periodDate = monday + Math.floor((tradingDate - monday) / (7 * DAY * count)) * 7 * DAY * count;
+	} else {
+		const d = new Date(tradingDate);
+		const months = unit === "Y" ? count * 12 : count;
+		const month = Math.floor((d.getUTCFullYear() * 12 + d.getUTCMonth()) / months) * months;
+		periodDate = Date.UTC(Math.floor(month / 12), month % 12, 1);
+	}
+	for (let day = 0; day < 7 && !window.days.includes(String(new Date(periodDate).getUTCDay() + 1)); day++) periodDate += DAY;
+	const overnight = window.start >= window.end && window.start !== 0;
+	return utcTime(periodDate - (overnight ? DAY : 0) + window.start * 6e4, timezone);
+}
+//#endregion
 //#region src/types/index.ts
 /**
 * Color map for Pine Script color constants
@@ -4717,6 +5021,35 @@ function indentCode(code, spaces) {
 	const pad = " ".repeat(spaces);
 	return code.split("\n").map((line) => `${pad}${line}`).join("\n");
 }
+var DRAWING_VISUAL_STYLE_PROJECTIONS = {
+	"box.new": {
+		colors: ["border_color", "bgcolor"],
+		linewidth: "border_width"
+	},
+	"label.new": { colors: ["color", "textcolor"] },
+	"line.new": {
+		colors: ["color"],
+		linewidth: "width"
+	},
+	"linefill.new": { colors: ["color"] },
+	"table.cell": { colors: ["text_color", "bgcolor"] }
+};
+function buildDrawingVisualStyleSlots() {
+	const slots = {};
+	for (const [call, projection] of Object.entries(DRAWING_VISUAL_STYLE_PROJECTIONS)) {
+		const [namespace, fn] = call.split(".");
+		const visualEventArgs = namespace && fn ? getDrawingFn(namespace, fn)?.visualEventArgs : void 0;
+		if (!visualEventArgs) continue;
+		const colorIndices = projection.colors.map((name) => visualEventArgs.indexOf(name)).filter((index) => index >= 0);
+		const linewidthIndex = projection.linewidth === void 0 ? null : visualEventArgs.indexOf(projection.linewidth);
+		slots[call] = {
+			colorIndices,
+			linewidthIndex: typeof linewidthIndex === "number" && linewidthIndex >= 0 ? linewidthIndex : null
+		};
+	}
+	return slots;
+}
+var DRAWING_VISUAL_STYLE_SLOTS = buildDrawingVisualStyleSlots();
 var STANDALONE_RUNTIME_HELPERS = `
 function __toNumber(value, fallback) {
   const n = Number(value);
@@ -4746,480 +5079,6 @@ function __coerceShapePlotValue(value) {
   const n = __coercePlotValue(value);
   if (!Number.isFinite(n)) return Number.NaN;
   return n === 0 ? Number.NaN : n;
-}
-
-function __asHandle(value) {
-  if (typeof value !== 'object' || value === null) return undefined;
-  if (typeof value.__id !== 'number') return undefined;
-  return value;
-}
-
-function __resolveHandle(value, store) {
-  const handle = __asHandle(value);
-  if (!handle) return undefined;
-  const resolved = store.get(handle.__id);
-  if (!resolved || resolved.__deleted) return undefined;
-  return resolved;
-}
-
-function __withConstantFallback(base, prefix) {
-  return new Proxy(base, {
-    get(target, prop) {
-      if (typeof prop !== 'string') return undefined;
-      if (prop in target) return target[prop];
-      return prefix + '.' + prop;
-    },
-  });
-}
-
-function __createLineNamespace() {
-  let nextId = 1;
-  const lineStore = new Map();
-  const remove = (lineObj) => {
-    const h = __resolveHandle(lineObj, lineStore);
-    if (!h) return;
-    h.__deleted = true;
-    lineStore.delete(h.__id);
-  };
-  const setX2 = (lineObj, x2) => {
-    const h = __resolveHandle(lineObj, lineStore);
-    if (!h) return;
-    h.x2 = __toNumber(x2);
-  };
-  const setXY1 = (lineObj, x1, y1) => {
-    const h = __resolveHandle(lineObj, lineStore);
-    if (!h) return;
-    h.x1 = __toNumber(x1);
-    h.y1 = __toNumber(y1);
-  };
-  const setXY2 = (lineObj, x2, y2) => {
-    const h = __resolveHandle(lineObj, lineStore);
-    if (!h) return;
-    h.x2 = __toNumber(x2);
-    h.y2 = __toNumber(y2);
-  };
-  const setColor = (lineObj, color) => {
-    const h = __resolveHandle(lineObj, lineStore);
-    if (!h) return;
-    h.color = color;
-  };
-  const getX2 = (lineObj) => {
-    const h = __resolveHandle(lineObj, lineStore);
-    return h ? __toNumber(h.x2) : Number.NaN;
-  };
-  const getY1 = (lineObj) => {
-    const h = __resolveHandle(lineObj, lineStore);
-    return h ? __toNumber(h.y1) : Number.NaN;
-  };
-  const getY2 = (lineObj) => {
-    const h = __resolveHandle(lineObj, lineStore);
-    return h ? __toNumber(h.y2) : Number.NaN;
-  };
-  const hasHandle = (lineObj) => __resolveHandle(lineObj, lineStore) !== undefined;
-  const attachMethods = (h) => {
-    if (typeof h.delete !== 'function') h.delete = () => remove(h);
-    if (typeof h.set_x2 !== 'function') h.set_x2 = (x2) => setX2(h, x2);
-    if (typeof h.set_xy1 !== 'function') h.set_xy1 = (x1, y1) => setXY1(h, x1, y1);
-    if (typeof h.set_xy2 !== 'function') h.set_xy2 = (x2, y2) => setXY2(h, x2, y2);
-    if (typeof h.set_color !== 'function') h.set_color = (color) => setColor(h, color);
-    if (typeof h.get_x2 !== 'function') h.get_x2 = () => getX2(h);
-    if (typeof h.get_y1 !== 'function') h.get_y1 = () => getY1(h);
-    if (typeof h.get_y2 !== 'function') h.get_y2 = () => getY2(h);
-  };
-
-  const line = {
-    new: (...args) => {
-      const h = {
-        __id: nextId++,
-        __deleted: false,
-        x1: __toNumber(args[0]),
-        y1: __toNumber(args[1]),
-        x2: __toNumber(args[2]),
-        y2: __toNumber(args[3]),
-        xloc: args[4],
-        extend: args[5],
-        color: args[6],
-        style: args[7],
-        width: __toInteger(args[8], 1),
-      };
-      attachMethods(h);
-      lineStore.set(h.__id, h);
-      return h;
-    },
-    delete: remove,
-    set_x2: setX2,
-    set_xy1: setXY1,
-    set_xy2: setXY2,
-    set_color: setColor,
-    get_x2: getX2,
-    get_y1: getY1,
-    get_y2: getY2,
-    __hasHandle: hasHandle,
-    style_solid: 'solid',
-    style_dotted: 'dotted',
-    style_dashed: 'dashed',
-  };
-  return __withConstantFallback(line, 'line');
-}
-
-function __createLinefillNamespace() {
-  let nextId = 1;
-  const linefillStore = new Map();
-  const remove = (linefillObj) => {
-    const h = __resolveHandle(linefillObj, linefillStore);
-    if (!h) return;
-    h.__deleted = true;
-    linefillStore.delete(h.__id);
-  };
-  const setColor = (linefillObj, color) => {
-    const h = __resolveHandle(linefillObj, linefillStore);
-    if (!h) return;
-    h.color = color;
-  };
-  const getLine1 = (linefillObj) => {
-    const h = __resolveHandle(linefillObj, linefillStore);
-    return h ? h.line1 : undefined;
-  };
-  const getLine2 = (linefillObj) => {
-    const h = __resolveHandle(linefillObj, linefillStore);
-    return h ? h.line2 : undefined;
-  };
-  const hasHandle = (linefillObj) =>
-    __resolveHandle(linefillObj, linefillStore) !== undefined;
-  const attachMethods = (h) => {
-    if (typeof h.delete !== 'function') h.delete = () => remove(h);
-    if (typeof h.set_color !== 'function') h.set_color = (color) => setColor(h, color);
-    if (typeof h.get_line1 !== 'function') h.get_line1 = () => getLine1(h);
-    if (typeof h.get_line2 !== 'function') h.get_line2 = () => getLine2(h);
-  };
-  const linefill = {
-    new: (...args) => {
-      const h = {
-        __id: nextId++,
-        __deleted: false,
-        line1: args[0],
-        line2: args[1],
-        color: args[2],
-      };
-      attachMethods(h);
-      linefillStore.set(h.__id, h);
-      return h;
-    },
-    delete: remove,
-    set_color: setColor,
-    get_line1: getLine1,
-    get_line2: getLine2,
-    __hasHandle: hasHandle,
-  };
-  return __withConstantFallback(linefill, 'linefill');
-}
-
-function __createBoxNamespace() {
-  let nextId = 1;
-  const boxStore = new Map();
-  let currentBarTime = Number.NaN;
-  const remove = (boxObj) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.__deleted = true;
-    boxStore.delete(h.__id);
-  };
-  const setLeft = (boxObj, left) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.left = __toNumber(left);
-  };
-  const setRight = (boxObj, right) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.right = __toNumber(right);
-  };
-  const setTop = (boxObj, top) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.top = __toNumber(top);
-  };
-  const setBottom = (boxObj, bottom) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.bottom = __toNumber(bottom);
-  };
-  const setExtend = (boxObj, extend) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.extend = extend;
-  };
-  const setBgcolor = (boxObj, color) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.bgcolor = color;
-  };
-  const setBorderColor = (boxObj, color) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.border_color = color;
-  };
-  const setBorderWidth = (boxObj, width) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.border_width = __toInteger(width, 1);
-  };
-  const setTextColor = (boxObj, color) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    if (!h) return;
-    h.text_color = color;
-  };
-  const getLeft = (boxObj) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    return h ? __toNumber(h.left) : Number.NaN;
-  };
-  const getRight = (boxObj) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    return h ? __toNumber(h.right) : Number.NaN;
-  };
-  const getTop = (boxObj) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    return h ? __toNumber(h.top) : Number.NaN;
-  };
-  const getBottom = (boxObj) => {
-    const h = __resolveHandle(boxObj, boxStore);
-    return h ? __toNumber(h.bottom) : Number.NaN;
-  };
-  const hasHandle = (boxObj) => __resolveHandle(boxObj, boxStore) !== undefined;
-  const attachMethods = (h) => {
-    if (typeof h.delete !== 'function') h.delete = () => remove(h);
-    if (typeof h.set_left !== 'function') h.set_left = (left) => setLeft(h, left);
-    if (typeof h.set_right !== 'function') h.set_right = (right) => setRight(h, right);
-    if (typeof h.set_top !== 'function') h.set_top = (top) => setTop(h, top);
-    if (typeof h.set_bottom !== 'function') h.set_bottom = (bottom) => setBottom(h, bottom);
-    if (typeof h.set_extend !== 'function') h.set_extend = (extend) => setExtend(h, extend);
-    if (typeof h.set_bgcolor !== 'function') h.set_bgcolor = (color) => setBgcolor(h, color);
-    if (typeof h.set_border_color !== 'function') h.set_border_color = (color) => setBorderColor(h, color);
-    if (typeof h.set_border_width !== 'function') h.set_border_width = (width) => setBorderWidth(h, width);
-    if (typeof h.set_text_color !== 'function') h.set_text_color = (color) => setTextColor(h, color);
-    if (typeof h.get_left !== 'function') h.get_left = () => getLeft(h);
-    if (typeof h.get_right !== 'function') h.get_right = () => getRight(h);
-    if (typeof h.get_top !== 'function') h.get_top = () => getTop(h);
-    if (typeof h.get_bottom !== 'function') h.get_bottom = () => getBottom(h);
-  };
-  const box = {
-    new: (...args) => {
-      const h = {
-        __id: nextId++,
-        __deleted: false,
-        left: __toNumber(args[0]),
-        top: __toNumber(args[1]),
-        right: __toNumber(args[2]),
-        bottom: __toNumber(args[3]),
-        border_color: args[4],
-        border_width: __toInteger(args[5], 1),
-        border_style: args[6],
-        extend: args[7],
-        xloc: args[8],
-        bgcolor: args[9],
-        text: args[10],
-        text_size: args[11],
-        text_color: args[12],
-      };
-      attachMethods(h);
-      boxStore.set(h.__id, h);
-      return h;
-    },
-    delete: remove,
-    set_left: setLeft,
-    set_right: setRight,
-    set_top: setTop,
-    set_bottom: setBottom,
-    set_extend: setExtend,
-    set_bgcolor: setBgcolor,
-    set_border_color: setBorderColor,
-    set_border_width: setBorderWidth,
-    set_text_color: setTextColor,
-    get_left: getLeft,
-    get_right: getRight,
-    get_top: getTop,
-    get_bottom: getBottom,
-    __hasHandle: hasHandle,
-    __setBarTime: (t) => {
-      const n = Number(t);
-      if (Number.isFinite(n)) currentBarTime = n;
-    },
-    __getActiveBgcolor: () => {
-      if (!Number.isFinite(currentBarTime)) return null;
-      let active = null;
-      for (const h of boxStore.values()) {
-        if (__toNumber(h.right) === currentBarTime) active = h;
-      }
-      if (!active) return null;
-      return active.bgcolor || active.border_color || null;
-    },
-  };
-  return __withConstantFallback(box, 'box');
-}
-
-function __createLabelNamespace() {
-  let nextId = 1;
-  const labelStore = new Map();
-  const remove = (labelObj) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    if (!h) return;
-    h.__deleted = true;
-    labelStore.delete(h.__id);
-  };
-  const setText = (labelObj, text) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    if (!h) return;
-    h.text = text == null ? '' : String(text);
-  };
-  const getText = (labelObj) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    return h ? String(h.text == null ? '' : h.text) : '';
-  };
-  const setTooltip = (labelObj, tooltip) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    if (!h) return;
-    h.tooltip = tooltip == null ? '' : String(tooltip);
-  };
-  const setTextcolor = (labelObj, color) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    if (!h) return;
-    h.textcolor = color;
-  };
-  const setStyle = (labelObj, style) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    if (!h) return;
-    h.style = style;
-  };
-  const setXY = (labelObj, x, y) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    if (!h) return;
-    h.x = __toNumber(x);
-    h.y = __toNumber(y);
-  };
-  const setX = (labelObj, x) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    if (!h) return;
-    h.x = __toNumber(x);
-  };
-  const setY = (labelObj, y) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    if (!h) return;
-    h.y = __toNumber(y);
-  };
-  const getY = (labelObj) => {
-    const h = __resolveHandle(labelObj, labelStore);
-    return h ? __toNumber(h.y) : Number.NaN;
-  };
-  const hasHandle = (labelObj) =>
-    __resolveHandle(labelObj, labelStore) !== undefined;
-  const attachMethods = (h) => {
-    if (typeof h.delete !== 'function') h.delete = () => remove(h);
-    if (typeof h.set_text !== 'function') h.set_text = (text) => setText(h, text);
-    if (typeof h.get_text !== 'function') h.get_text = () => getText(h);
-    if (typeof h.set_tooltip !== 'function') h.set_tooltip = (tooltip) => setTooltip(h, tooltip);
-    if (typeof h.set_textcolor !== 'function') h.set_textcolor = (color) => setTextcolor(h, color);
-    if (typeof h.set_style !== 'function') h.set_style = (style) => setStyle(h, style);
-    if (typeof h.set_xy !== 'function') h.set_xy = (x, y) => setXY(h, x, y);
-    if (typeof h.set_x !== 'function') h.set_x = (x) => setX(h, x);
-    if (typeof h.set_y !== 'function') h.set_y = (y) => setY(h, y);
-    if (typeof h.get_y !== 'function') h.get_y = () => getY(h);
-  };
-  const label = {
-    new: (...args) => {
-      const h = {
-        __id: nextId++,
-        __deleted: false,
-        x: __toNumber(args[0]),
-        y: __toNumber(args[1]),
-        text: args[2] == null ? '' : String(args[2]),
-        xloc: args[3],
-        yloc: args[4],
-        color: args[5],
-        style: args[6],
-        textcolor: args[7],
-        size: args[8],
-      };
-      attachMethods(h);
-      labelStore.set(h.__id, h);
-      return h;
-    },
-    delete: remove,
-    set_text: setText,
-    get_text: getText,
-    set_tooltip: setTooltip,
-    set_textcolor: setTextcolor,
-    set_style: setStyle,
-    set_xy: setXY,
-    set_x: setX,
-    set_y: setY,
-    get_y: getY,
-    __hasHandle: hasHandle,
-    style_label_up: 'label_up',
-    style_label_down: 'label_down',
-    style_label_left: 'label_left',
-    style_label_right: 'label_right',
-  };
-  return __withConstantFallback(label, 'label');
-}
-
-function __createTableNamespace() {
-  let nextId = 1;
-  const tableStore = new Map();
-  const keyFor = (col, row) => String(col) + ':' + String(row);
-  const cell = (...args) => {
-    const t = __resolveHandle(args[0], tableStore);
-    if (!t) return;
-    const col = __toInteger(args[1], 0);
-    const row = __toInteger(args[2], 0);
-    t.cells.set(keyFor(col, row), {
-      text: args[3],
-      textColor: args[6],
-      textSize: args[9],
-      bgcolor: args[10],
-      tooltip: args[11],
-    });
-  };
-  const clear = (...args) => {
-    const t = __resolveHandle(args[0], tableStore);
-    if (!t) return;
-    t.cells.clear();
-    t.merges = [];
-  };
-  const merge_cells = (...args) => {
-    const t = __resolveHandle(args[0], tableStore);
-    if (!t) return;
-    t.merges.push([
-      __toInteger(args[1], 0),
-      __toInteger(args[2], 0),
-      __toInteger(args[3], 0),
-      __toInteger(args[4], 0),
-    ]);
-  };
-  const hasHandle = (tableObj) =>
-    __resolveHandle(tableObj, tableStore) !== undefined;
-  const table = {
-    new: (...args) => {
-      const t = {
-        __id: nextId++,
-        __deleted: false,
-        position: args[0],
-        columns: Math.max(0, __toInteger(args[1], 0)),
-        rows: Math.max(0, __toInteger(args[2], 0)),
-        cells: new Map(),
-        merges: [],
-      };
-      t.cell = (...inner) => cell(t, ...inner);
-      t.clear = (...inner) => clear(t, ...inner);
-      t.merge_cells = (...inner) => merge_cells(t, ...inner);
-      tableStore.set(t.__id, t);
-      return t;
-    },
-    cell,
-    clear,
-    merge_cells,
-    __hasHandle: hasHandle,
-  };
-  return __withConstantFallback(table, 'table');
 }
 
 function __createStrNamespace() {
@@ -5275,14 +5134,9 @@ function __createStrNamespace() {
 }
 
 function __createStubNamespaces() {
-  return {
-    box: __createBoxNamespace(),
-    line: __createLineNamespace(),
-    linefill: __createLinefillNamespace(),
-    label: __createLabelNamespace(),
-    table: __createTableNamespace(),
+  return Object.assign({}, __createDrawingStubNamespaces(), {
     str: __createStrNamespace(),
-  };
+  });
 }
 
 function __extractHandleId(value) {
@@ -5347,6 +5201,8 @@ function __readTranspFromColor(color) {
   const clamped = Math.min(1, Math.max(0, alpha));
   return Math.round((1 - clamped) * 100);
 }
+
+const __DRAWING_VISUAL_STYLE_SLOTS = ${JSON.stringify(DRAWING_VISUAL_STYLE_SLOTS)};
 
 function __normalizeVisualStyle(call, args) {
   const colors = [];
@@ -5418,7 +5274,7 @@ function __normalizeVisualStyle(call, args) {
       transp = numberAt(1);
       display = displayAt(2) ?? displayAt(4) ?? displayAt(3);
       break;
-    default:
+    default: {
       if (
         normalizedCall.endsWith('.set_width') ||
         normalizedCall.endsWith('.set_border_width')
@@ -5433,24 +5289,17 @@ function __normalizeVisualStyle(call, args) {
       ) {
         colorAt(1);
       }
-      if (normalizedCall === 'line.new') {
-        colorAt(6);
-        linewidth = numberAt(8);
-      } else if (normalizedCall === 'linefill.new') {
-        colorAt(2);
-      } else if (normalizedCall === 'box.new') {
-        colorAt(4);
-        colorAt(9);
-        linewidth = numberAt(5);
-      } else if (normalizedCall === 'label.new') {
-        colorAt(5);
-        colorAt(7);
-      } else if (normalizedCall === 'table.cell') {
-        colorAt(4);
-        colorAt(5);
-        colorAt(7);
+      const drawingStyleSlots = __DRAWING_VISUAL_STYLE_SLOTS[normalizedCall];
+      if (drawingStyleSlots) {
+        for (const index of drawingStyleSlots.colorIndices) {
+          colorAt(index);
+        }
+        if (drawingStyleSlots.linewidthIndex !== null) {
+          linewidth = numberAt(drawingStyleSlots.linewidthIndex);
+        }
       }
       break;
+    }
   }
 
   const normalizedColors = [...new Set(colors)].sort((a, b) =>
@@ -5807,24 +5656,6 @@ function __isInSessionAt(timestamp, sessionRaw, timezone) {
   return false;
 }
 
-function __compatTime(currentBarTime, priorProcessedBars, chartPeriod, timeframeArg, sessionArg, timezoneArg, barsBackArg) {
-  let tzArg = timezoneArg;
-  let backArg = barsBackArg;
-  if (backArg === undefined && typeof tzArg === 'number' && Number.isFinite(tzArg)) {
-    backArg = tzArg;
-    tzArg = undefined;
-  }
-  const backRaw = Number(backArg == null ? 0 : backArg);
-  const barsBack = Number.isFinite(backRaw) && backRaw > 0 ? Math.trunc(backRaw) : 0;
-  if (barsBack > priorProcessedBars) return Number.NaN;
-  const timeframeSeconds = __timeframeToSeconds(timeframeArg, chartPeriod);
-  const timestamp = currentBarTime - barsBack * timeframeSeconds * 1000;
-  if (!Number.isFinite(timestamp)) return Number.NaN;
-  const sessionStr = typeof sessionArg === 'string' ? sessionArg.trim() : '';
-  if (!sessionStr) return timestamp;
-  return __isInSessionAt(timestamp, sessionStr, tzArg) ? timestamp : Number.NaN;
-}
-
 function __compatDatePart(part, currentBarTime, args, hostFn) {
   const first = args[0];
   if (first !== undefined && typeof first !== 'object') {
@@ -6002,6 +5833,7 @@ function generateStandaloneRuntimeMainBody(runtimeBody, totalPlotCount, hasBgcol
           if (__processedBarKey !== _currentBarKey) {
             __processedBarKey = _currentBarKey;
             __processedBars += 1;
+            __barTimes.push(_barTime);
           }
         };
         const _pushVisualEvent = (event) => {
@@ -6015,12 +5847,20 @@ function generateStandaloneRuntimeMainBody(runtimeBody, totalPlotCount, hasBgcol
         const _chartPeriod = typeof Std.period === 'function' ? String(Std.period(context) || '1') : '1';
         const _stdCompatBase = new Proxy(Std, {
           get(target, prop, receiver) {
+            // Host Std.na is numeric; Pine reference types are represented by
+            // live JS objects in this Runtime and are never numeric NaN.
+            if (prop === 'na') {
+              return (value) => value !== null && typeof value === 'object' ? false :
+                typeof target.na === 'function' ? target.na(value) : value == null || Number.isNaN(value);
+            }
             if (prop === 'time') {
               return (timeframeArg, sessionArg, timezoneArg, barsBackArg) =>
-                __compatTime(
+                __resolveTime(
                   _barTime,
                   _priorProcessedBars,
+                  __barTimes,
                   _chartPeriod,
+                  context.symbol,
                   timeframeArg,
                   sessionArg,
                   timezoneArg,
@@ -6144,6 +5984,11 @@ function generateStandaloneRuntimeMainBody(runtimeBody, totalPlotCount, hasBgcol
         strategy.short = -1;
 
         const timeframe = __createTimeframe(_stdWithCompat, context);
+        timeframe.change = (tf) => {
+          const current = _stdWithCompat.time(tf);
+          const previous = _stdWithCompat.time(tf, '', undefined, 1);
+          return Number.isFinite(current) && Number.isFinite(previous) && current !== previous;
+        };
         const math = __createMathNamespace();
         const ta = _stdWithCompat;
         const color = Object.assign((value) => value, __colorMap);
@@ -6680,7 +6525,7 @@ function extractHandleId(value) {
 	const id = value.__id;
 	return typeof id === "number" ? id : void 0;
 }
-var VISUAL_STD_CALLS = new Set([
+var VISUAL_STD_CALLS = /* @__PURE__ */ new Set([
 	"plot",
 	"plotshape",
 	"plotchar",
@@ -6811,26 +6656,16 @@ function normalizeVisualStyle(call, args) {
 			transp = numberAt(1);
 			display = displayAt(2) ?? displayAt(4) ?? displayAt(3);
 			break;
-		default:
+		default: {
 			if (normalizedCall.endsWith(".set_width") || normalizedCall.endsWith(".set_border_width")) linewidth = numberAt(1);
 			if (normalizedCall.endsWith(".set_color") || normalizedCall.endsWith(".set_textcolor") || normalizedCall.endsWith(".set_bgcolor") || normalizedCall.endsWith(".set_border_color")) colorAt(1);
-			if (normalizedCall === "line.new") {
-				colorAt(6);
-				linewidth = numberAt(8);
-			} else if (normalizedCall === "linefill.new") colorAt(2);
-			else if (normalizedCall === "box.new") {
-				colorAt(4);
-				colorAt(9);
-				linewidth = numberAt(5);
-			} else if (normalizedCall === "label.new") {
-				colorAt(5);
-				colorAt(7);
-			} else if (normalizedCall === "table.cell") {
-				colorAt(4);
-				colorAt(5);
-				colorAt(7);
+			const drawingStyleSlots = DRAWING_VISUAL_STYLE_SLOTS[normalizedCall];
+			if (drawingStyleSlots) {
+				for (const index of drawingStyleSlots.colorIndices) colorAt(index);
+				if (drawingStyleSlots.linewidthIndex !== null) linewidth = numberAt(drawingStyleSlots.linewidthIndex);
 			}
 			break;
+		}
 	}
 	const normalizedColors = [...new Set(colors)].sort((a, b) => a.localeCompare(b));
 	if (transp === null) for (const color of normalizedColors) {
@@ -7163,6 +6998,7 @@ function buildIndicatorFactory(options) {
 				let _previousBarTime = -1;
 				let _fallbackBarIndex = -1;
 				let _processedBars = 0;
+				const barTimes = [];
 				let _processedBarKey = null;
 				const _requestSecurityState = /* @__PURE__ */ new Map();
 				const _requestSecurityDiagnosticsSeen = /* @__PURE__ */ new Set();
@@ -7225,6 +7061,7 @@ function buildIndicatorFactory(options) {
 						if (_processedBarKey !== currentBarKey) {
 							_processedBarKey = currentBarKey;
 							_processedBars += 1;
+							barTimes.push(currentBarTime);
 						}
 					};
 					const pushVisualEvent = (event) => {
@@ -7333,60 +7170,12 @@ function buildIndicatorFactory(options) {
 							dayOfWeek: d.getUTCDay() + 1
 						};
 					};
-					const isInSessionAt = (timestamp, sessionRaw, timezone) => {
-						const [timeRangeRaw, daysRaw] = sessionRaw.split(":");
-						const [startRaw = "", endRaw = ""] = (timeRangeRaw ?? "").split("-");
-						if (startRaw.length < 4 || endRaw.length < 4) return false;
-						const startHour = Number(startRaw.slice(0, 2));
-						const startMinute = Number(startRaw.slice(2, 4));
-						const endHour = Number(endRaw.slice(0, 2));
-						const endMinute = Number(endRaw.slice(2, 4));
-						if (!Number.isFinite(startHour) || !Number.isFinite(startMinute) || !Number.isFinite(endHour) || !Number.isFinite(endMinute)) return false;
-						const { hour, minute, dayOfWeek } = readClockAt(timestamp, timezone);
-						const days = (daysRaw ?? "1234567").trim();
-						const current = hour * 60 + minute;
-						const start = startHour * 60 + startMinute;
-						const end = endHour * 60 + endMinute;
-						if (start <= end) {
-							if (days && !days.includes(String(dayOfWeek))) return false;
-							return current >= start && current < end;
-						}
-						if (current >= start) {
-							if (days && !days.includes(String(dayOfWeek))) return false;
-							return true;
-						}
-						if (current < end) {
-							const prevDay = dayOfWeek === 1 ? 7 : dayOfWeek - 1;
-							if (days && !days.includes(String(prevDay))) return false;
-							return true;
-						}
-						return false;
-					};
 					const chartTimeframeMs = parseTimeframeToMs(timeframe.period) ?? 6e4;
-					const resolveBarsBackTime = (timeframeArg, barsBackArg) => {
-						const barsBackValue = Number(barsBackArg ?? 0);
-						const barsBack = Number.isFinite(barsBackValue) && barsBackValue > 0 ? Math.trunc(barsBackValue) : 0;
-						if (barsBack > priorProcessedBars) return NaN;
-						if (!Number.isFinite(currentBarTime)) return NaN;
-						if (barsBack === 0) return currentBarTime;
-						const timeframeMs = parseTimeframeToMs(timeframeArg) ?? chartTimeframeMs;
-						if (!Number.isFinite(timeframeMs) || timeframeMs <= 0) return NaN;
-						return currentBarTime - barsBack * timeframeMs;
-					};
-					const compatTime = (...args) => {
-						const timeframeArg = args[0];
-						const sessionArg = args[1];
-						let timezoneArg = args[2];
-						let barsBackArg = args[3];
-						if (barsBackArg === void 0 && typeof timezoneArg === "number" && Number.isFinite(timezoneArg)) {
-							barsBackArg = timezoneArg;
-							timezoneArg = void 0;
-						}
-						const timestamp = resolveBarsBackTime(timeframeArg, barsBackArg);
-						if (!Number.isFinite(timestamp)) return NaN;
-						const sessionStr = typeof sessionArg === "string" ? sessionArg.trim() : "";
-						if (!sessionStr) return timestamp;
-						return isInSessionAt(timestamp, sessionStr, timezoneArg) ? timestamp : NaN;
+					const compatTime = (...args) => resolveTime(currentBarTime, priorProcessedBars, barTimes, timeframe.period, ctx.symbol, ...args);
+					timeframe.change = (tf) => {
+						const current = compatTime(tf);
+						const previous = compatTime(tf, "", void 0, 1);
+						return Number.isFinite(current) && Number.isFinite(previous) && current !== previous;
 					};
 					const isContextLike = (value) => typeof value === "object" && value !== null && "new_var" in value;
 					const toFiniteTimestamp = (value) => {
@@ -7399,7 +7188,8 @@ function buildIndicatorFactory(options) {
 						return null;
 					};
 					const readClockFromArgs = (timestampArg, timezoneArg) => {
-						return readClockAt(toFiniteTimestamp(timestampArg) ?? (Number.isFinite(currentBarTime) ? currentBarTime : 0), timezoneArg);
+						const timestamp = toFiniteTimestamp(timestampArg) ?? (Number.isFinite(currentBarTime) ? currentBarTime : 0);
+						return readClockAt(timestamp, timezoneArg);
 					};
 					const callHostStdDatePart = (prop, args) => {
 						const hostValue = stdWithVisual[prop];
@@ -7476,6 +7266,7 @@ function buildIndicatorFactory(options) {
 						return readClockFromArgs(first, args[1]).dayOfMonth;
 					};
 					const stdWithCompatTime = new Proxy(stdWithVisual, { get(target, prop, receiver) {
+						if (prop === "na") return (value) => value !== null && typeof value === "object" ? false : typeof target.na === "function" ? target.na(value) : value == null || Number.isNaN(value);
 						if (prop === "time") return compatTime;
 						if (prop === "dayofweek") return compatDayOfWeek;
 						if (prop === "hour") return compatHour;
@@ -7786,7 +7577,8 @@ function buildIndicatorFactory(options) {
 							return expressionArg;
 						}
 						const callSite = inferRequestSecurityCallSite();
-						const bucketKey = buildRequestBucketKey(currentBarTime, timeframeArg, readStringField(ctx.symbol, "timezone") ?? "America/New_York", bucketSizeMs);
+						const timezone = readStringField(ctx.symbol, "timezone") ?? "America/New_York";
+						const bucketKey = buildRequestBucketKey(currentBarTime, timeframeArg, timezone, bucketSizeMs);
 						const key = `${callSite}|${String(symbolArg)}|${String(timeframeArg)}|${merge.gaps}|${merge.lookahead}`;
 						const existing = _requestSecurityState.get(key);
 						let changedBucket = false;
@@ -7892,13 +7684,16 @@ function buildIndicatorFactory(options) {
 					};
 					const session = {
 						get ismarket() {
-							return isInSession(readStringField(ctx.symbol, "session_regular") ?? "0930-1600");
+							const regular = readStringField(ctx.symbol, "session_regular");
+							return isInSession(regular ?? "0930-1600");
 						},
 						get ispremarket() {
-							return isInSession(readStringField(ctx.symbol, "session_premarket") ?? "0400-0930");
+							const pre = readStringField(ctx.symbol, "session_premarket");
+							return isInSession(pre ?? "0400-0930");
 						},
 						get ispostmarket() {
-							return isInSession(readStringField(ctx.symbol, "session_postmarket") ?? "1600-2000");
+							const post = readStringField(ctx.symbol, "session_postmarket");
+							return isInSession(post ?? "1600-2000");
 						}
 					};
 					try {
@@ -7906,7 +7701,10 @@ function buildIndicatorFactory(options) {
 						let autoBgSlot = 0;
 						if (hasAutoBgColorer) {
 							const getActive = stubsRaw.box.__getActiveBgcolor;
-							if (typeof getActive === "function") autoBgSlot = resolveBgSlot(getActive());
+							if (typeof getActive === "function") {
+								const activeColor = getActive();
+								autoBgSlot = resolveBgSlot(activeColor);
+							}
 						}
 						const normalizedPlotValues = Array.from({ length: totalPlotCount }, (_unused, i) => {
 							if (hasAutoBgColorer && i === plots.length) return autoBgSlot;
@@ -8133,7 +7931,7 @@ function generateStandaloneFactory(options) {
  *   // Register with Chart Host chart
  */
 
-${hasTranspiledMainBody ? STANDALONE_RUNTIME_HELPERS : ""}
+${hasTranspiledMainBody ? `${STANDALONE_DRAWING_BUNDLE}\n\n${STANDALONE_RUNTIME_HELPERS}` : ""}
 
 function createIndicator(PineJS) {
   const Std = PineJS.Std;
@@ -8173,6 +7971,7 @@ ${hasTranspiledMainBody ? `      const __stubsRaw = __createStubNamespaces();
       let __previousBarTime = Number.NaN;
       let __fallbackBarIndex = -1;
       let __processedBars = 0;
+      const __barTimes = [];
       let __processedBarKey = null;
       const __requestSecurityState = new Map();
       let __requestSecurityCallCounter = 0;
@@ -8197,7 +7996,7 @@ function generateNativeMainBody(inputs, plots, bgcolors, sessionVariables, deriv
 		let identifier = raw.trim().replace(/[^a-zA-Z0-9_$]/g, "_").replace(/^_+|_+$/g, "");
 		if (!identifier) identifier = fallback;
 		if (!/^[a-zA-Z_$]/.test(identifier)) identifier = `_${identifier}`;
-		if (new Set([
+		if ((/* @__PURE__ */ new Set([
 			"break",
 			"case",
 			"catch",
@@ -8244,7 +8043,7 @@ function generateNativeMainBody(inputs, plots, bgcolors, sessionVariables, deriv
 			"private",
 			"protected",
 			"public"
-		]).has(identifier)) identifier = `${identifier}_`;
+		])).has(identifier)) identifier = `${identifier}_`;
 		return identifier;
 	};
 	const usedVarNames = /* @__PURE__ */ new Set();
@@ -8517,7 +8316,7 @@ var TokenType = /* @__PURE__ */ function(TokenType) {
 /**
 * Pine Script keywords
 */
-var KEYWORDS = new Set([
+var KEYWORDS = /* @__PURE__ */ new Set([
 	"if",
 	"else",
 	"for",
@@ -8897,27 +8696,28 @@ var Lexer = class {
 				start,
 				end: this.pos
 			});
-		} else if (KEYWORDS.has(value) || OPERATORS.includes(value)) if ([
-			"and",
-			"or",
-			"not"
-		].includes(value)) this.tokens.push({
-			type: TokenType.OPERATOR,
-			value,
-			line: this.line,
-			column: this.column - value.length,
-			start,
-			end: this.pos
-		});
-		else this.tokens.push({
-			type: TokenType.KEYWORD,
-			value,
-			line: this.line,
-			column: this.column - value.length,
-			start,
-			end: this.pos
-		});
-		else this.tokens.push({
+		} else if (KEYWORDS.has(value) || OPERATORS.includes(value)) {
+			if ([
+				"and",
+				"or",
+				"not"
+			].includes(value)) this.tokens.push({
+				type: TokenType.OPERATOR,
+				value,
+				line: this.line,
+				column: this.column - value.length,
+				start,
+				end: this.pos
+			});
+			else this.tokens.push({
+				type: TokenType.KEYWORD,
+				value,
+				line: this.line,
+				column: this.column - value.length,
+				start,
+				end: this.pos
+			});
+		} else this.tokens.push({
 			type: TokenType.IDENTIFIER,
 			value,
 			line: this.line,
@@ -9823,7 +9623,7 @@ var Parser = class extends ExpressionParser {
 		}
 		const operatorToken = this.consume(TokenType.OPERATOR, "Expected = or :=");
 		const operator = operatorToken.value;
-		const COMPOUND_ASSIGN = new Set([
+		const COMPOUND_ASSIGN = /* @__PURE__ */ new Set([
 			"+=",
 			"-=",
 			"*=",
@@ -9901,7 +9701,7 @@ var Parser = class extends ExpressionParser {
 		const name = this.consume(TokenType.IDENTIFIER, "Expected variable name.").value;
 		const operatorToken = this.consume(TokenType.OPERATOR, "Expected = or :=");
 		const operator = operatorToken.value;
-		const COMPOUND_ASSIGN = new Set([
+		const COMPOUND_ASSIGN = /* @__PURE__ */ new Set([
 			"+=",
 			"-=",
 			"*=",
@@ -10583,7 +10383,7 @@ var PlotExtractor = class {
 /**
 * Unsupported function categories for warning generation
 */
-var UNSUPPORTED_FUNCTIONS = new Set([
+var UNSUPPORTED_FUNCTIONS = /* @__PURE__ */ new Set([
 	"request.financial",
 	"request.quandl",
 	"request.seed",
@@ -10603,7 +10403,7 @@ var UNSUPPORTED_FUNCTIONS = new Set([
 /**
 * Partially supported functions that may have limited functionality
 */
-var PARTIALLY_SUPPORTED_FUNCTIONS = new Set([
+var PARTIALLY_SUPPORTED_FUNCTIONS = /* @__PURE__ */ new Set([
 	"request.security",
 	"plotshape",
 	"plotchar",
@@ -10620,7 +10420,7 @@ var PARTIALLY_SUPPORTED_FUNCTIONS = new Set([
 /**
 * Deprecated functions that should be migrated
 */
-var DEPRECATED_FUNCTIONS = new Set(["study", "security"]);
+var DEPRECATED_FUNCTIONS = /* @__PURE__ */ new Set(["study", "security"]);
 var MetadataVisitor = class {
 	constructor() {
 		this.inputs = [];
@@ -10710,7 +10510,6 @@ var MetadataVisitor = class {
 					if (isStatement(c.consequent)) this.visitStatement(c.consequent);
 					else this.visitExpression(c.consequent);
 				}
-				break;
 		}
 	}
 	visitExpression(expr) {
@@ -10739,9 +10538,7 @@ var MetadataVisitor = class {
 				if (!Array.isArray(expr.left) && expr.left.type === "MemberExpression") this.visitMemberExpression(expr.left);
 				this.visitExpression(expr.right);
 				break;
-			case "Identifier":
-				this.visitIdentifier(expr);
-				break;
+			case "Identifier": this.visitIdentifier(expr);
 		}
 	}
 	visitIdentifier(node) {
@@ -11545,4 +11342,4 @@ Object.defineProperty(exports, "validateInputSize", {
 	}
 });
 
-//# sourceMappingURL=src-BJunxCjS.cjs.map
+//# sourceMappingURL=src-BENn5F3q.cjs.map

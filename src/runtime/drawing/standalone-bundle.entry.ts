@@ -1,8 +1,10 @@
+import { resolveTime } from '../helpers/timeframe-time';
 import { createDrawingRuntime, type DrawingEventSink } from './index';
 import { STANDALONE_DRAWING_BUNDLE_GLOBAL } from './standalone-bundle.constants';
 
 interface StandaloneDrawingBundleApi {
   createDrawingRuntime: typeof createDrawingRuntime;
+  resolveTime: typeof resolveTime;
   createDrawingStubNamespaces: () => ReturnType<typeof createDrawingRuntime>;
 }
 
@@ -25,6 +27,7 @@ function createDrawingStubNamespaces(): ReturnType<
 
 const standaloneDrawingBundle: StandaloneDrawingBundleApi = {
   createDrawingRuntime,
+  resolveTime,
   createDrawingStubNamespaces,
 };
 

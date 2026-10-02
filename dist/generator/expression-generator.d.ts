@@ -9,6 +9,7 @@ export interface ExpressionGeneratorInterface {
     generateExpression(expr: Expression): string;
     generateMemberExpression(expr: MemberExpression): string;
     generateAssignmentExpression(expr: AssignmentExpression): string;
+    markHistoricalIdentifier(identifier: string, series: string | null): void;
     markPersistentIdentifier(identifier: string, kind: 'var' | 'varip', stateKeyExpr?: string): void;
     pushPersistentScope(): void;
     popPersistentScope(): void;
@@ -20,6 +21,7 @@ export declare class ExpressionGenerator implements ExpressionGeneratorInterface
     private indentLevel;
     private statementGen;
     private persistentScopes;
+    private historicalScopes;
     /**
      * Helper-usage tracker — recorded as the generator emits mapping-driven
      * helper identifiers (math, session, StdPlus, array, map, matrix,
@@ -41,6 +43,8 @@ export declare class ExpressionGenerator implements ExpressionGeneratorInterface
     markPersistentIdentifier(identifier: string, kind: 'var' | 'varip', stateKeyExpr?: string): void;
     pushPersistentScope(): void;
     popPersistentScope(): void;
+    markHistoricalIdentifier(identifier: string, series: string | null): void;
+    private updateHistoricalValue;
     private resolvePersistentIdentifier;
     generateExpression(expr: Expression): string;
     private generateBinaryExpression;
