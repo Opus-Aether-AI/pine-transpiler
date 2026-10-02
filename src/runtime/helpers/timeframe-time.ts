@@ -119,9 +119,10 @@ export function resolveTime(
   let sessionDate = date;
   let tradingDate = date;
   for (const candidate of sessionWindows(session)) {
-    const overnight = candidate.start >= candidate.end && candidate.start !== 0;
+    const sessionOvernight =
+      candidate.start >= candidate.end && candidate.start !== 0;
     const startDate = date - (minute < candidate.start ? DAY : 0);
-    const tradeDate = startDate + (overnight ? DAY : 0);
+    const tradeDate = startDate + (sessionOvernight ? DAY : 0);
     const inHours =
       candidate.start === candidate.end ||
       (candidate.start < candidate.end
