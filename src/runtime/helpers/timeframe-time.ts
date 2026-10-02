@@ -118,7 +118,8 @@ export function resolveTime(
   let window: SessionWindow | undefined;
   let sessionDate = date;
   let tradingDate = date;
-  for (const candidate of sessionWindows(session)) {
+  const windows = sessionWindows(session);
+  for (const candidate of windows) {
     const sessionOvernight =
       candidate.start >= candidate.end && candidate.start !== 0;
     const startDate = date - (minute < candidate.start ? DAY : 0);
@@ -154,6 +155,16 @@ export function resolveTime(
     );
   }
 
+  // All windows belong to one trading session. A lunch reopening can anchor
+  // an intraday bar, but must not create a second daily/weekly/monthly open.
+  const calendarWindow =
+    windows.find(
+      (candidate) => candidate.start >= candidate.end && candidate.start !== 0,
+    ) ??
+    windows.reduce((first, candidate) =>
+      candidate.start < first.start ? candidate : first,
+    );
+
   let periodDate = tradingDate;
   if (unit === 'D') {
     periodDate = Math.floor(tradingDate / (DAY * count)) * DAY * count;
@@ -178,9 +189,10 @@ export function resolveTime(
   ) {
     periodDate += DAY;
   }
-  const overnight = window.start >= window.end && window.start !== 0;
+  const overnight =
+    calendarWindow.start >= calendarWindow.end && calendarWindow.start !== 0;
   return utcTime(
-    periodDate - (overnight ? DAY : 0) + window.start * 60_000,
+    periodDate - (overnight ? DAY : 0) + calendarWindow.start * 60_000,
     timezone,
   );
 }

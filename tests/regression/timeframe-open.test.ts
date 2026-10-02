@@ -5,6 +5,46 @@ const timestamp = (iso: string) => Date.parse(iso);
 
 for (const path of factoryPaths) {
   describe(`${path}: enclosing timeframe open (#85)`, () => {
+    it('keeps daily opens and day changes stable across a session lunch break', () => {
+      const run = execution(
+        path,
+        `//@version=6
+indicator("split session")
+plot(time("D"))
+plot(timeframe.change("D") ? 1 : 0)
+plot(time("60"))`,
+        [
+          '2026-03-06T15:00:00Z',
+          '2026-03-06T18:30:00Z',
+          '2026-03-09T14:00:00Z',
+          '2026-03-09T17:30:00Z',
+        ].map((t) => bar(10, timestamp(t))),
+        { timezone: 'America/New_York', session: '0900-1200,1300-1600:23456' },
+      );
+      expect(run.run().map((row) => [...row])).toEqual([
+        [
+          timestamp('2026-03-06T14:00:00Z'),
+          0,
+          timestamp('2026-03-06T15:00:00Z'),
+        ],
+        [
+          timestamp('2026-03-06T14:00:00Z'),
+          0,
+          timestamp('2026-03-06T18:00:00Z'),
+        ],
+        [
+          timestamp('2026-03-09T13:00:00Z'),
+          1,
+          timestamp('2026-03-09T14:00:00Z'),
+        ],
+        [
+          timestamp('2026-03-09T13:00:00Z'),
+          0,
+          timestamp('2026-03-09T17:00:00Z'),
+        ],
+      ]);
+    });
+
     it('accepts named timezone and session arguments in canonical or reversed order', () => {
       const run = execution(
         path,
