@@ -1,9 +1,11 @@
 # Host Rendering Contract
 
 This document is the authoritative reference for downstream consumers
-of the transpiler's per-bar visual-event payload. It exists so the
-webapp `VisualEventsRenderer` (and any future external renderer) can
-depend on a stable shape without coupling to internal transpiler state.
+of the transpiler's per-bar visual-event payload. It exists so host
+renderers can depend on a stable shape without coupling to internal
+transpiler state. The package ships one such renderer for the Charting
+Library widget, `@opus-aether-ai/pine-transpiler/tv-host`; see
+[Reference renderer](#reference-renderer-tv-host).
 
 For the architectural context — why the transpiler can't draw shapes
 itself and the host must — see [LIMITATIONS.md](LIMITATIONS.md) and
@@ -42,7 +44,7 @@ interface VisualEvent {
   /**
    * Stable identifier of the underlying Pine drawing handle.
    * Present on every event whose `call` namespace is one of
-   * `box` / `line` / `label` / `table`.
+   * `box` / `line` / `label` / `linefill` / `table`.
    * Absent on plot-level events (plot / plotchar / bgcolor / fill /
    * barcolor) that don't have a handle.
    */
@@ -69,12 +71,29 @@ with one of these prefixes:
 | `box` | `box.new`, `box.set_left`, `box.set_right`, `box.set_top`, `box.set_bottom`, `box.set_extend`, `box.set_bgcolor`, `box.set_border_color`, `box.set_border_width`, `box.set_text_color`, `box.get_*`, `box.delete` |
 | `line` | `line.new`, `line.set_x2`, `line.set_xy1`, `line.set_xy2`, `line.set_color`, `line.get_*`, `line.delete` |
 | `label` | `label.new`, `label.set_text`, `label.set_tooltip`, `label.set_textcolor`, `label.set_style`, `label.set_xy`, `label.set_x`, `label.set_y`, `label.get_*`, `label.delete` |
+| `linefill` | `linefill.new`, `linefill.set_color`, `linefill.get_*`, `linefill.delete` |
 | `table` | `table.new`, `table.cell`, `table.clear`, `table.merge_cells`, `table.delete` |
 
+`linefill.new` args are `[line1, line2, color]`, where `line1` and
+`line2` are the line handles themselves. Read each one's `__id`
+directly (it can be a non-enumerable Proxy field) and key it as
+`line:<__id>`.
+
 Plot-level calls (`plot`, `plotchar`, `plotshape`, `plotarrow`,
-`bgcolor`, `fill`, `barcolor`, `hline`) appear in `__visualEvents` for
-diagnostic purposes but **do not carry `pineHandleId`** — they're
-rendered by TV's native plot output, not by a host renderer.
+`bgcolor`, `fill`, `barcolor`, `hline`) appear in `__visualEvents`
+**without `pineHandleId`**. Their `call` is either the bare name or
+`Std.`-prefixed (`Std.bgcolor`), depending on how the script reached
+it. `plot`, `plotshape`, `plotchar`, `plotarrow` and `hline` render
+through the native plot output. The rest render natively only when
+they lower to a `bg_colorer` plot, which explicit `bgcolor()` calls
+do not:
+
+- `bgcolor` — `args[0]` is the bar's colour, or NaN for `na`. The host
+  must draw it.
+- `fill` — `args` are `[NaN, NaN, color]`: the plot or hline handles
+  are not preserved at runtime, so a host cannot tell which plots to
+  fill between. Not renderable from the event stream today.
+- `barcolor` — not renderable through the drawing API.
 
 No-op drawing mutations with no concrete handle (for example
 `label.delete(na)`) are intentionally omitted from `__visualEvents`.
@@ -114,6 +133,14 @@ bar window.
 Host renderers must convert epoch milliseconds to chart-host runtime's
 expected time unit (seconds) when forwarding to widget APIs that
 expect TV time.
+
+An unset `xloc` slot (NaN) means Pine's default, `xloc.bar_index`.
+Most drawing scripts use it, so x values are usually bar indexes, not
+times. Forwarding a bar index as a time puts the drawing in January
+1970. Map each index to the open time of the candle the script saw at
+that index: the event's `barIndex` and `Std.time(context)` for the same
+`main()` call give that pair. Market gaps make candle spacing uneven,
+so never interpolate between candles.
 
 ## Canonical positional arg order for `.new` events
 
@@ -214,10 +241,18 @@ This is locked by [tests/contract/canonical-arg-order.test.ts](tests/contract/ca
 | 12 | `text_font_family` |
 | 13 | `text_formatting` |
 
-For `<ns>.set_*` events, the args are always `[newValue]` (the single
-property being mutated). The mapping from `set_*` method name to which
-Pine param it mutates follows Pine's documented API and isn't repeated
-here.
+For `<ns>.set_*` events, the args are the call's own arguments, so
+their shape depends on how the script called the setter:
+
+- method form, `b.set_right(x)` → `args: [x]`
+- namespace form, `box.set_right(b, x)` → `args: [b, x]`, with the
+  handle first
+
+Renderers should drop a leading arg that is a drawing handle (an
+object with a numeric `__id`) before reading values. `pineHandleId`
+identifies the target either way. The mapping from `set_*` method name
+to which Pine param it mutates follows Pine's documented API and isn't
+repeated here.
 
 ## Pine constant values in event args
 
@@ -349,6 +384,75 @@ Compatibility policy:
   this file plus `CHANGELOG.md`.
 - Renderers should check `__visualEventsVersion >= 1` and warn (not
   crash) on unknown versions.
+
+## Reference renderer (`tv-host`)
+
+`@opus-aether-ai/pine-transpiler/tv-host` draws this stream on the
+Charting Library widget. It calls only the widget's public drawing API
+(`createShape`, `createMultipointShape`, `getShapeById` →
+`setPoints` / `setProperties`, `removeEntity`, `getAllStudies`). It is
+typed against its own structural interfaces and contains no library
+code. The core package stays dependency-free.
+
+```ts
+import { createChartDrawingHost } from '@opus-aether-ai/pine-transpiler/tv-host';
+
+const host = createChartDrawingHost({ widget: () => widget });
+// custom_indicators_getter: (PineJS) => Promise.resolve([host.wrapFactory(factory)(PineJS)])
+widget.onChartReady(() => host.watchStudyRemoval(widget));
+```
+
+`wrapFactory` (or `wrapIndicator`) wraps a factory from either path:
+
+- **Zero-plot studies.** The library does not run `main()` for a study
+  with no plots, so a drawing-only script would never emit events. The
+  wrapper adds one hidden, transparent, all-NaN plot
+  (`__drawing_execution__`). Its `display` stays non-zero because the
+  library also skips `main()` when every visibility flag is off.
+  Scripts that already plot are left alone.
+- **Candle-exact coordinates.** Each `main()` call records
+  `(bar_index, Std.time, high, low)`. `xloc.bar_index` coordinates
+  resolve to the recorded candle time when the shape is drawn. A
+  coordinate past the newest candle (a projection) is extrapolated from
+  the last bar spacing, then re-snapped when that candle arrives. An
+  index inside the history that was never observed is not drawn.
+- **History replay.** When the library replays history on the same
+  instance (backfill, symbol or interval change), a bar time goes
+  backwards. The wrapper swaps in a fresh transpiled instance, so Pine
+  `var` state restarts, and clears only that instance's drawings.
+- **Study removal.** `watchStudyRemoval(widget)` (or calling
+  `syncWithChart()` yourself after studies change) compares
+  `getAllStudies()` with the previous snapshot. It clears the drawings
+  of scripts whose title disappeared. A title that never matched
+  clears nothing.
+
+Rendering:
+
+| Pine | Widget shape | Notes |
+|---|---|---|
+| `box` | `rectangle`, plus a `text` shape for box text | `border_color = na` draws no border; `bgcolor` keeps its alpha |
+| `line` | `trend_line` | `extend.*` → `extendLeft` / `extendRight`; arrow styles draw solid |
+| `label` | `text` | `color = na` (or unset) gives no background; glyph styles (`triangleup`, `circle`, …) draw the glyph as text; `yloc.abovebar` / `belowbar` use the candle's high / low |
+| `linefill` | filled `polyline` between the two lines | follows both lines as they move; waits until the lines span more than one point; deleted with either line |
+| `bgcolor()` | `rectangle` per run of same-coloured bars | spans the observed price range, sent to back; a re-run realtime bar replaces its colour instead of stacking |
+
+Events are coalesced per handle. A box created on one bar and extended
+across 300 historical bars costs one `createMultipointShape`, not 300
+`setPoints`. Shapes are created locked and excluded from saving and
+undo. At most `maxDrawingsPerKind` shapes per kind (default 500,
+Pine's ceiling) are kept per instance, oldest removed first, because
+`max_*_count` is not read from the script.
+
+Not rendered, and reported once through `onDiagnostic`: `table.*`
+(the chart has no table shape; use a DOM overlay), `fill` (see above)
+and `barcolor`. Known gaps:
+
+- Drawings go to the main price pane, so a non-overlay script's
+  drawings land on the price scale.
+- Pine's realtime rollback (undoing a bar's drawings when the bar
+  re-runs on the next tick) is not modelled.
+- Two instances of one script with the same title cannot be told
+  apart on removal; both keep their drawings until the last one goes.
 
 ## What's intentionally not in this contract
 

@@ -16,6 +16,7 @@ coveragePathIgnorePatterns = [
   "tests/corpus/list-fixtures.ts",
   "tests/corpus/mock-runtime.ts",
   "tests/corpus/runner.ts",
+  "tests/tv-host/mock-chart-widget.ts",
   # Test-harness package is a separate sub-export with its own
   # integration suites under tests/integration/. Counting it toward
   # the main-library aggregate misrepresents the library coverage.

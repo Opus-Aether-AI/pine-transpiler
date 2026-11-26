@@ -83,6 +83,32 @@ For strict-CSP environments where `unsafe-eval` is blocked, swap in `transpileTo
 ### TradingView Charting Library integration
 Drop Pine indicators into any chart that embeds the TradingView Charting Library. The transpiler outputs standard PineJS `CustomIndicator` factories — register them through your `custom_indicators_getter` and they render alongside the library's built-in studies.
 
+A `CustomIndicator` can only output plots, so boxes, lines, labels, linefills and `bgcolor()` arrive as [visual events](docs/HOST_RENDERING_CONTRACT.md) that the host must draw. Without a host renderer, a drawing-only script such as Trading Sessions loads and shows nothing. The `tv-host` subpath is a reference renderer that draws those events as native chart shapes through the widget's public drawing API. It has no dependencies and contains no Charting Library code:
+
+```typescript
+import { transpileToPineJS } from '@opus-aether-ai/pine-transpiler';
+import { createChartDrawingHost } from '@opus-aether-ai/pine-transpiler/tv-host';
+
+const result = transpileToPineJS(pineSource, 'trading_sessions', 'Trading Sessions');
+if (!result.success) throw new Error(result.error);
+
+let widget; // assigned below; the host reads it lazily
+const host = createChartDrawingHost({ widget: () => widget });
+const factory = host.wrapFactory(result.indicatorFactory);
+
+widget = new TradingView.widget({
+  // ...your usual options
+  custom_indicators_getter: (PineJS) => Promise.resolve([factory(PineJS)]),
+});
+
+widget.onChartReady(() => {
+  host.watchStudyRemoval(widget); // clear drawings when the study is removed
+  widget.activeChart().createStudy('Trading Sessions', true);
+});
+```
+
+`wrapFactory` works the same on factories from `transpileToStandaloneFactory`. It gives drawing-only scripts the hidden plot the library needs before it runs `main()`. It places `bar_index` coordinates on the exact candles the script saw, and resets a study's drawings when the library replays its history. What it draws and what it skips is listed in the [host rendering contract](docs/HOST_RENDERING_CONTRACT.md#reference-renderer-tv-host).
+
 ### White-label dashboards and SaaS chart hosts
 Add Pine v5/v6 support to your own webapp without re-implementing the language. The output works in any chart host you control: embedded dashboards, broker terminals, white-label analytics products, internal research tools.
 
@@ -136,7 +162,7 @@ Everything beyond the quick start lives in `docs/`:
 
 - **Stable for indicator workloads.** Strategy (`strategy.*`) is intentionally out of scope; this is an indicator transpiler.
 - **`request.security` is a subset.** Same-bar and HTF bucket-merge passthrough work; cross-symbol fetching and full `barmerge` semantics are tracked in the roadmap.
-- **Drawing APIs are tracked but host-rendered.** `box.new` / `line.new` / `label.new` / `table.new` emit visual events on each bar; chart-side rendering is the host's responsibility via the [host rendering contract](docs/HOST_RENDERING_CONTRACT.md).
+- **Drawing APIs are tracked but host-rendered.** `box.new` / `line.new` / `label.new` / `table.new` emit visual events on each bar; chart-side rendering is the host's responsibility via the [host rendering contract](docs/HOST_RENDERING_CONTRACT.md). The `tv-host` subpath draws boxes, lines, labels, linefills and `bgcolor()` on the Charting Library widget; tables need your own DOM overlay.
 - **Coverage gate.** CI fails if line or function coverage drops below 95%. Current: 95.81% functions / 98.62% lines / 1,400+ tests.
 
 See [docs/LIMITATIONS.md](docs/LIMITATIONS.md) for the complete known-issues list.
