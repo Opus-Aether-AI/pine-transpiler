@@ -68,7 +68,10 @@ Tracked-but-not-rendered (host renderer must consume `__visualEvents`):
 - Box rectangles with borders / inline text
 - `line.new` (pivots, separators, opens)
 - `label.new` (text annotations)
+- `linefill.new` (fills between two lines)
 - `table.new` / `table.cell` (TV CustomIndicators have no native runtime table; renderer must use a DOM overlay)
+
+The `@opus-aether-ai/pine-transpiler/tv-host` subpath is a reference host renderer for the Charting Library widget. It draws boxes, lines, labels, linefills and `bgcolor()` as native shapes; tables still need a DOM overlay. See [HOST_RENDERING_CONTRACT.md § Reference renderer](HOST_RENDERING_CONTRACT.md#reference-renderer-tv-host).
 
 Supported method subsets:
 
@@ -82,7 +85,7 @@ Supported method subsets:
 - `plot`, `plotshape`, `plotchar`, `plotarrow`, `bgcolor`, `fill`, `barcolor`, `hline` are runtime-compatible.
 - `plot` / `plotshape` / `plotchar` / `plotarrow` / `hline` render directly through chart-host `CustomIndicator` plot output.
 - `plotchar(text = identifier)` resolves through tracked string-literal var definitions and is promoted to the `char` glyph when `char` is empty.
-- `bgcolor`, `fill`, `barcolor` are tracked in visual-event artifacts; rendering of those that don't lower to a `bg_colorer` plot remains host responsibility.
+- `bgcolor`, `fill`, `barcolor` are tracked in visual-event artifacts; rendering of those that don't lower to a `bg_colorer` plot remains host responsibility. `tv-host` draws `bgcolor`. `fill` events lose their plot handles at runtime (`args` are `[NaN, NaN, color]`), so no host can render them yet.
 
 ### Pine `var` / `varip` inside function bodies
 

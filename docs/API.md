@@ -12,6 +12,7 @@ All exports from `@opus-aether-ai/pine-transpiler`. For a high-level walkthrough
   - [`executePineJS`](#executepinejs)
 - [Pipeline API (advanced)](#pipeline-api-advanced)
 - [Test harness sub-export](#test-harness-sub-export)
+- [Host renderer sub-export (`tv-host`)](#host-renderer-sub-export-tv-host)
 - [Mapping introspection](#mapping-introspection)
 - [Constants and types](#constants-and-types)
 - [Strict-CSP integration](#strict-csp-integration)
@@ -160,6 +161,38 @@ if (!report.pass) {
 ```
 
 Use this when you want to catch chart-host breakages **before** webapp integration — non-constructable constructors, missing `metainfo.styles[plot.id]`, undefined plot slots, reducer crashes against host-runtime-shaped reducer paths.
+
+---
+
+## Host renderer sub-export (`tv-host`)
+
+```typescript
+import {
+  createChartDrawingHost,
+  type ChartDrawingHost,
+} from '@opus-aether-ai/pine-transpiler/tv-host';
+
+const host: ChartDrawingHost = createChartDrawingHost({
+  widget: () => widget,          // or getChart: (instanceId) => widget.activeChart()
+  maxDrawingsPerKind: 500,       // default
+  onDiagnostic: (d) => console.debug(d.message, d.detail),
+});
+
+// Wrap each transpiled factory before handing it to the library.
+const factory = host.wrapFactory(result.indicatorFactory);
+```
+
+| Member | Purpose |
+|---|---|
+| `wrapFactory(factory)` / `wrapIndicator(indicator, PineJS)` | Return a `CustomIndicator` whose `main()` feeds its `__visualEvents` to the chart. Adds the hidden execution plot to zero-plot scripts. |
+| `watchStudyRemoval(widget)` | Subscribe to `study_event` and clear drawings of removed studies. Returns an unsubscribe function. |
+| `syncWithChart()` | The same check, run once by hand. |
+| `reset(instanceId)` / `resetIndicator(indicatorId)` / `resetAll()` | Remove drawings explicitly. |
+| `instances()` | Live instances: `{ instanceId, indicatorId, titles }`. |
+| `idle()` | Resolves when every queued chart call has settled (useful in tests). |
+| `renderer` | The underlying `VisualEventsRenderer`. Use it directly to feed events from your own `main()` wrapper: `renderer.processBar(instanceId, events, { barIndex, time, high, low })`. `renderer.refresh()` re-issues every shape, for a chart that became ready after history ran. |
+
+Behaviour, shape mapping and known gaps: [HOST_RENDERING_CONTRACT.md § Reference renderer](HOST_RENDERING_CONTRACT.md#reference-renderer-tv-host).
 
 ---
 

@@ -28,6 +28,11 @@
       "types": "./dist/test-harness/index.d.ts",
       "import": "./dist/test-harness/index.js",
       "require": "./dist/test-harness/index.cjs"
+    },
+    "./tv-host": {
+      "types": "./dist/tv-host/index.d.ts",
+      "import": "./dist/tv-host/index.js",
+      "require": "./dist/tv-host/index.cjs"
     }
   },
   "files": [

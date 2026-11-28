@@ -9,6 +9,7 @@ export default defineConfig({
         index: resolve(__dirname, 'src/index.ts'),
         'cli/index': resolve(__dirname, 'src/cli/index.ts'),
         'test-harness/index': resolve(__dirname, 'src/test-harness/index.ts'),
+        'tv-host/index': resolve(__dirname, 'src/tv-host/index.ts'),
       },
       formats: ['es', 'cjs'],
       fileName: (format, entryName) => {

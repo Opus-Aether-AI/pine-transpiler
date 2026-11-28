@@ -43,6 +43,8 @@ export interface MockRuntime {
   context: RuntimeContextInternal;
   /** Advance the global bar pointer; call between main() invocations. */
   advanceBar: () => void;
+  /** Move back to the first bar, as a host does when it replays history. */
+  rewind: () => void;
   /** Total bars in the synthetic series. */
   totalBars: number;
   /** Reset the var-pointer in context at the start of each bar. */
@@ -1099,6 +1101,10 @@ export function createMockRuntime(
     advanceBar: () => {
       pointer.current++;
       context.barIndex = barIndexStart + pointer.current;
+    },
+    rewind: () => {
+      pointer.current = 0;
+      context.barIndex = barIndexStart;
     },
     totalBars: barCount,
     resetVarPointer: () => context.resetVarPointer(),
