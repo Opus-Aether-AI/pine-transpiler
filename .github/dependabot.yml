@@ -1,9 +1,14 @@
 version: 2
 
+# Cooldown: Dependabot only proposes a release once it is 7 days old, so a
+# hijacked or broken version has a week to be caught and pulled first.
+# Security updates are exempt and still open as soon as a fix exists.
 updates:
   # JavaScript/TypeScript dev dependencies (no runtime deps by design)
   - package-ecosystem: npm
     directory: /
+    cooldown:
+      default-days: 7
     schedule:
       interval: weekly
       day: monday
@@ -26,12 +31,17 @@ updates:
   # limit kept low to match the actual surface)
   - package-ecosystem: github-actions
     directory: /
+    cooldown:
+      default-days: 7
     schedule:
       interval: weekly
       day: monday
       time: "06:00"
       timezone: Asia/Kolkata
     open-pull-requests-limit: 3
+    groups:
+      actions:
+        patterns: ["*"]
     commit-message:
       prefix: chore
       include: scope
