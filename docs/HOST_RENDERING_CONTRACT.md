@@ -418,8 +418,15 @@ widget.onChartReady(() => host.watchStudyRemoval(widget));
   index inside the history that was never observed is not drawn.
 - **History replay.** When the library replays history on the same
   instance (backfill, symbol or interval change), a bar time goes
-  backwards. The wrapper swaps in a fresh transpiled instance, so Pine
-  `var` state restarts, and clears only that instance's drawings.
+  backwards. The wrapper swaps in a fresh transpiled instance and drops
+  the `var` store the generated code keeps on the context
+  (`context.__pineState`), so Pine `var` state restarts. It then clears
+  only that instance's drawings.
+- **Chart ownership.** Each instance is pinned to the first chart it
+  draws on, and every update and removal goes to the chart that holds
+  the shape, so switching the active chart never moves or strands
+  drawings. In a multi-chart layout, pass `getChart(instanceId)` to
+  route instances explicitly.
 - **Study removal.** `watchStudyRemoval(widget)` (or calling
   `syncWithChart()` yourself after studies change) compares
   `getAllStudies()` with the previous snapshot. It clears the drawings
@@ -432,9 +439,12 @@ Rendering:
 |---|---|---|
 | `box` | `rectangle`, plus a `text` shape for box text | `border_color = na` draws no border; `bgcolor` keeps its alpha |
 | `line` | `trend_line` | `extend.*` → `extendLeft` / `extendRight`; arrow styles draw solid |
-| `label` | `text` | `color = na` (or unset) gives no background; glyph styles (`triangleup`, `circle`, …) draw the glyph as text; `yloc.abovebar` / `belowbar` use the candle's high / low |
+| `label` | `text` | `color = na` (or unset) gives no background; glyph styles (`triangleup`, `circle`, …) draw the glyph as text; `yloc.abovebar` / `belowbar` use the candle's high / low and follow it on realtime ticks |
 | `linefill` | filled `polyline` between the two lines | follows both lines as they move; waits until the lines span more than one point; deleted with either line |
 | `bgcolor()` | `rectangle` per run of same-coloured bars | spans the observed price range, sent to back; a re-run realtime bar replaces its colour instead of stacking |
+
+A drawing created with `na` coordinates (`label.new(na, na, "")`) is
+kept, and drawn once setters give it usable coordinates.
 
 Events are coalesced per handle. A box created on one bar and extended
 across 300 historical bars costs one `createMultipointShape`, not 300

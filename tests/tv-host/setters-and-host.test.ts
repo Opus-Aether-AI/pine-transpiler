@@ -401,3 +401,92 @@ describe('tv-host host wrapper', () => {
     expect(metainfo.plots).toHaveLength(1);
   });
 });
+
+describe('tv-host review regressions', () => {
+  it('keeps na-coordinate drawings and creates them once coordinates arrive', async () => {
+    const { mock, r } = renderer();
+    r.processBar(
+      'a',
+      [
+        ev('box.new', 1, [N, N, N, N]),
+        ev('line.new', 1, [N, N, N, N]),
+        ev('label.new', 1, [N, N, '']),
+      ],
+      bar(5),
+    );
+    await r.idle();
+    expect(mock.shapes.size).toBe(0);
+    r.processBar(
+      'a',
+      [
+        ev('box.set_lefttop', 1, [{ __id: 1 }, 1, 9]),
+        ev('box.set_rightbottom', 1, [{ __id: 1 }, 3, 2]),
+        ev('line.set_xy1', 1, [{ __id: 1 }, 0, 5]),
+        ev('line.set_xy2', 1, [{ __id: 1 }, 4, 6]),
+        ev('label.set_xy', 1, [{ __id: 1 }, 2, 7]),
+      ],
+      bar(5),
+    );
+    await r.idle();
+    expect(mock.live('rectangle')[0]?.points).toEqual([
+      { time: sec(1), price: 9 },
+      { time: sec(3), price: 2 },
+    ]);
+    expect(mock.live('trend_line')[0]?.points.map((p) => p.time)).toEqual([
+      sec(0),
+      sec(4),
+    ]);
+    expect(mock.live('text')[0]?.points[0]).toEqual({ time: sec(2), price: 7 });
+  });
+
+  it('keeps updating and removing shapes on the chart that drew them', async () => {
+    const a = createMockChartWidget();
+    const b = createMockChartWidget();
+    let active: typeof a.chart | null = a.chart;
+    const r = new VisualEventsRenderer({ getChart: () => active });
+    for (let i = 0; i < 4; i++) r.processBar('x', [], bar(i));
+    r.processBar('x', [ev('line.new', 1, [0, 1, 1, 1])], bar(3));
+    await r.idle();
+    active = b.chart; // the user switches the active chart
+    r.processBar(
+      'x',
+      [ev('line.set_x2', 1, [3]), ev('label.new', 1, [0, 1, 'x'])],
+      bar(3),
+    );
+    await r.idle();
+    expect(a.live('trend_line')[0]?.points[1]?.time).toBe(sec(3));
+    expect(a.live('text')).toHaveLength(1);
+    expect(b.shapes.size).toBe(0);
+    active = null; // and the getter briefly has no chart
+    r.processBar('x', [ev('line.delete', 1, [])], bar(3));
+    await r.idle();
+    expect(a.live('trend_line')).toHaveLength(0);
+  });
+
+  it('passes the instance id to getChart so layouts can route charts', async () => {
+    const a = createMockChartWidget();
+    const b = createMockChartWidget();
+    const r = new VisualEventsRenderer({
+      getChart: (id) => (id === 'left' ? a.chart : b.chart),
+    });
+    for (const id of ['left', 'right']) {
+      r.processBar(id, [ev('line.new', 1, [0, 1, 0, 2])], bar(0));
+    }
+    await r.idle();
+    expect([a.shapes.size, b.shapes.size]).toEqual([1, 1]);
+  });
+
+  it('moves yloc.abovebar labels when a tick moves the candle high', async () => {
+    const { mock, r } = renderer();
+    r.processBar('a', [ev('label.new', 1, [5, N, 'hi', N, 'yloc.abovebar'])], {
+      ...bar(5),
+      high: 10,
+      low: 5,
+    });
+    await r.idle();
+    expect(mock.live('text')[0]?.points[0]?.price).toBe(10);
+    r.processBar('a', [], { ...bar(5), high: 12, low: 5 });
+    await r.idle();
+    expect(mock.live('text')[0]?.points[0]?.price).toBe(12);
+  });
+});

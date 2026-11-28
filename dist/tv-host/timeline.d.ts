@@ -34,6 +34,7 @@ export declare class BarTimeline {
     /** Returns what changed, so callers can refresh dependent shapes. */
     record(bar: BarObservation): {
         newBar: boolean;
+        candleChanged: boolean;
         extentChanged: boolean;
     };
     resolve(x: number, xloc: Xloc): ResolvedTime | null;

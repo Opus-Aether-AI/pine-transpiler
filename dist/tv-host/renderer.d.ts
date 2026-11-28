@@ -2,8 +2,12 @@ import { BarObservation, ChartApi, HostDiagnostic, VisualEvent } from './types';
 /** Kinds of chart shape the renderer owns. */
 export type DrawingKind = 'box' | 'line' | 'label' | 'linefill' | 'bgcolor';
 export interface VisualEventsRendererOptions {
-    /** Returns the chart to draw on, or null while it is not ready. */
-    getChart: () => ChartApi | null;
+    /**
+     * Returns the chart an indicator instance draws on, or null while it
+     * is not ready. Each instance is pinned to the first chart returned,
+     * so its shapes stay put when the user switches the active chart.
+     */
+    getChart: (instanceId: string) => ChartApi | null;
     /**
      * Live shapes kept per kind and indicator instance; the oldest are
      * removed first, as Pine does with `max_boxes_count` and friends.
@@ -78,6 +82,7 @@ export declare class VisualEventsRenderer {
     private syncBoxText;
     private boxTextAnchor;
     private removeShapes;
+    private chartFor;
     /**
      * Widget points for an entity, or null when it cannot be drawn yet.
      * Entities with unresolved or extrapolated coordinates go on the

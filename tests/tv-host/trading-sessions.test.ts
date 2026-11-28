@@ -424,3 +424,55 @@ describe('tv-host end to end: bgcolor', () => {
     );
   });
 });
+
+describe('tv-host end to end: review regressions', () => {
+  it('restarts Pine var state when history replays on the same context', async () => {
+    const source = `//@version=6
+indicator("First bar", overlay = true)
+var int n = 0
+n += 1
+if n == 1
+    label.new(bar_index, high, "first")
+`;
+    const mock = createMockChartWidget();
+    const host = createChartDrawingHost({ widget: mock.widget });
+    const runtime = createMockRuntime({ barCount: 20 });
+    const chart = startChart(pineJsFactory(source, 'first_bar'), host, runtime);
+    chart.runHistory();
+    await host.idle();
+    expect(mock.live('text').map((s) => s.text)).toEqual(['first']);
+    runtime.rewind();
+    chart.runHistory();
+    await host.idle();
+    // Stale `var` state would leave n > 1 and draw nothing on replay.
+    expect(mock.live('text').map((s) => s.text)).toEqual(['first']);
+    expect(mock.live('text')[0]?.points[0]?.time).toBe(sec(0));
+  });
+
+  it('draws a drawing created with na coordinates once setters place it', async () => {
+    const source = `//@version=6
+indicator("Last close", overlay = true)
+var label last = label.new(na, na, "")
+var line level = line.new(na, na, na, na)
+label.set_xy(last, bar_index, close)
+label.set_text(last, "last")
+line.set_xy1(level, bar_index - 5, close)
+line.set_xy2(level, bar_index, close)
+`;
+    const mock = createMockChartWidget();
+    const host = createChartDrawingHost({ widget: mock.widget });
+    const runtime = createMockRuntime({ barCount: 30 });
+    const chart = startChart(
+      pineJsFactory(source, 'last_close'),
+      host,
+      runtime,
+    );
+    chart.runHistory();
+    await host.idle();
+    const [label] = mock.live('text');
+    const [line] = mock.live('trend_line');
+    expect(label?.text).toBe('last');
+    expect(label?.points[0]?.time).toBe(sec(29));
+    expect(line?.points.map((p) => p.time)).toEqual([sec(24), sec(29)]);
+  });
+});

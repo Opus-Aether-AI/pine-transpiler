@@ -7,8 +7,12 @@ export declare const DRAWING_EXECUTION_PLOT_ID = "__drawing_execution__";
 export interface ChartDrawingHostOptions {
     /** The widget (anything with `activeChart()`), or a getter for it. */
     widget?: ChartWidgetLike | (() => ChartWidgetLike | null | undefined);
-    /** Alternative to `widget`: return the chart to draw on directly. */
-    getChart?: () => ChartApi | null | undefined;
+    /**
+     * Alternative to `widget`: return the chart an instance draws on.
+     * Multi-chart layouts can route by `instanceId` (see `instances()`);
+     * each instance is pinned to the first chart returned.
+     */
+    getChart?: (instanceId: string) => ChartApi | null | undefined;
     /** Live shapes kept per kind and instance (default 500). */
     maxDrawingsPerKind?: number;
     /** Receives skipped events and chart-call failures. Silent by default. */

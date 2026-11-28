@@ -38,12 +38,21 @@ export class BarTimeline {
   private high = Number.NEGATIVE_INFINITY;
 
   /** Returns what changed, so callers can refresh dependent shapes. */
-  record(bar: BarObservation): { newBar: boolean; extentChanged: boolean } {
+  record(bar: BarObservation): {
+    newBar: boolean;
+    candleChanged: boolean;
+    extentChanged: boolean;
+  } {
     let newBar = false;
+    let candleChanged = false;
     if (Number.isInteger(bar.barIndex) && Number.isFinite(bar.time)) {
       newBar = this.times.get(bar.barIndex) !== bar.time;
       this.times.set(bar.barIndex, bar.time);
       if (typeof bar.high === 'number' && typeof bar.low === 'number') {
+        const previous = this.candles.get(bar.barIndex);
+        candleChanged =
+          previous !== undefined &&
+          (previous.high !== bar.high || previous.low !== bar.low);
         this.candles.set(bar.barIndex, { high: bar.high, low: bar.low });
       }
       if (!(bar.barIndex < this.lastIndex)) {
@@ -63,7 +72,7 @@ export class BarTimeline {
       this.high = bar.high;
       extentChanged = true;
     }
-    return { newBar, extentChanged };
+    return { newBar, candleChanged, extentChanged };
   }
 
   resolve(x: number, xloc: Xloc): ResolvedTime | null {

@@ -34,8 +34,12 @@ import type {
 export type DrawingKind = 'box' | 'line' | 'label' | 'linefill' | 'bgcolor';
 
 export interface VisualEventsRendererOptions {
-  /** Returns the chart to draw on, or null while it is not ready. */
-  getChart: () => ChartApi | null;
+  /**
+   * Returns the chart an indicator instance draws on, or null while it
+   * is not ready. Each instance is pinned to the first chart returned,
+   * so its shapes stay put when the user switches the active chart.
+   */
+  getChart: (instanceId: string) => ChartApi | null;
   /**
    * Live shapes kept per kind and indicator instance; the oldest are
    * removed first, as Pine does with `max_boxes_count` and friends.
@@ -50,6 +54,8 @@ interface Entity {
   kind: DrawingKind;
   /** [primary shape, box text shape]. */
   ids: Array<ChartEntityId | null>;
+  /** The chart holding `ids`; updates and removal always go there. */
+  chart: ChartApi | null;
   created: boolean;
   removed: boolean;
   queued: boolean;
@@ -80,7 +86,12 @@ interface BackgroundRun {
 }
 
 interface InstanceState {
+  id: string;
+  /** Pinned on first use, so shapes never follow another chart. */
+  chart: ChartApi | null;
   timeline: BarTimeline;
+  /** Labels placed with yloc.abovebar / belowbar. */
+  candleLabels: Set<Entity>;
   entities: Map<string, Entity>;
   order: Record<DrawingKind, Set<string>>;
   /** line key → keys of linefills that reference it. */
@@ -111,6 +122,15 @@ function emptyOrder(): Record<DrawingKind, Set<string>> {
   };
 }
 
+/** A coordinate arg; Pine `na` stays NaN until a setter fills it in. */
+function coord(value: unknown): number {
+  return finite(value) ?? Number.NaN;
+}
+
+function isCandleRelative(yloc: string | undefined): boolean {
+  return yloc !== undefined && /above|below/.test(yloc);
+}
+
 function parseXloc(value: unknown): Xloc | null {
   if (value === 'bar_time' || value === 'xloc.bar_time') return 'bar_time';
   if (value === 'bar_index' || value === 'xloc.bar_index') return 'bar_index';
@@ -136,7 +156,7 @@ function valueArgs(event: VisualEvent): unknown[] {
  * 300 historical bars therefore costs one create, not 300 updates.
  */
 export class VisualEventsRenderer {
-  private readonly getChart: () => ChartApi | null;
+  private readonly getChart: (instanceId: string) => ChartApi | null;
   private readonly maxPerKind: number;
   private readonly onDiagnostic?: (diagnostic: HostDiagnostic) => void;
   private readonly instances = new Map<string, InstanceState>();
@@ -159,6 +179,15 @@ export class VisualEventsRenderer {
     if (bar) {
       const change = instance.timeline.record(bar);
       if (change.newBar) this.retry(instance);
+      if (change.candleChanged) {
+        // A realtime tick moved this candle's high or low.
+        for (const label of instance.candleLabels) {
+          const point = label.points[0];
+          if (point?.xloc === 'bar_index' && point.x === bar.barIndex) {
+            this.touchPoints(label, instance);
+          }
+        }
+      }
       if (change.extentChanged) {
         for (const key of instance.order.bgcolor) {
           this.touchPoints(instance.entities.get(key), instance);
@@ -296,7 +325,7 @@ export class VisualEventsRenderer {
             ? this.newLabel(key, args)
             : this.newLinefill(instance, key, args);
     if (!entity) {
-      this.report('warn', `${ns}.new skipped: missing coordinates`, {
+      this.report('warn', `${ns}.new skipped: unusable xloc or lines`, {
         key,
       });
       return;
@@ -306,6 +335,7 @@ export class VisualEventsRenderer {
 
   private track(instance: InstanceState, entity: Entity): void {
     instance.entities.set(entity.key, entity);
+    if (isCandleRelative(entity.yloc)) instance.candleLabels.add(entity);
     const order = instance.order[entity.kind];
     order.add(entity.key);
     if (entity.lines) {
@@ -327,6 +357,7 @@ export class VisualEventsRenderer {
     instance.entities.delete(entity.key);
     instance.order[entity.kind].delete(entity.key);
     instance.retry.delete(entity);
+    instance.candleLabels.delete(entity);
     if (entity.lines) {
       for (const line of entity.lines) {
         instance.fillsByLine.get(line)?.delete(entity.key);
@@ -354,6 +385,7 @@ export class VisualEventsRenderer {
       key,
       kind,
       ids: [null, null],
+      chart: null,
       created: false,
       removed: false,
       queued: false,
@@ -372,11 +404,8 @@ export class VisualEventsRenderer {
 
   /** box.new: 0 left, 1 top, 2 right, 3 bottom, 4 border_color, … */
   private newBox(key: string, args: unknown[]): Entity | null {
-    const [left, top, right, bottom] = [0, 1, 2, 3].map((i) => finite(args[i]));
+    const [left, top, right, bottom] = [0, 1, 2, 3].map((i) => coord(args[i]));
     const xloc = parseXloc(args[8]);
-    if (left === null || top === null || right === null || bottom === null) {
-      return null;
-    }
     if (!xloc) return null;
     const entity = this.blank(key, 'box', [
       { x: left, xloc, price: top },
@@ -406,9 +435,8 @@ export class VisualEventsRenderer {
 
   /** line.new: 0 x1, 1 y1, 2 x2, 3 y2, 4 xloc, 5 extend, 6 color, … */
   private newLine(key: string, args: unknown[]): Entity | null {
-    const [x1, y1, x2, y2] = [0, 1, 2, 3].map((i) => finite(args[i]));
+    const [x1, y1, x2, y2] = [0, 1, 2, 3].map((i) => coord(args[i]));
     const xloc = parseXloc(args[4]);
-    if (x1 === null || y1 === null || x2 === null || y2 === null) return null;
     if (!xloc) return null;
     const entity = this.blank(key, 'line', [
       { x: x1, xloc, price: y1 },
@@ -425,17 +453,12 @@ export class VisualEventsRenderer {
 
   /** label.new: 0 x, 1 y, 2 text, 3 xloc, 4 yloc, 5 color, 6 style, … */
   private newLabel(key: string, args: unknown[]): Entity | null {
-    const x = finite(args[0]);
-    const y = finite(args[1]);
     const xloc = parseXloc(args[3]);
-    const yloc = typeof args[4] === 'string' ? args[4] : undefined;
-    const barRelative = /above|below/.test(yloc ?? '');
-    if (x === null || (y === null && !barRelative) || !xloc) {
-      return null;
-    }
+    if (!xloc) return null;
     const entity = this.blank(key, 'label', [
-      { x, xloc, price: y ?? Number.NaN },
+      { x: coord(args[0]), xloc, price: coord(args[1]) },
     ]);
+    const yloc = typeof args[4] === 'string' ? args[4] : undefined;
     entity.yloc = yloc;
     entity.text = text(args[2]) ?? '';
     entity.labelStyle = args[6];
@@ -671,6 +694,8 @@ export class VisualEventsRenderer {
       }
       case 'set_yloc':
         entity.yloc = typeof args[0] === 'string' ? args[0] : undefined;
+        if (isCandleRelative(entity.yloc)) instance.candleLabels.add(entity);
+        else instance.candleLabels.delete(entity);
         this.touchPoints(entity, instance);
         return;
       case 'set_text':
@@ -817,7 +842,7 @@ export class VisualEventsRenderer {
   private async flush(instance: InstanceState, entity: Entity): Promise<void> {
     entity.queued = false;
     if (entity.removed) return;
-    const chart = this.getChart();
+    const chart = entity.chart ?? this.chartFor(instance);
     if (!chart) {
       instance.retry.add(entity);
       return;
@@ -831,6 +856,7 @@ export class VisualEventsRenderer {
       const id = await this.createShape(chart, entity, geometry);
       if (!id) return;
       entity.ids[0] = id;
+      entity.chart = chart;
       entity.created = true;
       await this.syncBoxText(chart, entity, geometry, true);
       return;
@@ -856,6 +882,7 @@ export class VisualEventsRenderer {
       // The shape is gone from the chart (removed outside the
       // renderer). Forget it; the next change draws it again.
       entity.ids = [null, null];
+      entity.chart = null;
       entity.created = false;
       this.report('warn', `lost chart shape for ${entity.key}`, {
         error: error instanceof Error ? error.message : String(error),
@@ -972,10 +999,10 @@ export class VisualEventsRenderer {
 
   private async removeShapes(entity: Entity): Promise<void> {
     const ids = entity.ids.filter((id): id is ChartEntityId => Boolean(id));
+    const chart = entity.chart;
     entity.ids = [null, null];
-    if (ids.length === 0) return;
-    const chart = this.getChart();
-    if (!chart) return;
+    entity.chart = null;
+    if (ids.length === 0 || !chart) return;
     for (const id of ids) {
       try {
         chart.removeEntity(id);
@@ -983,6 +1010,11 @@ export class VisualEventsRenderer {
         // Already gone, e.g. removed together with its study.
       }
     }
+  }
+
+  private chartFor(instance: InstanceState): ChartApi | null {
+    if (!instance.chart) instance.chart = this.getChart(instance.id) ?? null;
+    return instance.chart;
   }
 
   // ── Geometry ────────────────────────────────────────────────────────
@@ -998,6 +1030,8 @@ export class VisualEventsRenderer {
   ): ChartShapePoint[] | null {
     const state = { provisional: false };
     const resolve = (point: RawPoint): ChartShapePoint | null => {
+      // `na` coordinates wait for a setter, not for the next candle.
+      if (!Number.isFinite(point.x)) return null;
       const resolved = instance.timeline.resolve(point.x, point.xloc);
       if (!resolved) {
         state.provisional = true;
@@ -1005,10 +1039,10 @@ export class VisualEventsRenderer {
       }
       if (resolved.provisional) state.provisional = true;
       let price = point.price;
-      const yloc = entity.kind === 'label' ? (entity.yloc ?? '') : '';
-      if (yloc.includes('above') || yloc.includes('below')) {
+      if (entity.kind === 'label' && isCandleRelative(entity.yloc)) {
         const candle = instance.timeline.candle(point.x, point.xloc);
-        if (candle) price = yloc.includes('above') ? candle.high : candle.low;
+        const above = entity.yloc?.includes('above');
+        if (candle) price = above ? candle.high : candle.low;
       }
       return Number.isFinite(price) ? { time: resolved.time, price } : null;
     };
@@ -1074,6 +1108,9 @@ export class VisualEventsRenderer {
     let instance = this.instances.get(id);
     if (!instance) {
       instance = {
+        id,
+        chart: null,
+        candleLabels: new Set(),
         timeline: new BarTimeline(),
         entities: new Map(),
         order: emptyOrder(),

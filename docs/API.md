@@ -173,7 +173,7 @@ import {
 } from '@opus-aether-ai/pine-transpiler/tv-host';
 
 const host: ChartDrawingHost = createChartDrawingHost({
-  widget: () => widget,          // or getChart: () => widget.activeChart()
+  widget: () => widget,          // or getChart: (instanceId) => widget.activeChart()
   maxDrawingsPerKind: 500,       // default
   onDiagnostic: (d) => console.debug(d.message, d.detail),
 });
